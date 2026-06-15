@@ -290,6 +290,10 @@ export default function ShopDisplayLayout() {
   const queryClient = useQueryClient();
   const [syncing, setSyncing] = useState(false);
   const [lastSyncedAt, setLastSyncedAt] = useState<Date | null>(null);
+  // Gate: holds the Tabs from rendering until AsyncStorage cache is seeded into
+  // QueryClient, so POS useQuery hooks see cached data on their first execution
+  // and staleTime:Infinity suppresses the network fetch.
+  const [cacheSeeded, setCacheSeeded] = useState(false);
 
   // ── Display lock ─────────────────────────────────────────────────────────────
   const [lockPin, setLockPin] = useState<string | null>(null);
@@ -308,9 +312,8 @@ export default function ShopDisplayLayout() {
     getPosLastSyncedAt().then(d => setLastSyncedAt(d));
   }, []);
 
-  // Seed QueryClient from AsyncStorage before POS screen first mounts.
-  // This eliminates the blank flash on every mount — data is in-memory before
-  // the POS useQuery hooks execute, so staleTime:Infinity prevents any fetch.
+  // Seed QueryClient from AsyncStorage BEFORE Tabs render so POS useQuery hooks
+  // see cached data on their very first execution. cacheSeeded gates the Tabs.
   useEffect(() => {
     Promise.all([
       loadCachedPosProducts(),
@@ -322,7 +325,8 @@ export default function ShopDisplayLayout() {
       if (storeConfig)       queryClient.setQueryData(['pos-store-settings'], storeConfig);
       if (surcharges)        queryClient.setQueryData(['pos-surcharges'], { data: surcharges });
       if (loyaltyConfig)     queryClient.setQueryData(['pos-loyalty-config'], { data: loyaltyConfig });
-    });
+      setCacheSeeded(true);
+    }).catch(() => setCacheSeeded(true)); // always unblock even if AsyncStorage fails
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Load lock PIN on mount — lock immediately if PIN is set
@@ -411,10 +415,12 @@ export default function ShopDisplayLayout() {
       // Clear persisted + in-memory detail cache so stale variants don't survive a sync
       await clearDetailCache();
       queryClient.setQueryData<number>(['pos-cache-clear-signal'], Date.now());
-      await queryClient.refetchQueries({ queryKey: ['pos-products'] });
-      await queryClient.refetchQueries({ queryKey: ['pos-store-settings'] });
-      await queryClient.refetchQueries({ queryKey: ['pos-surcharges'] });
-      await queryClient.refetchQueries({ queryKey: ['pos-loyalty-config'] });
+      // type:'all' ensures inactive (unmounted) queries are also refreshed — critical
+      // for the 4am auto-sync where the POS screen may not currently be open.
+      await queryClient.refetchQueries({ queryKey: ['pos-products'],       type: 'all' });
+      await queryClient.refetchQueries({ queryKey: ['pos-store-settings'], type: 'all' });
+      await queryClient.refetchQueries({ queryKey: ['pos-surcharges'],     type: 'all' });
+      await queryClient.refetchQueries({ queryKey: ['pos-loyalty-config'], type: 'all' });
       const d = await getPosLastSyncedAt();
       setLastSyncedAt(d ?? new Date());
     } finally {
@@ -440,6 +446,9 @@ export default function ShopDisplayLayout() {
 
   if (!user) return <Redirect href="/(auth)/login" />;
   if (user.role !== 'shop_display') return <Redirect href={getHomeRouteForRole(user.role)} />;
+  // Hold the Tabs (and POS useQuery hooks) until the AsyncStorage seed is done.
+  // AsyncStorage reads are typically <20 ms, so this is imperceptible.
+  if (!cacheSeeded) return <View style={{ flex: 1, backgroundColor: '#F8FAFF' }} />;
 
   const activeSegment = pathname.split('/').filter(Boolean).pop() ?? '';
   const isActive = (segment: string) =>

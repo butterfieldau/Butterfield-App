@@ -428,13 +428,15 @@ function PosScreenInner() {
       // Clear persisted + in-memory detail cache so variants re-fetch fresh
       await clearDetailCache();
       setDetailCache({});
+      // type:'all' refetches both active and inactive (unmounted) queries so
+      // data is fresh even when some panes are not currently visible.
       await Promise.all([
         refetchProducts(),
         refetchSummary(),
         refetchRegister(),
-        queryClient.refetchQueries({ queryKey: ['pos-store-settings'] }),
-        queryClient.refetchQueries({ queryKey: ['pos-surcharges'] }),
-        queryClient.refetchQueries({ queryKey: ['pos-loyalty-config'] }),
+        queryClient.refetchQueries({ queryKey: ['pos-store-settings'], type: 'all' }),
+        queryClient.refetchQueries({ queryKey: ['pos-surcharges'],     type: 'all' }),
+        queryClient.refetchQueries({ queryKey: ['pos-loyalty-config'], type: 'all' }),
       ]);
       getPosLastSyncedAt().then(d => setLastSyncedAt(d ?? new Date()));
     } finally {
@@ -2386,7 +2388,7 @@ function PaymentModal({
     queryFn: async () => {
       const res = await api.pos.surcharges();
       const rows = (res as any)?.data ?? [];
-      if (rows.length) saveSurchargesCache(rows);
+      saveSurchargesCache(rows); // always persist — mirrors server truth, even if []
       return res;
     },
     staleTime: Infinity,   // never auto-refetch; only syncs on demand
@@ -4122,7 +4124,7 @@ function RegisterModal({
     queryFn: async () => {
       const res = await api.pos.surcharges();
       const rows = (res as any)?.data ?? [];
-      if (rows.length) saveSurchargesCache(rows);
+      saveSurchargesCache(rows); // always persist — mirrors server truth, even if []
       return res;
     },
     staleTime: Infinity,   // never auto-refetch; only syncs on demand
