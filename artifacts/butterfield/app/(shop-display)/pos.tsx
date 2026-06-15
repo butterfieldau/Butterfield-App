@@ -4529,42 +4529,34 @@ function RegisterModal({
                 <>
                   {/* ── Compact 2-column denomination grid ────────────────── */}
                   <View style={styles.denomGrid}>
-                    {AUD_DENOMS.map(d => {
-                      const qty = parseInt(denomCounts[d.cents] ?? '0', 10);
-                      const safeQty = isNaN(qty) || qty < 0 ? 0 : qty;
-                      const subtotal = safeQty * d.cents;
-                      return (
-                        <View key={d.cents} style={styles.denomCell}>
-                          <Text style={styles.denomCellLabel}>{d.label}</Text>
-                          <Pressable
-                            onPress={() => setDenomCounts(p => ({ ...p, [d.cents]: String(Math.max(0, (parseInt(p[d.cents] ?? '0', 10) || 0) - 1)) }))}
-                            style={styles.denomCellBtn}
-                            hitSlop={6}
-                          >
-                            <Feather name="minus" size={12} color={MID} />
-                          </Pressable>
-                          <TextInput
-                            style={styles.denomCellInput}
-                            keyboardType="number-pad"
-                            value={denomCounts[d.cents] ?? ''}
-                            placeholder="0"
-                            placeholderTextColor={MUTED}
-                            onChangeText={v => setDenomCounts(p => ({ ...p, [d.cents]: v.replace(/[^0-9]/g, '') }))}
-                            selectTextOnFocus
-                          />
-                          <Pressable
-                            onPress={() => setDenomCounts(p => ({ ...p, [d.cents]: String((parseInt(p[d.cents] ?? '0', 10) || 0) + 1) }))}
-                            style={styles.denomCellBtn}
-                            hitSlop={6}
-                          >
-                            <Feather name="plus" size={12} color={MID} />
-                          </Pressable>
-                          <Text style={styles.denomCellSub} numberOfLines={1}>
-                            {subtotal > 0 ? fmtCents(subtotal) : ''}
-                          </Text>
-                        </View>
-                      );
-                    })}
+                    {AUD_DENOMS.map(d => (
+                      <View key={d.cents} style={styles.denomCell}>
+                        <Text style={styles.denomCellLabel}>{d.label}</Text>
+                        <Pressable
+                          onPress={() => setDenomCounts(p => ({ ...p, [d.cents]: String(Math.max(0, (parseInt(p[d.cents] ?? '0', 10) || 0) - 1)) }))}
+                          style={styles.denomCellBtn}
+                          hitSlop={8}
+                        >
+                          <Feather name="minus" size={14} color={MID} />
+                        </Pressable>
+                        <TextInput
+                          style={styles.denomCellInput}
+                          keyboardType="number-pad"
+                          value={denomCounts[d.cents] ?? ''}
+                          placeholder="0"
+                          placeholderTextColor={MUTED}
+                          onChangeText={v => setDenomCounts(p => ({ ...p, [d.cents]: v.replace(/[^0-9]/g, '') }))}
+                          selectTextOnFocus
+                        />
+                        <Pressable
+                          onPress={() => setDenomCounts(p => ({ ...p, [d.cents]: String((parseInt(p[d.cents] ?? '0', 10) || 0) + 1) }))}
+                          style={styles.denomCellBtn}
+                          hitSlop={8}
+                        >
+                          <Feather name="plus" size={14} color={MID} />
+                        </Pressable>
+                      </View>
+                    ))}
                   </View>
 
                   {/* ── Compact horizontal summary ─────────────────────────── */}
@@ -5440,12 +5432,11 @@ const styles = StyleSheet.create({
   registerMovementTitle: { fontSize: 13, fontWeight: '700', color: DARK },
   registerMovementMeta: { fontSize: 12, color: MUTED, marginTop: 3 },
   registerVarianceRow:{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10 },
-  denomGrid:          { flexDirection: 'row', flexWrap: 'wrap', columnGap: 6, rowGap: 0, marginBottom: 8 },
-  denomCell:          { width: '49%', flexDirection: 'row', alignItems: 'center', gap: 5, paddingVertical: 5, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: BORDER },
-  denomCellLabel:     { width: 38, fontSize: 13, fontWeight: '700', color: DARK },
-  denomCellBtn:       { width: 26, height: 26, borderRadius: 8, backgroundColor: '#F1F5F9', borderWidth: 1, borderColor: BORDER, alignItems: 'center', justifyContent: 'center' },
-  denomCellInput:     { width: 34, height: 28, borderWidth: 1, borderColor: BORDER, borderRadius: 8, backgroundColor: WHITE, textAlign: 'center', fontSize: 14, fontWeight: '700', color: DARK },
-  denomCellSub:       { flex: 1, fontSize: 11, color: MID, textAlign: 'right' },
+  denomGrid:          { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 10 },
+  denomCell:          { width: '48%', flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 9, paddingHorizontal: 10, backgroundColor: '#F8FAFC', borderRadius: 10, borderWidth: 1, borderColor: BORDER },
+  denomCellLabel:     { width: 38, fontSize: 14, fontWeight: '700', color: DARK },
+  denomCellBtn:       { width: 32, height: 32, borderRadius: 8, backgroundColor: WHITE, borderWidth: 1, borderColor: BORDER, alignItems: 'center', justifyContent: 'center' },
+  denomCellInput:     { flex: 1, height: 34, borderWidth: 1, borderColor: BORDER, borderRadius: 8, backgroundColor: WHITE, textAlign: 'center', fontSize: 16, fontWeight: '700', color: DARK },
   denomSummaryRow:    { flexDirection: 'row', backgroundColor: '#F8FAFC', borderRadius: 10, padding: 10, borderWidth: 1, borderColor: BORDER, marginBottom: 6 },
   denomSummaryItem:   { flex: 1, alignItems: 'center', gap: 2 },
   denomSummarySep:    { width: 1, backgroundColor: BORDER, alignSelf: 'stretch', marginHorizontal: 4 },
