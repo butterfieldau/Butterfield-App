@@ -1,7 +1,10 @@
 #!/bin/bash
 set -e
 pnpm install --frozen-lockfile
-# The --force flag suppresses data-loss prompts; pipe a newline as a
-# safety fallback in case drizzle-kit still shows an interactive picker
-# (e.g. unique-constraint on non-empty table) so the script never hangs.
-printf '\n' | pnpm --filter @workspace/db run push-force || true
+# drizzle-kit push --force skips destructive-statement warnings but still
+# shows an interactive prompt when adding a unique constraint to a non-empty
+# table:
+#   ❯ No, add the constraint without truncating  (default — just press Enter)
+#     Yes, truncate the table
+# Send enough newlines to accept the default on every such prompt.
+printf '\n\n\n\n\n' | pnpm --filter @workspace/db run push-force || true
