@@ -70,7 +70,7 @@ function resolveDirectorPermission(method: string, path: string): ManagerPermiss
   if (path === '/shop-displays' || path.startsWith('/shop-displays/')) return 'director_only';
 
   // Dashboard stats + activity feed
-  if (path === '/stats' || path === '/stats/revenue' || path === '/sessions') return 'dashboard';
+  if (path === '/stats' || path === '/stats/revenue' || path === '/stats/hourly-revenue' || path === '/stats/top-products' || path === '/sessions') return 'dashboard';
   if (path === '/activity') return 'dashboard';
   // Deleted accounts — director/master only
   if (path.startsWith('/deleted-accounts')) return 'director_only';
@@ -147,6 +147,22 @@ router.get('/stats', async (req, res) => {
   const longShiftCutoff = new Date(now.getTime() - 10 * 60 * 60 * 1000);
   const todayMMDD = `${String(sydneyNow.getMonth() + 1).padStart(2,'0')}-${String(sydneyNow.getDate()).padStart(2,'0')}`;
 
+  // ── Trend date ranges ────────────────────────────────────────────────────
+  const startOfSameDayLastWeek = new Date(startOfToday.getTime() - 7 * 24 * 60 * 60 * 1000);
+  // Like-for-like: same elapsed time last week (not the full day)
+  const sameDayLastWeekAtNow   = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+  const startOfLastWeekMonday  = new Date(startOfWeekMonday.getTime() - 7 * 24 * 60 * 60 * 1000);
+  // Like-for-like: same number of days elapsed into last week
+  const endOfLastWeekAtSamePoint = new Date(startOfLastWeekMonday.getTime() + (now.getTime() - startOfWeekMonday.getTime()));
+  const startOfLastMonth       = new Date(new Date(sydneyNow.getFullYear(), sydneyNow.getMonth() - 1, 1).getTime() - sydneyOffsetMs);
+  // Like-for-like: same number of days elapsed into last month
+  const endOfLastMonthAtSamePoint = new Date(startOfLastMonth.getTime() + (now.getTime() - startOfMonth.getTime()));
+  const currentSydneyHour      = sydneyNow.getHours();
+  // Last-Monday window (for daily-pace comparison)
+  const lastMondayStart        = new Date(startOfWeekMonday.getTime() - 7 * 24 * 60 * 60 * 1000);
+  const lastMondayAtThisHour   = new Date(lastMondayStart.getTime() + (currentSydneyHour + 1) * 60 * 60 * 1000);
+  const lastMondayEnd          = new Date(lastMondayStart.getTime() + 24 * 60 * 60 * 1000);
+
   const [
     [totalOrders], [todayOrders], [weekOrders],
     [todayRev], [weekRev], [monthRev],
@@ -159,12 +175,20 @@ router.get('/stats', async (req, res) => {
     [pendingLeave],
     [unreadFeedback],
     [openTasks],
+    // Trend & AOV queries
+    [sameDayLastWeekRev],
+    [lastWeekTotalRev],
+    [lastMonthTotalRev],
+    [todayNonCancelledCount],
+    [sameDayLastWeekCount],
+    [lastMondayRevAtHour],
+    [lastMondayFullRev],
   ] = await Promise.all([
     db.select({ count: count() }).from(ordersTable),
     db.select({ count: count() }).from(ordersTable).where(gte(ordersTable.createdAt, startOfToday)),
     db.select({ count: count() }).from(ordersTable).where(gte(ordersTable.createdAt, startOfWeek)),
     db.select({ total: sum(ordersTable.totalCents) }).from(ordersTable).where(and(gte(ordersTable.createdAt, startOfToday), sql`${ordersTable.status} NOT IN ('cancelled','refunded')`)),
-    db.select({ total: sum(ordersTable.totalCents) }).from(ordersTable).where(and(gte(ordersTable.createdAt, startOfWeek),  sql`${ordersTable.status} NOT IN ('cancelled','refunded')`)),
+    db.select({ total: sum(ordersTable.totalCents) }).from(ordersTable).where(and(gte(ordersTable.createdAt, startOfWeekMonday), sql`${ordersTable.status} NOT IN ('cancelled','refunded')`)),
     db.select({ total: sum(ordersTable.totalCents) }).from(ordersTable).where(and(gte(ordersTable.createdAt, startOfMonth), sql`${ordersTable.status} NOT IN ('cancelled','refunded')`)),
     db.select({ count: count() }).from(ordersTable).where(sql`${ordersTable.status} IN ('received','being_prepared','ready_for_pickup')`),
     db.select({ count: count() }).from(wholesaleOrdersTable).where(sql`${wholesaleOrdersTable.status} IN ('pending','confirmed','processing')`),
@@ -186,6 +210,20 @@ router.get('/stats', async (req, res) => {
     db.select({ count: count() }).from(staffLeaveRequestsTable).where(eq(staffLeaveRequestsTable.status, 'pending')),
     db.select({ count: count() }).from(feedbackTable).where(eq(feedbackTable.isRead, false)),
     db.select({ count: count() }).from(staffTasksTable).where(eq(staffTasksTable.isCompleted, false)),
+    // Same weekday last week up to the same elapsed time today (like-for-like)
+    db.select({ total: sum(ordersTable.totalCents) }).from(ordersTable).where(and(gte(ordersTable.createdAt, startOfSameDayLastWeek), lt(ordersTable.createdAt, sameDayLastWeekAtNow), sql`${ordersTable.status} NOT IN ('cancelled','refunded')`)),
+    // Prior week-to-date: same days elapsed into last week (like-for-like)
+    db.select({ total: sum(ordersTable.totalCents) }).from(ordersTable).where(and(gte(ordersTable.createdAt, startOfLastWeekMonday), lt(ordersTable.createdAt, endOfLastWeekAtSamePoint), sql`${ordersTable.status} NOT IN ('cancelled','refunded')`)),
+    // Prior month-to-date: same days elapsed into last month (like-for-like)
+    db.select({ total: sum(ordersTable.totalCents) }).from(ordersTable).where(and(gte(ordersTable.createdAt, startOfLastMonth), lt(ordersTable.createdAt, endOfLastMonthAtSamePoint), sql`${ordersTable.status} NOT IN ('cancelled','refunded')`)),
+    // Today non-cancelled order count (for AOV)
+    db.select({ count: count() }).from(ordersTable).where(and(gte(ordersTable.createdAt, startOfToday), sql`${ordersTable.status} NOT IN ('cancelled','refunded')`)),
+    // Same day last week order count up to same elapsed time (for AOV delta)
+    db.select({ count: count() }).from(ordersTable).where(and(gte(ordersTable.createdAt, startOfSameDayLastWeek), lt(ordersTable.createdAt, sameDayLastWeekAtNow), sql`${ordersTable.status} NOT IN ('cancelled','refunded')`)),
+    // Last Monday revenue up to current hour (for daily pace)
+    db.select({ total: sum(ordersTable.totalCents) }).from(ordersTable).where(and(gte(ordersTable.createdAt, lastMondayStart), lt(ordersTable.createdAt, lastMondayAtThisHour), sql`${ordersTable.status} NOT IN ('cancelled','refunded')`)),
+    // Last Monday full-day revenue (for EOD projection)
+    db.select({ total: sum(ordersTable.totalCents) }).from(ordersTable).where(and(gte(ordersTable.createdAt, lastMondayStart), lt(ordersTable.createdAt, lastMondayEnd), sql`${ordersTable.status} NOT IN ('cancelled','refunded')`)),
   ]);
 
   const weekShifts = await db.select({
@@ -221,6 +259,68 @@ router.get('/stats', async (req, res) => {
     birthdayCount = bday.count;
   } catch {}
 
+  // ── New vs returning customers today ─────────────────────────────────────
+  let newCustomersToday = 0;
+  let returningCustomersToday = 0;
+  try {
+    const custResult = await db.execute(sql`
+      WITH today_customers AS (
+        SELECT DISTINCT user_id FROM orders
+        WHERE created_at >= ${startOfToday}
+          AND status NOT IN ('cancelled','refunded')
+          AND user_id IS NOT NULL
+      ),
+      prior_customers AS (
+        SELECT DISTINCT user_id FROM orders
+        WHERE created_at < ${startOfToday}
+          AND status NOT IN ('cancelled','refunded')
+          AND user_id IS NOT NULL
+      )
+      SELECT
+        COUNT(*)::int AS total_today,
+        COUNT(pc.user_id)::int AS returning_count
+      FROM today_customers tc
+      LEFT JOIN prior_customers pc ON pc.user_id = tc.user_id
+    `);
+    const cRows = ((custResult as any).rows ?? []) as Array<{ total_today: number; returning_count: number }>;
+    const cRow = cRows[0];
+    if (cRow) {
+      const total = Number(cRow.total_today);
+      const returning = Number(cRow.returning_count);
+      returningCustomersToday = returning;
+      newCustomersToday = total - returning;
+    }
+  } catch {}
+
+  // ── Trend delta helpers ───────────────────────────────────────────────────
+  function deltaPct(current: number, previous: number): number | null {
+    if (previous === 0) return current > 0 ? 100 : null;
+    return Math.round(((current - previous) / previous) * 100);
+  }
+
+  const todayRevNum          = Number(todayRev.total ?? 0);
+  const weekRevNum           = Number(weekRev.total ?? 0);
+  const monthRevNum          = Number(monthRev.total ?? 0);
+  const sameDayLastWeekNum   = Number(sameDayLastWeekRev.total ?? 0);
+  const lastWeekTotalNum     = Number(lastWeekTotalRev.total ?? 0);
+  const lastMonthTotalNum    = Number(lastMonthTotalRev.total ?? 0);
+  const lastMondayAtHourNum  = Number(lastMondayRevAtHour.total ?? 0);
+  const lastMondayFullNum    = Number(lastMondayFullRev.total ?? 0);
+
+  // AOV
+  const todayOrderCnt        = Number(todayNonCancelledCount.count ?? 0);
+  const sameDayLastWeekCnt   = Number(sameDayLastWeekCount.count ?? 0);
+  const aovTodayCents        = todayOrderCnt > 0 ? Math.round(todayRevNum / todayOrderCnt) : 0;
+  const aovLastWeekCents     = sameDayLastWeekCnt > 0 ? Math.round(sameDayLastWeekNum / sameDayLastWeekCnt) : 0;
+
+  // Daily pace: how today's revenue compares to last Monday at this same hour
+  const dailyPacePct         = lastMondayAtHourNum > 0 ? Math.round((todayRevNum / lastMondayAtHourNum) * 100) : null;
+  // Projected EOD = scale today's revenue by last Monday's intraday-vs-fullday ratio
+  let projectedEodCents: number | null = null;
+  if (lastMondayAtHourNum > 0 && lastMondayFullNum > 0 && todayRevNum > 0) {
+    projectedEodCents = Math.round(todayRevNum * (lastMondayFullNum / lastMondayAtHourNum));
+  }
+
   return res.json({
     data: {
       orders: {
@@ -231,9 +331,18 @@ router.get('/stats', async (req, res) => {
         wholesaleNew: wholesaleOrders.count,
       },
       revenue: {
-        today: Number(todayRev.total  ?? 0),
-        week:  Number(weekRev.total   ?? 0),
-        month: Number(monthRev.total  ?? 0),
+        today: todayRevNum,
+        week:  weekRevNum,
+        month: monthRevNum,
+        todayDeltaPct:     deltaPct(todayRevNum, sameDayLastWeekNum),
+        weekDeltaPct:      deltaPct(weekRevNum, lastWeekTotalNum),
+        monthDeltaPct:     deltaPct(monthRevNum, lastMonthTotalNum),
+        aovTodayCents,
+        aovDeltaPct:       deltaPct(aovTodayCents, aovLastWeekCents),
+        newCustomersToday,
+        returningCustomersToday,
+        dailyPacePct,
+        projectedEodCents,
       },
       staff: {
         clockedIn:  clockedIn.count,
@@ -271,6 +380,81 @@ router.get('/stats', async (req, res) => {
       },
     },
   });
+});
+
+// ── Hourly revenue (today, Sydney time) ──────────────────────────────────────
+router.get('/stats/hourly-revenue', async (req, res) => {
+  try {
+    const now        = new Date();
+    const sydneyNow  = new Date(now.toLocaleString('en-US', { timeZone: 'Australia/Sydney' }));
+    const sydneyOff  = sydneyNow.getTime() - now.getTime();
+    const startOfDay = new Date(new Date(sydneyNow.getFullYear(), sydneyNow.getMonth(), sydneyNow.getDate()).getTime() - sydneyOff);
+    const endOfDay   = new Date(startOfDay.getTime() + 24 * 60 * 60 * 1000);
+
+    const result = await db.execute(sql`
+      SELECT
+        EXTRACT(HOUR FROM created_at AT TIME ZONE 'Australia/Sydney')::int AS hour,
+        COALESCE(SUM(total_cents), 0)::bigint AS revenue_cents
+      FROM orders
+      WHERE created_at >= ${startOfDay}
+        AND created_at  < ${endOfDay}
+        AND status NOT IN ('cancelled','refunded')
+      GROUP BY hour
+      ORDER BY hour
+    `);
+
+    const rows    = ((result as any).rows ?? []) as Array<{ hour: number; revenue_cents: string | number }>;
+    const hourMap = Object.fromEntries(rows.map(r => [Number(r.hour), Number(r.revenue_cents)]));
+    const hours   = Array.from({ length: 24 }, (_, h) => ({ hour: h, revenueCents: hourMap[h] ?? 0 }));
+
+    return res.json({ data: hours });
+  } catch (e) {
+    req.log.error(e, 'hourly-revenue error');
+    return res.status(500).json({ error: 'Failed to load hourly revenue' });
+  }
+});
+
+// ── Top products today ────────────────────────────────────────────────────────
+router.get('/stats/top-products', async (req, res) => {
+  try {
+    const now        = new Date();
+    const sydneyNow  = new Date(now.toLocaleString('en-US', { timeZone: 'Australia/Sydney' }));
+    const sydneyOff  = sydneyNow.getTime() - now.getTime();
+    const startOfDay = new Date(new Date(sydneyNow.getFullYear(), sydneyNow.getMonth(), sydneyNow.getDate()).getTime() - sydneyOff);
+    const endOfDay   = new Date(startOfDay.getTime() + 24 * 60 * 60 * 1000);
+
+    const result = await db.execute(sql`
+      SELECT
+        COALESCE(NULLIF(item->>'productId',''), NULLIF(item->>'id',''),
+                 COALESCE(NULLIF(item->>'productName',''), item->>'name', 'Unknown')) AS product_key,
+        COALESCE(NULLIF(item->>'productName',''), item->>'name', 'Unknown')           AS name,
+        SUM(COALESCE(NULLIF(item->>'quantity','')::int, 1))                           AS units,
+        SUM(COALESCE(NULLIF(item->>'totalPriceCents','')::bigint,
+                     NULLIF(item->>'unitPriceCents','')::bigint *
+                       COALESCE(NULLIF(item->>'quantity','')::int, 1), 0))            AS revenue_cents
+      FROM orders,
+        jsonb_array_elements(items) AS item
+      WHERE created_at >= ${startOfDay}
+        AND created_at  < ${endOfDay}
+        AND status NOT IN ('cancelled','refunded')
+        AND jsonb_typeof(items) = 'array'
+      GROUP BY product_key, name
+      ORDER BY units DESC
+      LIMIT 3
+    `);
+
+    const rows = ((result as any).rows ?? []) as Array<{ name: string; units: string | number; revenue_cents: string | number }>;
+    return res.json({
+      data: rows.map(r => ({
+        name:         r.name,
+        units:        Number(r.units),
+        revenueCents: Number(r.revenue_cents),
+      })),
+    });
+  } catch (e) {
+    req.log.error(e, 'top-products error');
+    return res.status(500).json({ error: 'Failed to load top products' });
+  }
 });
 
 // ── Activity log ─────────────────────────────────────────────────────────────

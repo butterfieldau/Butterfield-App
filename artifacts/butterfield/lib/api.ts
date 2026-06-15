@@ -461,6 +461,8 @@ export const api = {
   director: {
     verifySettingsPin:   (pin: string) => request<{ granted: boolean }>('/director/verify-settings-pin', { method: 'POST', body: JSON.stringify({ pin }) }),
     stats:               () => request<{ data: DirectorStats }>('/director/stats'),
+    hourlyRevenue:       () => request<{ data: DirectorHourlyRevenue[] }>('/director/stats/hourly-revenue'),
+    topProducts:         () => request<{ data: DirectorTopProduct[] }>('/director/stats/top-products'),
     activity:            () => request<{ data: DirectorActivityItem[] }>('/director/activity'),
     sessions:            () => request<{ data: { today: {hour:number;count:number}[]; lastWeek: {hour:number;count:number}[]; totalToday: number; totalLastWeek: number; pctChange: number|null; liveCount: number } }>('/director/sessions'),
     revenue:             (from: string, to: string) => request<{ data: { total: number; from: string; to: string } }>(`/director/stats/revenue?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`),
@@ -2571,7 +2573,20 @@ export interface StoreHour {
 }
 
 export interface DirectorStats {
-  revenue: { today: number; week: number; month: number };
+  revenue: {
+    today: number;
+    week: number;
+    month: number;
+    todayDeltaPct?: number | null;
+    weekDeltaPct?: number | null;
+    monthDeltaPct?: number | null;
+    aovTodayCents?: number;
+    aovDeltaPct?: number | null;
+    newCustomersToday?: number;
+    returningCustomersToday?: number;
+    dailyPacePct?: number | null;
+    projectedEodCents?: number | null;
+  };
   orders: {
     today: number;
     active: number;
@@ -2608,6 +2623,17 @@ export interface DirectorStats {
     birthdayToday: number;
     unreadFeedback: number;
   };
+}
+
+export interface DirectorHourlyRevenue {
+  hour: number;
+  revenueCents: number;
+}
+
+export interface DirectorTopProduct {
+  name: string;
+  units: number;
+  revenueCents: number;
 }
 
 export interface DirectorActivityItem {
