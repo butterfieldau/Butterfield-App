@@ -1201,10 +1201,6 @@ function addDaysToDateStr(dateStr: string, days: number): string {
 // ── Analytics ────────────────────────────────────────────────────────────────
 router.get('/analytics', async (req, res) => {
   await ensureShopDisplaySchemaReady();
-  const permissions = await getDisplayPermissions(req.user!.id);
-  if (!permissions.includes('dashboard')) {
-    return res.status(403).json({ error: 'Dashboard permission required' });
-  }
 
   // Scope to assigned stores (mirrors /orders route)
   const assignments = await db.select({ storeId: staffStoreAssignmentsTable.storeId })

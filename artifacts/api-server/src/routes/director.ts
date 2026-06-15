@@ -694,23 +694,32 @@ router.post('/shop-displays', async (req, res) => {
   }
   const userId = randomUUID();
   const passwordHash = await bcrypt.hash(String(password), 10);
-  const [created] = await db.insert(usersTable).values({
-    id: userId,
-    email: normalizedEmail,
-    passwordHash,
-    role: 'shop_display' as any,
-    name: String(name).trim(),
-    phone: phone?.trim() ? String(phone).trim() : null,
-    status: 'active',
-    isActive: 'true',
-  }).returning({
-    id: usersTable.id,
-    email: usersTable.email,
-    role: usersTable.role,
-    name: usersTable.name,
-    phone: usersTable.phone,
-    status: usersTable.status,
-    createdAt: usersTable.createdAt,
+  const defaultPermissions = JSON.stringify(['dashboard', 'orders', 'products', 'customers']);
+  const [created] = await db.transaction(async (tx) => {
+    const [row] = await tx.insert(usersTable).values({
+      id: userId,
+      email: normalizedEmail,
+      passwordHash,
+      role: 'shop_display' as any,
+      name: String(name).trim(),
+      phone: phone?.trim() ? String(phone).trim() : null,
+      status: 'active',
+      isActive: 'true',
+    }).returning({
+      id: usersTable.id,
+      email: usersTable.email,
+      role: usersTable.role,
+      name: usersTable.name,
+      phone: usersTable.phone,
+      status: usersTable.status,
+      createdAt: usersTable.createdAt,
+    });
+    await tx.execute(sql`
+      INSERT INTO shop_display_profiles (user_id, permissions)
+      VALUES (${userId}, ${defaultPermissions})
+      ON CONFLICT DO NOTHING
+    `);
+    return [row];
   });
 
   await recordAuditLog({
