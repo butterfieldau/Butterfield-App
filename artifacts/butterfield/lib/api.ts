@@ -470,7 +470,7 @@ export const api = {
     deletedAccounts:     () => request<{ data: DeletedAccount[] }>('/director/deleted-accounts'),
     restoreAccount:      (id: string) => request<{ success: boolean; data: DeletedAccount }>(`/director/deleted-accounts/${id}/restore`, { method: 'POST' }),
     orders:              () => request<{ data: ApiOrder[] }>('/director/orders'),
-    posOrders:           () => request<{ data: PosTransaction[] }>('/director/pos-orders'),
+    posOrders:           (opts?: { date?: string }) => request<{ data: PosTransaction[] }>(`/director/pos-orders${opts?.date ? `?date=${encodeURIComponent(opts.date)}` : ''}`),
     acceptOrder:         (id: string) => request<{ data: ApiOrder }>(`/director/orders/${id}/accept`, { method: 'POST' }),
     updateOrderStatus:   (id: string, status: string, cancelReason?: string) => request<{ data: ApiOrder }>(`/director/orders/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status, ...(cancelReason ? { cancelReason } : {}) }) }),
     users:               () => request<{ data: DirectorUserSummary[] }>('/director/users'),

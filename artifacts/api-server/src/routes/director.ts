@@ -490,8 +490,20 @@ router.get('/activity', async (req, res) => {
   return res.json({ data: events });
 });
 
-// ── All orders (customer + wholesale merged, enriched with customer info) ─────
+// ── POS transactions — one Sydney day at a time ───────────────────────────────
 router.get('/pos-orders', async (req, res) => {
+  // Parse ?date=YYYY-MM-DD (defaults to today in Sydney)
+  const rawDate = typeof req.query.date === 'string' ? req.query.date.trim() : '';
+  let dateStr = rawDate;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+    // Fall back to today in Sydney timezone
+    const sydParts = new Intl.DateTimeFormat('en-CA', { timeZone: 'Australia/Sydney' }).formatToParts(new Date());
+    dateStr = sydParts.map(p => p.value).join(''); // en-CA produces YYYY-MM-DD naturally
+  }
+
+  const dayStart = sydneyBoundary(dateStr, false);
+  const dayEnd   = sydneyBoundary(dateStr, true);
+
   const result = await db.execute(sql`
     SELECT
       o.id,
@@ -510,13 +522,15 @@ router.get('/pos-orders', async (req, res) => {
     FROM orders o
     LEFT JOIN users su ON su.id = o.staff_user_id
     WHERE o.source = 'pos'
+      AND o.created_at >= ${dayStart}
+      AND o.created_at <= ${dayEnd}
     ORDER BY o.created_at DESC
     LIMIT 500
   `);
   const rows = (result.rows ?? result as unknown as any[]) as Array<{
     id: string;
     order_number: string;
-    created_at: string;
+    created_at: Date | string;
     total_cents: string | number;
     status: string;
     payment_method: string | null;
@@ -532,7 +546,7 @@ router.get('/pos-orders', async (req, res) => {
     data: rows.map(r => ({
       id:             r.id,
       orderNumber:    r.order_number,
-      createdAt:      r.created_at,
+      createdAt:      new Date(r.created_at).toISOString(),
       totalCents:     Number(r.total_cents),
       status:         r.status,
       paymentMethod:  r.payment_method ?? 'eftpos',

@@ -41,19 +41,31 @@ const METHOD_CONFIG: Record<string, { label: string; color: string }> = {
   split:  { label: 'Split',   color: PURPLE },
 };
 
-function fmtDate(iso: string) {
-  const d = new Date(iso);
-  const today = new Date();
-  const yesterday = new Date(today); yesterday.setDate(today.getDate() - 1);
-  const isSameDay = (a: Date, b: Date) =>
-    a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
-  const time = d.toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit' });
-  if (isSameDay(d, today)) return `Today ${time}`;
-  if (isSameDay(d, yesterday)) return `Yesterday ${time}`;
-  return d.toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short' }) + ' ' + time;
+function localDateStr(d: Date = new Date()): string {
+  return d.toLocaleDateString('en-CA');
 }
 
-function fmtCents(cents: number) {
+function shiftDate(dateStr: string, days: number): string {
+  const d = new Date(dateStr + 'T12:00:00');
+  d.setDate(d.getDate() + days);
+  return localDateStr(d);
+}
+
+function formatDayLabel(dateStr: string): string {
+  const today = localDateStr();
+  const yesterday = shiftDate(today, -1);
+  if (dateStr === today) return 'Today';
+  if (dateStr === yesterday) return 'Yesterday';
+  const d = new Date(dateStr + 'T12:00:00');
+  return d.toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
+}
+
+function fmtTime(iso: string): string {
+  const d = new Date(iso);
+  return d.toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit' });
+}
+
+function fmtCents(cents: number): string {
   return `$${(cents / 100).toFixed(2)}`;
 }
 
@@ -79,7 +91,6 @@ function summariseItems(items: any[]): string {
 function PosCard({ tx }: { tx: PosTransaction }) {
   const statusStyle = STATUS_COLORS[tx.status] ?? { bg: '#F3F4F6', text: '#6B7280' };
   const payMethod = getPaymentLabel(tx);
-  const subtotal  = tx.totalCents - tx.tipCents - tx.surchargeCents;
   const hasExtras = tx.tipCents > 0 || tx.surchargeCents > 0 || tx.discountCents > 0;
 
   return (
@@ -94,7 +105,7 @@ function PosCard({ tx }: { tx: PosTransaction }) {
               </Text>
             </View>
           </View>
-          <Text style={s.timestamp}>{fmtDate(tx.createdAt)}</Text>
+          <Text style={s.timestamp}>{fmtTime(tx.createdAt)}</Text>
         </View>
         <View style={{ alignItems: 'flex-end', gap: 4 }}>
           <Text style={s.total}>{fmtCents(tx.totalCents)}</Text>
@@ -145,27 +156,46 @@ export default function PosOrdersScreen() {
   const insets = useSafeAreaInsets();
   const qc = useQueryClient();
   const [refreshing, setRefreshing] = useState(false);
+  const [selectedDate, setSelectedDate] = useState<string>(localDateStr());
+
+  const todayStr = localDateStr();
+  const isToday = selectedDate === todayStr;
 
   const { data, isLoading, error } = useQuery({
-    queryKey: ['director-pos-orders'],
-    queryFn: () => api.director.posOrders(),
+    queryKey: ['director-pos-orders', selectedDate],
+    queryFn: () => api.director.posOrders({ date: selectedDate }),
     staleTime: 30_000,
   });
 
   useFocusEffect(useCallback(() => {
-    qc.invalidateQueries({ queryKey: ['director-pos-orders'] });
-  }, [qc]));
+    qc.invalidateQueries({ queryKey: ['director-pos-orders', selectedDate] });
+  }, [qc, selectedDate]));
 
   const transactions: PosTransaction[] = useMemo(
     () => data?.data ?? [],
     [data],
   );
 
+  const dailyRevenue = useMemo(
+    () => transactions
+      .filter(tx => tx.status !== 'cancelled' && tx.status !== 'voided' && tx.status !== 'refunded')
+      .reduce((sum, tx) => sum + tx.totalCents, 0),
+    [transactions],
+  );
+
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await qc.invalidateQueries({ queryKey: ['director-pos-orders'] });
+    await qc.invalidateQueries({ queryKey: ['director-pos-orders', selectedDate] });
     setRefreshing(false);
-  }, [qc]);
+  }, [qc, selectedDate]);
+
+  function goBack() {
+    setSelectedDate(prev => shiftDate(prev, -1));
+  }
+
+  function goForward() {
+    if (!isToday) setSelectedDate(prev => shiftDate(prev, 1));
+  }
 
   return (
     <View style={{ flex: 1, backgroundColor: BG }}>
@@ -176,6 +206,27 @@ export default function PosOrdersScreen() {
         </View>
         <Text style={s.headerTitle}>POS Transactions</Text>
         <Text style={s.headerSub}>Terminal sales history — read only</Text>
+      </View>
+
+      {/* Day navigation strip */}
+      <View style={s.dayNav}>
+        <Pressable onPress={goBack} style={s.dayArrow} hitSlop={12}>
+          <Feather name="chevron-left" size={22} color={NAVY} />
+        </Pressable>
+
+        <View style={s.dayLabelWrap}>
+          <Feather name="calendar" size={13} color={MUTED} style={{ marginRight: 5 }} />
+          <Text style={s.dayLabel}>{formatDayLabel(selectedDate)}</Text>
+        </View>
+
+        <Pressable
+          onPress={goForward}
+          style={[s.dayArrow, isToday && s.dayArrowDisabled]}
+          disabled={isToday}
+          hitSlop={12}
+        >
+          <Feather name="chevron-right" size={22} color={isToday ? BORD : NAVY} />
+        </Pressable>
       </View>
 
       {/* Info banner */}
@@ -203,9 +254,13 @@ export default function PosOrdersScreen() {
       ) : transactions.length === 0 ? (
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 }}>
           <Feather name="monitor" size={40} color={MUTED} />
-          <Text style={{ color: MUTED, marginTop: 12, fontSize: 15, fontWeight: '600' }}>No POS transactions yet</Text>
+          <Text style={{ color: MUTED, marginTop: 12, fontSize: 15, fontWeight: '600' }}>
+            {isToday ? 'No POS transactions yet today' : 'No transactions on this day'}
+          </Text>
           <Text style={{ color: MUTED, marginTop: 4, fontSize: 13, textAlign: 'center' }}>
-            Transactions processed at the terminal will appear here.
+            {isToday
+              ? 'Transactions processed at the terminal will appear here.'
+              : 'Use the arrows above to navigate to another day.'}
           </Text>
         </View>
       ) : (
@@ -219,9 +274,14 @@ export default function PosOrdersScreen() {
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={BLUE} />
           }
           ListHeaderComponent={
-            <Text style={s.count}>
-              {transactions.length} transaction{transactions.length !== 1 ? 's' : ''}
-            </Text>
+            <View style={s.summaryRow}>
+              <Text style={s.count}>
+                {transactions.length} transaction{transactions.length !== 1 ? 's' : ''}
+              </Text>
+              {dailyRevenue > 0 && (
+                <Text style={s.revenue}>{fmtCents(dailyRevenue)}</Text>
+              )}
+            </View>
           }
         />
       )}
@@ -248,6 +308,30 @@ const s = StyleSheet.create({
   headerTitle:     { color: '#fff', fontSize: 24, fontWeight: '700' },
   headerSub:       { color: 'rgba(255,255,255,0.65)', fontSize: 13 },
 
+  dayNav: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: CARD,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: BORD,
+    paddingHorizontal: 8,
+    paddingVertical: 10,
+  },
+  dayArrow:         { padding: 6 },
+  dayArrowDisabled: { opacity: 0.35 },
+  dayLabelWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    justifyContent: 'center',
+  },
+  dayLabel: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: TEXT,
+  },
+
   banner: {
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -260,7 +344,14 @@ const s = StyleSheet.create({
   },
   bannerText: { flex: 1, fontSize: 12, color: '#1E40AF', lineHeight: 18 },
 
-  count: { fontSize: 12, color: MUTED, fontWeight: '600', marginBottom: 4 },
+  summaryRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 4,
+  },
+  count:   { fontSize: 12, color: MUTED, fontWeight: '600' },
+  revenue: { fontSize: 13, color: TEXT, fontWeight: '700' },
 
   card: {
     backgroundColor: CARD,
