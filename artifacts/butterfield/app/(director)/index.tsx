@@ -327,29 +327,32 @@ function QuickBtn({ icon, label, color, onPress }: { icon: string; label: string
   );
 }
 
-// ── Futuristic palette ────────────────────────────────────────────────────────
-const DARK_CARD   = '#0D1B2E';
-const DARK_BORDER = 'rgba(0,212,255,0.18)';
-const NEON_BLUE   = '#00D4FF';
-const NEON_GREEN  = '#00FF94';
-const NEON_AMBER  = '#FFB800';
-const NEON_RED    = '#FF2D55';
-const DARK_TEXT   = '#E8F4FF';
-const DARK_MUTED  = 'rgba(232,244,255,0.45)';
-const DARK_GRID   = 'rgba(0,212,255,0.08)';
-
 // ── Delta badge ───────────────────────────────────────────────────────────────
-function DeltaBadge({ pct }: { pct: number | null | undefined }) {
+function DeltaBadge({ pct, dark }: { pct: number | null | undefined; dark?: boolean }) {
   if (pct == null) return null;
   const abs  = Math.abs(pct);
   const up   = pct > 0;
   const flat = abs <= 2;
-  const color = flat ? 'rgba(255,255,255,0.4)' : up ? NEON_GREEN : NEON_RED;
+  if (dark) {
+    const color = flat ? 'rgba(255,255,255,0.4)' : up ? '#00FF94' : '#FF2D55';
+    return (
+      <View style={{
+        backgroundColor: flat ? 'rgba(255,255,255,0.08)' : up ? 'rgba(0,255,148,0.15)' : 'rgba(255,45,85,0.15)',
+        borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2,
+        borderWidth: 1, borderColor: color + '55',
+      }}>
+        <Text style={{ fontSize: 10, fontWeight: '700', color, letterSpacing: 0.3 }}>
+          {flat ? '—' : up ? '▲' : '▼'} {abs}%
+        </Text>
+      </View>
+    );
+  }
+  const color = flat ? MUTED : up ? GREEN : RED;
   return (
     <View style={{
-      backgroundColor: flat ? 'rgba(255,255,255,0.08)' : up ? 'rgba(0,255,148,0.15)' : 'rgba(255,45,85,0.15)',
+      backgroundColor: flat ? '#F3F4F6' : up ? '#DCFCE7' : '#FEE2E2',
       borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2,
-      borderWidth: 1, borderColor: color + '55',
+      borderWidth: 1, borderColor: flat ? BORDER : up ? '#86EFAC' : '#FCA5A5',
     }}>
       <Text style={{ fontSize: 10, fontWeight: '700', color, letterSpacing: 0.3 }}>
         {flat ? '—' : up ? '▲' : '▼'} {abs}%
@@ -370,40 +373,36 @@ function AovCustomerRow({
   const dayLabel = new Intl.DateTimeFormat('en-AU', { weekday: 'short' }).format(new Date(Date.now() - 7 * 86400000));
 
   const cardStyle = {
-    flex: 1, backgroundColor: DARK_CARD, borderRadius: 18, borderWidth: 1,
-    borderColor: DARK_BORDER, padding: 14, gap: 6,
-    shadowColor: NEON_BLUE, shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.12, shadowRadius: 16, elevation: 4,
+    flex: 1, backgroundColor: CARD, borderRadius: 18, borderWidth: 1,
+    borderColor: BORDER, padding: 14, gap: 6,
+    ...GLASS_SHADOW,
   };
 
   return (
     <View style={{ flexDirection: 'row', gap: 10 }}>
       {/* AOV */}
       <View style={cardStyle}>
-        <Text style={{ fontSize: 9, fontWeight: '700', color: NEON_BLUE, letterSpacing: 1.5 }}>AVG ORDER</Text>
-        <Text style={{ fontSize: 24, fontWeight: '700', color: DARK_TEXT, letterSpacing: -0.5 }}>{fmtAUD(aovCents)}</Text>
+        <Text style={{ fontSize: 9, fontWeight: '700', color: BLUE, letterSpacing: 1.5 }}>AVG ORDER</Text>
+        <Text style={{ fontSize: 24, fontWeight: '700', color: TEXT, letterSpacing: -0.5 }}>{fmtAUD(aovCents)}</Text>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
           <DeltaBadge pct={aovDelta} />
-          <Text style={{ fontSize: 9, fontWeight: '400', color: DARK_MUTED }}>vs last {dayLabel}</Text>
+          <Text style={{ fontSize: 9, fontWeight: '400', color: MUTED }}>vs last {dayLabel}</Text>
         </View>
-        {/* Neon accent line */}
-        <View style={{ position: 'absolute', top: 0, left: 16, right: 16, height: 1, backgroundColor: NEON_BLUE, opacity: 0.35, borderRadius: 1 }} />
       </View>
       {/* New vs returning */}
       <View style={cardStyle}>
-        <Text style={{ fontSize: 9, fontWeight: '700', color: NEON_AMBER, letterSpacing: 1.5 }}>CUSTOMERS</Text>
-        <Text style={{ fontSize: 24, fontWeight: '700', color: DARK_TEXT, letterSpacing: -0.5 }}>{total}</Text>
+        <Text style={{ fontSize: 9, fontWeight: '700', color: AMBER, letterSpacing: 1.5 }}>CUSTOMERS</Text>
+        <Text style={{ fontSize: 24, fontWeight: '700', color: TEXT, letterSpacing: -0.5 }}>{total}</Text>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-          <Text style={{ fontSize: 9, fontWeight: '500', color: NEON_BLUE }}>{newCust} NEW</Text>
-          <Text style={{ fontSize: 9, color: DARK_MUTED }}>·</Text>
-          <Text style={{ fontSize: 9, fontWeight: '500', color: NEON_AMBER }}>{returningCust} RETURN</Text>
+          <Text style={{ fontSize: 9, fontWeight: '600', color: BLUE }}>{newCust} NEW</Text>
+          <Text style={{ fontSize: 9, color: MUTED }}>·</Text>
+          <Text style={{ fontSize: 9, fontWeight: '600', color: AMBER }}>{returningCust} RETURN</Text>
         </View>
         {total > 0 && (
-          <View style={{ flexDirection: 'row', height: 3, borderRadius: 2, overflow: 'hidden', backgroundColor: NEON_AMBER + '40' }}>
-            <View style={{ width: `${newPct}%`, height: '100%', backgroundColor: NEON_BLUE }} />
+          <View style={{ flexDirection: 'row', height: 3, borderRadius: 2, overflow: 'hidden', backgroundColor: BORDER }}>
+            <View style={{ width: `${newPct}%`, height: '100%', backgroundColor: BLUE }} />
           </View>
         )}
-        <View style={{ position: 'absolute', top: 0, left: 16, right: 16, height: 1, backgroundColor: NEON_AMBER, opacity: 0.35, borderRadius: 1 }} />
       </View>
     </View>
   );
@@ -419,23 +418,22 @@ function DailyPaceBar({
   const pct     = Math.min(Math.max(pacePct ?? 0, 0), 200);
   const fillPct = Math.min(pct / 2, 100); // 200% pace = full bar
   const isAhead = (pacePct ?? 0) >= 100;
-  const color   = hasBaseline ? (isAhead ? NEON_GREEN : NEON_AMBER) : DARK_MUTED;
+  const color   = hasBaseline ? (isAhead ? GREEN : AMBER) : MUTED;
   const W = 340;
 
   return (
     <View style={{
-      backgroundColor: DARK_CARD, borderRadius: 18, borderWidth: 1,
-      borderColor: DARK_BORDER, paddingHorizontal: 16, paddingVertical: 14, gap: 12,
-      shadowColor: color, shadowOffset: { width: 0, height: 0 },
-      shadowOpacity: 0.14, shadowRadius: 18, elevation: 4,
+      backgroundColor: CARD, borderRadius: 18, borderWidth: 1,
+      borderColor: BORDER, paddingHorizontal: 16, paddingVertical: 14, gap: 12,
+      ...GLASS_SHADOW,
     }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-        <Text style={{ fontSize: 9, fontWeight: '700', color: DARK_MUTED, letterSpacing: 1.5 }}>DAILY REVENUE PACE</Text>
+        <Text style={{ fontSize: 9, fontWeight: '700', color: MUTED, letterSpacing: 1.5 }}>DAILY REVENUE PACE</Text>
         {hasBaseline && (
           <View style={{
-            backgroundColor: color + '20', borderRadius: 8,
+            backgroundColor: isAhead ? '#DCFCE7' : '#FEF3C7', borderRadius: 8,
             paddingHorizontal: 8, paddingVertical: 3,
-            borderWidth: 1, borderColor: color + '55',
+            borderWidth: 1, borderColor: isAhead ? '#86EFAC' : '#FCD34D',
           }}>
             <Text style={{ fontSize: 10, fontWeight: '700', color }}>{pacePct}% vs last Mon</Text>
           </View>
@@ -445,10 +443,10 @@ function DailyPaceBar({
       {!hasBaseline ? (
         /* ── Building baseline state ── */
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 6 }}>
-          <Feather name="clock" size={16} color={DARK_MUTED} />
+          <Feather name="clock" size={16} color={MUTED} />
           <View>
-            <Text style={{ fontSize: 13, fontWeight: '600', color: DARK_TEXT }}>Building baseline</Text>
-            <Text style={{ fontSize: 11, fontWeight: '400', color: DARK_MUTED }}>No last Monday data available yet</Text>
+            <Text style={{ fontSize: 13, fontWeight: '600', color: TEXT }}>Building baseline</Text>
+            <Text style={{ fontSize: 11, fontWeight: '400', color: MUTED }}>No last Monday data available yet</Text>
           </View>
         </View>
       ) : (
@@ -457,40 +455,39 @@ function DailyPaceBar({
           <Svg width={W - 32} height={20} viewBox={`0 0 ${W - 32} 20`}>
             <Defs>
               <LinearGradient id="paceGrad" x1="0" y1="0" x2="1" y2="0">
-                <Stop offset="0" stopColor={color} stopOpacity="0.5" />
+                <Stop offset="0" stopColor={color} stopOpacity="0.4" />
                 <Stop offset="1" stopColor={color} stopOpacity="1"   />
               </LinearGradient>
             </Defs>
-            <Rect x={0} y={6} width={W - 32} height={8} rx={4} fill={color + '18'} />
+            <Rect x={0} y={6} width={W - 32} height={8} rx={4} fill={BORDER} />
             {fillPct > 0 && (
               <Rect x={0} y={6} width={(W - 32) * fillPct / 100} height={8} rx={4} fill="url(#paceGrad)" />
             )}
             {fillPct > 2 && fillPct < 100 && (
               <Rect x={(W - 32) * fillPct / 100 - 3} y={4} width={6} height={12} rx={3} fill={color} opacity={0.9} />
             )}
-            <Rect x={(W - 32) / 2 - 0.5} y={3} width={1} height={14} fill={color} opacity={0.3} />
+            <Rect x={(W - 32) / 2 - 0.5} y={3} width={1} height={14} fill={MUTED} opacity={0.4} />
           </Svg>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 2 }}>
-            <Text style={{ fontSize: 8, color: DARK_MUTED }}>0%</Text>
-            <Text style={{ fontSize: 8, color: DARK_MUTED }}>Last Mon pace</Text>
-            <Text style={{ fontSize: 8, color: DARK_MUTED }}>200%</Text>
+            <Text style={{ fontSize: 8, color: MUTED }}>0%</Text>
+            <Text style={{ fontSize: 8, color: MUTED }}>Last Mon pace</Text>
+            <Text style={{ fontSize: 8, color: MUTED }}>200%</Text>
           </View>
         </View>
       )}
 
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
         <View>
-          <Text style={{ fontSize: 8, fontWeight: '600', color: DARK_MUTED, letterSpacing: 1 }}>TODAY</Text>
-          <Text style={{ fontSize: 18, fontWeight: '700', color: DARK_TEXT }}>{fmtAUD(todayCents)}</Text>
+          <Text style={{ fontSize: 8, fontWeight: '600', color: MUTED, letterSpacing: 1 }}>TODAY</Text>
+          <Text style={{ fontSize: 18, fontWeight: '700', color: TEXT }}>{fmtAUD(todayCents)}</Text>
         </View>
         {hasBaseline && projectedCents != null && projectedCents > 0 && (
           <View style={{ alignItems: 'flex-end' }}>
-            <Text style={{ fontSize: 8, fontWeight: '600', color: DARK_MUTED, letterSpacing: 1 }}>PROJ. EOD</Text>
+            <Text style={{ fontSize: 8, fontWeight: '600', color: MUTED, letterSpacing: 1 }}>PROJ. EOD</Text>
             <Text style={{ fontSize: 18, fontWeight: '700', color }}>{fmtAUD(projectedCents)}</Text>
           </View>
         )}
       </View>
-      <View style={{ position: 'absolute', top: 0, left: 16, right: 16, height: 1, backgroundColor: color, opacity: 0.3, borderRadius: 1 }} />
     </View>
   );
 }
@@ -507,21 +504,18 @@ function HourlyRevenueChart({ hours }: { hours: DirectorHourlyRevenue[] }) {
   const maxRev      = Math.max(...hoursWindow.map(h => h.revenueCents), 1);
   const totalRev    = hours.reduce((a, h) => a + h.revenueCents, 0);
 
-  const BAR_H  = 10;
-  const ROW_H  = 22;
+  const BAR_H   = 10;
+  const ROW_H   = 22;
   const LABEL_W = 36;
   const VALUE_W = 52;
-  const CHART_W = 260; // available bar width (proxy — rendered inside padding 16+16)
+  const CHART_W = 260;
   const svgH    = hoursWindow.length * ROW_H;
 
   return (
     <View style={{
-      backgroundColor: DARK_CARD, borderRadius: 20, borderWidth: 1,
-      borderColor: DARK_BORDER, overflow: 'hidden',
-      shadowColor: NEON_BLUE, shadowOffset: { width: 0, height: 0 },
-      shadowOpacity: 0.12, shadowRadius: 20, elevation: 4,
+      backgroundColor: CARD, borderRadius: 20, borderWidth: 1,
+      borderColor: BORDER, overflow: 'hidden', ...GLASS_SHADOW,
     }}>
-      {/* Header — always visible, tap to expand/collapse */}
       <TouchableOpacity
         onPress={() => setExpanded(e => !e)}
         activeOpacity={0.75}
@@ -530,65 +524,59 @@ function HourlyRevenueChart({ hours }: { hours: DirectorHourlyRevenue[] }) {
           alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14,
         }}
       >
-        <Text style={{ fontSize: 9, fontWeight: '700', color: NEON_BLUE, letterSpacing: 1.5 }}>REVENUE BY HOUR</Text>
+        <Text style={{ fontSize: 9, fontWeight: '700', color: BLUE, letterSpacing: 1.5 }}>REVENUE BY HOUR</Text>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-          <Text style={{ fontSize: 11, fontWeight: '700', color: DARK_TEXT }}>{fmtAUD(totalRev)}</Text>
-          <Feather name={expanded ? 'chevron-up' : 'chevron-down'} size={14} color={DARK_MUTED} />
+          <Text style={{ fontSize: 11, fontWeight: '700', color: TEXT }}>{fmtAUD(totalRev)}</Text>
+          <Feather name={expanded ? 'chevron-up' : 'chevron-down'} size={14} color={MUTED} />
         </View>
       </TouchableOpacity>
 
-      {/* Collapsible chart body */}
       {expanded && (
         <View style={{ paddingHorizontal: 16, paddingBottom: 14 }}>
           <Svg width="100%" height={svgH} viewBox={`0 0 ${LABEL_W + CHART_W + VALUE_W} ${svgH}`}>
             <Defs>
               <LinearGradient id="hBarPast" x1="0" y1="0" x2="1" y2="0">
-                <Stop offset="0" stopColor={NEON_BLUE} stopOpacity="0.4" />
-                <Stop offset="1" stopColor={NEON_BLUE} stopOpacity="0.85" />
+                <Stop offset="0" stopColor={BLUE} stopOpacity="0.3" />
+                <Stop offset="1" stopColor={BLUE} stopOpacity="0.75" />
               </LinearGradient>
               <LinearGradient id="hBarNow" x1="0" y1="0" x2="1" y2="0">
-                <Stop offset="0" stopColor={NEON_GREEN} stopOpacity="0.4" />
-                <Stop offset="1" stopColor={NEON_GREEN} stopOpacity="1" />
+                <Stop offset="0" stopColor={GREEN} stopOpacity="0.4" />
+                <Stop offset="1" stopColor={GREEN} stopOpacity="1" />
               </LinearGradient>
             </Defs>
 
             {hoursWindow.map((h, i) => {
-              const y          = i * ROW_H + (ROW_H - BAR_H) / 2;
-              const barW       = h.revenueCents > 0 ? Math.max((h.revenueCents / maxRev) * CHART_W, 4) : 0;
-              const isCurrent  = h.hour === nowHour;
-              const isPast     = h.hour < nowHour;
-              const label      = h.hour === 0 ? '12A' : h.hour === 12 ? '12P' : h.hour > 12 ? `${h.hour - 12}P` : `${h.hour}A`;
-              const fill       = isCurrent ? 'url(#hBarNow)' : isPast ? 'url(#hBarPast)' : DARK_GRID;
-              const opacity    = isCurrent ? 1 : isPast ? 0.85 : 0.35;
-              const valColor   = isCurrent ? NEON_GREEN : isPast ? NEON_BLUE : DARK_MUTED;
-              const valStr     = h.revenueCents > 0 ? `$${(h.revenueCents / 100).toFixed(0)}` : '';
+              const y         = i * ROW_H + (ROW_H - BAR_H) / 2;
+              const barW      = h.revenueCents > 0 ? Math.max((h.revenueCents / maxRev) * CHART_W, 4) : 0;
+              const isCurrent = h.hour === nowHour;
+              const isPast    = h.hour < nowHour;
+              const label     = h.hour === 0 ? '12A' : h.hour === 12 ? '12P' : h.hour > 12 ? `${h.hour - 12}P` : `${h.hour}A`;
+              const fill      = isCurrent ? 'url(#hBarNow)' : isPast ? 'url(#hBarPast)' : BORDER;
+              const opacity   = isCurrent ? 1 : isPast ? 0.9 : 0.5;
+              const valColor  = isCurrent ? GREEN : isPast ? BLUE : MUTED;
+              const valStr    = h.revenueCents > 0 ? `$${(h.revenueCents / 100).toFixed(0)}` : '';
 
               return (
                 <React.Fragment key={h.hour}>
-                  {/* Hour label */}
-                  <SvgText x={LABEL_W - 4} y={y + BAR_H - 1} fontSize="8" fill={isCurrent ? NEON_GREEN : DARK_MUTED}
+                  <SvgText x={LABEL_W - 4} y={y + BAR_H - 1} fontSize="8"
+                    fill={isCurrent ? GREEN : MUTED}
                     textAnchor="end" fontWeight={isCurrent ? '700' : '400'}>
                     {label}
                   </SvgText>
-                  {/* Track */}
-                  <Rect x={LABEL_W} y={y} width={CHART_W} height={BAR_H} rx={3} fill={DARK_GRID} opacity={0.4} />
-                  {/* Bar */}
+                  <Rect x={LABEL_W} y={y} width={CHART_W} height={BAR_H} rx={3} fill={BORDER} opacity={0.8} />
                   {barW > 0 && (
                     <Rect x={LABEL_W} y={y} width={barW} height={BAR_H} rx={3} fill={fill} opacity={opacity} />
                   )}
-                  {/* Current glow cap */}
                   {isCurrent && barW > 4 && (
-                    <Rect x={LABEL_W + barW - 4} y={y} width={4} height={BAR_H} rx={2} fill={NEON_GREEN} opacity={0.95} />
+                    <Rect x={LABEL_W + barW - 4} y={y} width={4} height={BAR_H} rx={2} fill={GREEN} opacity={1} />
                   )}
-                  {/* Revenue label */}
                   {valStr !== '' && (
                     <SvgText x={LABEL_W + CHART_W + 4} y={y + BAR_H - 1} fontSize="8" fill={valColor} fontWeight="600">
                       {valStr}
                     </SvgText>
                   )}
-                  {/* NOW label */}
                   {isCurrent && (
-                    <SvgText x={LABEL_W + barW + 6} y={y + BAR_H - 1} fontSize="7" fill={NEON_GREEN} fontWeight="700">
+                    <SvgText x={LABEL_W + barW + 6} y={y + BAR_H - 1} fontSize="7" fill={GREEN} fontWeight="700">
                       NOW
                     </SvgText>
                   )}
@@ -596,71 +584,66 @@ function HourlyRevenueChart({ hours }: { hours: DirectorHourlyRevenue[] }) {
               );
             })}
           </Svg>
-          <Text style={{ fontSize: 8, color: DARK_MUTED, marginTop: 4 }}>6 AM – 10 PM window · Sydney time</Text>
+          <Text style={{ fontSize: 8, color: MUTED, marginTop: 4 }}>6 AM – 10 PM window · Sydney time</Text>
         </View>
       )}
-      <View style={{ position: 'absolute', top: 0, left: 16, right: 16, height: 1, backgroundColor: NEON_BLUE, opacity: 0.25, borderRadius: 1 }} />
     </View>
   );
 }
 
 // ── Top sellers strip ─────────────────────────────────────────────────────────
 function TopSellersStrip({ products }: { products: DirectorTopProduct[] }) {
-  const maxUnits = Math.max(...products.map(p => p.units), 1);
-  const rankColors = [NEON_BLUE, NEON_AMBER, PURPLE + 'DD'];
+  const maxUnits   = Math.max(...products.map(p => p.units), 1);
+  const rankColors = [BLUE, AMBER, PURPLE];
 
   return (
     <View style={{
-      backgroundColor: DARK_CARD, borderRadius: 20, borderWidth: 1,
-      borderColor: DARK_BORDER, paddingHorizontal: 16, paddingVertical: 14, gap: 14,
-      shadowColor: NEON_BLUE, shadowOffset: { width: 0, height: 0 },
-      shadowOpacity: 0.10, shadowRadius: 18, elevation: 4,
+      backgroundColor: CARD, borderRadius: 20, borderWidth: 1,
+      borderColor: BORDER, paddingHorizontal: 16, paddingVertical: 14, gap: 14,
+      ...GLASS_SHADOW,
     }}>
-      <Text style={{ fontSize: 9, fontWeight: '700', color: NEON_BLUE, letterSpacing: 1.5 }}>TOP SELLERS TODAY</Text>
+      <Text style={{ fontSize: 9, fontWeight: '700', color: MUTED, letterSpacing: 1.5 }}>TOP SELLERS TODAY</Text>
 
       {products.length === 0 ? (
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 6 }}>
-          <Feather name="package" size={16} color={DARK_MUTED} />
-          <Text style={{ fontSize: 13, fontWeight: '500', color: DARK_MUTED }}>No sales yet today</Text>
+          <Feather name="package" size={16} color={MUTED} />
+          <Text style={{ fontSize: 13, fontWeight: '500', color: MUTED }}>No sales yet today</Text>
         </View>
       ) : null}
 
       {products.map((p, i) => {
         const fillPct = Math.round((p.units / maxUnits) * 100);
-        const c = rankColors[i] ?? DARK_MUTED;
+        const c = rankColors[i] ?? MUTED;
         const W = 200;
 
         return (
           <View key={p.name} style={{ gap: 6 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-              {/* Rank badge */}
               <View style={{
                 width: 26, height: 26, borderRadius: 8, alignItems: 'center', justifyContent: 'center',
-                backgroundColor: c + '1A', borderWidth: 1, borderColor: c + '55',
+                backgroundColor: c + '18', borderWidth: 1, borderColor: c + '44',
               }}>
                 <Text style={{ fontSize: 11, fontWeight: '800', color: c }}>#{i + 1}</Text>
               </View>
-              <Text style={{ fontSize: 13, fontWeight: '600', color: DARK_TEXT, flex: 1 }} numberOfLines={1}>{p.name}</Text>
+              <Text style={{ fontSize: 13, fontWeight: '600', color: TEXT, flex: 1 }} numberOfLines={1}>{p.name}</Text>
               <View style={{ alignItems: 'flex-end' }}>
                 <Text style={{ fontSize: 13, fontWeight: '700', color: c }}>{p.units} sold</Text>
-                <Text style={{ fontSize: 10, fontWeight: '400', color: DARK_MUTED }}>{fmtAUD(p.revenueCents)}</Text>
+                <Text style={{ fontSize: 10, fontWeight: '400', color: MUTED }}>{fmtAUD(p.revenueCents)}</Text>
               </View>
             </View>
-            {/* Neon progress bar */}
             <Svg width="100%" height={6} viewBox={`0 0 ${W} 6`}>
               <Defs>
                 <LinearGradient id={`rankGrad${i}`} x1="0" y1="0" x2="1" y2="0">
-                  <Stop offset="0" stopColor={c} stopOpacity="0.4" />
-                  <Stop offset="1" stopColor={c} stopOpacity="1" />
+                  <Stop offset="0" stopColor={c} stopOpacity="0.3" />
+                  <Stop offset="1" stopColor={c} stopOpacity="0.9" />
                 </LinearGradient>
               </Defs>
-              <Rect x={0} y={0} width={W} height={6} rx={3} fill={c + '18'} />
+              <Rect x={0} y={0} width={W} height={6} rx={3} fill={BORDER} />
               <Rect x={0} y={0} width={W * fillPct / 100} height={6} rx={3} fill={`url(#rankGrad${i})`} />
             </Svg>
           </View>
         );
       })}
-      <View style={{ position: 'absolute', top: 0, left: 16, right: 16, height: 1, backgroundColor: NEON_BLUE, opacity: 0.25, borderRadius: 1 }} />
     </View>
   );
 }
@@ -762,7 +745,7 @@ function DirectorDashboardInner() {
                   <View key={r.label} style={[styles.revItem, i > 0 && styles.revItemBorder]}>
                     <Text style={[styles.revAmount, { fontWeight: '700' }]}>{r.value}</Text>
                     <Text style={[styles.revLabel,  { fontWeight: '400' }]}>{r.label}</Text>
-                    <DeltaBadge pct={r.delta} />
+                    <DeltaBadge pct={r.delta} dark />
                     {r.delta != null && (
                       <Text style={{ fontSize: 8, color: 'rgba(255,255,255,0.4)', fontWeight: '400', marginTop: 1 }}>{r.cmp}</Text>
                     )}
