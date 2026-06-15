@@ -316,6 +316,24 @@ function PosScreenInner() {
   // both run (normal path), or when startup recovery resolves before createOrderMutation.
   const receiptPrintedRef = useRef<Set<string>>(new Set());
 
+  // ── Print status tracking ─────────────────────────────────────────────────
+  // Maps orderId → print status for orders in the current session.
+  // Stored in state so the warning icon re-renders when a print fails.
+  const [printStatusMap, setPrintStatusMap] = useState<Record<string, 'pending' | 'printed' | 'failed'>>({});
+  // Tracks Linkly session print results (set by handlePrintReceiptForEftpos).
+  // Keyed by Linkly sessionId → 'printed' | 'failed'.
+  const linklyPrintStatusRef = useRef<Record<string, 'printed' | 'failed'>>({});
+  // Maps Linkly sessionId → orderId once the order is created.
+  // Used for late-resolution: if the Linkly print settles AFTER order creation,
+  // the promise handler can look up the orderId here and update printStatusMap.
+  const linklySessionToOrderIdRef = useRef<Record<string, string>>({});
+  const updatePrintStatus = useCallback((orderId: string, status: 'pending' | 'printed' | 'failed') => {
+    setPrintStatusMap(prev => ({ ...prev, [orderId]: status }));
+  }, []);
+
+  // Controls whether the History modal opens pre-filtered to failed-print orders.
+  const [historyOpenAtFailed, setHistoryOpenAtFailed] = useState(false);
+
   // ── Product list ref (scroll-to-top on category change) ──────────────────
   const productListRef = useRef<any>(null);
 
@@ -843,10 +861,12 @@ function PosScreenInner() {
         ? receiptPrintedRef.current.has(vars.linklySessionId)
         : false;
       const isCashSale = vars.paymentMethod === 'cash' || vars.paymentMethod === 'split';
+      const printOrderId = res.data.id;
       if (!alreadyPrinted && store?.autoPrint && store?.printerIp) {
         if (vars.linklySessionId) receiptPrintedRef.current.add(vars.linklySessionId);
+        updatePrintStatus(printOrderId, 'pending');
         sendReceiptPrint({
-          orderId: res.data.id,
+          orderId: printOrderId,
           customerName: snapshotCustomerName,
           type: 'pickup',
           items: snapshotItems,
@@ -857,7 +877,22 @@ function PosScreenInner() {
           printerBrand: store.printerBrand ?? 'epson',
           autoDrawer: !!(store as any).autoDrawer,
           drawerPin: ((store as any).drawerPin ?? 0) as 0 | 1,
-        }, store.printerIp, store.printerPort ?? 9100, fetchBytes).catch(() => {});
+        }, store.printerIp, store.printerPort ?? 9100, fetchBytes)
+          .then(() => updatePrintStatus(printOrderId, 'printed'))
+          .catch(() => updatePrintStatus(printOrderId, 'failed'));
+      } else if (alreadyPrinted && vars.linklySessionId) {
+        // Linkly receipt was printed before order creation.
+        // Record the session→orderId mapping so the promise handler can update status
+        // if it settles AFTER this onSuccess callback (eliminates the race).
+        linklySessionToOrderIdRef.current[vars.linklySessionId] = printOrderId;
+        const ls = linklyPrintStatusRef.current[vars.linklySessionId];
+        if (ls) {
+          // Print already settled — copy its result immediately.
+          updatePrintStatus(printOrderId, ls);
+        } else {
+          // Print still in flight — mark as pending; promise handlers will update it.
+          updatePrintStatus(printOrderId, 'pending');
+        }
       } else if (!alreadyPrinted && !store?.autoPrint && store?.autoDrawer && store?.printerIp && isCashSale) {
         // No receipt printing, but auto-drawer is on — open the drawer directly for cash/split sales.
         sendOpenDrawer(store.printerIp, store.printerPort ?? 9100, fetchBytes, ((store as any).drawerPin ?? 0) as 0 | 1, store.printerBrand as 'epson' | 'star' | undefined).catch(() => {});
@@ -1014,8 +1049,20 @@ function PosScreenInner() {
     sendLinklyReceiptPrint({
       lines: receiptText.split('\n'),
       printerBrand: store.printerBrand ?? 'epson',
-    }, store.printerIp, store.printerPort ?? 9100, fetchBytes).catch(() => {});
-  }, [storeData, isShopDisplay]);
+    }, store.printerIp, store.printerPort ?? 9100, fetchBytes)
+      .then(() => {
+        linklyPrintStatusRef.current[sessionId] = 'printed';
+        // Late-resolution: if the order was already created by the time the print settles,
+        // update its status now (fixes the race where onSuccess ran before print settled).
+        const orderId = linklySessionToOrderIdRef.current[sessionId];
+        if (orderId) updatePrintStatus(orderId, 'printed');
+      })
+      .catch(() => {
+        linklyPrintStatusRef.current[sessionId] = 'failed';
+        const orderId = linklySessionToOrderIdRef.current[sessionId];
+        if (orderId) updatePrintStatus(orderId, 'failed');
+      });
+  }, [storeData, isShopDisplay, updatePrintStatus]);
 
   const voidOrderMutation = useMutation({
     mutationFn: (vars: { id: string; supervisorPin?: string }) => api.pos.voidOrder(vars.id, vars.supervisorPin),
@@ -1080,6 +1127,18 @@ function PosScreenInner() {
           )}
         </View>
         <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center' }}>
+          {/* Printer warning — shown when any receipt failed to print */}
+          {Object.values(printStatusMap).some(s => s === 'failed') && (
+            <Pressable
+              onPress={() => { setHistoryOpenAtFailed(true); setShowHistory(true); }}
+              style={[styles.headerBtn, { backgroundColor: `${CHERRY}18`, borderWidth: 1, borderColor: `${CHERRY}40` }]}
+            >
+              <Feather name="printer" size={16} color={CHERRY} />
+              <Text style={[styles.headerBtnText, { color: CHERRY, fontWeight: '700' }]}>
+                {Object.values(printStatusMap).filter(s => s === 'failed').length} print failed
+              </Text>
+            </Pressable>
+          )}
           {/* History */}
           <Pressable onPress={() => setShowHistory(true)} style={styles.headerBtn}>
             <Feather name="clock" size={16} color={MID} />
@@ -1479,9 +1538,12 @@ function PosScreenInner() {
       {/* ── History modal ──────────────────────────────────────────────────── */}
       {showHistory && (
         <HistoryModal
-          onClose={() => setShowHistory(false)}
+          onClose={() => { setShowHistory(false); setHistoryOpenAtFailed(false); }}
           storeData={storeData}
           isShopDisplay={isShopDisplay}
+          printStatusMap={printStatusMap}
+          onUpdatePrintStatus={updatePrintStatus}
+          initialFilter={historyOpenAtFailed ? 'failed-print' : undefined}
           onVoidSuccess={(id) => {
             if (id === lastOrderId) setLastOrderId(null);
             refetchSummary();
@@ -3358,20 +3420,26 @@ function CustomerModal({
 }
 
 // ── History Modal ─────────────────────────────────────────────────────────────
-type HistoryFilter = 'all' | 'active' | 'voided';
+type HistoryFilter = 'all' | 'active' | 'voided' | 'failed-print';
 
 function HistoryModal({
   onClose, onVoidSuccess, storeData, isShopDisplay,
+  printStatusMap, onUpdatePrintStatus, initialFilter,
 }: {
   onClose: () => void;
   onVoidSuccess: (id: string) => void;
   storeData?: any;
   isShopDisplay?: boolean;
+  printStatusMap?: Record<string, 'pending' | 'printed' | 'failed'>;
+  onUpdatePrintStatus?: (orderId: string, status: 'pending' | 'printed' | 'failed') => void;
+  initialFilter?: HistoryFilter;
 }) {
   const queryClient = useQueryClient();
   const { failedItems, retryItem, dismissItem } = useOffline();
   const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [filter, setFilter] = useState<HistoryFilter>('all');
+  const [filter, setFilter] = useState<HistoryFilter>(initialFilter ?? 'all');
+  const [reprintingId, setReprintingId] = useState<string | null>(null);
+  const [reprintingAll, setReprintingAll] = useState(false);
   const [now, setNow] = useState(() => Date.now());
 
   // Tick every 15s so the "Void" window timer refreshes
@@ -3487,11 +3555,59 @@ function HistoryModal({
   const filteredOrders = useMemo(() => {
     if (filter === 'active') return allOrders.filter(o => o.status !== 'cancelled');
     if (filter === 'voided') return allOrders.filter(o => o.status === 'cancelled');
+    if (filter === 'failed-print') return allOrders.filter(o => (printStatusMap?.[o.id] ?? 'pending') === 'failed');
     return allOrders;
-  }, [allOrders, filter]);
+  }, [allOrders, filter, printStatusMap]);
 
   const countActive = allOrders.filter(o => o.status !== 'cancelled').length;
   const countVoided = allOrders.filter(o => o.status === 'cancelled').length;
+  const countFailedPrint = allOrders.filter(o => (printStatusMap?.[o.id] ?? 'pending') === 'failed').length;
+
+  const handleReprint = async (order: PosHistoryOrder) => {
+    const store = storeData as any;
+    if (!store?.printerIp) {
+      Alert.alert('No Printer', 'Configure a printer IP in Settings to reprint receipts.');
+      return;
+    }
+    setReprintingId(order.id);
+    onUpdatePrintStatus?.(order.id, 'pending');
+    const fetchBytes = isShopDisplay ? api.shopDisplay.printerBytes : api.director.printerBytes;
+    try {
+      await sendReceiptPrint({
+        orderId: order.id,
+        customerName: order.customerName ?? 'Customer',
+        type: 'pickup',
+        items: order.items.map(i => ({
+          name: i.productName,
+          quantity: i.quantity,
+          unitPriceCents: i.unitPriceCents,
+          variantName: i.variantName ?? undefined,
+        })),
+        totalCents: order.totalCents,
+        discountCents: order.discountCents,
+        surchargeCents: order.surchargeCents,
+        printerBrand: (store.printerBrand ?? 'epson') as 'epson' | 'star',
+        paymentMethod: order.paymentMethod,
+      }, store.printerIp, store.printerPort ?? 9100, fetchBytes);
+      onUpdatePrintStatus?.(order.id, 'printed');
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch (e: any) {
+      onUpdatePrintStatus?.(order.id, 'failed');
+      Alert.alert('Print Failed', e?.message ?? 'Could not reach printer. Check the printer IP in Settings.');
+    } finally {
+      setReprintingId(null);
+    }
+  };
+
+  const handleReprintAll = async () => {
+    const failedOrders = allOrders.filter(o => (printStatusMap?.[o.id] ?? 'pending') === 'failed');
+    if (!failedOrders.length) return;
+    setReprintingAll(true);
+    for (const order of failedOrders) {
+      try { await handleReprint(order); } catch {}
+    }
+    setReprintingAll(false);
+  };
 
   const statusColor = (s: string) => {
     if (s === 'cancelled') return CHERRY;
@@ -3530,6 +3646,7 @@ function HistoryModal({
     { key: 'all',    label: 'All',    count: allOrders.length },
     { key: 'active', label: 'Active', count: countActive },
     { key: 'voided', label: 'Voided', count: countVoided },
+    ...(countFailedPrint > 0 ? [{ key: 'failed-print' as HistoryFilter, label: 'Print Failed', count: countFailedPrint }] : []),
   ];
 
   return (
@@ -3540,7 +3657,25 @@ function HistoryModal({
           <Pressable onPress={onClose} hitSlop={12}>
             <Feather name="x" size={22} color={DARK} />
           </Pressable>
-          <Text style={styles.sheetTitle}>Sales History</Text>
+          <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10 }}>
+            <Text style={styles.sheetTitle}>Sales History</Text>
+            {filter === 'failed-print' && countFailedPrint > 0 && (
+              <TouchableOpacity
+                onPress={handleReprintAll}
+                disabled={reprintingAll}
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: `${CHERRY}18`, borderWidth: 1, borderColor: `${CHERRY}40`, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5 }}
+                activeOpacity={0.75}
+              >
+                {reprintingAll
+                  ? <ActivityIndicator size="small" color={CHERRY} />
+                  : <Feather name="printer" size={13} color={CHERRY} />
+                }
+                <Text style={{ color: CHERRY, fontSize: 12, fontWeight: '700' }}>
+                  {reprintingAll ? 'Reprinting…' : `Reprint all (${countFailedPrint})`}
+                </Text>
+              </TouchableOpacity>
+            )}
+          </View>
           <Pressable onPress={() => refetch()} hitSlop={12} disabled={isRefetching}>
             <Feather name="refresh-cw" size={18} color={isRefetching ? MUTED : BLUE} />
           </Pressable>
@@ -3647,7 +3782,7 @@ function HistoryModal({
             renderItem={({ item }) => {
               const expanded = expandedId === item.id;
               const voidable = canVoid(item);
-              const isVoiding = voidMutation.isPending && voidMutation.variables === item.id;
+              const isVoiding = voidMutation.isPending && voidMutation.variables?.id === item.id;
               return (
                 <View style={[
                   styles.historyRow,
@@ -3659,13 +3794,31 @@ function HistoryModal({
                   >
                     {/* Left: order # + time */}
                     <View style={{ flex: 1 }}>
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                         <Text style={styles.historyOrderNum}>#{item.orderNumber}</Text>
                         <View style={[styles.historyStatusBadge, { backgroundColor: statusColor(item.status) + '22' }]}>
                           <Text style={[styles.historyStatusText, { color: statusColor(item.status) }]}>
                             {statusLabel(item.status)}
                           </Text>
                         </View>
+                        {(printStatusMap?.[item.id] === 'failed') && (
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: `${CHERRY}18`, borderRadius: 5, paddingHorizontal: 5, paddingVertical: 2 }}>
+                            <Feather name="printer" size={10} color={CHERRY} />
+                            <Text style={{ fontSize: 10, fontWeight: '700', color: CHERRY }}>Print failed</Text>
+                          </View>
+                        )}
+                        {(printStatusMap?.[item.id] === 'printed') && (
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: '#16A34A18', borderRadius: 5, paddingHorizontal: 5, paddingVertical: 2 }}>
+                            <Feather name="check" size={10} color="#16A34A" />
+                            <Text style={{ fontSize: 10, fontWeight: '600', color: '#16A34A' }}>Printed</Text>
+                          </View>
+                        )}
+                        {(printStatusMap?.[item.id] === 'pending') && (
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: '#F59E0B18', borderRadius: 5, paddingHorizontal: 5, paddingVertical: 2 }}>
+                            <ActivityIndicator size="small" color="#F59E0B" style={{ transform: [{ scale: 0.6 }] }} />
+                            <Text style={{ fontSize: 10, fontWeight: '600', color: '#F59E0B' }}>Printing…</Text>
+                          </View>
+                        )}
                       </View>
                       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 3 }}>
                         <Feather name="clock" size={11} color={MUTED} />
@@ -3757,13 +3910,22 @@ function HistoryModal({
                         <TouchableOpacity
                           onPress={() => {
                             Haptics.selectionAsync();
-                            Alert.alert('Reprint', `Reprinting receipt for #${item.orderNumber}…\n(Requires printer configured in Settings)`);
+                            handleReprint(item);
                           }}
-                          style={styles.historyReprintBtn}
+                          disabled={reprintingId === item.id}
+                          style={[
+                            styles.historyReprintBtn,
+                            printStatusMap?.[item.id] === 'failed' && { backgroundColor: `${CHERRY}12`, borderColor: `${CHERRY}50` },
+                          ]}
                           activeOpacity={0.8}
                         >
-                          <Feather name="printer" size={13} color={BLUE} />
-                          <Text style={styles.historyReprintBtnText}>Reprint</Text>
+                          {reprintingId === item.id
+                            ? <ActivityIndicator size="small" color={printStatusMap?.[item.id] === 'failed' ? CHERRY : BLUE} />
+                            : <Feather name="printer" size={13} color={printStatusMap?.[item.id] === 'failed' ? CHERRY : BLUE} />
+                          }
+                          <Text style={[styles.historyReprintBtnText, printStatusMap?.[item.id] === 'failed' && { color: CHERRY, fontWeight: '700' }]}>
+                            {printStatusMap?.[item.id] === 'failed' ? 'Retry print' : 'Reprint'}
+                          </Text>
                         </TouchableOpacity>
 
                         {/* Void button */}
