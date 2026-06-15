@@ -4,3 +4,4 @@
 - [Expo Go dev server on Replit](expo-go-replit-fix.md) — CI=1 + EXPO_OFFLINE=1 are both required to avoid login prompt AND code-signing error in Replit workflows.
 - [Stripe schema _raw_data pattern](stripe-raw-data.md) — All stripe.* table columns are generated from _raw_data JSONB; must INSERT into (_raw_data, _account_id) only.
 - [Linkly Cloud notification flow](linkly-notification-flow.md) — GET endpoint returns 202 {} (useless for polling); only the webhook callback signals completion; LINKLY_NOTIFICATION_BASE_URL must only be set in production.
+- [Star MCP30 cash drawer commands](star-mcp30-drawer.md) — DLE DC4 (0x10 0x14 0x01) for standalone; ESC p also usable embedded but DLE DC4 is safer; /shop-display/store must include autoDrawer+drawerPin.

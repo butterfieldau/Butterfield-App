@@ -224,8 +224,9 @@ export function buildReceiptBytes(job: PrintJob): Buffer {
     // The CMD_STAR_FEED already handles paper advance, so CMD_FEED_5MM is skipped.
     // Epson: CMD_FEED_5MM gives a clean 5mm gap then GS V 0 cuts.
     // Cash drawer pulse (if requested) is embedded BEFORE the cut — one TCP write.
+    // Star uses DLE DC4 (real-time command, 0x10 0x14 0x01) — not ESC p (Epson-only).
     ...(isStar
-      ? [CMD_STAR_FEED, ...(job.autoDrawer ? [buildOpenDrawerBytes(job.drawerPin ?? 0)] : []), CMD_STAR_CUT]
+      ? [CMD_STAR_FEED, ...(job.autoDrawer ? [buildStarOpenDrawerBytes(job.drawerPin ?? 0)] : []), CMD_STAR_CUT]
       : [CMD_FEED_5MM,  ...(job.autoDrawer ? [buildOpenDrawerBytes(job.drawerPin ?? 0)] : []), CMD_EPSON_CUT]
     ),
   );
@@ -333,8 +334,9 @@ export function buildTaxInvoiceBytes(job: PrintJob): Buffer {
     Buffer.from('Please retain for your records.\n', 'utf-8'),
     divider('='),
     lf(3),
+    // Star uses DLE DC4 (real-time command, 0x10 0x14 0x01) — not ESC p (Epson-only).
     ...(isStar
-      ? [CMD_STAR_FEED, ...(job.autoDrawer ? [buildOpenDrawerBytes(job.drawerPin ?? 0)] : []), CMD_STAR_CUT]
+      ? [CMD_STAR_FEED, ...(job.autoDrawer ? [buildStarOpenDrawerBytes(job.drawerPin ?? 0)] : []), CMD_STAR_CUT]
       : [CMD_FEED_5MM,  ...(job.autoDrawer ? [buildOpenDrawerBytes(job.drawerPin ?? 0)] : []), CMD_EPSON_CUT]
     ),
   );

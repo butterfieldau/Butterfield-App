@@ -799,6 +799,7 @@ function PosScreenInner() {
       const alreadyPrinted = vars.linklySessionId
         ? receiptPrintedRef.current.has(vars.linklySessionId)
         : false;
+      const isCashSale = vars.paymentMethod === 'cash' || vars.paymentMethod === 'split';
       if (!alreadyPrinted && store?.autoPrint && store?.printerIp) {
         if (vars.linklySessionId) receiptPrintedRef.current.add(vars.linklySessionId);
         sendReceiptPrint({
@@ -814,6 +815,9 @@ function PosScreenInner() {
           autoDrawer: !!(store as any).autoDrawer,
           drawerPin: ((store as any).drawerPin ?? 0) as 0 | 1,
         }, store.printerIp, store.printerPort ?? 9100, fetchBytes).catch(() => {});
+      } else if (!alreadyPrinted && !store?.autoPrint && store?.autoDrawer && store?.printerIp && isCashSale) {
+        // No receipt printing, but auto-drawer is on — open the drawer directly for cash/split sales.
+        sendOpenDrawer(store.printerIp, store.printerPort ?? 9100, fetchBytes, ((store as any).drawerPin ?? 0) as 0 | 1, store.printerBrand as 'epson' | 'star' | undefined).catch(() => {});
       }
     },
     onError: (err: any, vars) => {

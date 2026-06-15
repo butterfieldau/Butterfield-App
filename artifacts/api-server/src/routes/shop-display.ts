@@ -173,6 +173,8 @@ router.get('/store', async (req, res) => {
     printerPort: storesTable.printerPort,
     printerBrand: storesTable.printerBrand,
     autoPrint: storesTable.autoPrint,
+    autoDrawer: storesTable.autoDrawer,
+    drawerPin: storesTable.drawerPin,
     geofenceRadius: storesTable.geofenceRadius,
     latitude: storesTable.latitude,
     longitude: storesTable.longitude,
