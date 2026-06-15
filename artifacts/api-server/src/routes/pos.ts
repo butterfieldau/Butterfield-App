@@ -710,6 +710,17 @@ router.get('/surcharges', async (req, res) => {
   }
 });
 
+// ── GET /pos/loyalty-config — birthday multiplier + stamp goal ──────────────
+router.get('/loyalty-config', async (req, res) => {
+  try {
+    const loyaltySettings = await getLoyaltyPosSettings();
+    return res.json({ data: { ...loyaltySettings, stampGoal: 6 } });
+  } catch (err: any) {
+    req.log.error({ err }, 'GET /pos/loyalty-config failed');
+    return res.status(500).json({ error: 'Failed to fetch loyalty config' });
+  }
+});
+
 // ── POST /pos/surcharges — create a surcharge (director/manager only) ──────
 router.post('/surcharges', async (req, res) => {
   await ensurePosSchemaReady();

@@ -4,9 +4,10 @@ const PRODUCTS_KEY       = '@pos_products_v1';
 const SYNCED_AT_KEY      = '@pos_synced_at_v1';
 const OFFLINE_QUEUE_KEY  = '@pos_offline_queue_v1';
 const CUSTOMER_CACHE_KEY = '@pos_customer_cache_v1';
-const DETAIL_CACHE_KEY   = '@pos_detail_cache_v1';
-const STORE_CONFIG_KEY   = '@pos_store_config_v1';
-const SURCHARGES_KEY     = '@pos_surcharges_v1';
+const DETAIL_CACHE_KEY    = '@pos_detail_cache_v1';
+const STORE_CONFIG_KEY    = '@pos_store_config_v1';
+const SURCHARGES_KEY      = '@pos_surcharges_v1';
+const LOYALTY_CONFIG_KEY  = '@pos_loyalty_config_v1';
 
 // ── Product cache ──────────────────────────────────────────────────────────────
 
@@ -190,6 +191,19 @@ export async function loadCachedSurcharges(): Promise<any[] | null> {
 
 export async function saveSurchargesCache(surcharges: any[]): Promise<void> {
   try { await AsyncStorage.setItem(SURCHARGES_KEY, JSON.stringify(surcharges)); } catch {}
+}
+
+// ── Loyalty config cache (birthday multiplier, stamp goal) ───────────────────
+
+export async function loadCachedLoyaltyConfig(): Promise<{ birthdayBonusMultiplier: number; stampGoal: number } | null> {
+  try {
+    const raw = await AsyncStorage.getItem(LOYALTY_CONFIG_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch { return null; }
+}
+
+export async function saveLoyaltyConfig(config: { birthdayBonusMultiplier: number; stampGoal: number }): Promise<void> {
+  try { await AsyncStorage.setItem(LOYALTY_CONFIG_KEY, JSON.stringify(config)); } catch {}
 }
 
 // ── Customer cache (last 50 seen) ──────────────────────────────────────────────

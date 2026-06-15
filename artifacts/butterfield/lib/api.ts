@@ -1031,6 +1031,7 @@ export const api = {
       request<{ success: boolean; refundAmountCents: number; isFullRefund: boolean }>(
         `/pos/orders/${id}/refund`, { method: 'POST', body: JSON.stringify(data) }
       ),
+    loyaltyConfig: () => request<{ data: { birthdayBonusMultiplier: number; stampGoal: number } }>('/pos/loyalty-config'),
     surcharges: () => request<{ data: PosSurcharge[] }>('/pos/surcharges'),
     createSurcharge: (data: { name: string; triggerType: string; triggerValue: string; amountType: string; amountValue: number }) =>
       request<{ data: PosSurcharge }>('/pos/surcharges', { method: 'POST', body: JSON.stringify(data) }),

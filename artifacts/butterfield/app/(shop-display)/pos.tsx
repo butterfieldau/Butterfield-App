@@ -29,7 +29,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   savePosProductsCache,
   loadDetailCache, saveDetailEntry, clearDetailCache,
-  saveStoreConfig, saveSurchargesCache,
+  saveStoreConfig, saveSurchargesCache, saveLoyaltyConfig,
   getPosLastSyncedAt, formatSyncTime,
   upsertCustomerCache, searchCustomerCache,
   type CachedPosCustomer, type OfflineQueueEntry,
@@ -418,23 +418,23 @@ function PosScreenInner() {
     refetchInterval: 30_000,
   });
 
-  // ── Full sync (products + summary + settings + surcharges) ────────────────
+  // ── Full sync (products + summary + settings + surcharges + loyalty config) ─
   const [syncingAll, setSyncingAll] = useState(false);
   const syncAll = useCallback(async () => {
     if (syncingAll) return;
     setSyncingAll(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     try {
-      // Clear persisted detail cache so variants re-fetch fresh after a product sync
-      clearDetailCache();
+      // Clear persisted + in-memory detail cache so variants re-fetch fresh
+      await clearDetailCache();
       setDetailCache({});
       await Promise.all([
         refetchProducts(),
         refetchSummary(),
         refetchRegister(),
-        queryClient.invalidateQueries({ queryKey: ['pos-store-settings'] }),
-        queryClient.invalidateQueries({ queryKey: ['pos-surcharges'] }),
-        queryClient.invalidateQueries({ queryKey: ['pos-loyalty-config'] }),
+        queryClient.refetchQueries({ queryKey: ['pos-store-settings'] }),
+        queryClient.refetchQueries({ queryKey: ['pos-surcharges'] }),
+        queryClient.refetchQueries({ queryKey: ['pos-loyalty-config'] }),
       ]);
       getPosLastSyncedAt().then(d => setLastSyncedAt(d ?? new Date()));
     } finally {
@@ -469,6 +469,30 @@ function PosScreenInner() {
     },
     staleTime: Infinity,   // never auto-refetch; only syncs on demand
   });
+
+  // ── Loyalty config (birthday multiplier, stamp goal) ─────────────────────
+  useQuery({
+    queryKey: ['pos-loyalty-config'],
+    queryFn: async () => {
+      const res = await api.pos.loyaltyConfig();
+      const cfg = (res as any)?.data ?? null;
+      if (cfg) saveLoyaltyConfig(cfg);
+      return res;
+    },
+    staleTime: Infinity,   // only refreshed on demand via syncAll / syncNow
+  });
+
+  // ── Cache-clear signal — layout's syncNow sets this to clear in-memory variants ──
+  const { data: cacheClearSignal } = useQuery<number>({
+    queryKey: ['pos-cache-clear-signal'],
+    queryFn: () => 0,
+    enabled: false,
+    staleTime: Infinity,
+  });
+  useEffect(() => {
+    if (cacheClearSignal) setDetailCache({});
+  }, [cacheClearSignal]);
+
   const registerState = registerData?.data ?? null;
   const registerSession = registerState?.session ?? null;
   const cashEnabled = registerState?.cashEnabled ?? false;

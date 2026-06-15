@@ -15,7 +15,8 @@ import { LayoutSafeAreaContext } from '@/context/LayoutSafeAreaContext';
 import { api } from '@/lib/api';
 import {
   getPosLastSyncedAt, getMsUntil4amSydney, formatSyncTime,
-  loadCachedPosProducts, loadCachedStoreConfig, loadCachedSurcharges,
+  loadCachedPosProducts, loadCachedStoreConfig, loadCachedSurcharges, loadCachedLoyaltyConfig,
+  clearDetailCache,
 } from '@/lib/posCache';
 import { PosIdleScreen } from '@/components/PosIdleScreen';
 
@@ -315,10 +316,12 @@ export default function ShopDisplayLayout() {
       loadCachedPosProducts(),
       loadCachedStoreConfig(),
       loadCachedSurcharges(),
-    ]).then(([products, storeConfig, surcharges]) => {
-      if (products?.length) queryClient.setQueryData(['pos-products'], { data: products });
+      loadCachedLoyaltyConfig(),
+    ]).then(([products, storeConfig, surcharges, loyaltyConfig]) => {
+      if (products?.length)  queryClient.setQueryData(['pos-products'], { data: products });
       if (storeConfig)       queryClient.setQueryData(['pos-store-settings'], storeConfig);
       if (surcharges)        queryClient.setQueryData(['pos-surcharges'], { data: surcharges });
+      if (loyaltyConfig)     queryClient.setQueryData(['pos-loyalty-config'], { data: loyaltyConfig });
     });
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -405,9 +408,13 @@ export default function ShopDisplayLayout() {
     setSyncing(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     try {
+      // Clear persisted + in-memory detail cache so stale variants don't survive a sync
+      await clearDetailCache();
+      queryClient.setQueryData<number>(['pos-cache-clear-signal'], Date.now());
       await queryClient.refetchQueries({ queryKey: ['pos-products'] });
       await queryClient.refetchQueries({ queryKey: ['pos-store-settings'] });
       await queryClient.refetchQueries({ queryKey: ['pos-surcharges'] });
+      await queryClient.refetchQueries({ queryKey: ['pos-loyalty-config'] });
       const d = await getPosLastSyncedAt();
       setLastSyncedAt(d ?? new Date());
     } finally {
