@@ -547,7 +547,6 @@ router.post('/register/close', async (req, res) => {
       actualCountedCashCents,
       closeNote: typeof req.body?.closeNote === 'string' ? req.body.closeNote : null,
       varianceNote: typeof req.body?.varianceNote === 'string' ? req.body.varianceNote : null,
-      supervisorPin: typeof req.body?.supervisorPin === 'string' ? req.body.supervisorPin : null,
     });
     const report = await getRegisterSessionReport(session.id);
     return res.json({ data: report });

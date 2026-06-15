@@ -873,7 +873,7 @@ function PosScreenInner() {
   });
 
   const closeRegisterMutation = useMutation({
-    mutationFn: (vars: { actualCountedCashCents: number; closeNote?: string; varianceNote?: string; supervisorPin?: string }) =>
+    mutationFn: (vars: { actualCountedCashCents: number; closeNote?: string; varianceNote?: string }) =>
       api.pos.closeRegister(vars),
     onSuccess: async (res) => {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -887,16 +887,7 @@ function PosScreenInner() {
       }
       refetchRegister();
     },
-    onError: (err: any, vars) => {
-      if (err?.body?.code === 'SUPERVISOR_PIN_REQUIRED') {
-        setRegisterApprovalPrompt({
-          mode: 'close',
-          payload: vars,
-          title: 'Manager Approval',
-          subtitle: 'Enter your POS PIN to approve this cash variance',
-        });
-        return;
-      }
+    onError: (err: any) => {
       Alert.alert('Close Register', err?.message ?? 'Could not close the register.');
     },
   });
@@ -1437,7 +1428,7 @@ function PosScreenInner() {
             if (prompt.mode === 'movement') {
               cashMovementMutation.mutate({ ...prompt.payload, supervisorPin: pin });
             } else {
-              closeRegisterMutation.mutate({ ...prompt.payload, supervisorPin: pin });
+              closeRegisterMutation.mutate({ ...prompt.payload });
             }
           }}
         />

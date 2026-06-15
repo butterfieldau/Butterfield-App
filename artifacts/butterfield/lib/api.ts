@@ -1008,7 +1008,7 @@ export const api = {
         '/pos/register/cash-movements',
         { method: 'POST', body: JSON.stringify(data) },
       ),
-    closeRegister: (data: { actualCountedCashCents: number; closeNote?: string; varianceNote?: string; supervisorPin?: string }) =>
+    closeRegister: (data: { actualCountedCashCents: number; closeNote?: string; varianceNote?: string }) =>
       request<{ data: RegisterSessionReport | null }>('/pos/register/close', { method: 'POST', body: JSON.stringify(data) }),
     updateRegisterSettings: (data: { autoCloseEnabled: boolean }) =>
       request<{ data: { autoCloseEnabled: boolean } }>('/pos/register/settings', { method: 'PATCH', body: JSON.stringify(data) }),

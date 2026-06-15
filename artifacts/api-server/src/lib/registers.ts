@@ -564,7 +564,6 @@ export async function closeRegisterSession(params: {
   actualCountedCashCents: number;
   closeNote?: string | null;
   varianceNote?: string | null;
-  supervisorPin?: string | null;
 }) {
   await ensureRegisterSchemaReady();
   const [session] = await db
@@ -577,7 +576,6 @@ export async function closeRegisterSession(params: {
   const actualCountedCashCents = Math.max(0, Math.round(params.actualCountedCashCents));
   const baseSummary = await computeRegisterSessionSummary(params.sessionId);
   const varianceCents = actualCountedCashCents - baseSummary.expectedCashCents;
-  let varianceApprovedByUserId: string | null = null;
 
   if (varianceCents !== 0 && !params.varianceNote?.trim()) {
     throw new Error('VARIANCE_NOTE_REQUIRED');
@@ -593,7 +591,7 @@ export async function closeRegisterSession(params: {
       varianceCents,
       closeNote: params.closeNote?.trim() || null,
       varianceNote: varianceCents !== 0 ? (params.varianceNote?.trim() || null) : null,
-      varianceApprovedByUserId,
+      varianceApprovedByUserId: null,
       updatedAt: new Date(),
     })
     .where(eq(registerSessionsTable.id, params.sessionId))
