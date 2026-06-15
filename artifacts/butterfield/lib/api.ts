@@ -236,6 +236,7 @@ export const api = {
     },
     store:         () => request<{ data: ShopDisplayStore[] }>('/shop-display/store'),
     products:      () => request<{ data: ApiProduct[] }>('/shop-display/products'),
+    idleProducts:  () => request<{ data: ApiProduct[] }>('/shop-display/idle-products'),
     customers:     (search: string) =>
       request<{ data: ShopDisplayCustomer[] }>(`/shop-display/customers?search=${encodeURIComponent(search)}`),
     staffAssigned: () => request<{ data: ShopDisplayStaffMember[] }>('/shop-display/staff-assigned'),

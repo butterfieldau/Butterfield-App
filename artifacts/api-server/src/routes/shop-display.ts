@@ -426,6 +426,37 @@ router.get('/tasks/history', async (req, res) => {
   return res.json({ data: history });
 });
 
+// ── Idle-products (screensaver, no permission gate) ───────────────────────
+router.get('/idle-products', async (req, res) => {
+  await ensureShopDisplaySchemaReady();
+  const base = getPublicBaseUrl(req);
+  function absolutize(url: string | null | undefined): string | null {
+    if (!url) return null;
+    if (/^https?:\/\//i.test(url)) {
+      const storageMatch = url.match(/(\/api\/storage\/objects\/.+)/);
+      if (storageMatch) return base ? `${base}${storageMatch[1]}` : storageMatch[1];
+      return url;
+    }
+    if (!base) return url;
+    return `${base}${url.startsWith('/') ? '' : '/'}${url}`;
+  }
+  const rows = await db
+    .select()
+    .from(productsTable)
+    .where(and(eq((productsTable as any).isActive, true), eq((productsTable as any).isFeatured, true)))
+    .orderBy((productsTable as any).name)
+    .limit(10);
+  const data = rows.map((p: any) => {
+    let galleryUrls: string[] = [];
+    try { galleryUrls = JSON.parse(p.galleryUrls ?? '[]'); } catch {}
+    const images = [p.imageUrl, ...galleryUrls]
+      .map((u: string | null) => absolutize(u))
+      .filter((u): u is string => !!u);
+    return { ...p, images };
+  });
+  return res.json({ data });
+});
+
 // ── Products (permission-gated) ───────────────────────────────────────────
 router.get('/products', async (req, res) => {
   await ensureShopDisplaySchemaReady();

@@ -57,9 +57,9 @@ export function PosIdleScreen({
 
       {current && (
         <View style={styles.idleCard}>
-          {current.images?.[0] ? (
+          {(current.images?.[0] ?? current.imageUrl) ? (
             <Image
-              source={{ uri: current.images[0] }}
+              source={{ uri: current.images?.[0] ?? current.imageUrl }}
               style={styles.idleCardImg}
               resizeMode="cover"
             />

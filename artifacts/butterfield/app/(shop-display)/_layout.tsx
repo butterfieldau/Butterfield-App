@@ -312,8 +312,8 @@ export default function ShopDisplayLayout() {
   const [isIdle, setIsIdle] = useState(false);
 
   const { data: idleProductsData } = useQuery({
-    queryKey: ['shop-display-products'],
-    queryFn: () => api.shopDisplay.products(),
+    queryKey: ['shop-display-idle-products'],
+    queryFn: () => api.shopDisplay.idleProducts(),
     enabled: user?.role === 'shop_display',
     staleTime: 5 * 60_000,
   });
