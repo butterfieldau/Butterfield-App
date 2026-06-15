@@ -4527,36 +4527,70 @@ function RegisterModal({
                 </>
               ) : (
                 <>
-                  {/* ── Compact 2-column denomination grid ────────────────── */}
+                  {/* ── Notes (left) + Coins (right) columns ─────────────── */}
                   <View style={styles.denomGrid}>
-                    {AUD_DENOMS.map(d => (
-                      <View key={d.cents} style={styles.denomCell}>
-                        <Text style={styles.denomCellLabel}>{d.label}</Text>
-                        <Pressable
-                          onPress={() => setDenomCounts(p => ({ ...p, [d.cents]: String(Math.max(0, (parseInt(p[d.cents] ?? '0', 10) || 0) - 1)) }))}
-                          style={styles.denomCellBtn}
-                          hitSlop={8}
-                        >
-                          <Feather name="minus" size={14} color={MID} />
-                        </Pressable>
-                        <TextInput
-                          style={styles.denomCellInput}
-                          keyboardType="number-pad"
-                          value={denomCounts[d.cents] ?? ''}
-                          placeholder="0"
-                          placeholderTextColor={MUTED}
-                          onChangeText={v => setDenomCounts(p => ({ ...p, [d.cents]: v.replace(/[^0-9]/g, '') }))}
-                          selectTextOnFocus
-                        />
-                        <Pressable
-                          onPress={() => setDenomCounts(p => ({ ...p, [d.cents]: String((parseInt(p[d.cents] ?? '0', 10) || 0) + 1) }))}
-                          style={styles.denomCellBtn}
-                          hitSlop={8}
-                        >
-                          <Feather name="plus" size={14} color={MID} />
-                        </Pressable>
-                      </View>
-                    ))}
+                    <View style={styles.denomColumn}>
+                      <Text style={styles.denomColHeader}>Notes</Text>
+                      {AUD_DENOMS.filter(d => d.note).map(d => (
+                        <View key={d.cents} style={styles.denomCell}>
+                          <Text style={styles.denomCellLabel}>{d.label}</Text>
+                          <Pressable
+                            onPress={() => setDenomCounts(p => ({ ...p, [d.cents]: String(Math.max(0, (parseInt(p[d.cents] ?? '0', 10) || 0) - 1)) }))}
+                            style={styles.denomCellBtn}
+                            hitSlop={8}
+                          >
+                            <Feather name="minus" size={14} color={MID} />
+                          </Pressable>
+                          <TextInput
+                            style={styles.denomCellInput}
+                            keyboardType="number-pad"
+                            value={denomCounts[d.cents] ?? ''}
+                            placeholder="0"
+                            placeholderTextColor={MUTED}
+                            onChangeText={v => setDenomCounts(p => ({ ...p, [d.cents]: v.replace(/[^0-9]/g, '') }))}
+                            selectTextOnFocus
+                          />
+                          <Pressable
+                            onPress={() => setDenomCounts(p => ({ ...p, [d.cents]: String((parseInt(p[d.cents] ?? '0', 10) || 0) + 1) }))}
+                            style={styles.denomCellBtn}
+                            hitSlop={8}
+                          >
+                            <Feather name="plus" size={14} color={MID} />
+                          </Pressable>
+                        </View>
+                      ))}
+                    </View>
+                    <View style={styles.denomColumn}>
+                      <Text style={styles.denomColHeader}>Coins</Text>
+                      {AUD_DENOMS.filter(d => !d.note).map(d => (
+                        <View key={d.cents} style={styles.denomCell}>
+                          <Text style={styles.denomCellLabel}>{d.label}</Text>
+                          <Pressable
+                            onPress={() => setDenomCounts(p => ({ ...p, [d.cents]: String(Math.max(0, (parseInt(p[d.cents] ?? '0', 10) || 0) - 1)) }))}
+                            style={styles.denomCellBtn}
+                            hitSlop={8}
+                          >
+                            <Feather name="minus" size={14} color={MID} />
+                          </Pressable>
+                          <TextInput
+                            style={styles.denomCellInput}
+                            keyboardType="number-pad"
+                            value={denomCounts[d.cents] ?? ''}
+                            placeholder="0"
+                            placeholderTextColor={MUTED}
+                            onChangeText={v => setDenomCounts(p => ({ ...p, [d.cents]: v.replace(/[^0-9]/g, '') }))}
+                            selectTextOnFocus
+                          />
+                          <Pressable
+                            onPress={() => setDenomCounts(p => ({ ...p, [d.cents]: String((parseInt(p[d.cents] ?? '0', 10) || 0) + 1) }))}
+                            style={styles.denomCellBtn}
+                            hitSlop={8}
+                          >
+                            <Feather name="plus" size={14} color={MID} />
+                          </Pressable>
+                        </View>
+                      ))}
+                    </View>
                   </View>
 
                   {/* ── Compact horizontal summary ─────────────────────────── */}
@@ -5432,9 +5466,11 @@ const styles = StyleSheet.create({
   registerMovementTitle: { fontSize: 13, fontWeight: '700', color: DARK },
   registerMovementMeta: { fontSize: 12, color: MUTED, marginTop: 3 },
   registerVarianceRow:{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10 },
-  denomGrid:          { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 10 },
-  denomCell:          { width: '48%', flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 9, paddingHorizontal: 10, backgroundColor: '#F8FAFC', borderRadius: 10, borderWidth: 1, borderColor: BORDER },
-  denomCellLabel:     { width: 38, fontSize: 14, fontWeight: '700', color: DARK },
+  denomGrid:          { flexDirection: 'row', gap: 8, marginBottom: 10 },
+  denomColumn:        { flex: 1, gap: 6 },
+  denomColHeader:     { fontSize: 11, fontWeight: '700', color: MUTED, letterSpacing: 0.8, textTransform: 'uppercase', marginBottom: 2 },
+  denomCell:          { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 9, paddingHorizontal: 10, backgroundColor: '#F8FAFC', borderRadius: 10, borderWidth: 1, borderColor: BORDER },
+  denomCellLabel:     { width: 36, fontSize: 14, fontWeight: '700', color: DARK },
   denomCellBtn:       { width: 32, height: 32, borderRadius: 8, backgroundColor: WHITE, borderWidth: 1, borderColor: BORDER, alignItems: 'center', justifyContent: 'center' },
   denomCellInput:     { flex: 1, height: 34, borderWidth: 1, borderColor: BORDER, borderRadius: 8, backgroundColor: WHITE, textAlign: 'center', fontSize: 16, fontWeight: '700', color: DARK },
   denomSummaryRow:    { flexDirection: 'row', backgroundColor: '#F8FAFC', borderRadius: 10, padding: 10, borderWidth: 1, borderColor: BORDER, marginBottom: 6 },
