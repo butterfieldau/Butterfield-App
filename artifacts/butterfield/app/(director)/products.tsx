@@ -38,6 +38,11 @@ const CAT_COLORS: Record<string, string> = {
   pastries:'#F97316', drinks:'#06B6D4', 'iced-drinks':'#06B6D4',
   boxes:'#F59E0B', seasonal:'#F97316', specials:'#EF4444', other:'#8E8E93',
 };
+const PRESET_COLORS = [
+  '#EF4444', '#F97316', '#F59E0B', '#10B981',
+  '#06B6D4', '#1493FF', '#8B5CF6', '#EC4899',
+  '#92400E', '#0F766E', '#4F46E5', '#64748B',
+];
 const STATUS_OPTIONS = ['All','Active','Draft','Archived'] as const;
 type StatusOption = typeof STATUS_OPTIONS[number];
 const SORT_OPTIONS = ['Name A → Z','Name Z → A','Price: Low → High','Price: High → Low','Newest First'] as const;
@@ -786,6 +791,7 @@ function CatalogTab() {
   const [catShowOnHome, setCatShowOnHome] = useState(false);
   const [catHomeOrder, setCatHomeOrder] = useState('0');
   const [catImageUrl, setCatImageUrl] = useState('');
+  const [catColor, setCatColor] = useState<string | null>(null);
   const [catUploading, setCatUploading] = useState(false);
   const [catSaving, setCatSaving] = useState(false);
   const recommendedCategorySort = useMemo(
@@ -801,14 +807,14 @@ function CatalogTab() {
   const openAddCat = () => {
     setEditCat(null); setCatName(''); setCatSlug(''); setCatDesc('');
     setCatSortOrder('0'); setCatShowPublic(true); setCatShowWholesale(false);
-    setCatShowOnHome(false); setCatHomeOrder('0'); setCatImageUrl('');
+    setCatShowOnHome(false); setCatHomeOrder('0'); setCatImageUrl(''); setCatColor(null);
     setCatModal(true);
   };
   const openEditCat = (c: any) => {
     setEditCat(c); setCatName(c.name); setCatSlug(c.slug); setCatDesc(c.description ?? '');
     setCatSortOrder(String(c.sortOrder ?? 0)); setCatShowPublic(c.showPublic ?? true); setCatShowWholesale(c.showWholesale ?? false);
     setCatShowOnHome(c.showOnHome ?? false); setCatHomeOrder(String(c.homeOrder ?? 0));
-    setCatImageUrl(c.imageUrl ?? '');
+    setCatImageUrl(c.imageUrl ?? ''); setCatColor(c.color ?? null);
     setCatModal(true);
   };
   const saveCat = async () => {
@@ -825,6 +831,7 @@ function CatalogTab() {
         showOnHome: catShowOnHome,
         homeOrder: parseInt(catHomeOrder) || 0,
         imageUrl: catImageUrl.trim() || null,
+        color: catColor || null,
       };
       if (editCat) {
         await api.director.updateCategory(editCat.id, payload);
@@ -913,6 +920,9 @@ function CatalogTab() {
               </View>
               <View style={{ flex: 1 }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                  {c.color && (
+                    <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: c.color }} />
+                  )}
                   <Text style={{ fontWeight: '700', color: TEXT, fontSize: 14 }}>{c.name}</Text>
                   <View style={{ backgroundColor: BLUE + '18', paddingHorizontal: 7, paddingVertical: 2, borderRadius: 10 }}>
                     <Text style={{ fontSize: 11, fontWeight: '600', color: BLUE }}>{c.productCount ?? 0}</Text>
@@ -990,6 +1000,41 @@ function CatalogTab() {
                         <Text style={{ color: MUTED, fontSize: 11, fontWeight: '400' }}>Shows on the customer category tiles and home category strip</Text>
                       </>
                   }
+                </Pressable>
+              )}
+            </View>
+            {/* POS Colour */}
+            <SectionHeader title="POS Colour" icon="droplet" color={PURPLE} />
+            <View style={{ gap: 10 }}>
+              <Text style={{ color: MUTED, fontSize: 12, fontWeight: '400' }}>
+                Shown on the POS category tabs. Leave unset to use the automatic colour.
+              </Text>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
+                {PRESET_COLORS.map(c => {
+                  const selected = catColor === c;
+                  return (
+                    <Pressable
+                      key={c}
+                      onPress={() => { setCatColor(selected ? null : c); Haptics.selectionAsync(); }}
+                      style={{
+                        width: 38, height: 38, borderRadius: 19,
+                        backgroundColor: c,
+                        borderWidth: selected ? 3 : 1.5,
+                        borderColor: selected ? NAVY : 'rgba(0,0,0,0.12)',
+                        alignItems: 'center', justifyContent: 'center',
+                      }}
+                    >
+                      {selected && <Feather name="check" size={16} color="#fff" />}
+                    </Pressable>
+                  );
+                })}
+              </View>
+              {catColor && (
+                <Pressable
+                  onPress={() => { setCatColor(null); Haptics.selectionAsync(); }}
+                  style={{ alignSelf: 'flex-start', paddingHorizontal: 12, paddingVertical: 7, borderRadius: 999, backgroundColor: RED + '12', borderWidth: 1, borderColor: RED + '25' }}
+                >
+                  <Text style={{ color: RED, fontSize: 12, fontWeight: '600' }}>Clear colour</Text>
                 </Pressable>
               )}
             </View>

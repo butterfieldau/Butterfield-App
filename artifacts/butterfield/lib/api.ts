@@ -2097,6 +2097,7 @@ export interface ProductCategory {
   isActive?: boolean;
   showPublic?: boolean;
   showWholesale?: boolean;
+  color?: string | null;
 }
 
 export interface ApiOrderItemOption {
@@ -2727,6 +2728,7 @@ export interface DirectorCategoryInput {
   isDeliveryAvailable?: boolean;
   showOnHome?: boolean;
   homeOrder?: number;
+  color?: string | null;
 }
 
 export interface DirectorOption {

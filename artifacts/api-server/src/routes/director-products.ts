@@ -83,7 +83,7 @@ router.post('/categories', allowedRoles, requireProducts, async (req, res) => {
 
 router.patch('/categories/:id', allowedRoles, requireProducts, async (req, res) => {
   const categoryId = getRouteParam(req.params.id);
-  const { name, slug, description, imageUrl, sortOrder, isActive, showPublic, showWholesale, isPickupAvailable, isDeliveryAvailable, showOnHome, homeOrder } = req.body;
+  const { name, slug, description, imageUrl, sortOrder, isActive, showPublic, showWholesale, isPickupAvailable, isDeliveryAvailable, showOnHome, homeOrder, color } = req.body;
   const updates: any = {};
   if (name !== undefined) updates.name = name.trim();
   if (slug !== undefined) updates.slug = slug.trim();
@@ -97,6 +97,7 @@ router.patch('/categories/:id', allowedRoles, requireProducts, async (req, res) 
   if (isDeliveryAvailable !== undefined) updates.isDeliveryAvailable = Boolean(isDeliveryAvailable);
   if (showOnHome !== undefined) updates.showOnHome = Boolean(showOnHome);
   if (homeOrder !== undefined) updates.homeOrder = Number(homeOrder);
+  if (color !== undefined) updates.color = color?.trim() || null;
   updates.updatedAt = new Date();
   const [cat] = await db.update(productCategoriesTable).set(updates).where(eq(productCategoriesTable.id, categoryId)).returning();
   if (!cat) return res.status(404).json({ error: 'Category not found' });

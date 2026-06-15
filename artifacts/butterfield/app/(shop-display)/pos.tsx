@@ -70,7 +70,8 @@ const CAT_COLORS_KEY           = 'pos_category_colors';
 const DISCOUNT_PRESETS_KEY     = 'pos_discount_presets';
 const HELD_TICKETS_KEY         = 'pos_held_tickets';
 const VOID_PIN_THRESHOLD_CENTS = 5_000;    // $50 — ticket voids above this need supervisor PIN
-function getDefaultCatColor(cat: string): string {
+function getDefaultCatColor(cat: string, apiColor?: string | null): string {
+  if (apiColor) return apiColor;
   const slug = cat.toLowerCase();
   if (CATEGORY_COLORS[slug]) return CATEGORY_COLORS[slug];
   // Deterministic hash for director-created slugs not in the legacy map
@@ -578,13 +579,13 @@ function PosScreenInner() {
   // Categories driven by director-managed product_categories table, sorted by
   // sortOrder. Falls back to deriving from product slugs when the API hasn't
   // loaded yet so the UI is never empty on first render.
-  const categories = useMemo<{ slug: string; name: string }[]>(() => {
-    const apiCats = (categoriesData as any)?.data as { id: string; name: string; slug: string; sortOrder?: number; isActive?: boolean }[] | undefined;
+  const categories = useMemo<{ slug: string; name: string; color?: string | null }[]>(() => {
+    const apiCats = (categoriesData as any)?.data as { id: string; name: string; slug: string; sortOrder?: number; isActive?: boolean; color?: string | null }[] | undefined;
     if (apiCats && apiCats.length > 0) {
       return apiCats
         .filter(c => c.isActive !== false)
         .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
-        .map(c => ({ slug: c.slug, name: c.name }));
+        .map(c => ({ slug: c.slug, name: c.name, color: c.color ?? null }));
     }
     // Fallback: derive unique slugs from loaded products, alphabetically
     const slugs = [...new Set(allProducts.map((p: any) => p.category ?? 'other').filter(Boolean))] as string[];
@@ -1264,7 +1265,7 @@ function PosScreenInner() {
             >
               {categories.map(cat => {
                 const active = selCategory === cat.slug;
-                const color  = customCatColors[cat.slug.toLowerCase()] ?? getDefaultCatColor(cat.slug);
+                const color  = customCatColors[cat.slug.toLowerCase()] ?? getDefaultCatColor(cat.slug, cat.color);
                 return (
                   <Pressable
                     key={cat.slug}
@@ -1623,7 +1624,7 @@ function PosScreenInner() {
                   style={[
                     styles.cpSwatch,
                     { backgroundColor: c },
-                    colorPickerCat && (customCatColors[colorPickerCat.toLowerCase()] ?? getDefaultCatColor(colorPickerCat)) === c && styles.cpSwatchActive,
+                    colorPickerCat && (customCatColors[colorPickerCat.toLowerCase()] ?? getDefaultCatColor(colorPickerCat, categories.find(ct => ct.slug === colorPickerCat)?.color)) === c && styles.cpSwatchActive,
                   ]}
                 />
               ))}
