@@ -205,8 +205,9 @@ export default function MenuScreen() {
       label: c.name,
       icon: (CAT_ICON_MAP[c.slug] ?? 'tag') as string,
       imageUrl: toCategoryImageUrl(c.imageUrl),
+      color: c.color ?? null,
     }));
-    return [...items, { id: 'all', label: 'All', icon: 'grid' as string, imageUrl: null }];
+    return [...items, { id: 'all', label: 'All', icon: 'grid' as string, imageUrl: null, color: null }];
   }, [categoriesData]);
 
   // Auto-select the first real category when categories load (unless the user
@@ -339,6 +340,7 @@ export default function MenuScreen() {
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10, paddingBottom: 2, paddingHorizontal: 0 }}>
           {categories.map(cat => {
             const pal    = getPalette(cat.id === 'all' ? 'default' : cat.id);
+            const accent = cat.color ?? pal.banner;
             const active = activeCategory === cat.id;
             return (
               <Pressable
@@ -346,11 +348,11 @@ export default function MenuScreen() {
                 onPress={() => { setUserChangedCategory(true); setActiveCategory(cat.id); setSearch(''); setSelectedDietaryTags([]); Haptics.selectionAsync(); }}
                 style={[
                   s.catTile,
-                  { borderColor: active ? pal.banner : '#E8E8ED', backgroundColor: active ? `${pal.banner}0F` : '#fff' },
+                  { borderColor: active ? accent : '#E8E8ED', backgroundColor: active ? `${accent}0F` : '#fff' },
                   isTablet && { paddingHorizontal: 16, paddingVertical: 13, minWidth: 80 },
                 ]}
               >
-                <View style={[s.catIconWrap, { backgroundColor: active ? pal.banner : '#F2F2F7' }, isTablet && { width: 48, height: 48, borderRadius: 24 }]}>
+                <View style={[s.catIconWrap, { backgroundColor: active ? accent : '#F2F2F7' }, isTablet && { width: 48, height: 48, borderRadius: 24 }]}>
                   {cat.icon.startsWith('svg:')
                     ? <CategorySvgIcon name={cat.icon.slice(4)} size={isTablet ? 22 : 18} color={active ? '#fff' : '#636366'} />
                     : cat.icon.startsWith('mc:')
@@ -359,7 +361,7 @@ export default function MenuScreen() {
                   }
                 </View>
                 <Text style={[s.catLabel, {
-                  color: active ? pal.banner : '#3C3C43',
+                  color: active ? accent : '#3C3C43',
                   fontWeight: active ? '700' : '500',
                   fontSize: isTablet ? 13 : 12,
                 }]}>

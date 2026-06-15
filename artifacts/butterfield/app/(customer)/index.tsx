@@ -130,6 +130,7 @@ export default function CustomerHome() {
       slug: c.slug as string,
       label: c.name as string,
       imageUrl: c.imageUrl as string | null,
+      color: (c.color as string | null | undefined) ?? null,
     }));
   }, [categoriesData]);
 
@@ -440,6 +441,7 @@ export default function CustomerHome() {
         contentContainerStyle={{ paddingHorizontal: hPad, gap: 12 }}
         renderItem={({ item: c }) => {
           const pal = getPalette(c.slug);
+          const accent = c.color ?? pal.bg;
           const imgUrl = c.imageUrl
             ? (c.imageUrl.startsWith('http') ? c.imageUrl : `${process.env.EXPO_PUBLIC_DOMAIN ? `https://${process.env.EXPO_PUBLIC_DOMAIN}` : ''}${c.imageUrl}`)
             : null;
@@ -447,7 +449,7 @@ export default function CustomerHome() {
             <Pressable
               key={c.id}
               onPress={() => { Haptics.selectionAsync(); router.push({ pathname: '/(customer)/menu', params: { category: c.slug } } as any); }}
-              style={[s.browseCard, { backgroundColor: imgUrl ? '#1a1a2e' : pal.bg, width: browseCardW, height: isTablet ? 118 : 100 }]}
+              style={[s.browseCard, { backgroundColor: imgUrl ? '#1a1a2e' : accent, width: browseCardW, height: isTablet ? 118 : 100 }]}
             >
               {imgUrl ? (
                 <Image
