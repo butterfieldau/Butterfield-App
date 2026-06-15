@@ -336,28 +336,16 @@ function DeltaBadge({ pct, dark }: { pct: number | null | undefined; dark?: bool
   if (dark) {
     const color = flat ? 'rgba(255,255,255,0.4)' : up ? '#00FF94' : '#FF2D55';
     return (
-      <View style={{
-        backgroundColor: flat ? 'rgba(255,255,255,0.08)' : up ? 'rgba(0,255,148,0.15)' : 'rgba(255,45,85,0.15)',
-        borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2,
-        borderWidth: 1, borderColor: color + '55',
-      }}>
-        <Text style={{ fontSize: 10, fontWeight: '700', color, letterSpacing: 0.3 }}>
-          {flat ? '—' : up ? '▲' : '▼'} {abs}%
-        </Text>
-      </View>
+      <Text style={{ fontSize: 10, fontWeight: '700', color, letterSpacing: 0.3 }}>
+        {flat ? '—' : up ? '▲' : '▼'} {abs}%
+      </Text>
     );
   }
   const color = flat ? MUTED : up ? GREEN : RED;
   return (
-    <View style={{
-      backgroundColor: flat ? '#F3F4F6' : up ? '#DCFCE7' : '#FEE2E2',
-      borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2,
-      borderWidth: 1, borderColor: flat ? BORDER : up ? '#86EFAC' : '#FCA5A5',
-    }}>
-      <Text style={{ fontSize: 10, fontWeight: '700', color, letterSpacing: 0.3 }}>
-        {flat ? '—' : up ? '▲' : '▼'} {abs}%
-      </Text>
-    </View>
+    <Text style={{ fontSize: 10, fontWeight: '700', color, letterSpacing: 0.3 }}>
+      {flat ? '—' : up ? '▲' : '▼'} {abs}%
+    </Text>
   );
 }
 
@@ -499,7 +487,7 @@ const HOUR_END   = 22; // inclusive
 function HourlyRevenueChart({ hours, onPressHour }: { hours: DirectorHourlyRevenue[]; onPressHour?: (hour: number) => void }) {
   const [expanded, setExpanded] = useState(false);
 
-  const nowHour     = new Date().getHours();
+  const nowHour     = parseInt(new Intl.DateTimeFormat('en-AU', { hour: 'numeric', hour12: false, timeZone: 'Australia/Sydney' }).format(new Date()), 10);
   const hoursWindow = hours.filter(h => h.hour >= HOUR_START && h.hour <= HOUR_END);
   const maxRev      = Math.max(...hoursWindow.map(h => h.revenueCents), 1);
   const totalRev    = hours.reduce((a, h) => a + h.revenueCents, 0);
