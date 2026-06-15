@@ -583,15 +583,6 @@ export async function closeRegisterSession(params: {
     throw new Error('VARIANCE_NOTE_REQUIRED');
   }
 
-  if (shouldRequireVarianceApproval(params.actorRole, varianceCents)) {
-    if (!params.supervisorPin || !/^\d{4}$/.test(String(params.supervisorPin))) {
-      throw new Error('SUPERVISOR_PIN_REQUIRED');
-    }
-    const supervisor = await getSupervisorByPin(String(params.supervisorPin));
-    if (!supervisor) throw new Error('SUPERVISOR_PIN_INVALID');
-    varianceApprovedByUserId = supervisor.userId;
-  }
-
   const [updated] = await db
     .update(registerSessionsTable)
     .set({

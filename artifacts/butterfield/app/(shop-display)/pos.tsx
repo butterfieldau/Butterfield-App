@@ -822,7 +822,7 @@ function PosScreenInner() {
     },
     onError: (err: any, vars) => {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      if (err?.code === 'DISCOUNT_PIN_REQUIRED') {
+      if (err?.body?.code === 'DISCOUNT_PIN_REQUIRED') {
         // Server requires supervisor PIN for this discount level — capture it
         setDiscountPinGate({
           paymentMethod: vars.paymentMethod,
@@ -832,7 +832,7 @@ function PosScreenInner() {
         });
         return;
       }
-      if (err?.code === 'REGISTER_FLOAT_REQUIRED') {
+      if (err?.body?.code === 'REGISTER_FLOAT_REQUIRED') {
         setShowPayment(false);
         setShowRegisterPin(true);
         Alert.alert('Cash Float Required', err?.message ?? 'Enter the opening cash float before taking cash payments.');
@@ -859,7 +859,7 @@ function PosScreenInner() {
       refetchRegister();
     },
     onError: (err: any, vars) => {
-      if (err?.code === 'SUPERVISOR_PIN_REQUIRED') {
+      if (err?.body?.code === 'SUPERVISOR_PIN_REQUIRED') {
         setRegisterApprovalPrompt({
           mode: 'movement',
           payload: vars,
@@ -888,7 +888,7 @@ function PosScreenInner() {
       refetchRegister();
     },
     onError: (err: any, vars) => {
-      if (err?.code === 'SUPERVISOR_PIN_REQUIRED') {
+      if (err?.body?.code === 'SUPERVISOR_PIN_REQUIRED') {
         setRegisterApprovalPrompt({
           mode: 'close',
           payload: vars,
