@@ -36,6 +36,7 @@ import {
 } from '@/lib/posCache';
 import { sendReceiptPrint, sendLinklyReceiptPrint, sendRegisterSummaryPrint, sendTaxInvoicePrint, sendOpenDrawer } from '@/lib/printer';
 import { OfflineProvider, useOffline } from '@/context/OfflineContext';
+import ZReportModal, { ZReportContent } from '@/components/ZReportModal';
 
 // ── Palette ──────────────────────────────────────────────────────────────────
 const BG       = '#F0F3F8';
@@ -282,6 +283,9 @@ function PosScreenInner() {
   const [showHoldModal, setShowHoldModal] = useState(false);
   const [showRegister, setShowRegister] = useState(false);
   const [showRegisterPin, setShowRegisterPin] = useState(false);
+  const [showZReport, setShowZReport] = useState(false);
+  const [zReportData, setZReportData] = useState<RegisterSessionReport | null>(null);
+  const [zReportPrinting, setZReportPrinting] = useState(false);
   const [floatPromptDismissed, setFloatPromptDismissed] = useState(false);
   const [discountPinGate, setDiscountPinGate] = useState<{
     paymentMethod: 'cash' | 'eftpos' | 'split';
@@ -917,12 +921,8 @@ function PosScreenInner() {
     onSuccess: async (res) => {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       if (res.data) {
-        try {
-          await printRegisterReport(res.data);
-          await api.pos.markRegisterSummaryPrinted(res.data.id);
-        } catch (err: any) {
-          Alert.alert('Register Closed', err?.message ?? 'Register closed, but the summary could not be printed.');
-        }
+        setZReportData(res.data);
+        setShowZReport(true);
       }
       refetchRegister();
     },
@@ -1449,6 +1449,26 @@ function PosScreenInner() {
             closeRegisterMutation.isPending ||
             updateRegisterSettingsMutation.isPending
           }
+        />
+      )}
+      {showZReport && zReportData && (
+        <ZReportModal
+          visible={showZReport}
+          report={zReportData}
+          onDone={() => { setShowZReport(false); setZReportData(null); }}
+          onPrint={async () => {
+            setZReportPrinting(true);
+            try {
+              await printRegisterReport(zReportData);
+              await api.pos.markRegisterSummaryPrinted(zReportData.id);
+              refetchRegister();
+            } catch (err: any) {
+              Alert.alert('Print Failed', err?.message ?? 'Could not print Z-Report.');
+            } finally {
+              setZReportPrinting(false);
+            }
+          }}
+          printing={zReportPrinting}
         />
       )}
       {discountPinGate && (
@@ -4082,6 +4102,14 @@ function RegisterModal({
   const queryClient = useQueryClient();
   const session = data?.session ?? null;
   const summary = session?.summary;
+
+  // ── Tab state ─────────────────────────────────────────────────────────────
+  const [activeTab, setActiveTab] = useState<'session' | 'cash' | 'close' | 'settings'>('session');
+  const [showPastSessions, setShowPastSessions] = useState(false);
+  const [pastZReportId, setPastZReportId] = useState<string | null>(null);
+  const [pastZReportPrinting, setPastZReportPrinting] = useState(false);
+
+  // ── Existing field state ──────────────────────────────────────────────────
   const [floatInput, setFloatInput] = useState('');
   const [drawerBusy, setDrawerBusy] = useState(false);
   const [movementType, setMovementType] = useState<'add' | 'remove'>('add');
@@ -4090,13 +4118,13 @@ function RegisterModal({
   const [denomCounts, setDenomCounts] = useState<Record<number, string>>({});
   const [closeNote, setCloseNote] = useState('');
   const [varianceNote, setVarianceNote] = useState('');
+  const [openSection, setOpenSection] = React.useState<'float' | 'drawer' | 'presets' | 'surcharges' | null>(null);
+  const toggleSection = (key: typeof openSection) => setOpenSection(prev => (prev === key ? null : key));
 
   // ── Discount Presets state ────────────────────────────────────────────────
   const [localPresets, setLocalPresets] = React.useState<number[]>(discountPresets);
   const [newPct, setNewPct] = React.useState('');
   const [presetError, setPresetError] = React.useState<string | null>(null);
-
-  // Sync localPresets when parent discountPresets changes (e.g. on open)
   React.useEffect(() => { setLocalPresets(discountPresets); }, [visible]);
 
   const addPreset = () => {
@@ -4177,6 +4205,24 @@ function RegisterModal({
       ? `${(s.amountValue / 100).toFixed(2)}%`
       : fmtCents(s.amountValue);
 
+  // ── Register history queries ───────────────────────────────────────────────
+  const { data: historyData, isLoading: historyLoading } = useQuery({
+    queryKey: ['pos-register-sessions'],
+    queryFn: () => api.pos.registerSessions(),
+    enabled: visible && showPastSessions,
+    staleTime: 30_000,
+  });
+  const pastSessions: RegisterSessionReport[] = (historyData as any)?.data ?? [];
+
+  const { data: pastReportData, isLoading: pastReportLoading } = useQuery({
+    queryKey: ['pos-register-session', pastZReportId],
+    queryFn: () => api.pos.registerSessionById(pastZReportId!),
+    enabled: !!pastZReportId,
+    staleTime: 60_000,
+  });
+  const pastReport: RegisterSessionReport | null = (pastReportData as any)?.data ?? null;
+
+  // ── Effects ───────────────────────────────────────────────────────────────
   useEffect(() => {
     if (!visible || !session) return;
     if (summary?.startingFloatCents != null) {
@@ -4187,34 +4233,71 @@ function RegisterModal({
     setVarianceNote(session.varianceNote ?? '');
   }, [session, visible]);
 
-  const [openSection, setOpenSection] = React.useState<'float' | 'drawer' | 'close' | 'presets' | 'surcharges' | null>(null);
-  const toggleSection = (key: typeof openSection) =>
-    setOpenSection(prev => (prev === key ? null : key));
-
+  // ── Derived values ────────────────────────────────────────────────────────
   const countedCents = AUD_DENOMS.reduce((sum, d) => {
     const qty = parseInt(denomCounts[d.cents] ?? '0', 10);
     return sum + (isNaN(qty) || qty < 0 ? 0 : qty * d.cents);
   }, 0);
   const variancePreview = summary ? countedCents - summary.expectedCashCents : 0;
 
+  const allChannels = (() => {
+    const posTotal       = summary?.totalSalesCents ?? 0;
+    const inAppTotal     = data?.inAppOrders?.revenueCents ?? 0;
+    const wholesaleTotal = data?.wholesaleOrders?.revenueCents ?? 0;
+    const grandTotal     = posTotal + inAppTotal + wholesaleTotal;
+    const inAppCount     = data?.inAppOrders?.count ?? 0;
+    const wsCount        = data?.wholesaleOrders?.count ?? 0;
+    return { posTotal, inAppTotal, wholesaleTotal, grandTotal, inAppCount, wsCount };
+  })();
+
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
       <View style={styles.customiseRoot}>
-        <View style={styles.sheetHeader}>
-          <Pressable onPress={onClose} hitSlop={12}>
+
+        {/* ── Header ───────────────────────────────────────────────────── */}
+        <View style={[styles.sheetHeader, { paddingHorizontal: 12 }]}>
+          <Pressable onPress={onClose} hitSlop={12} style={styles.regHeaderSideBtn}>
             <Feather name="x" size={22} color={DARK} />
           </Pressable>
           <Text style={styles.sheetTitle}>Register</Text>
-          <View style={{ width: 22 }} />
+          <Pressable
+            onPress={async () => {
+              setDrawerBusy(true);
+              try { await onOpenDrawer(); } catch {} finally { setDrawerBusy(false); }
+            }}
+            disabled={drawerBusy}
+            style={styles.regHeaderDrawerBtn}
+            hitSlop={8}
+          >
+            <Feather name="unlock" size={16} color={drawerBusy ? MUTED : '#D97706'} />
+          </Pressable>
         </View>
 
-        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, gap: 14 }} keyboardShouldPersistTaps="handled">
-          {loading || !summary ? (
-            <View style={{ paddingVertical: 48, alignItems: 'center' }}>
-              <ActivityIndicator color={BLUE} />
-            </View>
-          ) : (
-            <>
+        {/* ── Tab bar ──────────────────────────────────────────────────── */}
+        <View style={styles.regTabBar}>
+          {(['session', 'cash', 'close', 'settings'] as const).map(tab => (
+            <Pressable
+              key={tab}
+              onPress={() => { setActiveTab(tab); Haptics.selectionAsync(); }}
+              style={[styles.regTab, activeTab === tab && styles.regTabActive]}
+            >
+              <Text style={[styles.regTabText, activeTab === tab && styles.regTabTextActive]}>
+                {tab === 'session' ? 'Session' : tab === 'cash' ? 'Cash' : tab === 'close' ? 'Close' : 'Settings'}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
+
+        {loading || !summary ? (
+          <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+            <ActivityIndicator color={BLUE} />
+          </View>
+        ) : (
+          <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, gap: 14 }} keyboardShouldPersistTaps="handled">
+
+            {/* ══ SESSION TAB ══════════════════════════════════════════════ */}
+            {activeTab === 'session' && (<>
+
               <View style={styles.registerHero}>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.registerHeroTitle}>{session?.registerName ?? 'Register'}</Text>
@@ -4229,35 +4312,30 @@ function RegisterModal({
               </View>
 
               <View style={styles.registerGrid}>
-                <View style={styles.registerCard}>
-                  <Text style={styles.registerMetricLabel}>Opening Float</Text>
-                  <Text style={styles.registerMetricValue}>{fmtCents(summary.startingFloatCents ?? 0)}</Text>
-                </View>
-                <View style={styles.registerCard}>
-                  <Text style={styles.registerMetricLabel}>Expected Cash</Text>
-                  <Text style={styles.registerMetricValue}>{fmtCents(summary.expectedCashCents)}</Text>
-                </View>
-                <View style={styles.registerCard}>
-                  <Text style={styles.registerMetricLabel}>Cash Sales</Text>
-                  <Text style={styles.registerMetricValue}>{fmtCents(summary.cashSalesCents)}</Text>
-                </View>
-                <View style={styles.registerCard}>
-                  <Text style={styles.registerMetricLabel}>Card Sales</Text>
-                  <Text style={styles.registerMetricValue}>{fmtCents(summary.cardSalesCents)}</Text>
-                </View>
+                {[
+                  { label: 'Opening Float', value: fmtCents(summary.startingFloatCents ?? 0) },
+                  { label: 'Expected Cash',  value: fmtCents(summary.expectedCashCents) },
+                  { label: 'Cash Sales',     value: fmtCents(summary.cashSalesCents) },
+                  { label: 'Card Sales',     value: fmtCents(summary.cardSalesCents) },
+                ].map(m => (
+                  <View key={m.label} style={styles.registerCard}>
+                    <Text style={styles.registerMetricLabel}>{m.label}</Text>
+                    <Text style={styles.registerMetricValue}>{m.value}</Text>
+                  </View>
+                ))}
               </View>
 
               <View style={styles.registerSection}>
                 <Text style={styles.sectionTitle}>Today&apos;s Totals</Text>
-                {[
-                  ['Cash Refunds', fmtCents(summary.cashRefundsCents)],
-                  ['Card Refunds', fmtCents(summary.cardRefundsCents)],
-                  ['Discounts', fmtCents(summary.discountsCents)],
-                  ['Surcharges', fmtCents(summary.surchargesCents)],
-                  ['Cash Added', fmtCents(summary.cashAddedCents)],
-                  ['Cash Removed', fmtCents(summary.cashRemovedCents)],
-                  ['Total Sales', fmtCents(summary.totalSalesCents)],
-                ].map(([label, value]) => (
+                {([
+                  ['Cash Refunds',  fmtCents(summary.cashRefundsCents)],
+                  ['Card Refunds',  fmtCents(summary.cardRefundsCents)],
+                  ['Discounts',     fmtCents(summary.discountsCents)],
+                  ['Surcharges',    fmtCents(summary.surchargesCents)],
+                  ['Cash Added',    fmtCents(summary.cashAddedCents)],
+                  ['Cash Removed',  fmtCents(summary.cashRemovedCents)],
+                  ['Total Sales',   fmtCents(summary.totalSalesCents)],
+                ] as [string, string][]).map(([label, value]) => (
                   <View key={label} style={styles.registerLine}>
                     <Text style={styles.registerLineLabel}>{label}</Text>
                     <Text style={styles.registerLineValue}>{value}</Text>
@@ -4265,73 +4343,66 @@ function RegisterModal({
                 ))}
               </View>
 
-              {/* ── All Channels Today ─────────────────────────────────── */}
-              {(() => {
-                const posTotal       = summary.totalSalesCents;
-                const inAppTotal     = data?.inAppOrders?.revenueCents ?? 0;
-                const wholesaleTotal = data?.wholesaleOrders?.revenueCents ?? 0;
-                const grandTotal     = posTotal + inAppTotal + wholesaleTotal;
-                const inAppCount     = data?.inAppOrders?.count ?? 0;
-                const wsCount        = data?.wholesaleOrders?.count ?? 0;
-                return (
-                  <View style={styles.registerSection}>
-                    <Text style={styles.sectionTitle}>All Channels Today</Text>
-                    <View style={styles.registerLine}>
-                      <View style={{ flex: 1 }}>
-                        <Text style={styles.registerLineLabel}>POS</Text>
-                      </View>
-                      <Text style={styles.registerLineValue}>{fmtCents(posTotal)}</Text>
-                    </View>
-                    <View style={styles.registerLine}>
-                      <View style={{ flex: 1 }}>
-                        <Text style={styles.registerLineLabel}>Customer App</Text>
-                        <Text style={[styles.registerLineLabel, { fontSize: 11, marginTop: 1 }]}>{inAppCount} order{inAppCount !== 1 ? 's' : ''}</Text>
-                      </View>
-                      <Text style={styles.registerLineValue}>{fmtCents(inAppTotal)}</Text>
-                    </View>
-                    <View style={styles.registerLine}>
-                      <View style={{ flex: 1 }}>
-                        <Text style={styles.registerLineLabel}>Wholesale</Text>
-                        <Text style={[styles.registerLineLabel, { fontSize: 11, marginTop: 1 }]}>{wsCount} order{wsCount !== 1 ? 's' : ''}</Text>
-                      </View>
-                      <Text style={styles.registerLineValue}>{fmtCents(wholesaleTotal)}</Text>
-                    </View>
-                    <View style={[styles.registerLine, { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: '#334155', marginTop: 6, paddingTop: 10 }]}>
-                      <Text style={[styles.registerLineLabel, { fontWeight: '700', color: DARK }]}>Grand Total</Text>
-                      <Text style={[styles.registerLineValue, { fontWeight: '800', color: BLUE, fontSize: 18 }]}>{fmtCents(grandTotal)}</Text>
-                    </View>
-                  </View>
-                );
-              })()}
-
-              {/* ── Settings accordion ─────────────────────────────────── */}
-              <View style={styles.regAccordionGroup}>
-
-                {/* Open Drawer */}
-                <Pressable
-                  style={({ pressed }) => [styles.regAccordionRow, (pressed || drawerBusy) && { opacity: 0.6 }]}
-                  disabled={drawerBusy}
-                  onPress={async () => {
-                    setDrawerBusy(true);
-                    try {
-                      await onOpenDrawer();
-                    } catch {
-                    } finally {
-                      setDrawerBusy(false);
-                    }
-                  }}
-                >
-                  <View style={[styles.regAccordionIcon, { backgroundColor: '#FFF7ED' }]}>
-                    <Feather name="unlock" size={16} color="#D97706" />
-                  </View>
+              <View style={styles.registerSection}>
+                <Text style={styles.sectionTitle}>All Channels Today</Text>
+                <View style={styles.registerLine}>
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.regAccordionTitle}>{drawerBusy ? 'Opening Drawer…' : 'Open Cash Drawer'}</Text>
-                    <Text style={styles.regAccordionSub}>Send pulse to open via receipt printer</Text>
+                    <Text style={styles.registerLineLabel}>POS</Text>
                   </View>
-                  <Feather name="chevron-right" size={16} color={MUTED} />
-                </Pressable>
+                  <Text style={styles.registerLineValue}>{fmtCents(allChannels.posTotal)}</Text>
+                </View>
+                <View style={styles.registerLine}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.registerLineLabel}>Customer App</Text>
+                    <Text style={[styles.registerLineLabel, { fontSize: 11, marginTop: 1 }]}>{allChannels.inAppCount} order{allChannels.inAppCount !== 1 ? 's' : ''}</Text>
+                  </View>
+                  <Text style={styles.registerLineValue}>{fmtCents(allChannels.inAppTotal)}</Text>
+                </View>
+                <View style={styles.registerLine}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.registerLineLabel}>Wholesale</Text>
+                    <Text style={[styles.registerLineLabel, { fontSize: 11, marginTop: 1 }]}>{allChannels.wsCount} order{allChannels.wsCount !== 1 ? 's' : ''}</Text>
+                  </View>
+                  <Text style={styles.registerLineValue}>{fmtCents(allChannels.wholesaleTotal)}</Text>
+                </View>
+                <View style={[styles.registerLine, { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: '#334155', marginTop: 6, paddingTop: 10 }]}>
+                  <Text style={[styles.registerLineLabel, { fontWeight: '700', color: DARK }]}>Grand Total</Text>
+                  <Text style={[styles.registerLineValue, { fontWeight: '800', color: BLUE, fontSize: 18 }]}>{fmtCents(allChannels.grandTotal)}</Text>
+                </View>
+              </View>
 
-                <View style={styles.regAccordionDivider} />
+              <Pressable
+                onPress={() => { setShowPastSessions(true); Haptics.selectionAsync(); }}
+                style={({ pressed }) => [styles.regPastSessionsBtn, pressed && { opacity: 0.7 }]}
+              >
+                <Feather name="clock" size={15} color={MID} />
+                <Text style={styles.regPastSessionsBtnText}>Past Sessions</Text>
+                <Feather name="chevron-right" size={15} color={MUTED} />
+              </Pressable>
+
+            </>)}
+
+            {/* ══ CASH TAB ════════════════════════════════════════════════ */}
+            {activeTab === 'cash' && (<>
+
+              <Pressable
+                style={({ pressed }) => [styles.regDrawerAction, (pressed || drawerBusy) && { opacity: 0.6 }]}
+                disabled={drawerBusy}
+                onPress={async () => {
+                  setDrawerBusy(true);
+                  try { await onOpenDrawer(); } catch {} finally { setDrawerBusy(false); }
+                }}
+              >
+                <View style={[styles.regAccordionIcon, { backgroundColor: '#FFF7ED' }]}>
+                  <Feather name="unlock" size={20} color="#D97706" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.regDrawerActionTitle}>{drawerBusy ? 'Opening Drawer…' : 'Open Cash Drawer'}</Text>
+                  <Text style={styles.regAccordionSub}>Send pulse to open via receipt printer</Text>
+                </View>
+              </Pressable>
+
+              <View style={styles.regAccordionGroup}>
 
                 {/* Cash Float */}
                 <Pressable style={styles.regAccordionRow} onPress={() => toggleSection('float')}>
@@ -4435,101 +4506,106 @@ function RegisterModal({
                   </View>
                 )}
 
-                <View style={styles.regAccordionDivider} />
+              </View>
 
-                {/* Count Cash & Close */}
-                <Pressable style={styles.regAccordionRow} onPress={() => toggleSection('close')}>
-                  <View style={[styles.regAccordionIcon, { backgroundColor: '#FFF7ED' }]}>
-                    <Feather name="lock" size={16} color="#EA580C" />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.regAccordionTitle}>Count Cash &amp; Close Register</Text>
-                    <Text style={styles.regAccordionSub}>{session?.closedAt ? 'Closed · tap to print summary' : `Expected ${fmtCents(summary.expectedCashCents)} in drawer`}</Text>
-                  </View>
-                  <Feather name={openSection === 'close' ? 'chevron-up' : 'chevron-down'} size={16} color={MUTED} />
-                </Pressable>
-                {openSection === 'close' && (
-                  <View style={styles.regAccordionBody}>
-                    <Text style={styles.denomGroupLabel}>Notes</Text>
-                    {AUD_DENOMS.filter(d => d.note).map(d => {
-                      const qty = parseInt(denomCounts[d.cents] ?? '0', 10);
-                      const subtotal = (isNaN(qty) || qty < 0 ? 0 : qty) * d.cents;
-                      return (
-                        <View key={d.cents} style={styles.denomRow}>
-                          <Text style={styles.denomLabel}>{d.label}</Text>
-                          <View style={styles.denomQtyRow}>
-                            <Pressable onPress={() => setDenomCounts(p => ({ ...p, [d.cents]: String(Math.max(0, (parseInt(p[d.cents] ?? '0', 10) || 0) - 1)) }))} style={styles.denomBtn} hitSlop={6}>
-                              <Feather name="minus" size={14} color={MID} />
-                            </Pressable>
-                            <TextInput style={styles.denomInput} keyboardType="number-pad" value={denomCounts[d.cents] ?? ''} placeholder="0" placeholderTextColor={MUTED} onChangeText={v => setDenomCounts(p => ({ ...p, [d.cents]: v.replace(/[^0-9]/g, '') }))} selectTextOnFocus />
-                            <Pressable onPress={() => setDenomCounts(p => ({ ...p, [d.cents]: String((parseInt(p[d.cents] ?? '0', 10) || 0) + 1) }))} style={styles.denomBtn} hitSlop={6}>
-                              <Feather name="plus" size={14} color={MID} />
-                            </Pressable>
-                          </View>
-                          <Text style={styles.denomSubtotal}>{subtotal > 0 ? fmtCents(subtotal) : '—'}</Text>
+            </>)}
+
+            {/* ══ CLOSE TAB ═══════════════════════════════════════════════ */}
+            {activeTab === 'close' && (<>
+
+              {session?.closedAt ? (
+                <>
+                  <ZReportContent report={session} />
+                  <TouchableOpacity
+                    onPress={() => void onPrintSummary()}
+                    style={[styles.addToOrderBtn, { gap: 8, marginTop: 4 }]}
+                    activeOpacity={0.85}
+                  >
+                    <Feather name="printer" size={16} color={WHITE} />
+                    <Text style={styles.addToOrderBtnText}>Print Z-Report</Text>
+                  </TouchableOpacity>
+                </>
+              ) : (
+                <>
+                  <Text style={styles.denomGroupLabel}>Notes</Text>
+                  {AUD_DENOMS.filter(d => d.note).map(d => {
+                    const qty = parseInt(denomCounts[d.cents] ?? '0', 10);
+                    const subtotal = (isNaN(qty) || qty < 0 ? 0 : qty) * d.cents;
+                    return (
+                      <View key={d.cents} style={styles.denomRow}>
+                        <Text style={styles.denomLabel}>{d.label}</Text>
+                        <View style={styles.denomQtyRow}>
+                          <Pressable onPress={() => setDenomCounts(p => ({ ...p, [d.cents]: String(Math.max(0, (parseInt(p[d.cents] ?? '0', 10) || 0) - 1)) }))} style={styles.denomBtn} hitSlop={6}>
+                            <Feather name="minus" size={14} color={MID} />
+                          </Pressable>
+                          <TextInput style={styles.denomInput} keyboardType="number-pad" value={denomCounts[d.cents] ?? ''} placeholder="0" placeholderTextColor={MUTED} onChangeText={v => setDenomCounts(p => ({ ...p, [d.cents]: v.replace(/[^0-9]/g, '') }))} selectTextOnFocus />
+                          <Pressable onPress={() => setDenomCounts(p => ({ ...p, [d.cents]: String((parseInt(p[d.cents] ?? '0', 10) || 0) + 1) }))} style={styles.denomBtn} hitSlop={6}>
+                            <Feather name="plus" size={14} color={MID} />
+                          </Pressable>
                         </View>
-                      );
-                    })}
-                    <Text style={[styles.denomGroupLabel, { marginTop: 10 }]}>Coins</Text>
-                    {AUD_DENOMS.filter(d => !d.note).map(d => {
-                      const qty = parseInt(denomCounts[d.cents] ?? '0', 10);
-                      const subtotal = (isNaN(qty) || qty < 0 ? 0 : qty) * d.cents;
-                      return (
-                        <View key={d.cents} style={styles.denomRow}>
-                          <Text style={styles.denomLabel}>{d.label}</Text>
-                          <View style={styles.denomQtyRow}>
-                            <Pressable onPress={() => setDenomCounts(p => ({ ...p, [d.cents]: String(Math.max(0, (parseInt(p[d.cents] ?? '0', 10) || 0) - 1)) }))} style={styles.denomBtn} hitSlop={6}>
-                              <Feather name="minus" size={14} color={MID} />
-                            </Pressable>
-                            <TextInput style={styles.denomInput} keyboardType="number-pad" value={denomCounts[d.cents] ?? ''} placeholder="0" placeholderTextColor={MUTED} onChangeText={v => setDenomCounts(p => ({ ...p, [d.cents]: v.replace(/[^0-9]/g, '') }))} selectTextOnFocus />
-                            <Pressable onPress={() => setDenomCounts(p => ({ ...p, [d.cents]: String((parseInt(p[d.cents] ?? '0', 10) || 0) + 1) }))} style={styles.denomBtn} hitSlop={6}>
-                              <Feather name="plus" size={14} color={MID} />
-                            </Pressable>
-                          </View>
-                          <Text style={styles.denomSubtotal}>{subtotal > 0 ? fmtCents(subtotal) : '—'}</Text>
+                        <Text style={styles.denomSubtotal}>{subtotal > 0 ? fmtCents(subtotal) : '—'}</Text>
+                      </View>
+                    );
+                  })}
+                  <Text style={[styles.denomGroupLabel, { marginTop: 10 }]}>Coins</Text>
+                  {AUD_DENOMS.filter(d => !d.note).map(d => {
+                    const qty = parseInt(denomCounts[d.cents] ?? '0', 10);
+                    const subtotal = (isNaN(qty) || qty < 0 ? 0 : qty) * d.cents;
+                    return (
+                      <View key={d.cents} style={styles.denomRow}>
+                        <Text style={styles.denomLabel}>{d.label}</Text>
+                        <View style={styles.denomQtyRow}>
+                          <Pressable onPress={() => setDenomCounts(p => ({ ...p, [d.cents]: String(Math.max(0, (parseInt(p[d.cents] ?? '0', 10) || 0) - 1)) }))} style={styles.denomBtn} hitSlop={6}>
+                            <Feather name="minus" size={14} color={MID} />
+                          </Pressable>
+                          <TextInput style={styles.denomInput} keyboardType="number-pad" value={denomCounts[d.cents] ?? ''} placeholder="0" placeholderTextColor={MUTED} onChangeText={v => setDenomCounts(p => ({ ...p, [d.cents]: v.replace(/[^0-9]/g, '') }))} selectTextOnFocus />
+                          <Pressable onPress={() => setDenomCounts(p => ({ ...p, [d.cents]: String((parseInt(p[d.cents] ?? '0', 10) || 0) + 1) }))} style={styles.denomBtn} hitSlop={6}>
+                            <Feather name="plus" size={14} color={MID} />
+                          </Pressable>
                         </View>
-                      );
-                    })}
-                    <View style={styles.denomSummaryBox}>
-                      <View style={styles.registerLine}>
-                        <Text style={[styles.registerLineLabel, { fontWeight: '700', color: DARK }]}>Total Counted</Text>
-                        <Text style={[styles.registerLineValue, { fontWeight: '800', color: DARK, fontSize: 18 }]}>{fmtCents(countedCents)}</Text>
+                        <Text style={styles.denomSubtotal}>{subtotal > 0 ? fmtCents(subtotal) : '—'}</Text>
                       </View>
-                      <View style={styles.registerLine}>
-                        <Text style={styles.registerLineLabel}>Expected Cash</Text>
-                        <Text style={styles.registerLineValue}>{fmtCents(summary?.expectedCashCents ?? 0)}</Text>
-                      </View>
-                      <View style={[styles.registerLine, { borderTopWidth: 1, borderTopColor: BORDER, marginTop: 6, paddingTop: 8 }]}>
-                        <Text style={[styles.registerLineLabel, { fontWeight: '700' }]}>Variance</Text>
-                        <Text style={[styles.registerLineValue, { fontWeight: '700', color: variancePreview === 0 ? '#15803D' : variancePreview > 0 ? '#15803D' : CHERRY }]}>
-                          {variancePreview > 0 ? '+' : ''}{fmtCents(variancePreview)}
-                        </Text>
-                      </View>
+                    );
+                  })}
+                  <View style={styles.denomSummaryBox}>
+                    <View style={styles.registerLine}>
+                      <Text style={[styles.registerLineLabel, { fontWeight: '700', color: DARK }]}>Total Counted</Text>
+                      <Text style={[styles.registerLineValue, { fontWeight: '800', color: DARK, fontSize: 18 }]}>{fmtCents(countedCents)}</Text>
                     </View>
-                    <TextInput style={[styles.registerInput, styles.registerTextarea]} placeholder="Close note (optional)" placeholderTextColor={MUTED} multiline value={closeNote} onChangeText={setCloseNote} />
-                    {variancePreview !== 0 && (
-                      <TextInput style={[styles.registerInput, styles.registerTextarea]} placeholder="Reason for cash variance" placeholderTextColor={MUTED} multiline value={varianceNote} onChangeText={setVarianceNote} />
-                    )}
-                    <TouchableOpacity
-                      onPress={() => onCloseRegister({ actualCountedCashCents: countedCents, closeNote, varianceNote: variancePreview !== 0 ? varianceNote : undefined })}
-                      style={[styles.addToOrderBtn, busy && { opacity: 0.6 }]}
-                      disabled={busy}
-                      activeOpacity={0.85}
-                    >
-                      <Text style={styles.addToOrderBtnText}>Close Register</Text>
-                    </TouchableOpacity>
-                    {!!session?.closedAt && (
-                      <Pressable onPress={() => void onPrintSummary()} style={styles.registerSecondaryBtn}>
-                        <Feather name="printer" size={14} color={BLUE} />
-                        <Text style={styles.registerSecondaryBtnText}>Print Summary</Text>
-                      </Pressable>
-                    )}
+                    <View style={styles.registerLine}>
+                      <Text style={styles.registerLineLabel}>Expected Cash</Text>
+                      <Text style={styles.registerLineValue}>{fmtCents(summary?.expectedCashCents ?? 0)}</Text>
+                    </View>
+                    <View style={[styles.registerLine, { borderTopWidth: 1, borderTopColor: BORDER, marginTop: 6, paddingTop: 8 }]}>
+                      <Text style={[styles.registerLineLabel, { fontWeight: '700' }]}>Variance</Text>
+                      <Text style={[styles.registerLineValue, { fontWeight: '700', color: variancePreview === 0 ? '#15803D' : variancePreview > 0 ? '#15803D' : CHERRY }]}>
+                        {variancePreview > 0 ? '+' : ''}{fmtCents(variancePreview)}
+                      </Text>
+                    </View>
                   </View>
-                )}
+                  <TextInput style={[styles.registerInput, styles.registerTextarea]} placeholder="Close note (optional)" placeholderTextColor={MUTED} multiline value={closeNote} onChangeText={setCloseNote} />
+                  {variancePreview !== 0 && (
+                    <TextInput style={[styles.registerInput, styles.registerTextarea]} placeholder="Reason for cash variance" placeholderTextColor={MUTED} multiline value={varianceNote} onChangeText={setVarianceNote} />
+                  )}
+                  <TouchableOpacity
+                    onPress={() => onCloseRegister({ actualCountedCashCents: countedCents, closeNote, varianceNote: variancePreview !== 0 ? varianceNote : undefined })}
+                    style={[styles.addToOrderBtn, busy && { opacity: 0.6 }]}
+                    disabled={busy}
+                    activeOpacity={0.85}
+                  >
+                    <Text style={styles.addToOrderBtnText}>Close Register</Text>
+                  </TouchableOpacity>
+                </>
+              )}
 
-                <View style={styles.regAccordionDivider} />
+            </>)}
 
-                {/* Auto Close — toggle inline, no expand needed */}
+            {/* ══ SETTINGS TAB ════════════════════════════════════════════ */}
+            {activeTab === 'settings' && (<>
+
+              <View style={styles.regAccordionGroup}>
+
+                {/* Auto Close toggle */}
                 <Pressable
                   style={styles.regAccordionRow}
                   onPress={() => data?.canEditAutoClose && onToggleAutoClose(!data.autoCloseEnabled)}
@@ -4717,9 +4793,67 @@ function RegisterModal({
                 )}
 
               </View>
-            </>
-          )}
-        </ScrollView>
+
+            </>)}
+
+          </ScrollView>
+        )}
+
+        {/* ── Past Sessions Sheet ───────────────────────────────────────── */}
+        <Modal visible={showPastSessions} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setShowPastSessions(false)}>
+          <View style={styles.customiseRoot}>
+            <View style={styles.sheetHeader}>
+              <Pressable onPress={() => setShowPastSessions(false)} hitSlop={12}>
+                <Feather name="x" size={22} color={DARK} />
+              </Pressable>
+              <Text style={styles.sheetTitle}>Past Sessions</Text>
+              <View style={{ width: 22 }} />
+            </View>
+            <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, gap: 10 }}>
+              {historyLoading ? (
+                <View style={{ paddingVertical: 40, alignItems: 'center' }}>
+                  <ActivityIndicator color={BLUE} />
+                </View>
+              ) : pastSessions.length === 0 ? (
+                <View style={{ paddingVertical: 40, alignItems: 'center', gap: 8 }}>
+                  <Feather name="archive" size={32} color={MUTED} />
+                  <Text style={{ fontSize: 14, color: MUTED, textAlign: 'center' }}>No past sessions on record for this register</Text>
+                </View>
+              ) : (
+                pastSessions.map(ps => (
+                  <Pressable
+                    key={ps.id}
+                    onPress={() => { setPastZReportId(ps.id); Haptics.selectionAsync(); }}
+                    style={({ pressed }) => [styles.regHistoryRow, pressed && { opacity: 0.7 }]}
+                  >
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.regHistoryDate}>{ps.tradingDate}</Text>
+                      <Text style={styles.regHistoryMeta}>
+                        {ps.autoClosed ? 'Auto close' : `Closed by ${ps.closedByName ?? 'unknown'}`}
+                        {ps.summary.varianceCents !== null && ps.summary.varianceCents !== 0
+                          ? ` · Variance ${ps.summary.varianceCents > 0 ? '+' : ''}${fmtCents(ps.summary.varianceCents)}`
+                          : ''}
+                      </Text>
+                    </View>
+                    <Text style={styles.regHistoryAmt}>{fmtCents(ps.summary.totalSalesCents)}</Text>
+                    <Feather name="chevron-right" size={15} color={MUTED} />
+                  </Pressable>
+                ))
+              )}
+            </ScrollView>
+          </View>
+        </Modal>
+
+        {/* ── Past Session Z-Report ─────────────────────────────────────── */}
+        {!!pastZReportId && (
+          <ZReportModal
+            visible={!!pastZReportId}
+            report={pastReport}
+            loading={pastReportLoading}
+            onDone={() => setPastZReportId(null)}
+          />
+        )}
+
       </View>
     </Modal>
   );
@@ -5261,6 +5395,21 @@ const styles = StyleSheet.create({
   regAccordionSub:    { fontSize: 12, color: MUTED, marginTop: 2 },
   regAccordionBody:   { paddingHorizontal: 14, paddingBottom: 16, paddingTop: 4, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: BORDER, backgroundColor: '#FAFBFC' },
   regAccordionDivider:{ height: StyleSheet.hairlineWidth, backgroundColor: BORDER, marginLeft: 60 },
+  regTabBar:          { flexDirection: 'row', backgroundColor: WHITE, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: BORDER },
+  regTab:             { flex: 1, paddingVertical: 12, alignItems: 'center', borderBottomWidth: 2, borderBottomColor: 'transparent' },
+  regTabActive:       { borderBottomColor: BLUE },
+  regTabText:         { fontSize: 13, fontWeight: '600', color: MUTED },
+  regTabTextActive:   { color: BLUE },
+  regHeaderDrawerBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#FFF7ED', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#FDE68A' },
+  regHeaderSideBtn:   { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
+  regDrawerAction:    { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: '#FFFBEB', borderRadius: 14, padding: 14, borderWidth: 1, borderColor: '#FDE68A' },
+  regDrawerActionTitle: { fontSize: 15, fontWeight: '700', color: '#D97706' },
+  regPastSessionsBtn: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: WHITE, borderRadius: 14, padding: 14, borderWidth: 1, borderColor: BORDER },
+  regPastSessionsBtnText: { flex: 1, fontSize: 14, fontWeight: '600', color: MID },
+  regHistoryRow:      { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: WHITE, borderRadius: 12, padding: 14, borderWidth: 1, borderColor: BORDER },
+  regHistoryDate:     { fontSize: 14, fontWeight: '700', color: DARK },
+  regHistoryMeta:     { fontSize: 12, color: MUTED, marginTop: 2 },
+  regHistoryAmt:      { fontSize: 16, fontWeight: '800', color: DARK },
   registerLine:       { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 6 },
   registerLineLabel:  { fontSize: 13, color: MID, fontWeight: '600' },
   registerLineValue:  { fontSize: 14, color: DARK, fontWeight: '800' },

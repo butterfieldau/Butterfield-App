@@ -1014,6 +1014,10 @@ export const api = {
       request<{ data: { autoCloseEnabled: boolean } }>('/pos/register/settings', { method: 'PATCH', body: JSON.stringify(data) }),
     markRegisterSummaryPrinted: (sessionId: string) =>
       request<{ success: boolean }>(`/pos/register/summary/${sessionId}/printed`, { method: 'PATCH' }),
+    registerSessions: () =>
+      request<{ data: RegisterSessionReport[] }>('/pos/register/sessions'),
+    registerSessionById: (id: string) =>
+      request<{ data: RegisterSessionReport }>(`/pos/register/sessions/${id}`),
     summary: () => request<{ data: { orderCount: number; revenueCents: number } }>('/pos/summary'),
     orders: () => request<{ data: PosHistoryOrder[]; nextCursor: string | null }>('/pos/orders'),
     ordersPage: (params?: { cursor?: string; limit?: number }) => {

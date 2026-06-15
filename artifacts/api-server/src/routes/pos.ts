@@ -78,6 +78,8 @@ import {
   getPendingAutoPrintReport,
   getRegisterSessionReport,
   getRegisterSettings,
+  getCurrentRegisterSessionReportById,
+  listCurrentRegisterRecentSessions,
   markRegisterSummaryPrinted,
   recordPosRefundEvent,
   setRegisterStartingFloat,
@@ -581,6 +583,19 @@ router.patch('/register/summary/:sessionId/printed', async (req, res) => {
   await ensurePosSchemaReady();
   await markRegisterSummaryPrinted(req.params.sessionId);
   return res.json({ success: true });
+});
+
+router.get('/register/sessions', async (req, res) => {
+  await ensurePosSchemaReady();
+  const reports = await listCurrentRegisterRecentSessions(req.user!.id, 10);
+  return res.json({ data: reports });
+});
+
+router.get('/register/sessions/:id', async (req, res) => {
+  await ensurePosSchemaReady();
+  const report = await getCurrentRegisterSessionReportById(req.user!.id, req.params.id);
+  if (!report) return res.status(404).json({ error: 'Session not found' });
+  return res.json({ data: report });
 });
 
 // ── POST /pos/customers/:id/stamp — manually award one coffee stamp ──────────

@@ -27,6 +27,7 @@ import {
 import { DirectorStandaloneScreen } from '@/components/DirectorStandaloneScreen';
 import InlineCalendarPicker from '@/components/InlineCalendarPicker';
 import { sendRegisterSummaryPrint } from '@/lib/printer';
+import ZReportModal from '@/components/ZReportModal';
 
 const BG     = '#EFF6FF';
 const CARD   = '#FFFFFF';
@@ -1349,102 +1350,21 @@ function RegisterReportDetailModal({
   }, [report, settingsData?.data]);
 
   return (
-    <Modal visible={!!reportId} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
-      <KeyboardAvoidingView style={dl.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <View style={dl.header}>
-          <View style={dl.headerLeft}>
-            <View style={dl.iconBox}><Feather name="archive" size={18} color={BLUE} /></View>
-            <View>
-              <Text style={dl.title}>Register Summary</Text>
-              <Text style={dl.subtitle}>{report?.registerName ?? 'Loading…'}</Text>
-            </View>
-          </View>
-          <Pressable onPress={onClose}><Feather name="x" size={22} color={TEXT} /></Pressable>
-        </View>
-
-        <ScrollView contentContainerStyle={{ padding: 16, gap: 14, paddingBottom: 28 }}>
-          {isLoading || !report ? (
-            <View style={s.center}>
-              <ActivityIndicator color={BLUE} />
-            </View>
-          ) : (
-            <>
-              <View style={s.card}>
-                <View style={s.registerReportHead}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={s.breakLabel}>{fmtDisplayDate(report.tradingDate)}</Text>
-                    <Text style={s.breakSub}>{report.registerLocation ?? 'Butterfield Cookies'}</Text>
-                  </View>
-                  <View style={[s.statusPill, report.autoClosed ? s.statusPillAuto : s.statusPillManual]}>
-                    <Text style={[s.statusPillText, report.autoClosed ? s.statusPillTextAuto : s.statusPillTextManual]}>
-                      {report.autoClosed ? 'Auto Close' : 'Manual Close'}
-                    </Text>
-                  </View>
-                </View>
-
-                {[
-                  ['Opened By', report.openedByName ?? 'Not recorded'],
-                  ['Opened At', fmtDateTime(report.openedAt)],
-                  ['Closed By', report.closedByName ?? (report.autoClosed ? 'Auto close' : 'Not recorded')],
-                  ['Closed At', fmtDateTime(report.closedAt)],
-                  ['Opening Float', fmtAUD(report.summary.startingFloatCents ?? 0)],
-                  ['Cash Sales', fmtAUD(report.summary.cashSalesCents)],
-                  ['Card Sales', fmtAUD(report.summary.cardSalesCents)],
-                  ['Total Refunds', fmtAUD(report.summary.totalRefundsCents)],
-                  ['Discounts', fmtAUD(report.summary.discountsCents)],
-                  ['Surcharges', fmtAUD(report.summary.surchargesCents)],
-                  ['Cash Added', fmtAUD(report.summary.cashAddedCents)],
-                  ['Cash Removed', fmtAUD(report.summary.cashRemovedCents)],
-                  ['Expected Cash', fmtAUD(report.summary.expectedCashCents)],
-                  ['Actual Cash Counted', report.summary.actualCountedCashCents == null ? 'Not entered' : fmtAUD(report.summary.actualCountedCashCents)],
-                  ['Cash Variance', report.summary.varianceCents == null ? 'Not calculated' : fmtAUD(report.summary.varianceCents)],
-                  ['Total Sales', fmtAUD(report.summary.totalSalesCents)],
-                ].map(([label, value], index) => (
-                  <View key={label}>
-                    {index > 0 && <View style={s.divider} />}
-                    <View style={s.breakRow}>
-                      <Text style={[s.breakLabel, { flex: 1 }]}>{label}</Text>
-                      <Text style={s.breakValue}>{value}</Text>
-                    </View>
-                  </View>
-                ))}
-              </View>
-
-              <View style={s.card}>
-                <Text style={s.filterLabel}>Close Note</Text>
-                <TextInput
-                  value={closeNote}
-                  onChangeText={setCloseNote}
-                  placeholder="Add close note"
-                  placeholderTextColor={MUTED}
-                  multiline
-                  style={s.notesInput}
-                />
-                <Text style={s.filterLabel}>Variance Note</Text>
-                <TextInput
-                  value={varianceNote}
-                  onChangeText={setVarianceNote}
-                  placeholder="Add variance note"
-                  placeholderTextColor={MUTED}
-                  multiline
-                  style={s.notesInput}
-                />
-                <View style={s.detailActionRow}>
-                  <Pressable onPress={handlePrint} style={[s.secondaryActionBtn, printing && { opacity: 0.7 }]} disabled={printing}>
-                    {printing ? <ActivityIndicator color={BLUE} size="small" /> : <Feather name="printer" size={15} color={BLUE} />}
-                    <Text style={s.secondaryActionText}>{printing ? 'Printing…' : 'Print Summary'}</Text>
-                  </Pressable>
-                  <Pressable onPress={() => saveMutation.mutate()} style={[s.primaryActionBtn, saveMutation.isPending && { opacity: 0.7 }]} disabled={saveMutation.isPending}>
-                    {saveMutation.isPending ? <ActivityIndicator color="#fff" size="small" /> : <Feather name="save" size={15} color="#fff" />}
-                    <Text style={s.primaryActionText}>{saveMutation.isPending ? 'Saving…' : 'Save Notes'}</Text>
-                  </Pressable>
-                </View>
-              </View>
-            </>
-          )}
-        </ScrollView>
-      </KeyboardAvoidingView>
-    </Modal>
+    <ZReportModal
+      visible={!!reportId}
+      report={report}
+      loading={isLoading}
+      onDone={onClose}
+      onPrint={handlePrint}
+      printing={printing}
+      editableNotes
+      closeNote={closeNote}
+      varianceNote={varianceNote}
+      onCloseNoteChange={setCloseNote}
+      onVarianceNoteChange={setVarianceNote}
+      onSaveNotes={() => saveMutation.mutate()}
+      savingNotes={saveMutation.isPending}
+    />
   );
 }
 

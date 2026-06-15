@@ -798,4 +798,45 @@ export async function getRegisterSessionForCashAccess(userId: string) {
   };
 }
 
+export async function listCurrentRegisterRecentSessions(userId: string, limit = 10): Promise<RegisterSessionReport[]> {
+  await ensureRegisterSchemaReady();
+  const context = await getRegisterContext(userId);
+  const storeCondition = context.storeId
+    ? sql`rs.store_id = ${context.storeId}`
+    : sql`rs.register_name = ${context.registerName}`;
+  const result = await db.execute(sql`
+    SELECT rs.id
+    FROM register_sessions rs
+    WHERE rs.closed_at IS NOT NULL
+      AND ${storeCondition}
+    ORDER BY rs.trading_date DESC, rs.closed_at DESC NULLS LAST
+    LIMIT ${limit}
+  `);
+  const ids = (((result as any).rows ?? (result as any) ?? []) as { id: string }[]).map((r) => r.id);
+  return (await Promise.all(ids.map((id) => getRegisterSessionReport(id)))).filter(Boolean) as RegisterSessionReport[];
+}
+
+/**
+ * Fetch a register session report by ID, scoped to the requesting user's store/register.
+ * Returns null if the session does not exist or belongs to a different store/register,
+ * preventing IDOR across tenants.
+ */
+export async function getCurrentRegisterSessionReportById(
+  userId: string,
+  sessionId: string,
+): Promise<RegisterSessionReport | null> {
+  await ensureRegisterSchemaReady();
+  const [context, report] = await Promise.all([
+    getRegisterContext(userId),
+    getRegisterSessionReport(sessionId),
+  ]);
+  if (!report) return null;
+  if (context.storeId) {
+    if (report.storeId !== context.storeId) return null;
+  } else {
+    if (report.registerName !== context.registerName) return null;
+  }
+  return report;
+}
+
 export { getSupervisorByPin };
