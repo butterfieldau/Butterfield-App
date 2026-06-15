@@ -2408,8 +2408,7 @@ function PaymentModal({
       setLinklySessionId(sessionId);
       setLinklyStep('waiting');
       setLinklyText('Waiting for card…');
-      // Exponential backoff: starts at 2 s, doubles each cycle, capped at 15 s.
-      let pollDelay = 2000;
+      // Fixed 2-second poll interval — no backoff so approval is detected within ~2 s.
       const schedulePoll = () => {
         linklyPollRef.current = setTimeout(async () => {
           try {
@@ -2432,14 +2431,12 @@ function PaymentModal({
                 setLinklyStep('declined');
               }
             } else {
-              pollDelay = Math.min(pollDelay * 2, 15000);
               schedulePoll();
             }
           } catch {
-            pollDelay = Math.min(pollDelay * 2, 15000);
             schedulePoll();
           }
-        }, pollDelay);
+        }, 2000);
       };
       schedulePoll();
     } catch (err: any) {
@@ -2470,8 +2467,7 @@ function PaymentModal({
       setSplitCardSessionId(sessionId);
       setSplitCardStep('waiting');
       setSplitCardText('Waiting for card…');
-      // Exponential backoff: starts at 2 s, doubles each cycle, capped at 15 s.
-      let pollDelay = 2000;
+      // Fixed 2-second poll interval — no backoff so approval is detected within ~2 s.
       const schedulePoll = () => {
         splitCardPollRef.current = setTimeout(async () => {
           try {
@@ -2494,14 +2490,12 @@ function PaymentModal({
                 setSplitCardStep('declined');
               }
             } else {
-              pollDelay = Math.min(pollDelay * 2, 15000);
               schedulePoll();
             }
           } catch {
-            pollDelay = Math.min(pollDelay * 2, 15000);
             schedulePoll();
           }
-        }, pollDelay);
+        }, 2000);
       };
       schedulePoll();
     } catch (err: any) {
