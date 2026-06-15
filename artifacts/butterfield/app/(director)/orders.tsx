@@ -1,9 +1,9 @@
 import { Feather } from '@expo/vector-icons';
-import { useFocusEffect } from 'expo-router';
+import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator, Alert, FlatList, Keyboard, KeyboardAvoidingView,
   Linking, Modal, Platform, Pressable,
@@ -113,6 +113,18 @@ const FILTER_TABS = [
   { key: 'wholesale',        label: 'Wholesale' },
   { key: 'cancelled',        label: 'Cancelled' },
 ];
+
+function fmtHourLabel(h: number) {
+  if (h === 0)  return '12:00 AM';
+  if (h === 12) return '12:00 PM';
+  return h > 12 ? `${h - 12}:00 PM` : `${h}:00 AM`;
+}
+
+function isThisMonth(d: Date | string) {
+  const date = new Date(d);
+  const now   = new Date();
+  return date.getFullYear() === now.getFullYear() && date.getMonth() === now.getMonth();
+}
 // ── Map helper ────────────────────────────────────────────────────────────────
 function openMap(address: string) {
   const q = encodeURIComponent(address);
@@ -793,12 +805,21 @@ export default function DirectorOrdersScreen() {
   const qc = useQueryClient();
   const { user } = useAuth();
   const canCancelRefund = user?.role === 'director' || user?.role === 'master';
-  const [filter, setFilter]         = useState('active');
-  const [viewMode, setViewMode]     = useState<'today' | 'week' | 'date'>('today');
+  const params = useLocalSearchParams<{
+    drillMode?: string;
+    drillValue?: string;
+  }>();
+
+  const [filter, setFilter]         = useState('all');
+  const [viewMode, setViewMode]     = useState<'today' | 'week' | 'month' | 'date'>('today');
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [selectedOrder, setSelectedOrder] = useState<ApiOrder | null>(null);
   const [showCalendar, setShowCalendar] = useState(false);
   const [printingOrderId, setPrintingOrderId] = useState<string | null>(null);
+  const [drillHour, setDrillHour]     = useState<number | null>(null);
+  const [productFilter, setProductFilter] = useState<string | null>(null);
+  const drillModeRef = useRef<string | null>(null);
+
   const isStaff = user?.role === 'staff';
   const { data, isLoading, refetch } = useQuery({
     queryKey: isStaff ? ['staff-orders'] : ['director-orders'],
@@ -808,10 +829,36 @@ export default function DirectorOrdersScreen() {
 
   useFocusEffect(
     React.useCallback(() => {
-      setFilter('active');
-      setViewMode(isStaff ? 'week' : 'today');
-      setSelectedDate(new Date());
-    }, [isStaff]),
+      const dm = params.drillMode;
+      const dv = params.drillValue;
+      const compositeKey = dm ? `${dm}:${dv ?? ''}` : null;
+      if (dm && compositeKey !== drillModeRef.current) {
+        drillModeRef.current = compositeKey;
+        setFilter('all');
+        setDrillHour(null);
+        setProductFilter(null);
+        if (dm === 'today') {
+          setViewMode('today');
+        } else if (dm === 'week') {
+          setViewMode('week');
+        } else if (dm === 'month') {
+          setViewMode('month');
+        } else if (dm === 'hour' && dv != null) {
+          setViewMode('today');
+          setDrillHour(parseInt(dv, 10));
+        } else if (dm === 'product' && dv) {
+          setViewMode('today');
+          setProductFilter(dv);
+        }
+      } else if (!dm) {
+        drillModeRef.current = null;
+        setDrillHour(null);
+        setProductFilter(null);
+        setFilter('active');
+        setViewMode(isStaff ? 'week' : 'today');
+        setSelectedDate(new Date());
+      }
+    }, [isStaff, params.drillMode, params.drillValue]),
   );
 
   const { refreshing, onRefresh } = useRefreshControl(refetch);
@@ -831,6 +878,19 @@ export default function DirectorOrdersScreen() {
   const stores = storesData?.data ?? [];
   const printerIp = (settingsData?.data?.printer_ip ?? '').trim();
   const printerPort = parseInt(settingsData?.data?.printer_port ?? '9100', 10);
+
+  const isDrillActive = !!(params.drillMode);
+  const drillLabel = (() => {
+    const dm = params.drillMode;
+    const dv = params.drillValue;
+    if (dm === 'today')   return 'Today\'s revenue';
+    if (dm === 'week')    return 'This week\'s revenue';
+    if (dm === 'month')   return 'This month\'s revenue';
+    if (dm === 'hour' && dv != null)  return `Orders at ${fmtHourLabel(parseInt(dv, 10))}`;
+    if (dm === 'product' && dv) return `Orders containing "${dv}"`;
+    return null;
+  })();
+
   const printOrder = async (order: ApiOrder) => {
     const orderStore = stores.find((store) => store.id === order.storeId);
     const effectivePrinterIp = (orderStore?.printerIp ?? printerIp ?? '').trim();
@@ -863,6 +923,25 @@ export default function DirectorOrdersScreen() {
     if (filter === 'wholesale') return allOrders.filter((o) => o.orderSource === 'wholesale');
     return allOrders.filter((o) => o.status === filter);
   }, [allOrders, filter]);
+
+  // Apply drill secondary filters (hour / product) on top of status filter
+  const drillFiltered = useMemo(() => {
+    let result = statusFiltered;
+    if (drillHour !== null) {
+      result = result.filter((o) => new Date(o.createdAt).getHours() === drillHour);
+    }
+    if (productFilter) {
+      const needle = productFilter.toLowerCase();
+      result = result.filter((o) => {
+        try {
+          const items = Array.isArray(o.items) ? o.items : (typeof o.items === 'string' ? JSON.parse(o.items) : []);
+          return items.some((it: any) => (it.name ?? it.productName ?? '').toLowerCase().includes(needle));
+        } catch { return false; }
+      });
+    }
+    return result;
+  }, [statusFiltered, drillHour, productFilter]);
+
   const today = useMemo(() => { const d = new Date(); d.setHours(0,0,0,0); return d; }, []);
   const activeTodayOrders = useMemo(
     () =>
@@ -873,15 +952,23 @@ export default function DirectorOrdersScreen() {
     [allOrders, today],
   );
   const todayOrders = useMemo(() =>
-    statusFiltered.filter((o) => isSameDay(getOrderTimelineDate(o), today)),
-    [statusFiltered, today]
+    drillFiltered.filter((o) => isSameDay(getOrderTimelineDate(o), today)),
+    [drillFiltered, today]
   );
+  // "Earlier this week" tab — excludes today for directors so it doesn't duplicate the today section
   const thisWeekOrders = useMemo(() =>
-    statusFiltered.filter((o) => isThisWeek(getOrderTimelineDate(o)) && (isStaff || !isSameDay(getOrderTimelineDate(o), today))),
-    [statusFiltered, today, isStaff]);
+    drillFiltered.filter((o) => isThisWeek(getOrderTimelineDate(o)) && (isStaff || !isSameDay(getOrderTimelineDate(o), today))),
+    [drillFiltered, today, isStaff]);
+  // Drill-down version — includes today so the figure matches the dashboard week-to-date total
+  const weekDrillOrders = useMemo(() =>
+    drillFiltered.filter((o) => isThisWeek(getOrderTimelineDate(o))),
+    [drillFiltered]);
+  const thisMonthOrders = useMemo(() =>
+    drillFiltered.filter((o) => isThisMonth(getOrderTimelineDate(o))),
+    [drillFiltered]);
   const dateOrders = useMemo(() =>
-    statusFiltered.filter((o) => isSameDay(getOrderTimelineDate(o), selectedDate)),
-    [statusFiltered, selectedDate]
+    drillFiltered.filter((o) => isSameDay(getOrderTimelineDate(o), selectedDate)),
+    [drillFiltered, selectedDate]
   );
   const ordersByDate = useMemo(() => {
     const map: Record<string, number> = {};
@@ -948,9 +1035,30 @@ export default function DirectorOrdersScreen() {
       Alert.alert('Invoice Unavailable', getErrorMessage(error));
     }
   };
-  const totalToday = statusFiltered.filter((o) => isSameDay(getOrderTimelineDate(o), today)).length;
+  const totalToday = drillFiltered.filter((o) => isSameDay(getOrderTimelineDate(o), today)).length;
   return (
     <DirectorTabScreen title="Orders">
+      {/* Drill-down banner */}
+      {isDrillActive && drillLabel && (
+        <View style={{ backgroundColor: '#EFF6FF', borderBottomWidth: 1, borderBottomColor: '#BFDBFE', flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 10, gap: 10 }}>
+          <View style={{ backgroundColor: BLUE + '20', borderRadius: 8, width: 28, height: 28, alignItems: 'center', justifyContent: 'center' }}>
+            <Feather name="filter" size={13} color={BLUE} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontSize: 11, fontWeight: '700', color: BLUE, letterSpacing: 0.5 }}>DRILL-DOWN ACTIVE</Text>
+            <Text style={{ fontSize: 12, color: '#1E40AF', fontWeight: '500', marginTop: 1 }}>{drillLabel}</Text>
+          </View>
+          <Pressable
+            onPress={() => {
+              drillModeRef.current = null;
+              router.replace('/(director)/orders' as any);
+            }}
+            style={{ padding: 4 }}
+          >
+            <Feather name="x" size={16} color={BLUE} />
+          </Pressable>
+        </View>
+      )}
       {/* Status filter chips */}
       <View style={{ backgroundColor: BG, borderBottomWidth: 1, borderBottomColor: BORDER }}>
         <FlatList
@@ -980,6 +1088,7 @@ export default function DirectorOrdersScreen() {
         {([
           { key: 'today', label: `Today (${totalToday})` },
           { key: 'week',  label: 'This Week' },
+          { key: 'month', label: 'Month' },
           { key: 'date',  label: 'Pick Date' },
         ] as const).map((m) => {
           const active = viewMode === m.key;
@@ -1046,13 +1155,61 @@ export default function DirectorOrdersScreen() {
           {viewMode === 'week' && (
             <>
               <View style={{ height: 8 }} />
-              <SectionHeader title={isStaff ? 'This Week' : 'Earlier This Week'} count={thisWeekOrders.length} />
-              {thisWeekOrders.length === 0 ? (
+              {isDrillActive ? (
+                <>
+                  <SectionHeader title="This Week (7 Days)" count={weekDrillOrders.length} />
+                  {weekDrillOrders.length === 0 ? (
+                    <View style={styles.emptySection}>
+                      <Text style={styles.emptyText}>No orders this week</Text>
+                    </View>
+                  ) : (
+                    weekDrillOrders.map((o) => (
+                      <OrderCard
+                        key={o.id}
+                        order={o}
+                        onPress={() => { setSelectedOrder(o); Haptics.selectionAsync(); }}
+                        onPrint={() => printOrder(o)}
+                        printing={printingOrderId === o.id}
+                      />
+                    ))
+                  )}
+                </>
+              ) : (
+                <>
+                  <SectionHeader title={isStaff ? 'This Week' : 'Earlier This Week'} count={thisWeekOrders.length} />
+                  {thisWeekOrders.length === 0 ? (
+                    <View style={styles.emptySection}>
+                      <Text style={styles.emptyText}>No other orders this week</Text>
+                    </View>
+                  ) : (
+                    thisWeekOrders.map((o) => (
+                      <OrderCard
+                        key={o.id}
+                        order={o}
+                        onPress={() => { setSelectedOrder(o); Haptics.selectionAsync(); }}
+                        onPrint={() => printOrder(o)}
+                        printing={printingOrderId === o.id}
+                      />
+                    ))
+                  )}
+                </>
+              )}
+            </>
+          )}
+          {viewMode === 'month' && (
+            <>
+              <View style={{ height: 8 }} />
+              <SectionHeader
+                title={new Date().toLocaleDateString('en-AU', { month: 'long', year: 'numeric' })}
+                count={thisMonthOrders.length}
+              />
+              {thisMonthOrders.length === 0 ? (
                 <View style={styles.emptySection}>
-                  <Text style={styles.emptyText}>No other orders this week</Text>
+                  <Feather name="calendar" size={28} color={BORDER} />
+                  <Text style={styles.emptyText}>No orders this month yet</Text>
                 </View>
               ) : (
-                thisWeekOrders.map((o) => (
+                thisMonthOrders.map((o) => (
                   <OrderCard
                     key={o.id}
                     order={o}

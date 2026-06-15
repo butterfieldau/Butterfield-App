@@ -492,24 +492,17 @@ function DailyPaceBar({
   );
 }
 
-// ── Hourly revenue bar chart (horizontal, 6 AM–10 PM, collapsible) ────────────
+// ── Hourly revenue bar chart (horizontal, 6 AM–10 PM, collapsible, tappable) ─
 const HOUR_START = 6;
 const HOUR_END   = 22; // inclusive
 
-function HourlyRevenueChart({ hours }: { hours: DirectorHourlyRevenue[] }) {
+function HourlyRevenueChart({ hours, onPressHour }: { hours: DirectorHourlyRevenue[]; onPressHour?: (hour: number) => void }) {
   const [expanded, setExpanded] = useState(false);
 
-  const nowHour   = new Date().getHours();
+  const nowHour     = new Date().getHours();
   const hoursWindow = hours.filter(h => h.hour >= HOUR_START && h.hour <= HOUR_END);
   const maxRev      = Math.max(...hoursWindow.map(h => h.revenueCents), 1);
   const totalRev    = hours.reduce((a, h) => a + h.revenueCents, 0);
-
-  const BAR_H   = 10;
-  const ROW_H   = 22;
-  const LABEL_W = 36;
-  const VALUE_W = 52;
-  const CHART_W = 260;
-  const svgH    = hoursWindow.length * ROW_H;
 
   return (
     <View style={{
@@ -531,60 +524,61 @@ function HourlyRevenueChart({ hours }: { hours: DirectorHourlyRevenue[] }) {
         </View>
       </TouchableOpacity>
 
+      {/* Collapsible chart body — View-based rows for touch support */}
       {expanded && (
-        <View style={{ paddingHorizontal: 16, paddingBottom: 14 }}>
-          <Svg width="100%" height={svgH} viewBox={`0 0 ${LABEL_W + CHART_W + VALUE_W} ${svgH}`}>
-            <Defs>
-              <LinearGradient id="hBarPast" x1="0" y1="0" x2="1" y2="0">
-                <Stop offset="0" stopColor={BLUE} stopOpacity="0.3" />
-                <Stop offset="1" stopColor={BLUE} stopOpacity="0.75" />
-              </LinearGradient>
-              <LinearGradient id="hBarNow" x1="0" y1="0" x2="1" y2="0">
-                <Stop offset="0" stopColor={GREEN} stopOpacity="0.4" />
-                <Stop offset="1" stopColor={GREEN} stopOpacity="1" />
-              </LinearGradient>
-            </Defs>
+        <View style={{ paddingHorizontal: 16, paddingBottom: 14, gap: 2 }}>
+          {hoursWindow.map((h) => {
+            const barPct     = h.revenueCents > 0 ? Math.max((h.revenueCents / maxRev) * 100, 1.5) : 0;
+            const isCurrent  = h.hour === nowHour;
+            const isPast     = h.hour < nowHour;
+            const label      = h.hour === 0 ? '12A' : h.hour === 12 ? '12P' : h.hour > 12 ? `${h.hour - 12}P` : `${h.hour}A`;
+            const barColor   = isCurrent ? GREEN : isPast ? BLUE : BORDER;
+            const labelColor = isCurrent ? GREEN : MUTED;
+            const valColor   = isCurrent ? GREEN : isPast ? BLUE : MUTED;
+            const valStr     = h.revenueCents > 0 ? `$${(h.revenueCents / 100).toFixed(0)}` : '';
+            const canTap     = onPressHour && (isPast || isCurrent) && h.revenueCents > 0;
 
-            {hoursWindow.map((h, i) => {
-              const y         = i * ROW_H + (ROW_H - BAR_H) / 2;
-              const barW      = h.revenueCents > 0 ? Math.max((h.revenueCents / maxRev) * CHART_W, 4) : 0;
-              const isCurrent = h.hour === nowHour;
-              const isPast    = h.hour < nowHour;
-              const label     = h.hour === 0 ? '12A' : h.hour === 12 ? '12P' : h.hour > 12 ? `${h.hour - 12}P` : `${h.hour}A`;
-              const fill      = isCurrent ? 'url(#hBarNow)' : isPast ? 'url(#hBarPast)' : BORDER;
-              const opacity   = isCurrent ? 1 : isPast ? 0.9 : 0.5;
-              const valColor  = isCurrent ? GREEN : isPast ? BLUE : MUTED;
-              const valStr    = h.revenueCents > 0 ? `$${(h.revenueCents / 100).toFixed(0)}` : '';
-
-              return (
-                <React.Fragment key={h.hour}>
-                  <SvgText x={LABEL_W - 4} y={y + BAR_H - 1} fontSize="8"
-                    fill={isCurrent ? GREEN : MUTED}
-                    textAnchor="end" fontWeight={isCurrent ? '700' : '400'}>
-                    {label}
-                  </SvgText>
-                  <Rect x={LABEL_W} y={y} width={CHART_W} height={BAR_H} rx={3} fill={BORDER} opacity={0.8} />
-                  {barW > 0 && (
-                    <Rect x={LABEL_W} y={y} width={barW} height={BAR_H} rx={3} fill={fill} opacity={opacity} />
+            return (
+              <TouchableOpacity
+                key={h.hour}
+                activeOpacity={canTap ? 0.65 : 1}
+                onPress={canTap ? () => { Haptics.selectionAsync(); onPressHour!(h.hour); } : undefined}
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 6, height: 22 }}
+              >
+                {/* Hour label */}
+                <Text style={{ width: 26, fontSize: 8, color: labelColor, fontWeight: isCurrent ? '700' : '400', textAlign: 'right' }}>
+                  {label}
+                </Text>
+                {/* Bar track + fill */}
+                <View style={{ flex: 1, height: 8, backgroundColor: BORDER, borderRadius: 3, opacity: 0.6 }}>
+                  {barPct > 0 && (
+                    <View style={{
+                      width: `${barPct}%`, height: '100%', borderRadius: 3,
+                      backgroundColor: barColor,
+                      opacity: isCurrent ? 1 : isPast ? 0.85 : 0.4,
+                    }} />
                   )}
-                  {isCurrent && barW > 4 && (
-                    <Rect x={LABEL_W + barW - 4} y={y} width={4} height={BAR_H} rx={2} fill={GREEN} opacity={1} />
-                  )}
+                </View>
+                {/* Value + NOW chip + drill caret */}
+                <View style={{ width: 56, flexDirection: 'row', alignItems: 'center', gap: 3 }}>
                   {valStr !== '' && (
-                    <SvgText x={LABEL_W + CHART_W + 4} y={y + BAR_H - 1} fontSize="8" fill={valColor} fontWeight="600">
-                      {valStr}
-                    </SvgText>
+                    <Text style={{ fontSize: 8, color: valColor, fontWeight: '600' }}>{valStr}</Text>
                   )}
                   {isCurrent && (
-                    <SvgText x={LABEL_W + barW + 6} y={y + BAR_H - 1} fontSize="7" fill={GREEN} fontWeight="700">
-                      NOW
-                    </SvgText>
+                    <View style={{ backgroundColor: GREEN + '22', borderRadius: 4, paddingHorizontal: 3, paddingVertical: 1 }}>
+                      <Text style={{ fontSize: 7, color: GREEN, fontWeight: '700' }}>NOW</Text>
+                    </View>
                   )}
-                </React.Fragment>
-              );
-            })}
-          </Svg>
-          <Text style={{ fontSize: 8, color: MUTED, marginTop: 4 }}>6 AM – 10 PM window · Sydney time</Text>
+                  {canTap && (
+                    <Feather name="chevron-right" size={9} color={valColor} style={{ marginLeft: 'auto' }} />
+                  )}
+                </View>
+              </TouchableOpacity>
+            );
+          })}
+          <Text style={{ fontSize: 8, color: MUTED, marginTop: 4 }}>
+            6 AM – 10 PM window · tap a bar to see its orders
+          </Text>
         </View>
       )}
     </View>
@@ -592,8 +586,8 @@ function HourlyRevenueChart({ hours }: { hours: DirectorHourlyRevenue[] }) {
 }
 
 // ── Top sellers strip ─────────────────────────────────────────────────────────
-function TopSellersStrip({ products }: { products: DirectorTopProduct[] }) {
-  const maxUnits   = Math.max(...products.map(p => p.units), 1);
+function TopSellersStrip({ products, onPressProduct }: { products: DirectorTopProduct[]; onPressProduct?: (name: string) => void }) {
+  const maxUnits = Math.max(...products.map(p => p.units), 1);
   const rankColors = [BLUE, AMBER, PURPLE];
 
   return (
@@ -617,7 +611,12 @@ function TopSellersStrip({ products }: { products: DirectorTopProduct[] }) {
         const W = 200;
 
         return (
-          <View key={p.name} style={{ gap: 6 }}>
+          <TouchableOpacity
+            key={p.name}
+            activeOpacity={onPressProduct ? 0.7 : 1}
+            onPress={onPressProduct ? () => { Haptics.selectionAsync(); onPressProduct(p.name); } : undefined}
+            style={{ gap: 6 }}
+          >
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
               <View style={{
                 width: 26, height: 26, borderRadius: 8, alignItems: 'center', justifyContent: 'center',
@@ -626,9 +625,16 @@ function TopSellersStrip({ products }: { products: DirectorTopProduct[] }) {
                 <Text style={{ fontSize: 11, fontWeight: '800', color: c }}>#{i + 1}</Text>
               </View>
               <Text style={{ fontSize: 13, fontWeight: '600', color: TEXT, flex: 1 }} numberOfLines={1}>{p.name}</Text>
-              <View style={{ alignItems: 'flex-end' }}>
-                <Text style={{ fontSize: 13, fontWeight: '700', color: c }}>{p.units} sold</Text>
-                <Text style={{ fontSize: 10, fontWeight: '400', color: MUTED }}>{fmtAUD(p.revenueCents)}</Text>
+              <View style={{ alignItems: 'flex-end', flexDirection: 'row', gap: 6 }}>
+                <View style={{ alignItems: 'flex-end' }}>
+                  <Text style={{ fontSize: 13, fontWeight: '700', color: c }}>{p.units} sold</Text>
+                  <Text style={{ fontSize: 10, fontWeight: '400', color: MUTED }}>{fmtAUD(p.revenueCents)}</Text>
+                </View>
+                {onPressProduct && (
+                  <View style={{ backgroundColor: c + '18', borderRadius: 6, padding: 4, alignSelf: 'center' }}>
+                    <Feather name="chevron-right" size={11} color={c} />
+                  </View>
+                )}
               </View>
             </View>
             <Svg width="100%" height={6} viewBox={`0 0 ${W} 6`}>
@@ -641,7 +647,7 @@ function TopSellersStrip({ products }: { products: DirectorTopProduct[] }) {
               <Rect x={0} y={0} width={W} height={6} rx={3} fill={BORDER} />
               <Rect x={0} y={0} width={W * fillPct / 100} height={6} rx={3} fill={`url(#rankGrad${i})`} />
             </Svg>
-          </View>
+          </TouchableOpacity>
         );
       })}
     </View>
@@ -738,18 +744,30 @@ function DirectorDashboardInner() {
               </View>
               <View style={styles.revRow}>
                 {([
-                  { label: 'Today',      value: fmtAUD(s?.revenue.today ?? 0), delta: s?.revenue.todayDeltaPct, cmp: 'vs same time last week' },
-                  { label: 'This Week',  value: fmtAUD(s?.revenue.week  ?? 0), delta: s?.revenue.weekDeltaPct,  cmp: 'vs prior week-to-date' },
-                  { label: 'This Month', value: fmtAUD(s?.revenue.month ?? 0), delta: s?.revenue.monthDeltaPct, cmp: 'vs prior month-to-date' },
+                  { label: 'Today',      value: fmtAUD(s?.revenue.today ?? 0), delta: s?.revenue.todayDeltaPct, cmp: 'vs same time last week', drillMode: 'today' },
+                  { label: 'This Week',  value: fmtAUD(s?.revenue.week  ?? 0), delta: s?.revenue.weekDeltaPct,  cmp: 'vs prior week-to-date',  drillMode: 'week'  },
+                  { label: 'This Month', value: fmtAUD(s?.revenue.month ?? 0), delta: s?.revenue.monthDeltaPct, cmp: 'vs prior month-to-date', drillMode: 'month' },
                 ] as const).map((r, i) => (
-                  <View key={r.label} style={[styles.revItem, i > 0 && styles.revItemBorder]}>
+                  <Pressable
+                    key={r.label}
+                    style={({ pressed }) => [styles.revItem, i > 0 && styles.revItemBorder, { opacity: pressed ? 0.75 : 1 }]}
+                    onPress={() => {
+                      Haptics.selectionAsync();
+                      router.push({ pathname: '/(director)/orders', params: { drillMode: r.drillMode } } as any);
+                    }}
+                  >
                     <Text style={[styles.revAmount, { fontWeight: '700' }]}>{r.value}</Text>
                     <Text style={[styles.revLabel,  { fontWeight: '400' }]}>{r.label}</Text>
-                    <DeltaBadge pct={r.delta} dark />
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 }}>
+                      <DeltaBadge pct={r.delta} dark />
+                      <View style={{ backgroundColor: 'rgba(255,255,255,0.12)', borderRadius: 5, padding: 3 }}>
+                        <Feather name="chevron-right" size={9} color="rgba(255,255,255,0.5)" />
+                      </View>
+                    </View>
                     {r.delta != null && (
                       <Text style={{ fontSize: 8, color: 'rgba(255,255,255,0.4)', fontWeight: '400', marginTop: 1 }}>{r.cmp}</Text>
                     )}
-                  </View>
+                  </Pressable>
                 ))}
               </View>
               {/* Custom date range row */}
@@ -823,10 +841,22 @@ function DirectorDashboardInner() {
             </View>
 
             {/* ── Hourly revenue chart ─────────────────────────── */}
-            {hourly.length > 0 && <HourlyRevenueChart hours={hourly} />}
+            {hourly.length > 0 && (
+              <HourlyRevenueChart
+                hours={hourly}
+                onPressHour={(hour) => {
+                  router.push({ pathname: '/(director)/orders', params: { drillMode: 'hour', drillValue: String(hour) } } as any);
+                }}
+              />
+            )}
 
             {/* ── Top sellers ──────────────────────────────────── */}
-            <TopSellersStrip products={topProducts} />
+            <TopSellersStrip
+              products={topProducts}
+              onPressProduct={(name) => {
+                router.push({ pathname: '/(director)/orders', params: { drillMode: 'product', drillValue: name } } as any);
+              }}
+            />
 
             {/* ── Urgent alerts ─────────────────────────────────── */}
             {hasAlerts && (
