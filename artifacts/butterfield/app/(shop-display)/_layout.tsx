@@ -19,6 +19,7 @@ import {
   clearDetailCache,
 } from '@/lib/posCache';
 import { PosIdleScreen } from '@/components/PosIdleScreen';
+import PosPinModal from '@/components/PosPinModal';
 
 const IDLE_TIMEOUT_MS = 60_000;
 
@@ -295,6 +296,16 @@ export default function ShopDisplayLayout() {
   // and staleTime:Infinity suppresses the network fetch.
   const [cacheSeeded, setCacheSeeded] = useState(false);
 
+  // ── Dashboard PIN gate ────────────────────────────────────────────────────
+  const [dashboardLocked, setDashboardLocked] = useState(true);
+  const [showDashboardPin, setShowDashboardPin] = useState(false);
+
+  // Re-lock dashboard whenever user navigates away from it
+  useEffect(() => {
+    const seg = pathname.split('/').filter(Boolean).pop() ?? '';
+    if (seg !== 'dashboard') setDashboardLocked(true);
+  }, [pathname]);
+
   // ── Display lock ─────────────────────────────────────────────────────────────
   const [lockPin, setLockPin] = useState<string | null>(null);
   const [isLocked, setIsLocked] = useState(false);
@@ -498,6 +509,14 @@ export default function ShopDisplayLayout() {
         options={{
           title: 'Dashboard',
           tabBarIcon: ({ color, size }) => <Feather name="bar-chart-2" size={size} color={color} />,
+          tabBarButton: dashboardLocked
+            ? (props) => (
+                <TouchableOpacity
+                  {...(props as any)}
+                  onPress={() => setShowDashboardPin(true)}
+                />
+              )
+            : undefined,
         }}
       />
       <Tabs.Screen
@@ -566,6 +585,10 @@ export default function ShopDisplayLayout() {
                 <Pressable
                   key={item.segment}
                   onPress={() => {
+                    if (item.segment === 'dashboard' && dashboardLocked) {
+                      setShowDashboardPin(true);
+                      return;
+                    }
                     const route = item.segment === 'index'
                       ? '/(shop-display)'
                       : `/(shop-display)/${item.segment}`;
@@ -755,6 +778,20 @@ export default function ShopDisplayLayout() {
         onDismiss={() => setAlertOrder(null)}
         soundEnabled={soundEnabled}
       />
+
+      {/* ── Dashboard PIN gate ─────────────────────────────────────── */}
+      {showDashboardPin && (
+        <PosPinModal
+          title="Dashboard"
+          subtitle="Enter your POS PIN to access the dashboard"
+          onClose={() => setShowDashboardPin(false)}
+          onSuccess={() => {
+            setShowDashboardPin(false);
+            setDashboardLocked(false);
+            router.navigate('/(shop-display)/dashboard' as any);
+          }}
+        />
+      )}
     </View>
   );
 }

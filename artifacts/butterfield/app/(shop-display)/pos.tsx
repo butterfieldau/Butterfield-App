@@ -37,6 +37,7 @@ import {
 import { sendReceiptPrint, sendLinklyReceiptPrint, sendRegisterSummaryPrint, sendTaxInvoicePrint, sendOpenDrawer } from '@/lib/printer';
 import { OfflineProvider, useOffline } from '@/context/OfflineContext';
 import ZReportModal, { ZReportContent } from '@/components/ZReportModal';
+import PosPinModal from '@/components/PosPinModal';
 
 // ── Palette ──────────────────────────────────────────────────────────────────
 const BG       = '#F0F3F8';
@@ -278,7 +279,6 @@ function PosScreenInner() {
   const [showCustomerModal, setShowCustomerModal] = useState(false);
   const [customerModalMode, setCustomerModalMode] = useState<'search' | 'scan'>('search');
   const [showSearch, setShowSearch]       = useState(false);
-  const [salesOpen, setSalesOpen]         = useState(false);
   const [showHistory, setShowHistory]     = useState(false);
   const [showHoldModal, setShowHoldModal] = useState(false);
   const [showRegister, setShowRegister] = useState(false);
@@ -1080,15 +1080,6 @@ function PosScreenInner() {
           )}
         </View>
         <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center' }}>
-          {/* Sales strip toggle */}
-          <Pressable onPress={() => setSalesOpen(v => !v)} style={styles.headerBtn}>
-            <Feather name="bar-chart-2" size={16} color={MID} />
-            <Text style={styles.headerBtnText}>
-              {summaryData?.data
-                ? `${summaryData.data.orderCount} orders · ${fmtCents(summaryData.data.revenueCents)}`
-                : 'Today'}
-            </Text>
-          </Pressable>
           {/* History */}
           <Pressable onPress={() => setShowHistory(true)} style={styles.headerBtn}>
             <Feather name="clock" size={16} color={MID} />
@@ -1117,14 +1108,13 @@ function PosScreenInner() {
             style={[styles.headerBtn, syncingAll && { opacity: 0.5 }]}
           >
             <Feather name="refresh-cw" size={16} color={syncingAll ? MUTED : MID} />
-            <View style={{ alignItems: 'flex-start' }}>
-              <Text style={styles.headerBtnText}>{syncingAll ? 'Syncing…' : 'Sync'}</Text>
-              {lastSyncedAt && !syncingAll ? (
-                <Text style={styles.headerSyncTime}>
-                  {formatSyncTime(lastSyncedAt).replace('Synced ', '')}
-                </Text>
-              ) : null}
-            </View>
+            <Text style={styles.headerBtnText}>
+              {syncingAll
+                ? 'Syncing…'
+                : lastSyncedAt
+                  ? `Sync · ${formatSyncTime(lastSyncedAt).replace('Synced ', '')}`
+                  : 'Sync'}
+            </Text>
           </Pressable>
           {/* Register */}
           <Pressable onPress={() => setShowRegisterPin(true)} style={styles.headerBtn}>
@@ -1155,19 +1145,6 @@ function PosScreenInner() {
         </View>
       )}
 
-      {/* ── Sales strip ─────────────────────────────────────────────────── */}
-      {salesOpen && (
-        <View style={styles.salesStrip}>
-          <View style={styles.salesCard}>
-            <Text style={styles.salesLabel}>Orders Today</Text>
-            <Text style={styles.salesValue}>{summaryData?.data?.orderCount ?? 0}</Text>
-          </View>
-          <View style={styles.salesCard}>
-            <Text style={styles.salesLabel}>Revenue Today</Text>
-            <Text style={styles.salesValue}>{fmtCents(summaryData?.data?.revenueCents ?? 0)}</Text>
-          </View>
-        </View>
-      )}
 
 
       {/* ── Narrow screen: tab switcher ────────────────────────────────────── */}
@@ -1289,7 +1266,6 @@ function PosScreenInner() {
                 if (cached) setCustomiseData({ product: cached, editItem: item });
               }}
               discountPresets={discountPresets}
-              onVoidSale={() => setShowVoidSheet(true)}
             />
           </View>
         )}
@@ -1628,7 +1604,7 @@ function ProductGridCard({
 function TicketPanel({
   ticket, onUpdateTicket, onRemoveItem, onUpdateQty, onPriceOverride,
   onClear, onHold, onAttachCustomer, onScanQR, onCharge, onEditItem,
-  discountPresets, onVoidSale,
+  discountPresets,
 }: {
   ticket: Ticket;
   onUpdateTicket: (p: Partial<Ticket>) => void;
@@ -1642,7 +1618,6 @@ function TicketPanel({
   onCharge: () => void;
   onEditItem: (item: TicketItem) => void;
   discountPresets: number[];
-  onVoidSale?: () => void;
 }) {
   const subtotal = ticketSubtotal(ticket);
   const total = ticketTotal(ticket);
@@ -1992,12 +1967,6 @@ function TicketPanel({
             {isEmpty ? 'Charge' : `Charge ${fmtCents(total)}`}
           </Text>
         </TouchableOpacity>
-        {onVoidSale && (
-          <Pressable onPress={onVoidSale} style={styles.voidSaleBtn}>
-            <Feather name="slash" size={13} color={MUTED} />
-            <Text style={styles.voidSaleBtnText}>Void Sale</Text>
-          </Pressable>
-        )}
       </View>
     </View>
   );
@@ -4984,119 +4953,6 @@ function HoldModal({ tickets, activeIdx, onResume, onDelete, onClose }: {
   );
 }
 
-// ── POS Settings PIN Gate (verifies server-side, passes pin to onSuccess) ─────
-function PosPinModal({ onClose, onSuccess, title, subtitle }: {
-  onClose: () => void;
-  onSuccess: (pin: string) => void;
-  title?: string;
-  subtitle?: string;
-}) {
-  const { height: screenH } = useWindowDimensions();
-  const { user } = useAuth();
-  const [digits, setDigits] = React.useState<string[]>([]);
-  const [error,  setError]  = React.useState('');
-  const [checking, setChecking] = React.useState(false);
-  const shakeAnim = React.useRef(new Animated.Value(0)).current;
-
-  const shake = () => {
-    Animated.sequence([
-      Animated.timing(shakeAnim, { toValue: 10, duration: 60, useNativeDriver: true }),
-      Animated.timing(shakeAnim, { toValue: -10, duration: 60, useNativeDriver: true }),
-      Animated.timing(shakeAnim, { toValue: 6, duration: 60, useNativeDriver: true }),
-      Animated.timing(shakeAnim, { toValue: 0, duration: 60, useNativeDriver: true }),
-    ]).start();
-  };
-
-  const appendDigit = (d: string) => {
-    if (digits.length >= 4 || checking) return;
-    const next = [...digits, d];
-    setDigits(next);
-    setError('');
-    Haptics.selectionAsync();
-    if (next.length === 4) verify(next.join(''));
-  };
-
-  const backspace = () => {
-    if (checking) return;
-    setDigits(prev => prev.slice(0, -1));
-    setError('');
-    Haptics.selectionAsync();
-  };
-
-  const verify = async (pin: string) => {
-    setChecking(true);
-    try {
-      const verifyFn = user?.role === 'shop_display'
-        ? api.shopDisplay.verifySettingsPin
-        : api.director.verifySettingsPin;
-      const res = await verifyFn(pin);
-      if (res.granted) {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        onSuccess(pin);
-      } else {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-        shake();
-        setError('Incorrect PIN.');
-        setDigits([]);
-      }
-    } catch {
-      setError('Connection error. Try again.');
-      setDigits([]);
-    } finally {
-      setChecking(false);
-    }
-  };
-
-  const KEYS = ['1','2','3','4','5','6','7','8','9','','0','⌫'] as const;
-
-  return (
-    <Modal visible animationType="fade" transparent onRequestClose={onClose}>
-      <Pressable style={styles.pinOverlay} onPress={onClose}>
-        <Pressable style={[styles.pinSheet, { maxHeight: screenH * 0.72 }]} onPress={() => {}}>
-          {/* Header */}
-          <View style={styles.pinHeader}>
-            <View style={styles.pinLockCircle}>
-              <Feather name="lock" size={22} color={BLUE} />
-            </View>
-            <Text style={styles.pinTitle}>{title ?? 'POS Settings'}</Text>
-            <Text style={styles.pinSub}>{subtitle ?? 'Enter your POS PIN to continue'}</Text>
-          </View>
-
-          {/* Dots */}
-          <Animated.View style={[styles.pinDotsRow, { transform: [{ translateX: shakeAnim }] }]}>
-            {[0,1,2,3].map(i => (
-              <View key={i} style={[styles.pinDot, digits[i] !== undefined && styles.pinDotFilled]} />
-            ))}
-          </Animated.View>
-
-          {!!error && <Text style={styles.pinError}>{error}</Text>}
-          {checking && <ActivityIndicator color={BLUE} style={{ marginBottom: 8 }} />}
-
-          {/* Numpad */}
-          <View style={styles.pinNumpad}>
-            {KEYS.map((key, i) => {
-              if (key === '') return <View key={`k-${i}`} style={styles.pinKeyPlaceholder} />;
-              const isBack = key === '⌫';
-              return (
-                <Pressable
-                  key={`k-${i}`}
-                  onPress={() => isBack ? backspace() : appendDigit(key)}
-                  style={({ pressed }) => [styles.pinKey, pressed && styles.pinKeyPressed]}
-                >
-                  <Text style={[styles.pinKeyText, isBack && styles.pinBackText]}>{key}</Text>
-                </Pressable>
-              );
-            })}
-          </View>
-
-          <Pressable onPress={onClose} style={styles.pinCancel}>
-            <Text style={styles.pinCancelText}>Cancel</Text>
-          </Pressable>
-        </Pressable>
-      </Pressable>
-    </Modal>
-  );
-}
 
 // ── Supervisor PIN Capture (collects PIN without server verify, for POS gates) ─
 function SupervisorPinCapture({ onClose, onSuccess, title, subtitle }: {
