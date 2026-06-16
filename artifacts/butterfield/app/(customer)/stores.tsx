@@ -1,6 +1,7 @@
 import { Feather } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
+import * as Haptics from 'expo-haptics';
 import React from 'react';
 import {
   ActivityIndicator, Alert, Linking, Pressable, RefreshControl,
@@ -9,43 +10,35 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRefreshControl } from '@/hooks/useRefreshControl';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useColors } from '@/hooks/useColors';
 import { api, type AuthProfile } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 
-const DAYS_LONG = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+const BLUE   = '#1493FF';
+const GREEN  = '#16A34A';
+const AMBER  = '#F59E0B';
+const MUTED  = '#8E8E93';
+const TEXT   = '#1C1C1E';
+const SUBTEXT= '#6B7280';
+const BORDER = '#E5E7EB';
+const BG     = '#F5F6FA';
+const WHITE  = '#FFFFFF';
+
 function fmt12(t: string): string {
   const [h, m] = t.split(':').map(Number);
   const ampm = h >= 12 ? 'pm' : 'am';
   const h12 = h % 12 === 0 ? 12 : h % 12;
   return `${h12}:${String(m).padStart(2, '0')} ${ampm}`;
 }
+
 function openStatusColor(status: string) {
-  if (status === 'open')              return '#16A34A';
-  if (status === 'closing_soon')      return '#F59E0B';
-  if (status === 'opens_soon')        return '#3B82F6';
-  if (status === 'coming_soon')       return '#8B5CF6';
-  if (status === 'temporarily_closed')return '#F59E0B';
-  return '#8E8E93';
+  if (status === 'open')               return GREEN;
+  if (status === 'closing_soon')       return AMBER;
+  if (status === 'opens_soon')         return BLUE;
+  if (status === 'coming_soon')        return '#8B5CF6';
+  if (status === 'temporarily_closed') return AMBER;
+  return MUTED;
 }
-const cs = StyleSheet.create({
-  hero:            { paddingHorizontal: 20, paddingBottom: 28 },
-  heroTitle:       { fontWeight: '700', fontSize: 30, color: '#fff', marginBottom: 4 },
-  heroSub:         { fontWeight: '400', fontSize: 14, color: 'rgba(255,255,255,0.8)' },
-  card:            { borderRadius: 16, borderWidth: StyleSheet.hairlineWidth, overflow: 'hidden' },
-  cardBanner:      { padding: 16, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  cardBannerTitle: { fontWeight: '700', fontSize: 16, color: '#fff', flex: 1 },
-  openBadge:       { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 },
-  dot:             { width: 7, height: 7, borderRadius: 4 },
-  openBadgeText:   { fontWeight: '600', fontSize: 11, color: '#fff' },
-  infoRow:         { flexDirection: 'row', gap: 8, alignItems: 'flex-start' },
-  infoText:        { fontWeight: '400', fontSize: 13, flex: 1, lineHeight: 18 },
-  serviceChip:     { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#EFF6FF', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4 },
-  serviceText:     { fontWeight: '500', fontSize: 11 },
-  notes:           { fontWeight: '400', fontSize: 12, fontStyle: 'italic' },
-  actionBtn:       { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, paddingVertical: 10, borderRadius: 10, borderWidth: 1, borderColor: '#E5E7EB' },
-  actionBtnText:   { fontWeight: '600', fontSize: 13, color: '#1493FF' },
-});
+
 function StoreCard({
   store,
   isSelected,
@@ -57,132 +50,160 @@ function StoreCard({
   onSelect: () => void;
   canSelect: boolean;
 }) {
-  const colors = useColors();
-  const sc = openStatusColor(store.openStatus);
-  const isOpen = store.openStatus === 'open' || store.openStatus === 'closing_soon';
-  const handleDirections = () => {
-    if (!store.latitude || !store.longitude) return;
-    const q = store.address
-      ? `${store.address}, ${store.suburb ?? ''}, ${store.state ?? ''} ${store.postcode ?? ''}, Australia`
-      : `${store.latitude},${store.longitude}`;
-    const mapsUrl = `https://maps.apple.com/?q=${encodeURIComponent(q)}&ll=${store.latitude},${store.longitude}`;
-    Linking.openURL(mapsUrl);
-  };
-  const handleCall = () => {
-    if (!store.phone) return;
-    Linking.openURL(`tel:${store.phone.replace(/\s/g, '')}`);
-  };
-  const todayHours = store.todayHours;
+  const sc       = openStatusColor(store.openStatus);
+  const isOpen   = store.openStatus === 'open' || store.openStatus === 'closing_soon';
+  const address  = [store.address, store.suburb, store.state, store.postcode].filter(Boolean).join(', ');
+
+  const todayHours   = store.todayHours;
   const todayDisplay = todayHours?.isClosed
     ? 'Closed today'
     : todayHours?.openTime && todayHours?.closeTime
       ? `${fmt12(todayHours.openTime)} – ${fmt12(todayHours.closeTime)}`
       : null;
+
+  const handleDirections = () => {
+    if (!store.latitude || !store.longitude) return;
+    const q = address || `${store.latitude},${store.longitude}`;
+    Linking.openURL(`https://maps.apple.com/?q=${encodeURIComponent(q)}&ll=${store.latitude},${store.longitude}`);
+  };
+
+  const handleCall = () => {
+    if (!store.phone) return;
+    Linking.openURL(`tel:${store.phone.replace(/\s/g, '')}`);
+  };
+
   return (
-    <View style={[cs.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-      {/* Gradient header */}
-      <LinearGradient
-        colors={isOpen ? ['#1493FF', '#3CBBEE'] : ['#8E8E93', '#6B6B6B']}
-        style={cs.cardBanner}
-        start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
-      >
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-          <Feather name="map-pin" size={16} color="#fff" />
-          <Text style={cs.cardBannerTitle}>{store.name}</Text>
+    <View style={[cs.card, isSelected && cs.cardSelected]}>
+      {/* "My Store" ribbon */}
+      {isSelected && (
+        <View style={cs.myStoreRibbon}>
+          <Feather name="check-circle" size={12} color={WHITE} />
+          <Text style={cs.myStoreRibbonText}>My Store</Text>
         </View>
-        <View style={[cs.openBadge, { backgroundColor: 'rgba(255,255,255,0.2)' }]}>
-          <View style={[cs.dot, { backgroundColor: sc }]} />
-          <Text style={cs.openBadgeText}>{store.openLabel}</Text>
+      )}
+
+      {/* Card header — name + status */}
+      <View style={cs.cardHead}>
+        <View style={{ flex: 1, paddingRight: isSelected ? 80 : 0 }}>
+          <Text style={cs.storeName} numberOfLines={2}>{store.name}</Text>
+          {store.suburb ? (
+            <Text style={cs.storeSuburb}>{store.suburb}{store.state ? `, ${store.state}` : ''}</Text>
+          ) : null}
         </View>
-      </LinearGradient>
-      {/* Body */}
-      <View style={{ padding: 14, gap: 10 }}>
-        {/* Address */}
-        <View style={cs.infoRow}>
-          <Feather name="navigation" size={14} color={colors.mutedForeground} />
-          <Text style={[cs.infoText, { color: colors.foreground }]} numberOfLines={2}>
-            {[store.address, store.suburb, store.state, store.postcode].filter(Boolean).join(', ')}
-          </Text>
+        <View style={[cs.statusPill, { backgroundColor: sc + '18', borderColor: sc + '40' }]}>
+          <View style={[cs.statusDot, { backgroundColor: sc }]} />
+          <Text style={[cs.statusText, { color: sc }]}>{store.openLabel ?? (isOpen ? 'Open' : 'Closed')}</Text>
         </View>
-        {/* Today's hours */}
+      </View>
+
+      <View style={cs.divider} />
+
+      {/* Info rows */}
+      <View style={cs.infoSection}>
+        {!!address && (
+          <View style={cs.infoRow}>
+            <Feather name="map-pin" size={15} color={MUTED} style={cs.infoIcon} />
+            <Text style={cs.infoText} numberOfLines={2}>{address}</Text>
+          </View>
+        )}
         {todayDisplay && (
           <View style={cs.infoRow}>
-            <Feather name="clock" size={14} color={colors.mutedForeground} />
-            <Text style={[cs.infoText, { color: colors.foreground }]}>{todayDisplay}</Text>
+            <Feather name="clock" size={15} color={MUTED} style={cs.infoIcon} />
+            <Text style={cs.infoText}>{todayDisplay}</Text>
           </View>
         )}
-        {/* Phone */}
         {store.phone && (
           <View style={cs.infoRow}>
-            <Feather name="phone" size={14} color={colors.mutedForeground} />
-            <Text style={[cs.infoText, { color: colors.foreground }]}>{store.phone}</Text>
+            <Feather name="phone" size={15} color={MUTED} style={cs.infoIcon} />
+            <Text style={cs.infoText}>{store.phone}</Text>
           </View>
         )}
-        {/* Services */}
-        <View style={{ flexDirection: 'row', gap: 8, marginTop: 2 }}>
-          {store.pickupAvailable   && <View style={cs.serviceChip}><Feather name="shopping-bag" size={11} color="#1493FF" /><Text style={[cs.serviceText, { color: '#1493FF' }]}>Pickup</Text></View>}
-          {store.deliveryAvailable && <View style={[cs.serviceChip, { backgroundColor: '#F5F3FF' }]}><Feather name="truck" size={11} color="#7C3AED" /><Text style={[cs.serviceText, { color: '#7C3AED' }]}>Delivery</Text></View>}
-          {store.status === 'coming_soon' && <View style={[cs.serviceChip, { backgroundColor: '#EDE9FE' }]}><Feather name="clock" size={11} color="#7C3AED" /><Text style={[cs.serviceText, { color: '#7C3AED' }]}>Coming Soon</Text></View>}
+
+        {/* Service chips */}
+        <View style={cs.chipRow}>
+          {store.pickupAvailable && (
+            <View style={[cs.chip, { backgroundColor: '#EFF6FF', borderColor: '#BFDBFE' }]}>
+              <Feather name="shopping-bag" size={11} color={BLUE} />
+              <Text style={[cs.chipText, { color: BLUE }]}>Pickup</Text>
+            </View>
+          )}
+          {store.deliveryAvailable && (
+            <View style={[cs.chip, { backgroundColor: '#F5F3FF', borderColor: '#DDD6FE' }]}>
+              <Feather name="truck" size={11} color="#7C3AED" />
+              <Text style={[cs.chipText, { color: '#7C3AED' }]}>Delivery</Text>
+            </View>
+          )}
+          {store.status === 'coming_soon' && (
+            <View style={[cs.chip, { backgroundColor: '#EDE9FE', borderColor: '#DDD6FE' }]}>
+              <Feather name="clock" size={11} color="#7C3AED" />
+              <Text style={[cs.chipText, { color: '#7C3AED' }]}>Coming Soon</Text>
+            </View>
+          )}
         </View>
-        {/* Public notes */}
+
         {store.publicNotes ? (
-          <Text style={[cs.notes, { color: colors.mutedForeground }]}>{store.publicNotes}</Text>
+          <Text style={cs.notes}>{store.publicNotes}</Text>
         ) : null}
-        {/* Action buttons */}
-        <View style={{ flexDirection: 'row', gap: 8, marginTop: 4 }}>
-          {canSelect && (
-            <Pressable
-              style={[
-                cs.actionBtn,
-                {
-                  flex: 1,
-                  backgroundColor: isSelected ? '#1493FF' : '#FFFFFF',
-                  borderColor: isSelected ? '#1493FF' : '#E5E7EB',
-                },
-              ]}
-              onPress={onSelect}
-            >
-              <Feather name={isSelected ? 'check-circle' : 'map-pin'} size={14} color={isSelected ? '#fff' : '#1493FF'} />
-              <Text style={[cs.actionBtnText, { color: isSelected ? '#fff' : '#1493FF' }]}>
-                {isSelected ? 'My Store' : 'Set as My Store'}
-              </Text>
-            </Pressable>
-          )}
-          {store.latitude && store.longitude && (
-            <Pressable style={[cs.actionBtn, { flex: 1 }]} onPress={handleDirections}>
-              <Feather name="map" size={14} color="#1493FF" />
-              <Text style={cs.actionBtnText}>Directions</Text>
-            </Pressable>
-          )}
-          {store.phone && (
-            <Pressable style={[cs.actionBtn, { flex: 1 }]} onPress={handleCall}>
-              <Feather name="phone" size={14} color="#16A34A" />
-              <Text style={[cs.actionBtnText, { color: '#16A34A' }]}>Call</Text>
-            </Pressable>
-          )}
-          {store.pickupAvailable && (store.openStatus === 'open' || store.openStatus === 'closing_soon') && (
-            <Pressable style={[cs.actionBtn, { flex: 1, backgroundColor: '#1493FF' }]} onPress={() => router.push('/(customer)/menu')}>
-              <Feather name="shopping-bag" size={14} color="#fff" />
-              <Text style={[cs.actionBtnText, { color: '#fff' }]}>Order</Text>
-            </Pressable>
-          )}
-        </View>
+      </View>
+
+      {/* Action buttons */}
+      <View style={cs.actionSection}>
+        {/* Order Now — full width CTA, only when open */}
+        {store.pickupAvailable && isOpen && (
+          <Pressable
+            style={cs.orderBtn}
+            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); router.push('/(customer)/menu'); }}
+          >
+            <Feather name="shopping-bag" size={16} color={WHITE} />
+            <Text style={cs.orderBtnText}>Order Now</Text>
+          </Pressable>
+        )}
+
+        {/* Secondary row — Directions + Call */}
+        {(store.latitude || store.phone) && (
+          <View style={cs.secondaryRow}>
+            {store.latitude && store.longitude && (
+              <Pressable style={cs.secondaryBtn} onPress={() => { Haptics.selectionAsync(); handleDirections(); }}>
+                <Feather name="map" size={15} color={BLUE} />
+                <Text style={cs.secondaryBtnText}>Directions</Text>
+              </Pressable>
+            )}
+            {store.phone && (
+              <Pressable style={cs.secondaryBtn} onPress={() => { Haptics.selectionAsync(); handleCall(); }}>
+                <Feather name="phone" size={15} color={GREEN} />
+                <Text style={[cs.secondaryBtnText, { color: GREEN }]}>Call</Text>
+              </Pressable>
+            )}
+          </View>
+        )}
+
+        {/* Set as My Store — text link, only for logged-in users */}
+        {canSelect && !isSelected && (
+          <Pressable
+            style={cs.selectBtn}
+            onPress={() => { Haptics.selectionAsync(); onSelect(); }}
+          >
+            <Feather name="map-pin" size={13} color={MUTED} />
+            <Text style={cs.selectBtnText}>Set as My Store</Text>
+          </Pressable>
+        )}
       </View>
     </View>
   );
 }
+
 export default function CustomerStoresScreen() {
   const { user } = useAuth();
   const qc = useQueryClient();
   const insets = useSafeAreaInsets();
-  const colors = useColors();
+
   const { data, isLoading, refetch } = useQuery({
     queryKey: ['stores'],
     queryFn: () => api.stores.list(),
     staleTime: 60000,
   });
-
   const { refreshing, onRefresh } = useRefreshControl(refetch);
+
   const { data: meData } = useQuery({
     queryKey: ['me'],
     queryFn: () => api.auth.me(),
@@ -208,31 +229,51 @@ export default function CustomerStoresScreen() {
       Alert.alert('Could not save store', message);
     }
   };
+
+  const locationCount = stores.length;
+
   return (
     <ScrollView
-      style={{ flex: 1, backgroundColor: colors.background }}
-      contentContainerStyle={{ paddingBottom: insets.bottom + 40 }}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#1493FF" />}
+      style={{ flex: 1, backgroundColor: BG }}
+      contentContainerStyle={{ paddingBottom: insets.bottom + 48 }}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={BLUE} />}
     >
-      {/* Header */}
+      {/* Hero strip */}
       <LinearGradient
         colors={['#1493FF', '#3CBBEE']}
-        style={[cs.hero, { paddingTop: Math.max(insets.top, 20) + 16 }]}
+        style={[cs.hero, { paddingTop: Math.max(insets.top, 20) + 14 }]}
         start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
       >
-        <Text style={cs.heroTitle}>Our Stores</Text>
-        <Text style={cs.heroSub}>Find your nearest Butterfield Cookies</Text>
+        <View style={cs.heroRow}>
+          <View style={cs.heroIconWrap}>
+            <Feather name="map-pin" size={20} color={WHITE} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={cs.heroTitle}>Our Stores</Text>
+            <Text style={cs.heroSub}>
+              {isLoading
+                ? 'Finding locations…'
+                : locationCount === 0
+                  ? 'No locations yet'
+                  : `${locationCount} location${locationCount !== 1 ? 's' : ''} near you`}
+            </Text>
+          </View>
+        </View>
       </LinearGradient>
-      <View style={{ paddingHorizontal: 16, paddingTop: 16, gap: 12 }}>
+
+      {/* Card list */}
+      <View style={cs.list}>
         {isLoading ? (
-          <View style={{ paddingVertical: 60, alignItems: 'center' }}>
-            <ActivityIndicator size="large" color="#1493FF" />
+          <View style={cs.center}>
+            <ActivityIndicator size="large" color={BLUE} />
           </View>
         ) : stores.length === 0 ? (
-          <View style={{ paddingVertical: 60, alignItems: 'center', gap: 12 }}>
-            <Feather name="map-pin" size={32} color="#8E8E93" />
-            <Text style={{ fontWeight: '600', fontSize: 16, color: '#1C1C1E' }}>No stores listed yet</Text>
-            <Text style={{ fontWeight: '400', fontSize: 14, color: '#8E8E93', textAlign: 'center' }}>Check back soon for our upcoming locations.</Text>
+          <View style={cs.center}>
+            <View style={cs.emptyIcon}>
+              <Feather name="map-pin" size={28} color={MUTED} />
+            </View>
+            <Text style={cs.emptyTitle}>No stores listed yet</Text>
+            <Text style={cs.emptySub}>Check back soon for our upcoming locations.</Text>
           </View>
         ) : (
           stores.map(store => (
@@ -249,3 +290,56 @@ export default function CustomerStoresScreen() {
     </ScrollView>
   );
 }
+
+const cs = StyleSheet.create({
+  hero:            { paddingHorizontal: 20, paddingBottom: 22 },
+  heroRow:         { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  heroIconWrap:    { width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.2)', alignItems: 'center', justifyContent: 'center' },
+  heroTitle:       { fontSize: 26, fontWeight: '800', color: WHITE, letterSpacing: -0.3 },
+  heroSub:         { fontSize: 13, fontWeight: '400', color: 'rgba(255,255,255,0.85)', marginTop: 2 },
+
+  list:            { paddingHorizontal: 16, paddingTop: 16, gap: 14 },
+  center:          { paddingVertical: 60, alignItems: 'center', gap: 12 },
+  emptyIcon:       { width: 64, height: 64, borderRadius: 32, backgroundColor: BORDER, alignItems: 'center', justifyContent: 'center', marginBottom: 4 },
+  emptyTitle:      { fontSize: 17, fontWeight: '700', color: TEXT },
+  emptySub:        { fontSize: 14, color: MUTED, textAlign: 'center', paddingHorizontal: 24 },
+
+  card:            { backgroundColor: WHITE, borderRadius: 18, borderWidth: StyleSheet.hairlineWidth, borderColor: BORDER, overflow: 'hidden' },
+  cardSelected:    { borderColor: GREEN, borderWidth: 1.5 },
+
+  myStoreRibbon:   { position: 'absolute', top: 14, right: 0, zIndex: 10, flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: GREEN, paddingVertical: 4, paddingLeft: 10, paddingRight: 14, borderTopLeftRadius: 20, borderBottomLeftRadius: 20 },
+  myStoreRibbonText: { fontSize: 11, fontWeight: '700', color: WHITE },
+
+  cardHead:        { padding: 16, flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 },
+  storeName:       { fontSize: 18, fontWeight: '800', color: TEXT, lineHeight: 22 },
+  storeSuburb:     { fontSize: 12, fontWeight: '400', color: SUBTEXT, marginTop: 2 },
+
+  statusPill:      { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 9, paddingVertical: 4, borderRadius: 20, borderWidth: 1, marginTop: 2, flexShrink: 0 },
+  statusDot:       { width: 6, height: 6, borderRadius: 3 },
+  statusText:      { fontSize: 11, fontWeight: '700' },
+
+  divider:         { height: StyleSheet.hairlineWidth, backgroundColor: BORDER, marginHorizontal: 16 },
+
+  infoSection:     { paddingHorizontal: 16, paddingTop: 12, gap: 9 },
+  infoRow:         { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
+  infoIcon:        { marginTop: 1 },
+  infoText:        { fontSize: 14, color: SUBTEXT, flex: 1, lineHeight: 20 },
+
+  chipRow:         { flexDirection: 'row', gap: 6, marginTop: 2 },
+  chip:            { flexDirection: 'row', alignItems: 'center', gap: 4, borderRadius: 8, borderWidth: 1, paddingHorizontal: 8, paddingVertical: 4 },
+  chipText:        { fontSize: 11, fontWeight: '600' },
+
+  notes:           { fontSize: 12, color: MUTED, fontStyle: 'italic', lineHeight: 17 },
+
+  actionSection:   { padding: 14, gap: 8 },
+
+  orderBtn:        { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: BLUE, borderRadius: 12, paddingVertical: 13 },
+  orderBtnText:    { fontSize: 15, fontWeight: '700', color: WHITE },
+
+  secondaryRow:    { flexDirection: 'row', gap: 8 },
+  secondaryBtn:    { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 11, borderRadius: 12, borderWidth: 1, borderColor: BORDER, backgroundColor: '#F9FAFB' },
+  secondaryBtnText: { fontSize: 14, fontWeight: '600', color: BLUE },
+
+  selectBtn:       { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 8 },
+  selectBtnText:   { fontSize: 13, fontWeight: '500', color: MUTED },
+});
