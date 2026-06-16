@@ -8,12 +8,13 @@ import {
   Linking,
   Modal,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   View,
   useWindowDimensions,
 } from 'react-native';
-import { Gesture, GestureDetector, ScrollView as GHScrollView } from 'react-native-gesture-handler';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
   interpolate,
   runOnJS,
@@ -269,8 +270,8 @@ export default function StoreInfoSheet({ visible, store, onClose }: Props) {
               </View>
             </Pressable>
 
-            {/* ── Scrollable body — GHScrollView matches product sheet smoothness ── */}
-            <GHScrollView
+            {/* ── Scrollable body — plain RN ScrollView, no RNGH conflict ── */}
+            <ScrollView
               style={{ flex: 1 }}
               contentContainerStyle={{ paddingBottom: 16 }}
               showsVerticalScrollIndicator={false}
@@ -411,7 +412,7 @@ export default function StoreInfoSheet({ visible, store, onClose }: Props) {
                 <Text style={cs.allStoresText}>View all stores</Text>
                 <Feather name="chevron-right" size={13} color={BLUE} />
               </Pressable>
-            </GHScrollView>
+            </ScrollView>
 
             {/* ── Sticky footer ── */}
             <View style={[cs.footer, { borderTopColor: colors.border, paddingBottom: Math.max(insets.bottom, 16) }]}>
