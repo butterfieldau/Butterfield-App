@@ -2,13 +2,31 @@ import { Feather } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
-import * as Location from 'expo-location';
 import { router } from 'expo-router';
-import React, { useEffect, useRef, useState } from 'react';
-import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  Linking,
+  Modal,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+  useWindowDimensions,
+} from 'react-native';
+import { Gesture, GestureDetector, ScrollView as GHScrollView } from 'react-native-gesture-handler';
+import Animated, {
+  interpolate,
+  runOnJS,
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+  withTiming,
+} from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { SwipeDownSheet } from '@/components/SwipeDownSheet';
 import { useColors } from '@/hooks/useColors';
+
+const SPRING_IN = { damping: 34, stiffness: 300, overshootClamping: true } as const;
+const BACKDROP_OPACITY = 0.42;
 
 const FALLBACK_STORE = {
   name: 'Butterfield Cookies — Merrylands',
@@ -39,8 +57,8 @@ function fmt12(time: string): string {
 
 function formatBreakNote(notes: string | null | undefined): string | null {
   if (!notes) return null;
-  const m = notes.match(/^Break (\d{2}:\d{2}) [–-] (\d{2}:\d{2})$/);
-  if (m) return `Break ${fmt12(m[1])} – ${fmt12(m[2])}`;
+  const match = notes.match(/^Break (\d{2}:\d{2}) [–-] (\d{2}:\d{2})$/);
+  if (match) return `Break ${fmt12(match[1])} – ${fmt12(match[2])}`;
   return notes;
 }
 
@@ -51,9 +69,7 @@ function computeOpenFromHours(hoursArr: any[]): { isOpen: boolean } {
   const nowMins = now.getHours() * 60 + now.getMinutes();
   const [oh, om] = today.openTime.split(':').map(Number);
   const [ch, cm] = today.closeTime.split(':').map(Number);
-  const openMins = oh * 60 + om;
-  const closeMins = ch * 60 + cm;
-  return { isOpen: nowMins >= openMins && nowMins < closeMins };
+  return { isOpen: nowMins >= oh * 60 + om && nowMins < ch * 60 + cm };
 }
 
 interface Props {
@@ -65,42 +81,107 @@ interface Props {
 export default function StoreInfoSheet({ visible, store, onClose }: Props) {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const scrollRef = useRef<ScrollView>(null);
+  const { height: SCREEN_H, width: SCREEN_W } = useWindowDimensions();
+  const [modalVisible, setModalVisible] = useState(false);
   const [imageFailed, setImageFailed] = useState(false);
+  const closingRef = useRef(false);
+
+  const translateY = useSharedValue(SCREEN_H);
+  const backdropO = useSharedValue(0);
+  const scrollY = useSharedValue(0);
+
+  const HERO_H = Math.round(SCREEN_W * 0.8);
+  const SHEET_H = Math.round(SCREEN_H * 0.88);
+
+  const finishClose = useCallback((notifyParent: boolean) => {
+    closingRef.current = false;
+    setModalVisible(false);
+    if (notifyParent) onClose();
+  }, [onClose]);
+
+  const animateOut = useCallback((notifyParent = true) => {
+    if (closingRef.current) return;
+    closingRef.current = true;
+    backdropO.value = withTiming(0, { duration: 200 });
+    translateY.value = withTiming(SCREEN_H, { duration: 280 }, (done) => {
+      if (done) runOnJS(finishClose)(notifyParent);
+    });
+  }, [backdropO, translateY, SCREEN_H, finishClose]);
 
   useEffect(() => {
-    if (visible) setImageFailed(false);
-  }, [visible, store?.id]);
+    if (visible) {
+      closingRef.current = false;
+      setImageFailed(false);
+      translateY.value = SCREEN_H;
+      backdropO.value = 0;
+      scrollY.value = 0;
+      setModalVisible(true);
+      requestAnimationFrame(() => {
+        translateY.value = withSpring(0, SPRING_IN);
+        backdropO.value = withTiming(BACKDROP_OPACITY, { duration: 240 });
+      });
+    } else if (modalVisible && !closingRef.current) {
+      animateOut(false);
+    }
+  }, [visible]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const scrollNativeGesture = useMemo(() => Gesture.Native(), []);
+
+  const panGesture = useMemo(() =>
+    Gesture.Pan()
+      .activeOffsetY([-8, 8])
+      .simultaneousWithExternalGesture(scrollNativeGesture)
+      .onUpdate((e) => {
+        if (e.translationY > 0 && scrollY.value <= 2) {
+          translateY.value = e.translationY;
+          backdropO.value = interpolate(
+            e.translationY,
+            [0, 300],
+            [BACKDROP_OPACITY, 0],
+            { extrapolateRight: 'clamp' },
+          );
+        }
+      })
+      .onEnd((e) => {
+        const shouldDismiss =
+          translateY.value > 110 ||
+          (e.velocityY > 600 && translateY.value > 20);
+        if (shouldDismiss) {
+          runOnJS(animateOut)();
+        } else {
+          translateY.value = withSpring(0, SPRING_IN);
+          backdropO.value = withTiming(BACKDROP_OPACITY, { duration: 180 });
+        }
+      }),
+  [scrollY, translateY, backdropO, animateOut, scrollNativeGesture]);
+
+  const sheetAnimStyle = useAnimatedStyle(() => ({ transform: [{ translateY: translateY.value }] }));
+  const backdropAnimStyle = useAnimatedStyle(() => ({ opacity: backdropO.value }));
 
   const activeStore = store ?? FALLBACK_STORE;
   const hours = activeStore.openingHours ?? [];
-  const todayHours = activeStore.todayHours ?? hours.find((h: any) => h.dayOfWeek === new Date().getDay()) ?? null;
-  const fallbackOpen = computeOpenFromHours(hours.length > 0 ? hours : (FALLBACK_STORE.openingHours ?? []));
-  const isOpen = activeStore.openStatus === 'open' || activeStore.openStatus === 'closing_soon' || (!store && fallbackOpen.isOpen);
+  const todayHours =
+    activeStore.todayHours ??
+    hours.find((h: any) => h.dayOfWeek === new Date().getDay()) ??
+    null;
+  const fallbackOpen = computeOpenFromHours(
+    hours.length > 0 ? hours : (FALLBACK_STORE.openingHours ?? []),
+  );
+  const isOpen =
+    activeStore.openStatus === 'open' ||
+    activeStore.openStatus === 'closing_soon' ||
+    (!store && fallbackOpen.isOpen);
 
-  const address = [activeStore.address, activeStore.suburb, activeStore.state, activeStore.postcode].filter(Boolean).join(', ');
-  const heroSource = activeStore.imageUrl ? { uri: activeStore.imageUrl } : null;
+  const address = [
+    activeStore.address,
+    activeStore.suburb,
+    activeStore.state,
+    activeStore.postcode,
+  ]
+    .filter(Boolean)
+    .join(', ');
 
-  const handleDirections = () => {
-    const q = address || activeStore.name || 'Butterfield Cookies';
-    const coords = activeStore.latitude && activeStore.longitude ? `&ll=${activeStore.latitude},${activeStore.longitude}` : '';
-    Linking.openURL(`https://maps.apple.com/?q=${encodeURIComponent(q)}${coords}`).catch(() => {});
-  };
-
-  const handleCall = () => {
-    const phone = activeStore.phone ?? FALLBACK_STORE.phone;
-    Linking.openURL(`tel:${String(phone).replace(/\s/g, '')}`).catch(() => {});
-  };
-
-  const handleOrder = () => {
-    onClose();
-    setTimeout(() => router.push('/(customer)/menu'), 250);
-  };
-
-  const handleAllStores = () => {
-    onClose();
-    setTimeout(() => router.push('/(customer)/stores'), 250);
-  };
+  const heroSource = activeStore.imageUrl && !imageFailed ? { uri: activeStore.imageUrl } : null;
 
   const todayDisplay = todayHours?.isClosed
     ? 'Closed today'
@@ -110,195 +191,563 @@ export default function StoreInfoSheet({ visible, store, onClose }: Props) {
 
   const storeStatusText = activeStore.openLabel ?? (isOpen ? 'Open Now' : 'Closed');
 
+  const handleDirections = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    const q = address || activeStore.name || 'Butterfield Cookies';
+    const coords =
+      activeStore.latitude && activeStore.longitude
+        ? `&ll=${activeStore.latitude},${activeStore.longitude}`
+        : '';
+    Linking.openURL(`https://maps.apple.com/?q=${encodeURIComponent(q)}${coords}`).catch(() => {});
+  };
+
+  const handleCall = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    const phone = activeStore.phone ?? FALLBACK_STORE.phone;
+    Linking.openURL(`tel:${String(phone).replace(/\s/g, '')}`).catch(() => {});
+  };
+
+  const handleOrder = () => {
+    animateOut();
+    setTimeout(() => router.push('/(customer)/menu'), 300);
+  };
+
+  const handleAllStores = () => {
+    animateOut();
+    setTimeout(() => router.push('/(customer)/stores'), 300);
+  };
+
+  if (!modalVisible) return null;
+
   return (
-    <SwipeDownSheet
-      visible={visible}
-      onClose={onClose}
-      backdropOpacity={0.42}
-      contentStyle={{ paddingBottom: Math.max(insets.bottom, 16) + 8 }}
-      sheetStyle={styles.sheet}
+    <Modal
+      visible={modalVisible}
+      transparent
+      animationType="none"
+      onRequestClose={animateOut}
+      statusBarTranslucent
     >
-      <ScrollView
-        ref={scrollRef}
-        style={{ flex: 1 }}
-        contentContainerStyle={{ paddingBottom: 18 }}
-        showsVerticalScrollIndicator={false}
-        nestedScrollEnabled
-        bounces
-      >
-        <Pressable style={styles.hero} onPress={handleDirections}>
-          {heroSource && !imageFailed ? (
-            <Image source={heroSource} style={StyleSheet.absoluteFillObject} contentFit="cover" transition={220} onError={() => setImageFailed(true)} />
-          ) : (
-            <LinearGradient colors={isOpen ? ['#1493FF', '#3CBBEE'] : ['#8E8E93', '#6B6B6B']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFillObject} />
-          )}
-          <LinearGradient
-            colors={['transparent', 'rgba(0,0,0,0.54)']}
-            start={{ x: 0.5, y: 0 }}
-            end={{ x: 0.5, y: 1 }}
-            style={StyleSheet.absoluteFillObject}
-          />
-          <View style={styles.heroTopRow}>
-            <View style={styles.heroPill}>
-              <Feather name="navigation" size={11} color="#1493FF" />
-              <Text style={styles.heroPillText}>Tap for directions</Text>
+      <View style={StyleSheet.absoluteFill}>
+        <Animated.View
+          style={[StyleSheet.absoluteFill, { backgroundColor: '#000' }, backdropAnimStyle]}
+        >
+          <Pressable style={StyleSheet.absoluteFill} onPress={animateOut} />
+        </Animated.View>
+
+        <GestureDetector gesture={panGesture}>
+          <Animated.View
+            style={[
+              styles.sheet,
+              { height: SHEET_H },
+              sheetAnimStyle,
+            ]}
+          >
+            <View style={styles.handleBar}>
+              <View style={styles.handle} />
             </View>
-            <View style={[styles.statusBadge, { backgroundColor: isOpen ? 'rgba(22,163,74,0.9)' : 'rgba(100,100,100,0.8)' }]}>
-              <View style={styles.dot} />
-              <Text style={styles.statusText}>{storeStatusText}</Text>
-            </View>
-          </View>
-          <View style={styles.heroBottom}>
-            <Text style={styles.headerLabel}>IN-STORE PICKUP</Text>
-            <Text style={styles.headerName} numberOfLines={2}>{activeStore.name ?? FALLBACK_STORE.name}</Text>
-          </View>
-        </Pressable>
 
-        <View style={styles.body}>
-          <Pressable style={styles.infoRow} onPress={handleDirections}>
-            <View style={styles.infoIcon}><Feather name="map-pin" size={15} color="#1493FF" /></View>
-            <View style={{ flex: 1 }}>
-              <Text style={[styles.infoVal, { color: colors.foreground }]}>{address}</Text>
-              <Text style={styles.infoLink}>Tap for directions</Text>
-            </View>
-            <Feather name="chevron-right" size={15} color={colors.mutedForeground} />
-          </Pressable>
+            <GestureDetector gesture={scrollNativeGesture}>
+            <GHScrollView
+              style={{ flex: 1 }}
+              contentContainerStyle={{ paddingBottom: 8 }}
+              showsVerticalScrollIndicator={false}
+              bounces
+              onScroll={(e) => {
+                scrollY.value = e.nativeEvent.contentOffset.y;
+              }}
+              scrollEventThrottle={16}
+            >
+              <Pressable
+                style={[styles.hero, { height: HERO_H }]}
+                onPress={handleDirections}
+                accessibilityLabel="Tap for directions"
+              >
+                {heroSource ? (
+                  <Image
+                    source={heroSource}
+                    style={StyleSheet.absoluteFillObject}
+                    contentFit="cover"
+                    transition={220}
+                    onError={() => setImageFailed(true)}
+                  />
+                ) : (
+                  <LinearGradient
+                    colors={isOpen ? ['#1493FF', '#3CBBEE'] : ['#8E8E93', '#6B6B6B']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={StyleSheet.absoluteFillObject}
+                  />
+                )}
+                <LinearGradient
+                  colors={['transparent', 'rgba(0,0,0,0.6)']}
+                  start={{ x: 0.5, y: 0.3 }}
+                  end={{ x: 0.5, y: 1 }}
+                  style={StyleSheet.absoluteFillObject}
+                />
+                <View style={styles.heroTopRow}>
+                  <View style={styles.heroPill}>
+                    <Feather name="navigation" size={11} color="#1493FF" />
+                    <Text style={styles.heroPillText}>Tap for directions</Text>
+                  </View>
+                  <View
+                    style={[
+                      styles.statusBadge,
+                      {
+                        backgroundColor: isOpen
+                          ? 'rgba(22,163,74,0.9)'
+                          : 'rgba(100,100,100,0.8)',
+                      },
+                    ]}
+                  >
+                    <View style={styles.dot} />
+                    <Text style={styles.statusText}>{storeStatusText}</Text>
+                  </View>
+                </View>
+                <View style={styles.heroBottom}>
+                  <Text style={styles.headerLabel}>IN-STORE PICKUP</Text>
+                  <Text style={styles.headerName} numberOfLines={2}>
+                    {activeStore.name ?? FALLBACK_STORE.name}
+                  </Text>
+                </View>
+              </Pressable>
 
-          {todayDisplay ? (
-            <View style={styles.infoRow}>
-              <View style={styles.infoIcon}><Feather name="clock" size={15} color="#1493FF" /></View>
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.infoLabel, { color: colors.mutedForeground }]}>Today&apos;s hours</Text>
-                <Text style={[styles.infoVal, { color: colors.foreground }]}>{todayDisplay}</Text>
-                {formatBreakNote(todayHours?.notes) ? (
-                  <Text style={[styles.infoBreakNote, { color: colors.mutedForeground }]}>{formatBreakNote(todayHours?.notes)}</Text>
-                ) : null}
-              </View>
-            </View>
-          ) : null}
+              <View style={styles.body}>
+                <Pressable style={styles.infoRow} onPress={handleDirections}>
+                  <Feather name="map-pin" size={16} color="#1493FF" style={styles.infoIcon} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.infoVal, { color: colors.foreground }]}>{address}</Text>
+                    <Text style={styles.infoLink}>Tap for directions</Text>
+                  </View>
+                  <Feather name="chevron-right" size={15} color={colors.mutedForeground} />
+                </Pressable>
 
-          <Pressable style={styles.infoRow} onPress={handleCall}>
-            <View style={styles.infoIcon}><Feather name="phone" size={15} color="#1493FF" /></View>
-            <View style={{ flex: 1 }}>
-              <Text style={[styles.infoLabel, { color: colors.mutedForeground }]}>Phone</Text>
-              <Text style={[styles.infoVal, { color: colors.foreground }]}>{activeStore.phone ?? FALLBACK_STORE.phone}</Text>
-            </View>
-            <Feather name="chevron-right" size={15} color={colors.mutedForeground} />
-          </Pressable>
+                <View style={[styles.divider, { backgroundColor: colors.border }]} />
 
-          {activeStore.website ? (
-            <Pressable style={styles.infoRow} onPress={() => Linking.openURL(activeStore.website).catch(() => {})}>
-              <View style={styles.infoIcon}><Feather name="globe" size={15} color="#1493FF" /></View>
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.infoLabel, { color: colors.mutedForeground }]}>Website</Text>
-                <Text style={[styles.infoVal, { color: '#1493FF' }]} numberOfLines={1}>
-                  {activeStore.website.replace(/^https?:\/\//, '')}
-                </Text>
-              </View>
-              <Feather name="chevron-right" size={15} color={colors.mutedForeground} />
-            </Pressable>
-          ) : null}
-
-          {(activeStore.pickupAvailable || activeStore.deliveryAvailable) ? (
-            <View style={styles.chipRow}>
-              {activeStore.pickupAvailable ? <View style={styles.chip}><Feather name="shopping-bag" size={11} color="#1493FF" /><Text style={[styles.chipText, { color: '#1493FF' }]}>Pickup available</Text></View> : null}
-              {activeStore.deliveryAvailable ? <View style={[styles.chip, { backgroundColor: '#F5F3FF' }]}><Feather name="truck" size={11} color="#7C3AED" /><Text style={[styles.chipText, { color: '#7C3AED' }]}>Delivery available</Text></View> : null}
-            </View>
-          ) : null}
-
-          {activeStore.publicNotes ? (
-            <Text style={[styles.notes, { color: colors.mutedForeground }]}>{activeStore.publicNotes}</Text>
-          ) : null}
-
-          {hours.length > 0 ? (
-            <View style={[styles.hoursCard, { backgroundColor: colors.background, borderColor: colors.border }]}>
-              <Text style={[styles.hoursTitle, { color: colors.foreground }]}>Opening Hours</Text>
-              {hours.map((h: any) => {
-                const dayName = DAYS_LONG[h.dayOfWeek] ?? '';
-                const hoursStr = h.isClosed
-                  ? 'Closed'
-                  : h.openTime && h.closeTime
-                    ? `${fmt12(h.openTime)} – ${fmt12(h.closeTime)}`
-                    : '—';
-                const isToday = new Date().getDay() === h.dayOfWeek;
-                return (
-                  <View key={String(h.dayOfWeek)} style={[styles.hoursRowWrap, isToday && { backgroundColor: '#EFF6FF', borderRadius: 8, paddingHorizontal: 8 }]}>
-                    <View style={styles.hoursRow}>
-                      <Text style={[styles.hoursDay, { color: isToday ? '#1493FF' : colors.foreground, fontWeight: isToday ? '700' : '400' }]}>{dayName}</Text>
-                      <Text style={[styles.hoursTime, { color: h.isClosed ? colors.mutedForeground : isToday ? '#1493FF' : colors.foreground }]}>{hoursStr}</Text>
+                {todayDisplay ? (
+                  <>
+                    <View style={styles.infoRow}>
+                      <Feather name="clock" size={16} color="#1493FF" style={styles.infoIcon} />
+                      <View style={{ flex: 1 }}>
+                        <Text style={[styles.infoLabel, { color: colors.mutedForeground }]}>
+                          Today&apos;s hours
+                        </Text>
+                        <Text style={[styles.infoVal, { color: colors.foreground }]}>
+                          {todayDisplay}
+                        </Text>
+                        {formatBreakNote(todayHours?.notes) ? (
+                          <Text style={[styles.infoBreakNote, { color: colors.mutedForeground }]}>
+                            {formatBreakNote(todayHours?.notes)}
+                          </Text>
+                        ) : null}
+                      </View>
                     </View>
-                    {formatBreakNote(h.notes) && !h.isClosed ? (
-                      <Text style={[styles.hoursBreakNote, { color: colors.mutedForeground }]}>{formatBreakNote(h.notes)}</Text>
+                    <View style={[styles.divider, { backgroundColor: colors.border }]} />
+                  </>
+                ) : null}
+
+                <Pressable style={styles.infoRow} onPress={handleCall}>
+                  <Feather name="phone" size={16} color="#1493FF" style={styles.infoIcon} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.infoLabel, { color: colors.mutedForeground }]}>Phone</Text>
+                    <Text style={[styles.infoVal, { color: colors.foreground }]}>
+                      {activeStore.phone ?? FALLBACK_STORE.phone}
+                    </Text>
+                  </View>
+                  <Feather name="chevron-right" size={15} color={colors.mutedForeground} />
+                </Pressable>
+
+                {activeStore.website ? (
+                  <>
+                    <View style={[styles.divider, { backgroundColor: colors.border }]} />
+                    <Pressable
+                      style={styles.infoRow}
+                      onPress={() =>
+                        Linking.openURL(activeStore.website).catch(() => {})
+                      }
+                    >
+                      <Feather name="globe" size={16} color="#1493FF" style={styles.infoIcon} />
+                      <View style={{ flex: 1 }}>
+                        <Text style={[styles.infoLabel, { color: colors.mutedForeground }]}>
+                          Website
+                        </Text>
+                        <Text
+                          style={[styles.infoVal, { color: '#1493FF' }]}
+                          numberOfLines={1}
+                        >
+                          {activeStore.website.replace(/^https?:\/\//, '')}
+                        </Text>
+                      </View>
+                      <Feather name="chevron-right" size={15} color={colors.mutedForeground} />
+                    </Pressable>
+                  </>
+                ) : null}
+
+                {activeStore.pickupAvailable || activeStore.deliveryAvailable ? (
+                  <View style={styles.chipRow}>
+                    {activeStore.pickupAvailable ? (
+                      <View style={styles.chip}>
+                        <Feather name="shopping-bag" size={11} color="#1493FF" />
+                        <Text style={[styles.chipText, { color: '#1493FF' }]}>
+                          Pickup available
+                        </Text>
+                      </View>
+                    ) : null}
+                    {activeStore.deliveryAvailable ? (
+                      <View style={[styles.chip, { backgroundColor: '#F5F3FF' }]}>
+                        <Feather name="truck" size={11} color="#7C3AED" />
+                        <Text style={[styles.chipText, { color: '#7C3AED' }]}>
+                          Delivery available
+                        </Text>
+                      </View>
                     ) : null}
                   </View>
-                );
-              })}
-            </View>
-          ) : null}
+                ) : null}
 
-          <View style={styles.footer}>
-            {address ? (
-              <Pressable style={[styles.actionBtn, styles.secondaryActionBtn, { borderColor: colors.border }]} onPress={handleDirections}>
-                <Feather name="map" size={15} color="#1493FF" />
-                <Text style={styles.actionBtnText}>Directions</Text>
+                {activeStore.publicNotes ? (
+                  <Text style={[styles.notes, { color: colors.mutedForeground }]}>
+                    {activeStore.publicNotes}
+                  </Text>
+                ) : null}
+
+                {hours.length > 0 ? (
+                  <View style={[styles.hoursCard, { backgroundColor: '#F5F6FA' }]}>
+                    <Text style={[styles.hoursTitle, { color: colors.foreground }]}>
+                      Opening Hours
+                    </Text>
+                    {hours.map((h: any) => {
+                      const dayName = DAYS_LONG[h.dayOfWeek] ?? '';
+                      const hoursStr = h.isClosed
+                        ? 'Closed'
+                        : h.openTime && h.closeTime
+                          ? `${fmt12(h.openTime)} – ${fmt12(h.closeTime)}`
+                          : '—';
+                      const isToday = new Date().getDay() === h.dayOfWeek;
+                      return (
+                        <View
+                          key={String(h.dayOfWeek)}
+                          style={[
+                            styles.hoursRowWrap,
+                            isToday && styles.hoursTodayRow,
+                          ]}
+                        >
+                          <View style={styles.hoursRow}>
+                            <Text
+                              style={[
+                                styles.hoursDay,
+                                {
+                                  color: isToday ? '#1493FF' : colors.foreground,
+                                  fontWeight: isToday ? '700' : '400',
+                                },
+                              ]}
+                            >
+                              {dayName}
+                            </Text>
+                            <Text
+                              style={[
+                                styles.hoursTime,
+                                {
+                                  color: h.isClosed
+                                    ? colors.mutedForeground
+                                    : isToday
+                                      ? '#1493FF'
+                                      : colors.foreground,
+                                  fontWeight: isToday ? '600' : '500',
+                                },
+                              ]}
+                            >
+                              {hoursStr}
+                            </Text>
+                          </View>
+                          {formatBreakNote(h.notes) && !h.isClosed ? (
+                            <Text
+                              style={[styles.hoursBreakNote, { color: colors.mutedForeground }]}
+                            >
+                              {formatBreakNote(h.notes)}
+                            </Text>
+                          ) : null}
+                        </View>
+                      );
+                    })}
+                  </View>
+                ) : null}
+
+                <Pressable style={styles.allStores} onPress={handleAllStores}>
+                  <Text style={styles.allStoresText}>View all stores</Text>
+                  <Feather name="chevron-right" size={13} color="#1493FF" />
+                </Pressable>
+              </View>
+            </GHScrollView>
+            </GestureDetector>
+
+            <View
+              style={[
+                styles.footerBar,
+                {
+                  borderTopColor: colors.border,
+                  paddingBottom: Math.max(insets.bottom, 16),
+                },
+              ]}
+            >
+              {address ? (
+                <Pressable
+                  style={[styles.footerBtn, styles.footerSecondary, { borderColor: colors.border }]}
+                  onPress={handleDirections}
+                >
+                  <Feather name="map" size={15} color="#1493FF" />
+                  <Text style={styles.footerBtnText}>Directions</Text>
+                </Pressable>
+              ) : null}
+              <Pressable
+                style={[styles.footerBtn, styles.footerSecondary, { borderColor: colors.border }]}
+                onPress={handleCall}
+              >
+                <Feather name="phone" size={15} color="#16A34A" />
+                <Text style={[styles.footerBtnText, { color: '#16A34A' }]}>Call</Text>
               </Pressable>
-            ) : null}
-            <Pressable style={[styles.actionBtn, styles.secondaryActionBtn, { borderColor: colors.border }]} onPress={handleCall}>
-              <Feather name="phone" size={15} color="#16A34A" />
-              <Text style={[styles.actionBtnText, { color: '#16A34A' }]}>Call</Text>
-            </Pressable>
-            <Pressable style={[styles.orderBtn, { flex: 1 }]} onPress={handleOrder}>
-              <Feather name="shopping-bag" size={15} color="#fff" />
-              <Text style={styles.orderBtnText}>Order Pickup</Text>
-            </Pressable>
-          </View>
-
-          <Pressable style={styles.allStores} onPress={handleAllStores}>
-            <Text style={styles.allStoresText}>View all stores</Text>
-            <Feather name="chevron-right" size={13} color="#1493FF" />
-          </Pressable>
-        </View>
-      </ScrollView>
-    </SwipeDownSheet>
+              <Pressable style={[styles.footerBtn, styles.footerPrimary, { flex: 1 }]} onPress={handleOrder}>
+                <Feather name="shopping-bag" size={15} color="#fff" />
+                <Text style={styles.footerPrimaryText}>Order Pickup</Text>
+              </Pressable>
+            </View>
+          </Animated.View>
+        </GestureDetector>
+      </View>
+    </Modal>
   );
 }
 
 const styles = StyleSheet.create({
-  sheet: { borderTopLeftRadius: 28, borderTopRightRadius: 28 },
-  hero: { height: 194, marginHorizontal: 14, marginTop: 2, borderRadius: 16, overflow: 'hidden', justifyContent: 'space-between', padding: 14 },
-  heroTopRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 },
-  heroPill: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#fff', borderRadius: 18, paddingHorizontal: 10, paddingVertical: 6 },
-  heroPillText: { fontSize: 11, fontWeight: '700', color: '#1493FF' },
-  heroBottom: { gap: 2 },
-  headerLabel: { fontWeight: '600', fontSize: 10, color: 'rgba(255,255,255,0.85)', letterSpacing: 0.8, marginBottom: 2 },
-  headerName: { fontWeight: '700', fontSize: 18, lineHeight: 22, color: '#fff' },
-  statusBadge: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 18, alignSelf: 'flex-start' },
-  dot: { width: 7, height: 7, borderRadius: 4, backgroundColor: '#fff' },
-  statusText: { fontWeight: '700', fontSize: 11, color: '#fff' },
-  body: { paddingHorizontal: 18, paddingTop: 16, gap: 14 },
-  infoRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 6 },
-  infoIcon: { width: 34, height: 34, borderRadius: 12, backgroundColor: '#EFF6FF', alignItems: 'center', justifyContent: 'center' },
-  infoLabel: { fontWeight: '400', fontSize: 11, marginBottom: 1 },
-  infoVal: { fontWeight: '500', fontSize: 14 },
-  infoLink: { fontWeight: '400', fontSize: 11, color: '#1493FF', marginTop: 2 },
-  infoBreakNote: { fontWeight: '400', fontSize: 11, marginTop: 2 },
-  chipRow: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
-  chip: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#EFF6FF', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10 },
-  chipText: { fontWeight: '500', fontSize: 12 },
-  notes: { fontWeight: '400', fontSize: 12, fontStyle: 'italic', lineHeight: 18 },
-  hoursCard: { borderRadius: 16, borderWidth: StyleSheet.hairlineWidth, padding: 14, gap: 2 },
-  hoursTitle: { fontWeight: '700', fontSize: 13, marginBottom: 8 },
-  hoursRowWrap: { paddingVertical: 4 },
-  hoursRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 12 },
-  hoursDay: { fontSize: 13 },
-  hoursTime: { fontWeight: '500', fontSize: 13 },
-  hoursBreakNote: { fontSize: 11, marginTop: 2 },
-  footer: { flexDirection: 'row', gap: 8, paddingTop: 12, alignItems: 'stretch' },
-  actionBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12, paddingHorizontal: 14, borderRadius: 14, borderWidth: 1 },
-  secondaryActionBtn: { minWidth: 112 },
-  actionBtnText: { fontWeight: '600', fontSize: 13, color: '#1493FF' },
-  orderBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12, borderRadius: 14, backgroundColor: '#1493FF' },
-  orderBtnText: { fontWeight: '700', fontSize: 14, color: '#fff' },
-  allStores: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 3, paddingTop: 10, paddingBottom: 4 },
-  allStoresText: { fontWeight: '500', fontSize: 13, color: '#1493FF' },
+  sheet: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    overflow: 'hidden',
+  },
+  handleBar: {
+    alignItems: 'center',
+    paddingTop: 10,
+    paddingBottom: 6,
+    backgroundColor: '#fff',
+  },
+  handle: {
+    width: 42,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#D1D5DB',
+  },
+  hero: {
+    width: '100%',
+    justifyContent: 'space-between',
+    padding: 14,
+  },
+  heroTopRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  heroPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#fff',
+    borderRadius: 18,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  heroPillText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#1493FF',
+  },
+  heroBottom: {
+    gap: 2,
+  },
+  headerLabel: {
+    fontWeight: '600',
+    fontSize: 10,
+    color: 'rgba(255,255,255,0.85)',
+    letterSpacing: 0.8,
+    marginBottom: 2,
+  },
+  headerName: {
+    fontWeight: '700',
+    fontSize: 20,
+    lineHeight: 24,
+    color: '#fff',
+  },
+  statusBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 18,
+    alignSelf: 'flex-start',
+  },
+  dot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    backgroundColor: '#fff',
+  },
+  statusText: {
+    fontWeight: '700',
+    fontSize: 11,
+    color: '#fff',
+  },
+  body: {
+    paddingHorizontal: 18,
+    paddingTop: 18,
+    gap: 0,
+  },
+  infoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 13,
+  },
+  infoIcon: {
+    width: 20,
+    textAlign: 'center',
+  },
+  infoLabel: {
+    fontWeight: '400',
+    fontSize: 11,
+    marginBottom: 2,
+  },
+  infoVal: {
+    fontWeight: '500',
+    fontSize: 14,
+  },
+  infoLink: {
+    fontWeight: '400',
+    fontSize: 11,
+    color: '#1493FF',
+    marginTop: 2,
+  },
+  infoBreakNote: {
+    fontWeight: '400',
+    fontSize: 11,
+    marginTop: 2,
+  },
+  divider: {
+    height: StyleSheet.hairlineWidth,
+    marginLeft: 32,
+  },
+  chipRow: {
+    flexDirection: 'row',
+    gap: 8,
+    flexWrap: 'wrap',
+    marginTop: 4,
+    marginBottom: 4,
+  },
+  chip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#EFF6FF',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 10,
+  },
+  chipText: {
+    fontWeight: '500',
+    fontSize: 12,
+  },
+  notes: {
+    fontWeight: '400',
+    fontSize: 12,
+    fontStyle: 'italic',
+    lineHeight: 18,
+    marginTop: 4,
+    marginBottom: 4,
+  },
+  hoursCard: {
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    marginTop: 14,
+    marginBottom: 4,
+  },
+  hoursTitle: {
+    fontWeight: '700',
+    fontSize: 13,
+    marginBottom: 10,
+  },
+  hoursRowWrap: {
+    paddingVertical: 5,
+    borderRadius: 8,
+  },
+  hoursTodayRow: {
+    backgroundColor: '#EFF6FF',
+    paddingHorizontal: 8,
+    marginHorizontal: -8,
+  },
+  hoursRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  hoursDay: {
+    fontSize: 13,
+  },
+  hoursTime: {
+    fontSize: 13,
+  },
+  hoursBreakNote: {
+    fontSize: 11,
+    marginTop: 2,
+  },
+  allStores: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 3,
+    paddingTop: 18,
+    paddingBottom: 8,
+  },
+  allStoresText: {
+    fontWeight: '500',
+    fontSize: 13,
+    color: '#1493FF',
+  },
+  footerBar: {
+    flexDirection: 'row',
+    gap: 8,
+    paddingHorizontal: 18,
+    paddingTop: 12,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    backgroundColor: '#fff',
+  },
+  footerBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 13,
+    paddingHorizontal: 14,
+    borderRadius: 14,
+  },
+  footerSecondary: {
+    borderWidth: 1,
+    minWidth: 100,
+  },
+  footerPrimary: {
+    backgroundColor: '#1493FF',
+  },
+  footerBtnText: {
+    fontWeight: '600',
+    fontSize: 13,
+    color: '#1493FF',
+  },
+  footerPrimaryText: {
+    fontWeight: '700',
+    fontSize: 14,
+    color: '#fff',
+  },
 });
