@@ -27,6 +27,7 @@ import { recordLoyaltyPoints, reverseCoffeeStamps } from '../lib/loyaltyIdentity
 import { getOutstandingCoffeeStampsForOrder } from '../lib/orderLoyaltyUtils.js';
 import { refundOrderStripePayment, refundWholesaleOrderStripePayment } from '../lib/stripeRefunds.js';
 import { getAllowedNextStatuses, getStatusMessage, TERMINAL_STATUSES } from '../lib/orderStatusTransitions.js';
+import { sydneyStartOfDay } from '../lib/sydneyTime.js';
 import { syncWholesaleInvoiceStatuses, markStripeInvoicePaidOutOfBand } from '../lib/stripeWholesaleInvoices.js';
 import { buildInvoiceHtml } from '../lib/invoiceTemplate.js';
 import { claimedRewardsTable } from '@workspace/db';
@@ -3433,9 +3434,8 @@ router.patch('/home-banner', async (req, res) => {
 router.get('/sessions', async (req, res) => {
   try {
     const now = new Date();
-    const todayStart = new Date(now);
-    todayStart.setHours(0, 0, 0, 0);
-    const lastWeekStart = new Date(todayStart.getTime() - 7 * 86400000);
+    const todayStart    = sydneyStartOfDay(now);
+    const lastWeekStart = sydneyStartOfDay(new Date(now.getTime() - 7 * 86400000));
     const lastWeekEnd   = new Date(lastWeekStart.getTime() + 86400000);
 
     const [todayOrders, lastWeekOrders, todayLogins, lastWeekLogins] = await Promise.all([
@@ -3449,13 +3449,16 @@ router.get('/sessions', async (req, res) => {
         .where(and(isNotNull(usersTable.lastLogin), gte(usersTable.lastLogin as any, lastWeekStart), lte(usersTable.lastLogin as any, lastWeekEnd))),
     ]);
 
+    const sydneyHour = (ts: Date | string): number =>
+      parseInt(new Date(ts).toLocaleString('en-US', { timeZone: 'Australia/Sydney', hour: 'numeric', hour12: false }), 10);
+
     const todayByHour    = new Array(24).fill(0);
     const lastWeekByHour = new Array(24).fill(0);
 
-    for (const o of todayOrders)    todayByHour[new Date(o.createdAt).getHours()]++;
-    for (const o of lastWeekOrders) lastWeekByHour[new Date(o.createdAt).getHours()]++;
-    for (const u of todayLogins)    if (u.lastLogin) todayByHour[new Date(u.lastLogin).getHours()]++;
-    for (const u of lastWeekLogins) if (u.lastLogin) lastWeekByHour[new Date(u.lastLogin).getHours()]++;
+    for (const o of todayOrders)    todayByHour[sydneyHour(o.createdAt)]++;
+    for (const o of lastWeekOrders) lastWeekByHour[sydneyHour(o.createdAt)]++;
+    for (const u of todayLogins)    if (u.lastLogin) todayByHour[sydneyHour(u.lastLogin)]++;
+    for (const u of lastWeekLogins) if (u.lastLogin) lastWeekByHour[sydneyHour(u.lastLogin)]++;
 
     const totalToday    = todayByHour.reduce((a, b) => a + b, 0);
     const totalLastWeek = lastWeekByHour.reduce((a, b) => a + b, 0);
