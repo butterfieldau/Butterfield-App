@@ -2608,10 +2608,13 @@ function CustomiseModal({ data, onClose, onAdd }: {
 
   const unitPriceCents = variantPrice + optionDelta;
 
-  const toggleOption = (groupId: string, optionId: string, selectionType: 'single' | 'multi') => {
+  const toggleOption = (groupId: string, optionId: string, selectionType: 'single' | 'multi', isRequired: boolean) => {
     setSelectedOptions(prev => {
       const current = prev[groupId] ?? [];
       if (selectionType === 'single') {
+        if (!isRequired && current.includes(optionId)) {
+          return { ...prev, [groupId]: [] };
+        }
         return { ...prev, [groupId]: [optionId] };
       } else {
         const next = current.includes(optionId)
@@ -2697,21 +2700,18 @@ function CustomiseModal({ data, onClose, onAdd }: {
               {group.description ? (
                 <Text style={styles.sectionSubtitle}>{group.description}</Text>
               ) : null}
-              <View style={{ gap: 8, marginTop: 8 }}>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 }}>
                 {group.options.map(opt => {
                   const isSelected = (selectedOptions[group.id] ?? []).includes(opt.id);
                   return (
                     <Pressable
                       key={opt.id}
-                      onPress={() => toggleOption(group.id, opt.id, group.selectionType)}
-                      style={[styles.optionRow, isSelected && styles.optionRowSelected]}
+                      onPress={() => toggleOption(group.id, opt.id, group.selectionType, group.isRequired)}
+                      style={[styles.optionPill, isSelected && styles.optionPillActive]}
                     >
-                      <View style={[styles.optionCheck, group.selectionType === 'single' ? styles.optionRadio : {}, isSelected && styles.optionCheckSelected]}>
-                        {isSelected && <Feather name="check" size={11} color={WHITE} />}
-                      </View>
-                      <Text style={styles.optionName}>{opt.name}</Text>
+                      <Text style={[styles.optionPillLabel, isSelected && { color: WHITE, fontWeight: '600' }]}>{opt.name}</Text>
                       {opt.priceAdjustmentCents !== 0 && (
-                        <Text style={styles.optionPrice}>
+                        <Text style={[styles.optionPillSub, isSelected && { color: 'rgba(255,255,255,0.75)' }]}>
                           {opt.priceAdjustmentCents > 0 ? '+' : ''}{fmtCents(opt.priceAdjustmentCents)}
                         </Text>
                       )}
@@ -5900,13 +5900,10 @@ const styles = StyleSheet.create({
   variantChipActive:  { backgroundColor: BLUE, borderColor: BLUE },
   variantChipText:    { fontSize: 13, fontWeight: '600', color: MID },
 
-  optionRow:          { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 10, borderRadius: 10, backgroundColor: '#F8FAFC', borderWidth: 1, borderColor: 'transparent' },
-  optionRowSelected:  { backgroundColor: '#EFF6FF', borderColor: BLUE },
-  optionCheck:        { width: 20, height: 20, borderRadius: 4, borderWidth: 2, borderColor: BORDER, justifyContent: 'center', alignItems: 'center', backgroundColor: WHITE },
-  optionRadio:        { borderRadius: 10 },
-  optionCheckSelected: { backgroundColor: BLUE, borderColor: BLUE },
-  optionName:         { flex: 1, fontSize: 14, color: DARK },
-  optionPrice:        { fontSize: 13, fontWeight: '600', color: MID },
+  optionPill:         { alignItems: 'center', justifyContent: 'center', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 24, borderWidth: 1.5, borderColor: BORDER, backgroundColor: WHITE, gap: 2 },
+  optionPillActive:   { backgroundColor: BLUE, borderColor: BLUE },
+  optionPillLabel:    { fontSize: 13, color: DARK, fontWeight: '500' },
+  optionPillSub:      { fontSize: 11, color: MUTED, fontWeight: '400' },
 
   quantityStepper:    { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 0, backgroundColor: '#F1F5F9', borderRadius: 12, alignSelf: 'flex-start' },
   stepperBtn:         { width: 44, height: 44, justifyContent: 'center', alignItems: 'center' },
