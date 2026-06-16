@@ -3,7 +3,7 @@ import { Image } from 'expo-image';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Linking,
   Modal,
@@ -138,29 +138,31 @@ export default function StoreInfoSheet({ visible, store, onClose }: Props) {
     }
   }, [visible]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  /* ── pan gesture — only activates when at the very top of scroll ── */
-  const panGesture = Gesture.Pan()
-    .activeOffsetY([-8, 8])
-    .onUpdate((e) => {
-      if (e.translationY > 0 && scrollY.value <= 2) {
-        translateY.value = e.translationY;
-        backdropO.value  = interpolate(
-          e.translationY, [0, 300], [BACKDROP_OPACITY, 0],
-          { extrapolateRight: 'clamp' },
-        );
-      }
-    })
-    .onEnd((e) => {
-      const shouldDismiss =
-        translateY.value > 110 ||
-        (e.velocityY > 600 && translateY.value > 20);
-      if (shouldDismiss) {
-        runOnJS(animateOut)();
-      } else {
-        translateY.value = withSpring(0, SPRING_IN);
-        backdropO.value  = withTiming(BACKDROP_OPACITY, { duration: 180 });
-      }
-    });
+  /* ── pan gesture — stable reference via useMemo, only dismisses at scroll top ── */
+  const panGesture = useMemo(() =>
+    Gesture.Pan()
+      .activeOffsetY([-8, 8])
+      .onUpdate((e) => {
+        if (e.translationY > 0 && scrollY.value <= 2) {
+          translateY.value = e.translationY;
+          backdropO.value  = interpolate(
+            e.translationY, [0, 300], [BACKDROP_OPACITY, 0],
+            { extrapolateRight: 'clamp' },
+          );
+        }
+      })
+      .onEnd((e) => {
+        const shouldDismiss =
+          translateY.value > 110 ||
+          (e.velocityY > 600 && translateY.value > 20);
+        if (shouldDismiss) {
+          runOnJS(animateOut)();
+        } else {
+          translateY.value = withSpring(0, SPRING_IN);
+          backdropO.value  = withTiming(BACKDROP_OPACITY, { duration: 180 });
+        }
+      }),
+  [scrollY, translateY, backdropO, animateOut, SCREEN_H]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const sheetAnimStyle   = useAnimatedStyle(() => ({ transform: [{ translateY: translateY.value }] }));
   const backdropAnimStyle = useAnimatedStyle(() => ({ opacity: backdropO.value }));
