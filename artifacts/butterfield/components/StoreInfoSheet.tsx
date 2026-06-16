@@ -242,9 +242,64 @@ export default function StoreInfoSheet({ visible, store, onClose }: Props) {
               sheetAnimStyle,
             ]}
           >
-            <View style={styles.handleBar}>
-              <View style={styles.handle} />
-            </View>
+              {/* Hero — outside ScrollView so swipe-down always dismisses */}
+            <Pressable
+              style={[styles.hero, { height: HERO_H }]}
+              onPress={handleDirections}
+              accessibilityLabel="Tap for directions"
+            >
+              {heroSource ? (
+                <Image
+                  source={heroSource}
+                  style={StyleSheet.absoluteFillObject}
+                  contentFit="cover"
+                  transition={220}
+                  onError={() => setImageFailed(true)}
+                />
+              ) : (
+                <LinearGradient
+                  colors={isOpen ? ['#1493FF', '#3CBBEE'] : ['#8E8E93', '#6B6B6B']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={StyleSheet.absoluteFillObject}
+                />
+              )}
+              <LinearGradient
+                colors={['transparent', 'rgba(0,0,0,0.6)']}
+                start={{ x: 0.5, y: 0.3 }}
+                end={{ x: 0.5, y: 1 }}
+                style={StyleSheet.absoluteFillObject}
+              />
+              {/* Drag handle overlaid at top of hero */}
+              <View style={styles.handleOverlay}>
+                <View style={styles.handle} />
+              </View>
+              <View style={styles.heroTopRow}>
+                <View style={styles.heroPill}>
+                  <Feather name="navigation" size={11} color="#1493FF" />
+                  <Text style={styles.heroPillText}>Tap for directions</Text>
+                </View>
+                <View
+                  style={[
+                    styles.statusBadge,
+                    {
+                      backgroundColor: isOpen
+                        ? 'rgba(22,163,74,0.9)'
+                        : 'rgba(100,100,100,0.8)',
+                    },
+                  ]}
+                >
+                  <View style={styles.dot} />
+                  <Text style={styles.statusText}>{storeStatusText}</Text>
+                </View>
+              </View>
+              <View style={styles.heroBottom}>
+                <Text style={styles.headerLabel}>IN-STORE PICKUP</Text>
+                <Text style={styles.headerName} numberOfLines={2}>
+                  {activeStore.name ?? FALLBACK_STORE.name}
+                </Text>
+              </View>
+            </Pressable>
 
             <GestureDetector gesture={scrollNativeGesture}>
             <GHScrollView
@@ -257,60 +312,6 @@ export default function StoreInfoSheet({ visible, store, onClose }: Props) {
               }}
               scrollEventThrottle={16}
             >
-              <Pressable
-                style={[styles.hero, { height: HERO_H }]}
-                onPress={handleDirections}
-                accessibilityLabel="Tap for directions"
-              >
-                {heroSource ? (
-                  <Image
-                    source={heroSource}
-                    style={StyleSheet.absoluteFillObject}
-                    contentFit="cover"
-                    transition={220}
-                    onError={() => setImageFailed(true)}
-                  />
-                ) : (
-                  <LinearGradient
-                    colors={isOpen ? ['#1493FF', '#3CBBEE'] : ['#8E8E93', '#6B6B6B']}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                    style={StyleSheet.absoluteFillObject}
-                  />
-                )}
-                <LinearGradient
-                  colors={['transparent', 'rgba(0,0,0,0.6)']}
-                  start={{ x: 0.5, y: 0.3 }}
-                  end={{ x: 0.5, y: 1 }}
-                  style={StyleSheet.absoluteFillObject}
-                />
-                <View style={styles.heroTopRow}>
-                  <View style={styles.heroPill}>
-                    <Feather name="navigation" size={11} color="#1493FF" />
-                    <Text style={styles.heroPillText}>Tap for directions</Text>
-                  </View>
-                  <View
-                    style={[
-                      styles.statusBadge,
-                      {
-                        backgroundColor: isOpen
-                          ? 'rgba(22,163,74,0.9)'
-                          : 'rgba(100,100,100,0.8)',
-                      },
-                    ]}
-                  >
-                    <View style={styles.dot} />
-                    <Text style={styles.statusText}>{storeStatusText}</Text>
-                  </View>
-                </View>
-                <View style={styles.heroBottom}>
-                  <Text style={styles.headerLabel}>IN-STORE PICKUP</Text>
-                  <Text style={styles.headerName} numberOfLines={2}>
-                    {activeStore.name ?? FALLBACK_STORE.name}
-                  </Text>
-                </View>
-              </Pressable>
-
               <View style={styles.body}>
                 <Pressable style={styles.infoRow} onPress={handleDirections}>
                   <Feather name="map-pin" size={16} color="#1493FF" style={styles.infoIcon} />
@@ -527,22 +528,26 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 28,
     overflow: 'hidden',
   },
-  handleBar: {
+  handleOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
     alignItems: 'center',
     paddingTop: 10,
-    paddingBottom: 6,
-    backgroundColor: '#fff',
+    zIndex: 10,
   },
   handle: {
     width: 42,
     height: 4,
     borderRadius: 2,
-    backgroundColor: '#D1D5DB',
+    backgroundColor: 'rgba(255,255,255,0.7)',
   },
   hero: {
     width: '100%',
     justifyContent: 'space-between',
     padding: 14,
+    paddingTop: 32,
   },
   heroTopRow: {
     flexDirection: 'row',
