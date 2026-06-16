@@ -65,6 +65,26 @@ export function ZReportContent({
 
   return (
     <>
+      {/* Total Sales hero — the headline figure for the session */}
+      <View style={z.heroRow}>
+        <View>
+          <Text style={z.heroLabel}>TOTAL SALES</Text>
+          <Text style={z.heroValue}>{fmtAUD(s.totalSalesCents)}</Text>
+        </View>
+        <View style={z.heroBreakdown}>
+          <Text style={z.heroBreakdownItem}>
+            <Text style={z.heroBreakdownDim}>Card  </Text>
+            <Text>{fmtAUD(s.cardSalesCents)}</Text>
+          </Text>
+          {s.cashSalesCents > 0 && (
+            <Text style={z.heroBreakdownItem}>
+              <Text style={z.heroBreakdownDim}>Cash  </Text>
+              <Text>{fmtAUD(s.cashSalesCents)}</Text>
+            </Text>
+          )}
+        </View>
+      </View>
+
       {/* Session identity */}
       <View style={z.section}>
         <View style={z.sectionLabel}>
@@ -373,6 +393,17 @@ const z = StyleSheet.create({
   headerTitle:        { fontSize: 17, fontWeight: '800', color: DARK },
   closeBtn:           { width: 36, height: 36, borderRadius: 18, backgroundColor: '#F1F5F9', alignItems: 'center', justifyContent: 'center' },
   center:             { flex: 1, alignItems: 'center', justifyContent: 'center' },
+
+  heroRow: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    backgroundColor: '#EFF6FF', borderBottomWidth: 1, borderBottomColor: '#BFDBFE',
+    paddingHorizontal: 20, paddingVertical: 18,
+  },
+  heroLabel:         { fontSize: 10, fontWeight: '800', color: BLUE, letterSpacing: 1.2, marginBottom: 4 },
+  heroValue:         { fontSize: 32, fontWeight: '800', color: BLUE },
+  heroBreakdown:     { alignItems: 'flex-end', gap: 4 },
+  heroBreakdownItem: { fontSize: 13, fontWeight: '700', color: DARK },
+  heroBreakdownDim:  { fontSize: 13, fontWeight: '500', color: MUTED },
 
   section:            { paddingHorizontal: 16, paddingTop: 16 },
   sectionLabel:       { flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 8 },
