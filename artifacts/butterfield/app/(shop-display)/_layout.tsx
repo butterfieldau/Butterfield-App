@@ -1,6 +1,5 @@
 import { Feather } from '@expo/vector-icons';
 import { Audio, InterruptionModeAndroid, InterruptionModeIOS } from 'expo-av';
-import { Asset } from 'expo-asset';
 import { Redirect, router, Tabs, usePathname } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import React, { useState, useEffect, useCallback, useRef } from 'react';
@@ -51,7 +50,7 @@ function unlockWebAudio() {
   if (ctx && ctx.state === 'suspended') ctx.resume().catch(() => {});
 }
 
-function toAlertOrder(order: { id: string; customerName?: string; orderNumber?: string }) {
+function toAlertOrder(order: { id: string; customerName?: string | null; orderNumber?: string | null }) {
   return {
     customerName: order.customerName ?? 'Customer',
     orderNumber: order.orderNumber ?? `#${order.id.slice(0, 6).toUpperCase()}`,
@@ -96,9 +95,8 @@ function NewOrderAlertOverlay({
           // Ensure context is running — may still be suspended before first gesture
           if (ctx.state === 'suspended') await ctx.resume();
 
-          const asset = Asset.fromModule(alertSoundModule);
-          if (!asset.localUri && !asset.uri) await asset.downloadAsync();
-          const rawSrc = asset.localUri || asset.uri;
+          const asset = Image.resolveAssetSource(alertSoundModule);
+          const rawSrc = asset?.uri;
           if (!rawSrc) throw new Error('App Sales alert sound URL missing');
           // Convert any relative URI to absolute so fetch() works in all browsers
           const src = rawSrc.startsWith('http')
@@ -239,7 +237,7 @@ export default function ShopDisplayLayout() {
     refetchInterval: 15_000,
     staleTime: 10_000,
   });
-  const layoutRows: Array<{ id: string; status: string; customerName?: string; orderNumber?: string; createdAt?: string }> = ordersData?.data ?? [];
+  const layoutRows: Array<{ id: string; status: string; customerName?: string | null; orderNumber?: string | null; createdAt?: string }> = ordersData?.data ?? [];
   const incomingOrderCount = layoutRows.filter((o) => NEW_ORDER_STATUSES.has(o.status)).length;
 
   // ── New-order popup + sound (layout-level so it fires on any tab) ──────────

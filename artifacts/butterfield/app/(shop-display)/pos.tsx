@@ -270,8 +270,8 @@ function PrinterStatusModal({
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <Pressable style={{ flex: 1, backgroundColor: 'rgba(15,23,42,0.55)', justifyContent: 'center', alignItems: 'center', padding: 20 }} onPress={onClose}>
-        <Pressable
-          onPress={e => e.stopPropagation()}
+        <View
+          onStartShouldSetResponder={() => true}
           style={{
             width: '100%',
             maxWidth: 420,
@@ -315,7 +315,7 @@ function PrinterStatusModal({
             ].map(([label, value]) => (
               <View key={label} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, paddingVertical: 10, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: BORDER }}>
                 <Text style={{ fontSize: 13, color: MUTED, fontWeight: '600' }}>{label}</Text>
-                <Text style={{ fontSize: 13, color: TEXT, fontWeight: '700', flexShrink: 1, textAlign: 'right' }}>{value}</Text>
+                <Text style={{ fontSize: 13, color: MID, fontWeight: '700', flexShrink: 1, textAlign: 'right' }}>{value}</Text>
               </View>
             ))}
           </View>
@@ -358,7 +358,7 @@ function PrinterStatusModal({
               <Text style={{ color: MID, fontSize: 15, fontWeight: '700' }}>Close</Text>
             </Pressable>
           </View>
-        </Pressable>
+        </View>
       </Pressable>
     </Modal>
   );
