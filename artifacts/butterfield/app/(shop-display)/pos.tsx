@@ -5905,7 +5905,7 @@ const styles = StyleSheet.create({
   variantChipActive:  { backgroundColor: BLUE, borderColor: BLUE },
   variantChipText:    { fontSize: 13, fontWeight: '600', color: MID },
 
-  optionPill:         { alignItems: 'center', justifyContent: 'center', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 24, borderWidth: 1.5, borderColor: BORDER, backgroundColor: WHITE, gap: 2 },
+  optionPill:         { alignItems: 'center', justifyContent: 'center', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 6, borderWidth: 1.5, borderColor: BORDER, backgroundColor: WHITE, gap: 2 },
   optionPillActive:   { backgroundColor: BLUE, borderColor: BLUE },
   optionPillLabel:    { fontSize: 13, color: DARK, fontWeight: '500' },
   optionPillSub:      { fontSize: 11, color: MUTED, fontWeight: '400' },
