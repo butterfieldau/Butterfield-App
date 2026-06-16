@@ -17,6 +17,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import type { PosTransaction } from '@/lib/api';
+import InlineCalendarPicker from '@/components/InlineCalendarPicker';
 
 const NAVY  = '#1A2B4A';
 const BG    = '#EFF6FF';
@@ -278,13 +279,14 @@ export default function PosOrdersScreen() {
                   <Text style={s.pickerDone}>Done</Text>
                 </Pressable>
               </View>
-              <DateTimePicker
-                value={dateStrToLocal(selectedDate)}
-                mode="date"
-                display="spinner"
-                maximumDate={dateStrToLocal(todayStr)}
-                onChange={onPickerChange}
-                locale="en-AU"
+              <InlineCalendarPicker
+                selectedDate={dateStrToLocal(selectedDate)}
+                onSelectDate={d => {
+                  setSelectedDate(sydneyDateStr(d));
+                  setShowPicker(false);
+                }}
+                accentColor={NAVY}
+                maxDate={dateStrToLocal(todayStr)}
               />
             </View>
           </Pressable>
