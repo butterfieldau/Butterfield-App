@@ -5,7 +5,7 @@
  *  1. Birthday
  *  2. Reward ready
  *  3. Cookie baking window (fresh out / still warm)
- *  4. Islamic holiday (Eid, Laylat al-Qadr, Mawlid, etc.)
+ *  4. Islamic holiday (Eid al-Fitr, Eid al-Adha)
  *  5. Australian public holiday (from live API)
  *  6. Fixed/calendar holiday (Easter, Halloween, etc.)
  *  7. Ramadan period
@@ -184,24 +184,6 @@ const ISLAMIC_MESSAGES: Record<string, Array<[string, string]>> = {
     ['Eid al-Adha Mubarak! 🌙', 'Wishing you a blessed celebration.'],
     ['Eid Mubarak! 🎊', 'May this Eid bring joy and sweetness.'],
     ['Happy Eid al-Adha! 🌟', 'A blessed day for you and yours.'],
-  ],
-  'Laylat al-Qadr': [
-    ['Laylat al-Qadr Mubarak. 🌙', 'May this blessed night bring peace and blessings.'],
-    ['The holiest night of Ramadan. 🌙', 'May your prayers be answered.'],
-  ],
-  'Islamic New Year': [
-    ['Islamic New Year Mubarak! 🌙', 'A blessed start to the new Hijri year.'],
-    ['Happy Islamic New Year! 🌟', 'May the new year bring peace and blessings.'],
-  ],
-  'Mawlid al-Nabi': [
-    ['Mawlid al-Nabi Mubarak! 🌟', 'Celebrating the Prophet\'s birthday ﷺ.'],
-    ['Happy Mawlid! 🌙', 'A blessed day to remember.'],
-  ],
-  "Isra' wal Mi'raj": [
-    ["Isra' wal Mi'raj Mubarak! 🌙", 'A blessed night to remember.'],
-  ],
-  "Laylat al-Bara'ah": [
-    ["Laylat al-Bara'ah Mubarak! 🌙", 'May your prayers be accepted tonight.'],
   ],
 };
 

@@ -44,11 +44,6 @@ function wmoToCondition(code: number): Pick<WeatherData, 'condition' | 'emoji' |
 }
 
 function getIslamicHoliday(month: number, day: number, isRamadan: boolean): string | null {
-  if (month === 1  && day === 1)  return 'Islamic New Year';
-  if (month === 3  && day === 12) return 'Mawlid al-Nabi';
-  if (month === 7  && day === 27) return "Isra' wal Mi'raj";
-  if (month === 8  && day === 15) return "Laylat al-Bara'ah";
-  if (month === 9  && day === 27) return 'Laylat al-Qadr';
   if (month === 10 && day === 1)  return 'Eid al-Fitr';
   if (month === 12 && day === 10) return 'Eid al-Adha';
   return null;
