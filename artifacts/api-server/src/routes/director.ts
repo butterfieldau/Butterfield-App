@@ -27,7 +27,7 @@ import { recordLoyaltyPoints, reverseCoffeeStamps } from '../lib/loyaltyIdentity
 import { getOutstandingCoffeeStampsForOrder } from '../lib/orderLoyaltyUtils.js';
 import { refundOrderStripePayment, refundWholesaleOrderStripePayment } from '../lib/stripeRefunds.js';
 import { getAllowedNextStatuses, getStatusMessage, TERMINAL_STATUSES } from '../lib/orderStatusTransitions.js';
-import { sydneyStartOfDay } from '../lib/sydneyTime.js';
+import { sydneyStartOfDay, sydneyStartOfMonth } from '../lib/sydneyTime.js';
 import { syncWholesaleInvoiceStatuses, markStripeInvoicePaidOutOfBand } from '../lib/stripeWholesaleInvoices.js';
 import { buildInvoiceHtml } from '../lib/invoiceTemplate.js';
 import { claimedRewardsTable } from '@workspace/db';
@@ -134,8 +134,7 @@ router.use(requireManagerRoutePermission(resolveDirectorPermission));
 router.get('/stats', async (req, res) => {
   const now = new Date();
   const sydneyNow = new Date(now.toLocaleString('en-US', { timeZone: 'Australia/Sydney' }));
-  const sydneyOffsetMs = sydneyNow.getTime() - now.getTime();
-  const startOfToday = new Date(new Date(sydneyNow.getFullYear(), sydneyNow.getMonth(), sydneyNow.getDate()).getTime() - sydneyOffsetMs);
+  const startOfToday = sydneyStartOfDay();
   const startOfWeekMonday = new Date(startOfToday);
   const dayOfWeek = sydneyNow.getDay();
   const mondayDiff = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
@@ -144,7 +143,7 @@ router.get('/stats', async (req, res) => {
   endOfWeekSunday.setDate(endOfWeekSunday.getDate() + 6);
   endOfWeekSunday.setHours(23, 59, 59, 999);
   const startOfWeek  = new Date(startOfToday); startOfWeek.setDate(startOfToday.getDate() - 7);
-  const startOfMonth = new Date(new Date(sydneyNow.getFullYear(), sydneyNow.getMonth(), 1).getTime() - sydneyOffsetMs);
+  const startOfMonth = sydneyStartOfMonth();
   const longShiftCutoff = new Date(now.getTime() - 10 * 60 * 60 * 1000);
   const todayMMDD = `${String(sydneyNow.getMonth() + 1).padStart(2,'0')}-${String(sydneyNow.getDate()).padStart(2,'0')}`;
 
@@ -155,7 +154,8 @@ router.get('/stats', async (req, res) => {
   const startOfLastWeekMonday  = new Date(startOfWeekMonday.getTime() - 7 * 24 * 60 * 60 * 1000);
   // Like-for-like: same number of days elapsed into last week
   const endOfLastWeekAtSamePoint = new Date(startOfLastWeekMonday.getTime() + (now.getTime() - startOfWeekMonday.getTime()));
-  const startOfLastMonth       = new Date(new Date(sydneyNow.getFullYear(), sydneyNow.getMonth() - 1, 1).getTime() - sydneyOffsetMs);
+  // Start of last month: subtract 1ms from startOfMonth to land in the previous month
+  const startOfLastMonth       = sydneyStartOfMonth(new Date(startOfMonth.getTime() - 1));
   // Like-for-like: same number of days elapsed into last month
   const endOfLastMonthAtSamePoint = new Date(startOfLastMonth.getTime() + (now.getTime() - startOfMonth.getTime()));
   const currentSydneyHour      = sydneyNow.getHours();
@@ -386,10 +386,7 @@ router.get('/stats', async (req, res) => {
 // ── Hourly revenue (today, Sydney time) ──────────────────────────────────────
 router.get('/stats/hourly-revenue', async (req, res) => {
   try {
-    const now        = new Date();
-    const sydneyNow  = new Date(now.toLocaleString('en-US', { timeZone: 'Australia/Sydney' }));
-    const sydneyOff  = sydneyNow.getTime() - now.getTime();
-    const startOfDay = new Date(new Date(sydneyNow.getFullYear(), sydneyNow.getMonth(), sydneyNow.getDate()).getTime() - sydneyOff);
+    const startOfDay = sydneyStartOfDay();
     const endOfDay   = new Date(startOfDay.getTime() + 24 * 60 * 60 * 1000);
 
     const result = await db.execute(sql`
@@ -418,10 +415,7 @@ router.get('/stats/hourly-revenue', async (req, res) => {
 // ── Top products today ────────────────────────────────────────────────────────
 router.get('/stats/top-products', async (req, res) => {
   try {
-    const now        = new Date();
-    const sydneyNow  = new Date(now.toLocaleString('en-US', { timeZone: 'Australia/Sydney' }));
-    const sydneyOff  = sydneyNow.getTime() - now.getTime();
-    const startOfDay = new Date(new Date(sydneyNow.getFullYear(), sydneyNow.getMonth(), sydneyNow.getDate()).getTime() - sydneyOff);
+    const startOfDay = sydneyStartOfDay();
     const endOfDay   = new Date(startOfDay.getTime() + 24 * 60 * 60 * 1000);
 
     const result = await db.execute(sql`
