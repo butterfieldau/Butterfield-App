@@ -3966,14 +3966,20 @@ function HistoryModal({
         orderId: order.id,
         customerName: order.customerName ?? 'Customer',
         type: 'pickup',
-        items: order.items.map(i => ({
+        items: order.items.map(i => {
+          const printableItem = i as typeof i & {
+            selectedOptions?: Array<{ optionName?: string | null; textValue?: string | null }>;
+            notes?: string | null;
+          };
+          return ({
           name: i.productName,
           quantity: i.quantity,
           unitPriceCents: i.unitPriceCents,
           variantName: i.variantName ?? undefined,
-          options: (i.selectedOptions ?? []).map((o: any) => o.optionName ?? o.textValue ?? '').filter(Boolean) as string[],
-          notes: i.notes?.trim() || undefined,
-        })),
+          options: (printableItem.selectedOptions ?? []).map((o: any) => o.optionName ?? o.textValue ?? '').filter(Boolean) as string[],
+          notes: printableItem.notes?.trim() || undefined,
+        });
+      }),
         totalCents: order.totalCents,
         discountCents: order.discountCents,
         surchargeCents: order.surchargeCents,

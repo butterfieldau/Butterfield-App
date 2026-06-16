@@ -47,6 +47,7 @@ type PrintableOrder = Partial<ApiOrder> & {
 };
 
 function toPrintableItem(item: ApiOrderItem): PrintJob['items'][number] {
+  const printableItem = item as ApiOrderItem & { notes?: string | null };
   const quantity = Number(item.quantity ?? 1) || 1;
   const unitPriceCents = Number(item.unitPriceCents ?? item.totalPriceCents ?? 0) || 0;
   const name = item.productName ?? 'Item';
@@ -54,7 +55,7 @@ function toPrintableItem(item: ApiOrderItem): PrintJob['items'][number] {
   const options = (item.selectedOptions ?? [])
     .map(o => o.optionName ?? o.textValue ?? '')
     .filter(Boolean) as string[];
-  const notes = item.notes?.trim() || undefined;
+  const notes = printableItem.notes?.trim() || undefined;
   return { name, quantity, unitPriceCents, variantName, options: options.length > 0 ? options : undefined, notes };
 }
 
@@ -90,12 +91,76 @@ export function orderToPrintJob(order: PrintableOrder, printerBrand?: 'epson' | 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type BytesFetcher = (job?: any) => Promise<{ data: { bytes: string } }>;
 
+type StarSdkModule = {
+  StarPrinter: new (connectionSettings: any) => any;
+  StarConnectionSettings: new () => any;
+  InterfaceType: Record<string, any>;
+  StarXpandCommand: Record<string, any>;
+};
+
+function loadStarSdk(): Promise<StarSdkModule> {
+  return new Function('return import("react-native-star-io10")')() as Promise<StarSdkModule>;
+}
+
+async function tryOpenDrawerWithStarSdk(printerIp: string, drawerPin: 0 | 1 = 0): Promise<boolean> {
+  let printer: any;
+  try {
+    const sdk = await loadStarSdk();
+    const settings = new sdk.StarConnectionSettings();
+    settings.interfaceType = sdk.InterfaceType?.Lan ?? sdk.InterfaceType?.LAN;
+    settings.identifier = printerIp;
+    settings.autoSwitchInterface = false;
+
+    printer = new sdk.StarPrinter(settings);
+    await printer.open();
+
+    const commandRoot = sdk.StarXpandCommand;
+    const commandBuilder = new commandRoot.StarXpandCommandBuilder();
+    const documentBuilder = new commandRoot.DocumentBuilder();
+    const drawerBuilder = new commandRoot.DrawerBuilder();
+    const openParameter = new commandRoot.Drawer.OpenParameter();
+
+    const drawerChannel = drawerPin === 1
+      ? commandRoot.Drawer?.Channel?.Two
+        ?? commandRoot.Drawer?.Channel?.No2
+        ?? commandRoot.Drawer?.Channel?.Channel2
+      : commandRoot.Drawer?.Channel?.One
+        ?? commandRoot.Drawer?.Channel?.No1
+        ?? commandRoot.Drawer?.Channel?.Channel1;
+
+    if (drawerChannel !== undefined) {
+      openParameter.channel = drawerChannel;
+    }
+
+    drawerBuilder.actionOpen(openParameter);
+
+    if (typeof documentBuilder.addDrawer === 'function') {
+      documentBuilder.addDrawer(drawerBuilder);
+    }
+    if (typeof commandBuilder.addDocument === 'function') {
+      commandBuilder.addDocument(documentBuilder);
+    }
+
+    const commands = await commandBuilder.getCommands();
+    await printer.print(commands);
+    return true;
+  } catch {
+    return false;
+  } finally {
+    try { await printer?.close?.(); } catch {}
+    try { await printer?.dispose?.(); } catch {}
+  }
+}
+
 export async function sendTestPrint(printerIp: string, printerPort = 9100, printerBrand: 'epson' | 'star' = 'epson', fetchBytes: BytesFetcher = api.director.printerBytes): Promise<void> {
   return sendPrinterBytes(printerIp, printerPort, await fetchBytes({ printerBrand }));
 }
 
 export async function sendReceiptPrint(job: PrintJob, printerIp: string, printerPort = 9100, fetchBytes: BytesFetcher = api.director.printerBytes): Promise<void> {
-  return sendPrinterBytes(printerIp, printerPort, await fetchBytes(job));
+  await sendPrinterBytes(printerIp, printerPort, await fetchBytes(job));
+  if (job.printerBrand === 'star' && job.autoDrawer) {
+    await tryOpenDrawerWithStarSdk(printerIp, job.drawerPin ?? 0);
+  }
 }
 
 export async function sendTaxInvoicePrint(job: PrintJob, printerIp: string, printerPort = 9100, fetchBytes: BytesFetcher = api.director.printerBytes): Promise<void> {
@@ -111,6 +176,10 @@ export async function sendLinklyReceiptPrint(job: LinklyReceiptPrintJob, printer
 }
 
 export async function sendOpenDrawer(printerIp: string, printerPort = 9100, fetchBytes: BytesFetcher = api.director.printerBytes, drawerPin: 0 | 1 = 0, printerBrand?: 'epson' | 'star'): Promise<void> {
+  if (printerBrand === 'star') {
+    const openedWithSdk = await tryOpenDrawerWithStarSdk(printerIp, drawerPin);
+    if (openedWithSdk) return;
+  }
   return sendPrinterBytes(printerIp, printerPort, await fetchBytes({ jobType: 'open_drawer', drawerPin, printerBrand }));
 }
 
