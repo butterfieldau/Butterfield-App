@@ -237,6 +237,133 @@ function buildPosItems(items: TicketItem[]): PosOrderItem[] {
 
 const STAMP_GOAL = 6;
 
+type PrinterStatusModalProps = {
+  visible: boolean;
+  onClose: () => void;
+  store: {
+    printerIp?: string | null;
+    printerPort?: number | null;
+    printerBrand?: 'epson' | 'star' | null;
+    autoDrawer?: boolean | null;
+    autoPrint?: boolean | null;
+    drawerPin?: 0 | 1 | null;
+  } | null;
+  lastDrawerSuccessAt: Date | null;
+  onOpenDrawer: () => Promise<void>;
+  busy: boolean;
+};
+
+function PrinterStatusModal({
+  visible,
+  onClose,
+  store,
+  lastDrawerSuccessAt,
+  onOpenDrawer,
+  busy,
+}: PrinterStatusModalProps) {
+  const printerIp = store?.printerIp?.trim() ?? '';
+  const printerPort = store?.printerPort ?? 9100;
+  const brand = store?.printerBrand === 'star' ? 'Star' : 'Epson';
+  const drawerPin = (store?.drawerPin ?? 0) === 1 ? 'Pin 1' : 'Pin 0';
+  const lastPulse = lastDrawerSuccessAt ? lastDrawerSuccessAt.toLocaleString() : 'Not yet';
+
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <Pressable style={{ flex: 1, backgroundColor: 'rgba(15,23,42,0.55)', justifyContent: 'center', alignItems: 'center', padding: 20 }} onPress={onClose}>
+        <Pressable
+          onPress={e => e.stopPropagation()}
+          style={{
+            width: '100%',
+            maxWidth: 420,
+            backgroundColor: WHITE,
+            borderRadius: 22,
+            padding: 18,
+            gap: 14,
+            borderWidth: 1,
+            borderColor: BORDER,
+            shadowColor: DARK,
+            shadowOpacity: 0.12,
+            shadowRadius: 24,
+            shadowOffset: { width: 0, height: 12 },
+            elevation: 12,
+          }}
+        >
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 }}>
+              <View style={{ width: 42, height: 42, borderRadius: 12, backgroundColor: '#EFF6FF', alignItems: 'center', justifyContent: 'center' }}>
+                <Feather name="printer" size={18} color={BLUE} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 18, fontWeight: '800', color: DARK }}>Printer & Drawer</Text>
+                <Text style={{ fontSize: 12, color: MUTED, marginTop: 2 }}>Status for this Shop Display</Text>
+              </View>
+            </View>
+            <Pressable onPress={onClose} hitSlop={8}>
+              <Feather name="x" size={20} color={MID} />
+            </Pressable>
+          </View>
+
+          <View style={{ gap: 10 }}>
+            {[
+              ['IP Address', printerIp || 'Not configured'],
+              ['Port', String(printerPort)],
+              ['Brand', brand],
+              ['Drawer Pin', drawerPin],
+              ['Auto Drawer', store?.autoDrawer ? 'Enabled' : 'Off'],
+              ['Auto Print', store?.autoPrint ? 'Enabled' : 'Off'],
+              ['Last Successful Pulse', lastPulse],
+            ].map(([label, value]) => (
+              <View key={label} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, paddingVertical: 10, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: BORDER }}>
+                <Text style={{ fontSize: 13, color: MUTED, fontWeight: '600' }}>{label}</Text>
+                <Text style={{ fontSize: 13, color: TEXT, fontWeight: '700', flexShrink: 1, textAlign: 'right' }}>{value}</Text>
+              </View>
+            ))}
+          </View>
+
+          <View style={{ flexDirection: 'row', gap: 10 }}>
+            <Pressable
+              onPress={onOpenDrawer}
+              disabled={busy || !printerIp}
+              style={({ pressed }) => [
+                {
+                  flex: 1,
+                  backgroundColor: printerIp ? BLUE : '#CBD5E1',
+                  borderRadius: 12,
+                  paddingVertical: 12,
+                  alignItems: 'center',
+                  flexDirection: 'row',
+                  justifyContent: 'center',
+                  gap: 8,
+                },
+                (pressed || busy || !printerIp) && { opacity: 0.7 },
+              ]}
+            >
+              {busy ? <ActivityIndicator color={WHITE} size="small" /> : <Feather name="unlock" size={16} color={WHITE} />}
+              <Text style={{ color: WHITE, fontSize: 15, fontWeight: '800' }}>{busy ? 'Opening…' : 'Open Drawer'}</Text>
+            </Pressable>
+            <Pressable
+              onPress={onClose}
+              style={({ pressed }) => [
+                {
+                  paddingHorizontal: 18,
+                  borderRadius: 12,
+                  borderWidth: 1,
+                  borderColor: BORDER,
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                },
+                pressed && { opacity: 0.7 },
+              ]}
+            >
+              <Text style={{ color: MID, fontSize: 15, fontWeight: '700' }}>Close</Text>
+            </Pressable>
+          </View>
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+}
+
 // ── POS Screen (inner, wrapped by OfflineProvider below) ─────────────────────
 function PosScreenInner() {
   const insets = useSafeAreaInsets();
@@ -288,6 +415,8 @@ function PosScreenInner() {
   const [showHoldModal, setShowHoldModal] = useState(false);
   const [showRegister, setShowRegister] = useState(false);
   const [showRegisterPin, setShowRegisterPin] = useState(false);
+  const [showPrinterStatus, setShowPrinterStatus] = useState(false);
+  const [printerDrawerBusy, setPrinterDrawerBusy] = useState(false);
   const [showZReport, setShowZReport] = useState(false);
   const [zReportData, setZReportData] = useState<RegisterSessionReport | null>(null);
   const [zReportPrinting, setZReportPrinting] = useState(false);
@@ -338,6 +467,7 @@ function PosScreenInner() {
 
   // Controls whether the History modal opens pre-filtered to failed-print orders.
   const [historyOpenAtFailed, setHistoryOpenAtFailed] = useState(false);
+  const [lastDrawerSuccessAt, setLastDrawerSuccessAt] = useState<Date | null>(null);
 
   // ── Product list ref (scroll-to-top on category change) ──────────────────
   const productListRef = useRef<any>(null);
@@ -548,6 +678,30 @@ function PosScreenInner() {
       lines: buildRegisterSummaryPrintLines(report),
       printerBrand: store.printerBrand ?? 'epson',
     }, store.printerIp, store.printerPort ?? 9100, fetchBytes);
+  }, [isShopDisplay, storeData]);
+
+  const openDrawerWithTracking = useCallback(async () => {
+    setPrinterDrawerBusy(true);
+    const store = storeData as any;
+    try {
+      if (!store?.printerIp) {
+        Alert.alert('No Printer', 'Configure a printer IP in POS settings to open the cash drawer.');
+        return;
+      }
+      const fetchBytes = isShopDisplay ? api.shopDisplay.printerBytes : api.director.printerBytes;
+      await sendOpenDrawer(
+        store.printerIp,
+        store.printerPort ?? 9100,
+        fetchBytes,
+        (store.drawerPin ?? 0) as 0 | 1,
+        store.printerBrand as 'epson' | 'star' | undefined,
+      );
+      setLastDrawerSuccessAt(new Date());
+    } catch (err: any) {
+      Alert.alert('Drawer Error', err?.message ?? 'Could not open the cash drawer.');
+    } finally {
+      setPrinterDrawerBusy(false);
+    }
   }, [isShopDisplay, storeData]);
 
   useEffect(() => {
@@ -917,7 +1071,7 @@ function PosScreenInner() {
         }
       } else if (!alreadyPrinted && !store?.autoPrint && store?.autoDrawer && store?.printerIp && isCashSale) {
         // No receipt printing, but auto-drawer is on — open the drawer directly for cash/split sales.
-        sendOpenDrawer(store.printerIp, store.printerPort ?? 9100, fetchBytes, ((store as any).drawerPin ?? 0) as 0 | 1, store.printerBrand as 'epson' | 'star' | undefined).catch(() => {});
+        openDrawerWithTracking().catch(() => {});
       }
     },
     onError: (err: any, vars) => {
@@ -1197,6 +1351,14 @@ function PosScreenInner() {
                   : 'Sync'}
             </Text>
           </Pressable>
+          {/* Printer status */}
+          <Pressable
+            onPress={() => setShowPrinterStatus(true)}
+            style={styles.headerBtn}
+          >
+            <Feather name="printer" size={16} color={MID} />
+            <Text style={styles.headerBtnText}>Printer</Text>
+          </Pressable>
           {/* Register */}
           <Pressable onPress={() => setShowRegisterPin(true)} style={styles.headerBtn}>
             <Feather name="archive" size={16} color={cashEnabled ? MID : CHERRY} />
@@ -1472,6 +1634,18 @@ function PosScreenInner() {
         />
       )}
 
+      {/* ── Printer status modal ───────────────────────────────────────────── */}
+      {showPrinterStatus && (
+        <PrinterStatusModal
+          visible={showPrinterStatus}
+          onClose={() => setShowPrinterStatus(false)}
+          store={storeData as any}
+          lastDrawerSuccessAt={lastDrawerSuccessAt}
+          onOpenDrawer={openDrawerWithTracking}
+          busy={printerDrawerBusy}
+        />
+      )}
+
       {/* ── Register modal ─────────────────────────────────────────────────── */}
       {showRegister && (
         <RegisterModal
@@ -1491,20 +1665,13 @@ function PosScreenInner() {
             await api.pos.markRegisterSummaryPrinted(registerSession.id);
             refetchRegister();
           }}
-          onOpenDrawer={async () => {
-            const store = storeData as any;
-            if (!store?.printerIp) {
-              Alert.alert('No Printer', 'Configure a printer IP in POS settings to open the cash drawer.');
-              return;
-            }
-            const fetchBytes = isShopDisplay ? api.shopDisplay.printerBytes : api.director.printerBytes;
-            await sendOpenDrawer(store.printerIp, store.printerPort ?? 9100, fetchBytes, (store.drawerPin ?? 0) as 0 | 1, store.printerBrand as 'epson' | 'star' | undefined);
-          }}
+          onOpenDrawer={openDrawerWithTracking}
           busy={
             setRegisterFloatMutation.isPending ||
             cashMovementMutation.isPending ||
             closeRegisterMutation.isPending ||
-            updateRegisterSettingsMutation.isPending
+            updateRegisterSettingsMutation.isPending ||
+            printerDrawerBusy
           }
         />
       )}

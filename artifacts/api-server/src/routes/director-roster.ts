@@ -118,7 +118,7 @@ router.post('/roster', requireTimesheets, async (req, res) => {
 
 // PATCH /director/roster/:id
 router.patch('/roster/:id', requireTimesheets, async (req, res) => {
-  const { id } = req.params;
+  const rosterId = String(req.params.id);
   const { userId, date, startTime, endTime, role, notes, isConfirmed } = req.body;
 
   const updates: Record<string, any> = { updatedAt: new Date() };
@@ -133,7 +133,7 @@ router.patch('/roster/:id', requireTimesheets, async (req, res) => {
     if (isConfirmed) updates.confirmedAt = new Date();
   }
 
-  const [shift] = await db.update(staffRosterTable).set(updates).where(eq(staffRosterTable.id, id)).returning();
+  const [shift] = await db.update(staffRosterTable).set(updates).where(eq(staffRosterTable.id, rosterId)).returning();
   if (!shift) return res.status(404).json({ error: 'Shift not found.' });
 
   const uid = userId ?? shift.userId;
@@ -151,7 +151,8 @@ router.patch('/roster/:id', requireTimesheets, async (req, res) => {
 
 // DELETE /director/roster/:id
 router.delete('/roster/:id', requireTimesheets, async (req, res) => {
-  const [shift] = await db.delete(staffRosterTable).where(eq(staffRosterTable.id, req.params.id)).returning();
+  const rosterId = String(req.params.id);
+  const [shift] = await db.delete(staffRosterTable).where(eq(staffRosterTable.id, rosterId)).returning();
   if (!shift) return res.status(404).json({ error: 'Shift not found.' });
   return res.json({ success: true });
 });

@@ -1,5 +1,5 @@
 import { Feather } from '@expo/vector-icons';
-import { Audio } from 'expo-av';
+import { Audio, InterruptionModeAndroid, InterruptionModeIOS } from 'expo-av';
 import { Asset } from 'expo-asset';
 import { Redirect, router, Tabs, usePathname } from 'expo-router';
 import * as Haptics from 'expo-haptics';
@@ -127,9 +127,9 @@ function NewOrderAlertOverlay({
           playsInSilentModeIOS: true,
           allowsRecordingIOS: false,
           staysActiveInBackground: false,
-          interruptionModeIOS: Audio.InterruptionModeIOS.DuckOthers,
+          interruptionModeIOS: InterruptionModeIOS.DuckOthers,
           shouldDuckAndroid: true,
-          interruptionModeAndroid: Audio.InterruptionModeAndroid.DuckOthers,
+          interruptionModeAndroid: InterruptionModeAndroid.DuckOthers,
           playThroughEarpieceAndroid: false,
         });
         const sound = new Audio.Sound();
