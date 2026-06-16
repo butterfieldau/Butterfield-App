@@ -58,6 +58,7 @@ export interface PrintItem {
   unitPriceCents: number;
   variantName?:  string;
   options?:      string[];
+  notes?:        string;
 }
 
 export interface PrintJob {
@@ -184,6 +185,10 @@ export function buildReceiptBytes(job: PrintJob): Buffer {
         parts.push(Buffer.from(`   + ${opt.slice(0, COL - 5)}\n`, 'utf-8'));
       }
     }
+    // Print per-item special instructions / notes
+    if (item.notes?.trim()) {
+      parts.push(Buffer.from(`   * ${item.notes.trim().slice(0, COL - 5)}\n`, 'utf-8'));
+    }
   }
 
   parts.push(divider());
@@ -300,6 +305,9 @@ export function buildTaxInvoiceBytes(job: PrintJob): Buffer {
     if (item.options && item.options.length > 0) {
       for (const opt of item.options)
         parts.push(Buffer.from(`   + ${opt.slice(0, COL - 5)}\n`, 'utf-8'));
+    }
+    if (item.notes?.trim()) {
+      parts.push(Buffer.from(`   * ${item.notes.trim().slice(0, COL - 5)}\n`, 'utf-8'));
     }
   }
 

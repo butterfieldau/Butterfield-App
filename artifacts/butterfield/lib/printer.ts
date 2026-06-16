@@ -10,6 +10,7 @@ export interface PrintJob {
     unitPriceCents: number;
     variantName?: string;
     options?: string[];
+    notes?: string;
   }>;
   totalCents: number;
   discountCents?: number;
@@ -53,7 +54,8 @@ function toPrintableItem(item: ApiOrderItem): PrintJob['items'][number] {
   const options = (item.selectedOptions ?? [])
     .map(o => o.optionName ?? o.textValue ?? '')
     .filter(Boolean) as string[];
-  return { name, quantity, unitPriceCents, variantName, options: options.length > 0 ? options : undefined };
+  const notes = item.notes?.trim() || undefined;
+  return { name, quantity, unitPriceCents, variantName, options: options.length > 0 ? options : undefined, notes };
 }
 
 export function orderToPrintJob(order: PrintableOrder, printerBrand?: 'epson' | 'star'): PrintJob {

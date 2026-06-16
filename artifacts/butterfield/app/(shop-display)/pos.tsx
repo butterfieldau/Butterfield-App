@@ -1015,6 +1015,7 @@ function PosScreenInner() {
         unitPriceCents: i.unitPriceCents,
         variantName: i.variantName ?? undefined,
         options: (i.selectedOptions ?? []).map((o: any) => o.optionName ?? o.textValue ?? '').filter(Boolean) as string[],
+        notes: i.notes?.trim() || undefined,
       }));
       const snapshotCustomerName = activeTicket.customer?.name ?? 'Walk-in';
       const discountAmountCents = activeTicket.appliedDiscount?.amountCents ?? 0;
@@ -1076,6 +1077,7 @@ function PosScreenInner() {
           discountCents: discountAmountCents,
           surchargeCents: vars.surchargeCents ?? 0,
           loyaltyPointsEarned: res.loyaltyResult?.pointsEarned,
+          notes: activeTicket.notes?.trim() || undefined,
           printerBrand: store.printerBrand ?? 'epson',
           autoDrawer: !!(store as any).autoDrawer,
           drawerPin: ((store as any).drawerPin ?? 0) as 0 | 1,
@@ -3969,10 +3971,13 @@ function HistoryModal({
           quantity: i.quantity,
           unitPriceCents: i.unitPriceCents,
           variantName: i.variantName ?? undefined,
+          options: (i.selectedOptions ?? []).map((o: any) => o.optionName ?? o.textValue ?? '').filter(Boolean) as string[],
+          notes: i.notes?.trim() || undefined,
         })),
         totalCents: order.totalCents,
         discountCents: order.discountCents,
         surchargeCents: order.surchargeCents,
+        notes: order.notes?.trim() || undefined,
         printerBrand: (store.printerBrand ?? 'epson') as 'epson' | 'star',
         paymentMethod: order.paymentMethod,
       }, store.printerIp, store.printerPort ?? 9100, fetchBytes);
