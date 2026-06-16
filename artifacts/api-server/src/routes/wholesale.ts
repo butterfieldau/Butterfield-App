@@ -131,7 +131,7 @@ router.get('/catalog', async (req, res) => {
   if (ctx.status !== 'approved') return res.status(403).json({ error: 'Your account is pending approval. You will be notified once it is approved.' });
 
   const products = await db.select().from(productsTable)
-    .where(eq(productsTable.isActive, true))
+    .where(and(eq(productsTable.isActive, true), eq(productsTable.isPosOnly, false)))
     .orderBy(asc(productsTable.sortOrder), asc(productsTable.name));
 
   const out: any[] = [];

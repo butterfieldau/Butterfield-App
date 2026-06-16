@@ -38,6 +38,7 @@ export const productsTable = pgTable("products", {
   isWholesaleAvailable: boolean("is_wholesale_available").notNull().default(true),
   isStaffOnly:          boolean("is_staff_only").notNull().default(false),
   isAppOnly:            boolean("is_app_only").notNull().default(false),
+  isPosOnly:            boolean("is_pos_only").notNull().default(false),
   isLimitedDrop:        boolean("is_limited_drop").notNull().default(false),
   isSoldOut:            boolean("is_sold_out").notNull().default(false),
   isComingSoon:         boolean("is_coming_soon").notNull().default(false),

@@ -264,7 +264,7 @@ router.get('/top-sellers', async (_req, res) => {
       const featured = await db
         .select()
         .from(productsTable)
-        .where(and(eq(productsTable.isActive, true), eq(productsTable.isFeatured, true), eq(productsTable.isStaffOnly, false)))
+        .where(and(eq(productsTable.isActive, true), eq(productsTable.isFeatured, true), eq(productsTable.isStaffOnly, false), eq(productsTable.isPosOnly, false)))
         .orderBy(asc(productsTable.sortOrder))
         .limit(10);
       const data = featured.filter((p) => isProductOrderableNow(p, sydNow)).map(mapProduct);
@@ -276,7 +276,7 @@ router.get('/top-sellers', async (_req, res) => {
     const products = await db
       .select()
       .from(productsTable)
-      .where(and(eq(productsTable.isActive, true), eq(productsTable.isStaffOnly, false)));
+      .where(and(eq(productsTable.isActive, true), eq(productsTable.isStaffOnly, false), eq(productsTable.isPosOnly, false)));
 
     const orderMap = new Map(ranked.map(r => [r.product_id, parseInt(r.order_count, 10)]));
 
@@ -300,7 +300,7 @@ router.get('/', async (_req, res) => {
     const products = await db
       .select()
       .from(productsTable)
-      .where(and(eq(productsTable.isActive, true), eq(productsTable.isStaffOnly, false)))
+      .where(and(eq(productsTable.isActive, true), eq(productsTable.isStaffOnly, false), eq(productsTable.isPosOnly, false)))
       .orderBy(asc(productsTable.sortOrder), asc(productsTable.name));
 
     const variants = await db.select().from(productVariantsTable)
@@ -373,7 +373,7 @@ router.get('/:id', async (req, res) => {
       .from(productsTable)
       .where(eq(productsTable.id, req.params.id));
 
-    if (!product || !product.isActive) {
+    if (!product || !product.isActive || product.isPosOnly) {
       return res.status(404).json({ error: 'Product not found' });
     }
 

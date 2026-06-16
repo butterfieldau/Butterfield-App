@@ -229,7 +229,7 @@ const BLANK = () => ({
   price: '', salePrice: '', costPrice: '', wholesalePrice: '',
   gstIncluded: true, sku: '', barcode: '',
   isAvailable: true, isFeatured: false, isNew: false,
-  isWholesaleAvailable: true, isStaffOnly: false, isAppOnly: false,
+  isWholesaleAvailable: true, isStaffOnly: false, isAppOnly: false, isPosOnly: false,
   isLimitedDrop: false, isSoldOut: false, isComingSoon: false, isPickupOnly: false,
   allergens: [] as string[], dietaryTags: [] as string[], tags: [] as string[],
   ingredients: '', nutritionInfo: '', storageInstructions: '', servingInstructions: '',
@@ -288,6 +288,7 @@ function ProductModal({
         isWholesaleAvailable: initial.isWholesaleAvailable ?? true,
         isStaffOnly: initial.isStaffOnly ?? false,
         isAppOnly: initial.isAppOnly ?? false,
+        isPosOnly: (initial as any).isPosOnly ?? false,
         isLimitedDrop: initial.isLimitedDrop ?? false,
         isSoldOut: initial.isSoldOut ?? false,
         isComingSoon: initial.isComingSoon ?? false,
@@ -426,7 +427,7 @@ function ProductModal({
         productUrl: f.productUrl.trim() || null,
         isAvailable: f.isAvailable, isFeatured: f.isFeatured, isNew: f.isNew,
         isWholesaleAvailable: f.isWholesaleAvailable, isStaffOnly: f.isStaffOnly,
-        isAppOnly: f.isAppOnly, isLimitedDrop: f.isLimitedDrop, isSoldOut: f.isSoldOut,
+        isAppOnly: f.isAppOnly, isPosOnly: f.isPosOnly, isLimitedDrop: f.isLimitedDrop, isSoldOut: f.isSoldOut,
         isComingSoon: f.isComingSoon, isPickupOnly: f.isPickupOnly,
         allergens:   f.allergens.length  ? f.allergens  : null,
         dietaryTags: f.dietaryTags.length? f.dietaryTags: null,
@@ -659,6 +660,7 @@ function ProductModal({
               <Toggle label="Pickup only"           value={f.isPickupOnly}         onChange={v => upd('isPickupOnly', v)}         color={MUTED}  desc="Cannot be delivered" />
               <Toggle label="Staff only visibility" value={f.isStaffOnly}          onChange={v => upd('isStaffOnly', v)}          color={MUTED}  desc="Hidden from public menu" />
               <Toggle label="App only (not in-store)" value={f.isAppOnly}            onChange={v => upd('isAppOnly', v)}            color={MUTED}  desc="Hidden from Shop Display and POS — app orders only" />
+              <Toggle label="POS only"              value={f.isPosOnly}            onChange={v => upd('isPosOnly', v)}            color={MUTED}  desc="Hidden from customer app & wholesale" />
             </>}
             {/* TAB 3 — DETAILS: Allergens, dietary, ingredients, IDs */}
             {modalTab === 'details' && <>
