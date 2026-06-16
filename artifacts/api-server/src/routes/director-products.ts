@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { db, productsTable, productCategoriesTable, productVariantsTable, productOptionGroupsTable, productOptionsTable } from '@workspace/db';
-import { eq, asc } from 'drizzle-orm';
+import { eq, asc, sql } from 'drizzle-orm';
 import { requireRole } from '../middlewares/auth.js';
 import { requireManagerPermission } from '../middlewares/managerPermission.js';
 import { randomUUID } from 'crypto';
@@ -42,13 +42,42 @@ function parseJsonArr(val: string | null | undefined): string[] {
   try { const r = JSON.parse(val); return Array.isArray(r) ? r : []; } catch { return []; }
 }
 
+// Resilient category fetch — Drizzle SELECT * fails when optional columns
+// (e.g. `color`) haven't been applied to the production database yet.
+// Falls back to an explicit raw-SQL query that returns NULL for missing columns.
+async function fetchCategories(): Promise<any[]> {
+  try {
+    return await db.select().from(productCategoriesTable).orderBy(asc(productCategoriesTable.sortOrder));
+  } catch {
+    const result = await db.execute(sql`
+      SELECT
+        id, name, slug, description,
+        image_url            AS "imageUrl",
+        sort_order           AS "sortOrder",
+        is_active            AS "isActive",
+        show_public          AS "showPublic",
+        show_wholesale       AS "showWholesale",
+        COALESCE(is_pickup_available,  true)  AS "isPickupAvailable",
+        COALESCE(is_delivery_available, false) AS "isDeliveryAvailable",
+        COALESCE(show_on_home, false)          AS "showOnHome",
+        COALESCE(home_order, 0)                AS "homeOrder",
+        NULL::text                             AS color,
+        created_at           AS "createdAt",
+        updated_at           AS "updatedAt"
+      FROM product_categories
+      ORDER BY sort_order ASC
+    `);
+    return result.rows ?? [];
+  }
+}
+
 // ══════════════════════════════════════════════════════════════════════════════
 // CATEGORIES
 // ══════════════════════════════════════════════════════════════════════════════
 
 router.get('/categories', allowedRoles, requireProducts, async (_req, res) => {
   const [cats, productMeta] = await Promise.all([
-    db.select().from(productCategoriesTable).orderBy(asc(productCategoriesTable.sortOrder)),
+    fetchCategories(),
     db.select({ categoryId: productsTable.categoryId, category: productsTable.category })
       .from(productsTable).where(eq(productsTable.isActive, true)),
   ]);
@@ -99,9 +128,18 @@ router.patch('/categories/:id', allowedRoles, requireProducts, async (req, res) 
   if (homeOrder !== undefined) updates.homeOrder = Number(homeOrder);
   if (color !== undefined) updates.color = color?.trim() || null;
   updates.updatedAt = new Date();
-  const [cat] = await db.update(productCategoriesTable).set(updates).where(eq(productCategoriesTable.id, categoryId)).returning();
-  if (!cat) return res.status(404).json({ error: 'Category not found' });
-  return res.json({ data: cat });
+  // .returning() includes `color` which may not exist in production yet — fall back to re-fetch.
+  try {
+    const [cat] = await db.update(productCategoriesTable).set(updates).where(eq(productCategoriesTable.id, categoryId)).returning();
+    if (!cat) return res.status(404).json({ error: 'Category not found' });
+    return res.json({ data: cat });
+  } catch {
+    await db.update(productCategoriesTable).set(updates).where(eq(productCategoriesTable.id, categoryId));
+    const all = await fetchCategories();
+    const cat = all.find((c: any) => c.id === categoryId);
+    if (!cat) return res.status(404).json({ error: 'Category not found' });
+    return res.json({ data: cat });
+  }
 });
 
 router.delete('/categories/:id', allowedRoles, requireProducts, async (req, res) => {
@@ -277,7 +315,7 @@ router.delete('/option-groups/:groupId/options/:id', allowedRoles, requireProduc
 
 router.get('/catalog', allowedRoles, requireProducts, async (_req, res) => {
   const [categories, products, variants] = await Promise.all([
-    db.select().from(productCategoriesTable).orderBy(asc(productCategoriesTable.sortOrder)),
+    fetchCategories(),
     db.select().from(productsTable).orderBy(asc(productsTable.sortOrder), asc(productsTable.name)),
     db.select().from(productVariantsTable).where(eq(productVariantsTable.isActive, true)).orderBy(asc(productVariantsTable.sortOrder)),
   ]);
