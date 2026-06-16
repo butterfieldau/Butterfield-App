@@ -3,6 +3,7 @@ import { randomUUID } from 'crypto';
 import { db, staffShiftsTable, staffTasksTable, staffTaskHistoryTable, staffWastageTable, staffIssuesTable, staffLeaveRequestsTable, staffProfilesTable, usersTable, ordersTable, wholesaleOrdersTable, wholesaleAccountsTable, storeSettingsTable, staffStoreAssignmentsTable, storesTable, staffRosterTable } from '@workspace/db';
 import { eq, desc, isNull, and, gte, lte, sql, inArray } from 'drizzle-orm';
 import { normalizeTaskListCompletion } from '../lib/taskReset.js';
+import { sydneyStartOfDay } from '../lib/sydneyTime.js';
 
 function haversineMeters(lat1: number, lng1: number, lat2: number, lng2: number): number {
   const R = 6371000;
@@ -234,13 +235,11 @@ router.get('/shifts/stats', async (req, res) => {
   const hourlyRateCents = profile?.hourlyRateCents ?? 2200;
 
   const now = new Date();
-  const todayStart = new Date(now);
-  todayStart.setHours(0, 0, 0, 0);
+  const todayStart = sydneyStartOfDay(now);
 
-  const weekStart = new Date(todayStart);
-  const day = weekStart.getDay();
-  const diff = day === 0 ? -6 : 1 - day;
-  weekStart.setDate(weekStart.getDate() + diff);
+  const sydDay = new Date(todayStart.toLocaleString('en-US', { timeZone: 'Australia/Sydney' })).getDay();
+  const daysBack = sydDay === 0 ? 6 : sydDay - 1;
+  const weekStart = sydneyStartOfDay(new Date(now.getTime() - daysBack * 24 * 60 * 60 * 1000));
 
   const allShifts = await db.select().from(staffShiftsTable)
     .where(and(eq(staffShiftsTable.userId, req.user!.id), gte(staffShiftsTable.clockIn, weekStart)));
@@ -284,13 +283,11 @@ router.get('/timesheet', async (req, res) => {
   const { from, to, userId: targetUserId } = req.query;
 
   const now = new Date();
-  const weekStart = new Date(now);
-  const day = weekStart.getDay();
-  weekStart.setDate(weekStart.getDate() - (day === 0 ? 6 : day - 1));
-  weekStart.setHours(0, 0, 0, 0);
-  const weekEnd = new Date(weekStart);
-  weekEnd.setDate(weekStart.getDate() + 6);
-  weekEnd.setHours(23, 59, 59, 999);
+  const todaySydStart = sydneyStartOfDay(now);
+  const sydDay = new Date(todaySydStart.toLocaleString('en-US', { timeZone: 'Australia/Sydney' })).getDay();
+  const daysBack = sydDay === 0 ? 6 : sydDay - 1;
+  const weekStart = sydneyStartOfDay(new Date(now.getTime() - daysBack * 24 * 60 * 60 * 1000));
+  const weekEnd = new Date(weekStart.getTime() + 7 * 24 * 60 * 60 * 1000 - 1);
 
   const fromDate = from ? new Date(from as string) : weekStart;
   const toDate = to ? new Date(to as string) : weekEnd;
