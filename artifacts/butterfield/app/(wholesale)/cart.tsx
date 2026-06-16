@@ -440,7 +440,7 @@ function WholesaleCartScreenInner({ stripeReady }: { stripeReady: boolean }) {
         <FlatList
           data={cart}
           keyExtractor={e => e.product.id}
-          contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 4, gap: 10, paddingBottom: 30 }}
+          contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 4, gap: 10, paddingBottom: insets.bottom + 90 }}
           showsVerticalScrollIndicator={false}
           renderItem={({ item: entry }) => {
             const bc        = baseCentsFor(entry.product);
