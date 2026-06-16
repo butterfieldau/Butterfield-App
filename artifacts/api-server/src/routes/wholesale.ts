@@ -9,7 +9,7 @@ import {
   getOrCreateWholesaleDeliverySettings,
   DEFAULT_DELIVERY_SLOTS,
 } from '../lib/wholesaleCutoffReminder.js';
-import { eq, desc, asc, and } from 'drizzle-orm';
+import { eq, desc, asc, and, ne, sum, sql } from 'drizzle-orm';
 import { requireRole } from '../middlewares/auth.js';
 import { sendNotification } from '../lib/notificationService.js';
 import { ensureWholesalePaymentSchemaReady } from '../lib/ensureWholesalePaymentSchemaReady.js';
@@ -87,12 +87,26 @@ router.get('/account', async (req, res) => {
   await ensureWholesalePaymentSchemaReady();
   const [account] = await db.select().from(wholesaleAccountsTable).where(eq(wholesaleAccountsTable.userId, req.user!.id));
   if (!account) return res.status(404).json({ error: 'Wholesale account not found' });
+
+  // Calculate live outstanding balance: sum of (totalCents - refundedCents) for
+  // all unpaid, non-cancelled orders. This replaces the stale currentBalanceCents
+  // DB column which was never updated automatically.
+  const [balanceRow] = await db
+    .select({ total: sql<number>`COALESCE(SUM(${wholesaleOrdersTable.totalCents} - COALESCE(${wholesaleOrdersTable.refundedCents}, 0)), 0)` })
+    .from(wholesaleOrdersTable)
+    .where(and(
+      eq(wholesaleOrdersTable.accountId, account.id),
+      eq(wholesaleOrdersTable.isPaid, false),
+      ne(wholesaleOrdersTable.status, 'cancelled'),
+    ));
+  const liveBalanceCents = Number(balanceRow?.total ?? 0);
+
   let tier: any = null;
   if (account.tierId) {
     const [t] = await db.select().from(pricingTiersTable).where(eq(pricingTiersTable.id, account.tierId));
     tier = t ?? null;
   }
-  return res.json({ data: { ...account, tier } });
+  return res.json({ data: { ...account, currentBalanceCents: liveBalanceCents, tier } });
 });
 
 // Alias kept for client compatibility
