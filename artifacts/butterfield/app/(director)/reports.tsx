@@ -1237,6 +1237,27 @@ function RegisterReportsTab() {
                       </View>
                     </View>
 
+                    {/* Revenue row — always visible regardless of payment method */}
+                    <View style={s.registerRevRow}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={s.registerRevLabel}>TOTAL SALES</Text>
+                        <Text style={s.registerRevValue}>{fmtAUD(report.summary.totalSalesCents)}</Text>
+                      </View>
+                      <View style={s.registerRevBreakdown}>
+                        <Text style={s.registerRevBreakdownItem}>
+                          <Text style={s.registerRevBreakdownDim}>Card </Text>
+                          {fmtAUD(report.summary.cardSalesCents)}
+                        </Text>
+                        {report.summary.cashSalesCents > 0 && (
+                          <Text style={s.registerRevBreakdownItem}>
+                            <Text style={s.registerRevBreakdownDim}>Cash </Text>
+                            {fmtAUD(report.summary.cashSalesCents)}
+                          </Text>
+                        )}
+                      </View>
+                    </View>
+
+                    {/* Cash reconciliation */}
                     <View style={s.registerReportGrid}>
                       <View style={s.registerMetricBox}>
                         <Text style={s.registerMetricBoxLabel}>Expected Cash</Text>
@@ -1575,6 +1596,16 @@ const s = StyleSheet.create({
   statusPillText: { fontSize: 11, fontWeight: '700' },
   statusPillTextManual: { color: '#15803D' },
   statusPillTextAuto: { color: BLUE },
+  registerRevRow: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    backgroundColor: '#EFF6FF', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10,
+    marginBottom: 10, borderWidth: 1, borderColor: '#BFDBFE',
+  },
+  registerRevLabel: { fontSize: 10, fontWeight: '800', color: BLUE, letterSpacing: 1, marginBottom: 2 },
+  registerRevValue: { fontSize: 20, fontWeight: '800', color: BLUE },
+  registerRevBreakdown: { alignItems: 'flex-end', gap: 2 },
+  registerRevBreakdownItem: { fontSize: 12, fontWeight: '700', color: TEXT },
+  registerRevBreakdownDim: { fontSize: 12, fontWeight: '500', color: MUTED },
   registerReportGrid: { flexDirection: 'row', gap: 8, marginBottom: 10 },
   registerMetricBox: {
     flex: 1,
