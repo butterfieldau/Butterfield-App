@@ -6,7 +6,7 @@ import React, {
 } from 'react';
 import {
   ActivityIndicator, Animated, Alert, FlatList, Image, Keyboard,
-  KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView,
+  KeyboardAvoidingView, Modal, PanResponder, Platform, Pressable, ScrollView,
   StyleSheet, Text, TextInput, TouchableOpacity, useWindowDimensions,
   View,
 } from 'react-native';
@@ -67,6 +67,7 @@ const PRESET_COLORS = [
   '#92400E', '#0F766E', '#4F46E5', '#64748B',
 ];
 const CAT_COLORS_KEY           = 'pos_category_colors';
+const CAT_ORDER_KEY            = 'pos_category_order';
 const DISCOUNT_PRESETS_KEY     = 'pos_discount_presets';
 const HELD_TICKETS_KEY         = 'pos_held_tickets';
 const VOID_PIN_THRESHOLD_CENTS = 5_000;    // $50 — ticket voids above this need supervisor PIN
@@ -387,6 +388,9 @@ function PosScreenInner() {
   const [selCategory, setSelCategory]     = useState<string>('all');
   const [customCatColors, setCustomCatColors] = useState<Record<string, string>>({});
   const [colorPickerCat, setColorPickerCat]   = useState<string | null>(null);
+  const [customCatOrder, setCustomCatOrder]   = useState<string[]>([]);
+  const [catActionCat,   setCatActionCat]     = useState<string | null>(null);
+  const [showReorderModal, setShowReorderModal] = useState(false);
 
   // ── Modals ────────────────────────────────────────────────────────────────
   const [customiseData, setCustomiseData] = useState<{
@@ -494,10 +498,13 @@ function PosScreenInner() {
     getPosLastSyncedAt().then(setLastSyncedAt);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Load persisted category colours
+  // Load persisted category colours + order
   useEffect(() => {
     AsyncStorage.getItem(CAT_COLORS_KEY).then(v => {
       if (v) try { setCustomCatColors(JSON.parse(v)); } catch {}
+    });
+    AsyncStorage.getItem(CAT_ORDER_KEY).then(v => {
+      if (v) try { setCustomCatOrder(JSON.parse(v)); } catch {}
     });
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -749,12 +756,31 @@ function PosScreenInner() {
     }));
   }, [categoriesData, allProducts]);
 
+  // Apply locally-saved order on top of the API-driven list (pure local UX — no backend changes)
+  const orderedCategories = useMemo(() => {
+    if (customCatOrder.length === 0) return categories;
+    return [...categories].sort((a, b) => {
+      const ai = customCatOrder.indexOf(a.slug);
+      const bi = customCatOrder.indexOf(b.slug);
+      if (ai === -1 && bi === -1) return 0;
+      if (ai === -1) return 1;
+      if (bi === -1) return -1;
+      return ai - bi;
+    });
+  }, [categories, customCatOrder]);
+
+  // Save new order to AsyncStorage (does NOT touch the backend)
+  const saveCatOrder = useCallback((slugs: string[]) => {
+    setCustomCatOrder(slugs);
+    AsyncStorage.setItem(CAT_ORDER_KEY, JSON.stringify(slugs));
+  }, []);
+
   // Pre-select the first category once products load (never default to "All")
   useEffect(() => {
-    if (categories.length > 0 && selCategory === 'all') {
-      setSelCategory(categories[0]!.slug);
+    if (orderedCategories.length > 0 && selCategory === 'all') {
+      setSelCategory(orderedCategories[0]!.slug);
     }
-  }, [categories]);
+  }, [orderedCategories]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const filteredProducts = useMemo(() => {
     return allProducts.filter((p: any) => {
@@ -1425,14 +1451,17 @@ function PosScreenInner() {
               style={styles.categoryScroll}
               contentContainerStyle={{ gap: 8, paddingHorizontal: 12, paddingVertical: 6 }}
             >
-              {categories.map(cat => {
+              {orderedCategories.map(cat => {
                 const active = selCategory === cat.slug;
                 const color  = customCatColors[cat.slug.toLowerCase()] ?? getDefaultCatColor(cat.slug, cat.color);
                 return (
                   <Pressable
                     key={cat.slug}
                     onPress={() => setSelCategory(cat.slug)}
-                    onLongPress={() => setColorPickerCat(cat.slug)}
+                    onLongPress={() => {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                      setCatActionCat(cat.slug);
+                    }}
                     delayLongPress={400}
                     style={[
                       styles.catTile,
@@ -1768,6 +1797,55 @@ function PosScreenInner() {
         />
       )}
 
+      {/* ── Category action sheet (long-press: colour or reorder) ───────────── */}
+      <Modal
+        visible={catActionCat !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setCatActionCat(null)}
+      >
+        <Pressable style={styles.cpOverlay} onPress={() => setCatActionCat(null)}>
+          <Pressable style={styles.catActionSheet} onPress={e => e.stopPropagation()}>
+            <Text style={styles.catActionTitle}>
+              {catActionCat ? catActionCat.charAt(0).toUpperCase() + catActionCat.slice(1) : ''}
+            </Text>
+            <Pressable
+              style={styles.catActionBtn}
+              onPress={() => {
+                const cat = catActionCat;
+                setCatActionCat(null);
+                setTimeout(() => setColorPickerCat(cat), 50);
+              }}
+            >
+              <Feather name="droplet" size={18} color={BLUE} />
+              <Text style={[styles.catActionBtnText, { color: BLUE }]}>Change colour</Text>
+            </Pressable>
+            <View style={styles.catActionDivider} />
+            <Pressable
+              style={styles.catActionBtn}
+              onPress={() => {
+                setCatActionCat(null);
+                setTimeout(() => setShowReorderModal(true), 50);
+              }}
+            >
+              <Feather name="move" size={18} color={MID} />
+              <Text style={[styles.catActionBtnText, { color: MID }]}>Reorder categories</Text>
+            </Pressable>
+            <Pressable style={styles.catActionCancel} onPress={() => setCatActionCat(null)}>
+              <Text style={styles.catActionCancelText}>Cancel</Text>
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* ── Category reorder modal ─────────────────────────────────────────── */}
+      <ReorderCategoriesModal
+        visible={showReorderModal}
+        items={orderedCategories}
+        onSave={saveCatOrder}
+        onClose={() => setShowReorderModal(false)}
+      />
+
       {/* ── Category colour picker ─────────────────────────────────────────── */}
       <Modal
         visible={colorPickerCat !== null}
@@ -1848,6 +1926,126 @@ function ProductGridCard({
         </View>
       )}
     </TouchableOpacity>
+  );
+}
+
+// ── Reorder Categories Modal ───────────────────────────────────────────────────
+const REORDER_ITEM_H = 58;
+
+function ReorderCategoriesModal({
+  visible,
+  items,
+  onSave,
+  onClose,
+}: {
+  visible: boolean;
+  items: { slug: string; name: string; color?: string | null }[];
+  onSave: (slugs: string[]) => void;
+  onClose: () => void;
+}) {
+  const [list, setList] = React.useState<{ slug: string; name: string; color?: string | null }[]>([]);
+  const [dragging, setDragging] = React.useState<number | null>(null);
+  const dragYAnim = React.useRef(new Animated.Value(0)).current;
+  const fromIdxRef = React.useRef<number | null>(null);
+
+  React.useEffect(() => {
+    if (visible) setList([...items]);
+  }, [visible, items]);
+
+  // Recreate PanResponders whenever list changes so indices stay accurate
+  const panResponders = React.useMemo(
+    () =>
+      list.map((_, idx) =>
+        PanResponder.create({
+          onStartShouldSetPanResponder: () => true,
+          onMoveShouldSetPanResponder: () => true,
+          onPanResponderGrant: () => {
+            fromIdxRef.current = idx;
+            dragYAnim.setValue(0);
+            setDragging(idx);
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+          },
+          onPanResponderMove: Animated.event([null, { dy: dragYAnim }], {
+            useNativeDriver: false,
+          }),
+          onPanResponderRelease: (_, gs) => {
+            const from = fromIdxRef.current ?? idx;
+            const to = Math.max(
+              0,
+              Math.min(list.length - 1, Math.round(from + gs.dy / REORDER_ITEM_H)),
+            );
+            if (to !== from) {
+              setList(prev => {
+                const next = [...prev];
+                const [item] = next.splice(from, 1);
+                next.splice(to, 0, item!);
+                return next;
+              });
+            }
+            dragYAnim.setValue(0);
+            setDragging(null);
+            fromIdxRef.current = null;
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+          },
+        }),
+      ),
+    [list], // eslint-disable-line react-hooks/exhaustive-deps
+  );
+
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <View style={styles.reorderOverlay}>
+        <View style={styles.reorderSheet}>
+          <View style={styles.reorderHeader}>
+            <Text style={styles.reorderTitle}>Reorder Categories</Text>
+            <Text style={styles.reorderSub}>Hold and drag the handle to move</Text>
+          </View>
+
+          <View style={{ overflow: 'hidden' }}>
+            {list.map((cat, idx) => {
+              const isDraggingThis = dragging === idx;
+              const color = getDefaultCatColor(cat.slug, cat.color);
+              return (
+                <Animated.View
+                  key={cat.slug}
+                  style={[
+                    styles.reorderItem,
+                    isDraggingThis && styles.reorderItemDragging,
+                    isDraggingThis && { transform: [{ translateY: dragYAnim }], zIndex: 10 },
+                  ]}
+                >
+                  <View
+                    style={[styles.reorderColorDot, { backgroundColor: color }]}
+                  />
+                  <Text style={styles.reorderItemText}>{cat.name}</Text>
+                  <View
+                    style={styles.reorderHandle}
+                    {...(panResponders[idx]?.panHandlers ?? {})}
+                  >
+                    <Feather name="menu" size={20} color={MUTED} />
+                  </View>
+                </Animated.View>
+              );
+            })}
+          </View>
+
+          <View style={styles.reorderFooter}>
+            <Pressable style={styles.reorderCancelBtn} onPress={onClose}>
+              <Text style={styles.reorderCancelText}>Cancel</Text>
+            </Pressable>
+            <Pressable
+              style={styles.reorderSaveBtn}
+              onPress={() => {
+                onSave(list.map(c => c.slug));
+                onClose();
+              }}
+            >
+              <Text style={styles.reorderSaveText}>Save Order</Text>
+            </Pressable>
+          </View>
+        </View>
+      </View>
+    </Modal>
   );
 }
 
@@ -6011,6 +6209,32 @@ const styles = StyleSheet.create({
   voidEmptyText:        { fontSize: 14, color: MUTED, textAlign: 'center' },
   voidCancelBtn:        { alignItems: 'center', paddingVertical: 14, marginTop: 4 },
   voidCancelText:       { fontSize: 15, fontWeight: '600', color: MUTED },
+
+  // Category action sheet (long-press menu)
+  catActionSheet:       { backgroundColor: WHITE, borderRadius: 20, padding: 20, width: 260, shadowColor: '#000', shadowOpacity: 0.25, shadowRadius: 20, shadowOffset: { width: 0, height: 8 }, elevation: 10 },
+  catActionTitle:       { fontSize: 15, fontWeight: '700', color: DARK, textAlign: 'center', marginBottom: 16 },
+  catActionBtn:         { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 13, paddingHorizontal: 4 },
+  catActionBtnText:     { fontSize: 15, fontWeight: '600' },
+  catActionDivider:     { height: StyleSheet.hairlineWidth, backgroundColor: BORDER, marginVertical: 2 },
+  catActionCancel:      { marginTop: 12, alignItems: 'center', paddingVertical: 10, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: BORDER },
+  catActionCancelText:  { fontSize: 15, fontWeight: '600', color: MUTED },
+
+  // Reorder categories modal
+  reorderOverlay:       { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' },
+  reorderSheet:         { backgroundColor: WHITE, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingBottom: 32, shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 20, shadowOffset: { width: 0, height: -4 }, elevation: 12 },
+  reorderHeader:        { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: BORDER },
+  reorderTitle:         { fontSize: 17, fontWeight: '700', color: DARK, marginBottom: 2 },
+  reorderSub:           { fontSize: 13, color: MUTED },
+  reorderItem:          { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 20, height: REORDER_ITEM_H, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: BORDER, backgroundColor: WHITE },
+  reorderItemDragging:  { backgroundColor: '#F0F7FF', shadowColor: BLUE, shadowOpacity: 0.15, shadowRadius: 8, shadowOffset: { width: 0, height: 4 }, elevation: 6 },
+  reorderColorDot:      { width: 12, height: 12, borderRadius: 6 },
+  reorderItemText:      { flex: 1, fontSize: 15, fontWeight: '600', color: DARK },
+  reorderHandle:        { padding: 10 },
+  reorderFooter:        { flexDirection: 'row', gap: 10, paddingHorizontal: 20, paddingTop: 16 },
+  reorderCancelBtn:     { flex: 1, alignItems: 'center', paddingVertical: 14, borderRadius: 12, borderWidth: 1.5, borderColor: BORDER },
+  reorderCancelText:    { fontSize: 15, fontWeight: '600', color: MID },
+  reorderSaveBtn:       { flex: 1, alignItems: 'center', paddingVertical: 14, borderRadius: 12, backgroundColor: BLUE },
+  reorderSaveText:      { fontSize: 15, fontWeight: '700', color: WHITE },
 
 });
 
