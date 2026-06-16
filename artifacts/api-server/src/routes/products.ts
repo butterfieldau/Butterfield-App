@@ -322,6 +322,8 @@ router.get('/', async (_req, res) => {
 // ── GET /products/categories — active category list ────────────────────────
 // Returns ALL active categories (not filtered by showPublic) so the POS
 // always reflects the complete director-managed category set.
+// Uses a raw SQL fallback so optional columns (e.g. `color`) that may not
+// yet exist in production don't silently break the endpoint.
 router.get('/categories', async (_req, res) => {
   try {
     const { productCategoriesTable: catTable } = await import('@workspace/db');
@@ -330,7 +332,35 @@ router.get('/categories', async (_req, res) => {
       .orderBy(asc(catTable.sortOrder));
     return res.json({ data: cats });
   } catch {
-    return res.json({ data: [] });
+    // Fallback raw query — safe against schema drift where optional columns
+    // (like `color`) haven't yet been applied to the production database.
+    try {
+      const result = await db.execute(sql`
+        SELECT
+          id,
+          name,
+          slug,
+          description,
+          image_url            AS "imageUrl",
+          sort_order           AS "sortOrder",
+          is_active            AS "isActive",
+          show_public          AS "showPublic",
+          show_wholesale       AS "showWholesale",
+          COALESCE(is_pickup_available,  true)  AS "isPickupAvailable",
+          COALESCE(is_delivery_available, false) AS "isDeliveryAvailable",
+          COALESCE(show_on_home, false)          AS "showOnHome",
+          COALESCE(home_order, 0)                AS "homeOrder",
+          NULL::text                             AS color,
+          created_at           AS "createdAt",
+          updated_at           AS "updatedAt"
+        FROM product_categories
+        WHERE is_active = true
+        ORDER BY sort_order ASC
+      `);
+      return res.json({ data: result.rows ?? [] });
+    } catch {
+      return res.json({ data: [] });
+    }
   }
 });
 
