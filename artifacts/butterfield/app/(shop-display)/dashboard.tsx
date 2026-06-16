@@ -782,48 +782,6 @@ export default function DashboardScreen() {
               <StatCard label="Cancelled" valueCents={data.cancelledCents} icon="x-circle" color={RED} small />
             </View>
 
-            {/* ── Sales by Channel ──────────────────────────────────────── */}
-            <View style={styles.section}>
-              <View style={styles.sectionHeader}>
-                <View style={styles.sectionIconWrap}>
-                  <Feather name="layers" size={14} color={BLUE} />
-                </View>
-                <Text style={styles.sectionTitle}>Sales by Channel</Text>
-              </View>
-              <View style={styles.channelRow}>
-                <View style={styles.channelCard}>
-                  <View style={[styles.channelIconWrap, { backgroundColor: BLUE + '33', borderColor: BLUE + '55' }]}>
-                    <Feather name="shopping-bag" size={16} color={BLUE} />
-                  </View>
-                  <Text style={styles.channelLabel}>App Sales</Text>
-                  <Text style={styles.channelValue}>{fmtAUD(data.channelBreakdown.appCents)}</Text>
-                  <Text style={styles.channelPct}>
-                    {data.totalCents > 0 ? Math.round((data.channelBreakdown.appCents / data.totalCents) * 100) : 0}%
-                  </Text>
-                </View>
-                <View style={styles.channelCard}>
-                  <View style={[styles.channelIconWrap, { backgroundColor: CYAN + '33', borderColor: CYAN + '55' }]}>
-                    <Feather name="monitor" size={16} color={CYAN} />
-                  </View>
-                  <Text style={styles.channelLabel}>POS Sales</Text>
-                  <Text style={styles.channelValue}>{fmtAUD(data.channelBreakdown.posCents)}</Text>
-                  <Text style={styles.channelPct}>
-                    {data.totalCents > 0 ? Math.round((data.channelBreakdown.posCents / data.totalCents) * 100) : 0}%
-                  </Text>
-                </View>
-                <View style={styles.channelCard}>
-                  <View style={[styles.channelIconWrap, { backgroundColor: AMBER + '33', borderColor: AMBER + '55' }]}>
-                    <Feather name="truck" size={16} color={AMBER} />
-                  </View>
-                  <Text style={styles.channelLabel}>Wholesale</Text>
-                  <Text style={styles.channelValue}>{fmtAUD(data.channelBreakdown.wholesaleCents)}</Text>
-                  <Text style={styles.channelPct}>
-                    {data.totalCents > 0 ? Math.round((data.channelBreakdown.wholesaleCents / data.totalCents) * 100) : 0}%
-                  </Text>
-                </View>
-              </View>
-            </View>
-
             {/* ── Top Sellers ──────────────────────────────────────────── */}
             <View style={styles.section}>
               <View style={styles.sectionHeader}>
