@@ -225,6 +225,14 @@ export async function ensureRegisterSchemaReady() {
         VALUES (${REGISTER_AUTO_CLOSE_KEY}, ${DEFAULT_REGISTER_AUTO_CLOSE_ENABLED ? 'true' : 'false'})
         ON CONFLICT (key) DO NOTHING
       `);
+
+      await db.execute(sql`
+        UPDATE register_sessions
+        SET printed_at = now(), updated_at = now()
+        WHERE close_method = 'auto'
+          AND printed_at IS NULL
+          AND starting_float_cents IS NULL
+      `);
     })().catch((error) => {
       registerSchemaReady = null;
       throw error;
