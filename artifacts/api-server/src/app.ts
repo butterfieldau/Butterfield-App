@@ -7,7 +7,7 @@ import shareRouter from "./routes/share.js";
 import { logger } from "./lib/logger.js";
 import { WebhookHandlers } from "./webhookHandlers.js";
 import { startDailySummaryJob } from "./lib/dailySummaryJob.js";
-import { seedBirthdayCookieReward } from "./lib/birthdayRewardSeeder.js";
+import { seedBirthdayCookieReward, ensureRewardsIntegrity } from "./lib/birthdayRewardSeeder.js";
 
 const app: Express = express();
 
@@ -102,5 +102,6 @@ startDailySummaryJob();
 
 // Seed required reward rows idempotently on boot (non-blocking)
 void seedBirthdayCookieReward();
+void ensureRewardsIntegrity();
 
 export default app;

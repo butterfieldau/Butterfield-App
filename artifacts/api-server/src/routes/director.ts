@@ -2039,8 +2039,8 @@ router.post('/rewards', async (req, res) => {
   if (!b.name?.trim()) return res.status(400).json({ error: 'Reward name is required.' });
   if (typeof b.pointsCost !== 'number') return res.status(400).json({ error: 'pointsCost must be a number.' });
   const rewardType = b.rewardType ?? 'item_reward';
-  if (!['item_reward', 'money_voucher'].includes(rewardType)) {
-    return res.status(400).json({ error: 'rewardType must be item_reward or money_voucher.' });
+  if (!['item_reward', 'money_voucher', 'cookie_any'].includes(rewardType)) {
+    return res.status(400).json({ error: 'rewardType must be item_reward, money_voucher, or cookie_any.' });
   }
   if (rewardType === 'money_voucher' && (!b.voucherValueCents || typeof b.voucherValueCents !== 'number' || b.voucherValueCents < 1)) {
     return res.status(400).json({ error: 'money_voucher rewards require a voucherValueCents value.' });

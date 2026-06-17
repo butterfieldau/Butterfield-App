@@ -1255,7 +1255,7 @@ function RewardModal({ visible, reward, onClose, onSuccess }: {
   const [stock,             setStock]             = useState('');
   const [isAppOnly,         setIsAppOnly]         = useState(false);
   const [isActive,          setIsActive]          = useState(true);
-  const [rewardType,        setRewardType]        = useState<'item_reward' | 'money_voucher'>('item_reward');
+  const [rewardType,        setRewardType]        = useState<'item_reward' | 'money_voucher' | 'cookie_any'>('item_reward');
   const [voucherDollars,    setVoucherDollars]    = useState('');
   const [linkedProductId,   setLinkedProductId]   = useState('');
   const [customerRedeemable,setCustomerRedeemable]= useState(true);
@@ -1268,7 +1268,8 @@ function RewardModal({ visible, reward, onClose, onSuccess }: {
       setName(reward.name); setDesc(reward.description); setPts(String(reward.pointsCost));
       setCategory(reward.category); setStock(reward.stock != null ? String(reward.stock) : '');
       setIsAppOnly(reward.isAppOnly); setIsActive(reward.isActive);
-      setRewardType(reward.rewardType ?? 'item_reward');
+      const rt = reward.rewardType;
+      setRewardType(rt === 'money_voucher' ? 'money_voucher' : rt === 'cookie_any' ? 'cookie_any' : 'item_reward');
       setVoucherDollars(reward.voucherValueCents ? String(reward.voucherValueCents / 100) : '');
       setLinkedProductId(reward.linkedProductId ?? '');
       setCustomerRedeemable(reward.customerRedeemable !== false);
@@ -1345,19 +1346,25 @@ function RewardModal({ visible, reward, onClose, onSuccess }: {
           <View style={{ gap: 8 }}>
             <Text style={styles.fieldLabel}>Reward type *</Text>
             <View style={{ flexDirection: 'row', gap: 8 }}>
-              {(['item_reward', 'money_voucher'] as const).map(rt => (
+              {([
+                { value: 'item_reward',  label: 'Free item' },
+                { value: 'money_voucher', label: 'Money off' },
+                { value: 'cookie_any',   label: 'Free cookie' },
+              ] as const).map(({ value: rt, label }) => (
                 <Pressable key={rt} onPress={() => { setRewardType(rt); Haptics.selectionAsync(); }}
                   style={[styles.chip, { flex: 1, justifyContent: 'center', backgroundColor: rewardType === rt ? BLUE : '#F3F4F6', borderColor: rewardType === rt ? BLUE : BORDER }]}>
                   <Text style={[styles.chipText, { color: rewardType === rt ? '#fff' : TEXT }]}>
-                    {rt === 'item_reward' ? 'Free item' : 'Money voucher'}
+                    {label}
                   </Text>
                 </Pressable>
               ))}
             </View>
             <Text style={{ fontSize: 11, color: MUTED, lineHeight: 15 }}>
               {rewardType === 'money_voucher'
-                ? 'Deducts a dollar amount from the cart total at checkout.'
-                : 'Adds one free linked product to the customer\'s cart at checkout.'}
+                ? 'Deducts a fixed dollar amount from the cart total at checkout.'
+                : rewardType === 'cookie_any'
+                  ? 'Makes the cheapest cookie in the cart free. No linked product needed.'
+                  : 'Adds one free linked product to the customer\'s cart at checkout.'}
             </Text>
           </View>
 
@@ -1615,7 +1622,7 @@ export function RewardsTab() {
               <View style={styles.rewardMeta}>
                 <Text style={styles.rewardMetaText}>#{r.category}</Text>
                 <Text style={styles.rewardMetaText}>
-                  · {r.rewardType === 'money_voucher' ? `Voucher $${((r.voucherValueCents ?? 0) / 100).toFixed(2)}` : 'Free item'}
+                  · {r.rewardType === 'money_voucher' ? `Voucher $${((r.voucherValueCents ?? 0) / 100).toFixed(2)}` : r.rewardType === 'cookie_any' ? 'Free cookie' : r.rewardType === 'birthday_cookie' ? 'Birthday cookie' : 'Free item'}
                 </Text>
                 {r.isAppOnly     && <Text style={styles.rewardMetaText}>· App only</Text>}
                 {r.stock != null && <Text style={styles.rewardMetaText}>· Stock: {r.stock}</Text>}

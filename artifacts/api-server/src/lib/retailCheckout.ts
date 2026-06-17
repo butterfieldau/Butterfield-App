@@ -115,7 +115,7 @@ export async function prepareRetailCheckout(input: RetailCheckoutPreparationInpu
 
     if (rewardType === 'money_voucher') {
       claimedRewardDiscountCents = claimedRow.voucherValueCents ?? 0;
-    } else if (rewardType === 'birthday_cookie') {
+    } else if (rewardType === 'birthday_cookie' || rewardType === 'cookie_any') {
       // Apply 100% off the cheapest cookie in the cart (server-side pricing only)
       const productIds = [...new Set(items.map((i) => i.productId))];
       const products = productIds.length > 0

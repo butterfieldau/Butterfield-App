@@ -325,6 +325,14 @@ function PaymentStepWithStripe({
   }, [freeCoffeeRewards, hasCoffeeInCart]);
 
   const selectedClaimed = claimedRewards.find(c => c.id === selectedClaimedRewardId) ?? null;
+  const cheapestCookiePriceCents = useMemo(() => {
+    const cookieCategories = new Set(['cookies', 'cookie-frappes']);
+    const prices = cartItemsWithPrices
+      .filter((i) => cookieCategories.has(String((i as any).category ?? '').toLowerCase()))
+      .map((i) => i.unitPriceCents ?? 0);
+    return prices.length > 0 ? Math.min(...prices) : 0;
+  }, [cartItemsWithPrices]);
+
   const claimedRewardDiscountCents = useMemo(() => {
     if (!selectedClaimed) return 0;
     if (selectedClaimed.rewardType === 'money_voucher') return selectedClaimed.voucherValueCents ?? 0;
@@ -333,8 +341,12 @@ function PaymentStepWithStripe({
       const matchingItem = cartItemsWithPrices.find(i => i.productId === selectedClaimed.linkedProductId);
       return matchingItem ? matchingItem.unitPriceCents : 0;
     }
+    if (selectedClaimed.rewardType === 'cookie_any' || selectedClaimed.rewardType === 'birthday_cookie') {
+      // Free cheapest cookie — use client-side estimate for display only; server recomputes
+      return cheapestCookiePriceCents;
+    }
     return 0;
-  }, [selectedClaimed, cartItemsWithPrices]);
+  }, [selectedClaimed, cartItemsWithPrices, cheapestCookiePriceCents]);
 
   const discountCents = (discountApplied?.discountAmountCents ?? 0) + claimedRewardDiscountCents + cheapestCoffeePriceCents;
   const deliveryCents = orderType === 'delivery' ? DELIVERY_FEE_CENTS : 0;

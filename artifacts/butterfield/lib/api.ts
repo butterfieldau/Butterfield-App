@@ -1605,7 +1605,7 @@ export interface LoyaltyReward {
   pointsCost: number;
   type?: string;
   isActive: boolean;
-  rewardType?: 'item_reward' | 'money_voucher';
+  rewardType?: 'item_reward' | 'money_voucher' | 'cookie_any' | 'birthday_cookie';
   voucherValueCents?: number | null;
   linkedProductId?: string | null;
   customerRedeemable?: boolean;
@@ -1711,7 +1711,7 @@ export interface DirectorReward {
   expiresAt?: string | null;
   createdAt: string;
   deletedAt?: string | null;
-  rewardType: 'item_reward' | 'money_voucher';
+  rewardType: 'item_reward' | 'money_voucher' | 'cookie_any' | 'birthday_cookie';
   voucherValueCents?: number | null;
   linkedProductId?: string | null;
   customerRedeemable: boolean;
@@ -1733,7 +1733,7 @@ export interface ClaimedReward {
   expiresAt?: string | null;
   rewardName?: string;
   rewardDescription?: string;
-  rewardType?: 'item_reward' | 'money_voucher' | 'birthday_cookie';
+  rewardType?: 'item_reward' | 'money_voucher' | 'cookie_any' | 'birthday_cookie';
   linkedProductId?: string | null;
 }
 
