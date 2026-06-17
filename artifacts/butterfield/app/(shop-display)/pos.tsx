@@ -454,6 +454,12 @@ function PosScreenInner() {
   // both run (normal path), or when startup recovery resolves before createOrderMutation.
   const receiptPrintedRef = useRef<Set<string>>(new Set());
 
+  // ── Auto-print summary guard ──────────────────────────────────────────────
+  // Tracks which register session IDs have already been sent to the printer
+  // for the end-of-day summary. Prevents the 30-second poll from re-firing
+  // the effect with a new object reference for the same session ID.
+  const autoPrintedSessionsRef = useRef<Set<string>>(new Set());
+
   // ── Print status tracking ─────────────────────────────────────────────────
   // Maps orderId → print status for orders in the current session.
   // Stored in state so the warning icon re-renders when a print fails.
@@ -715,20 +721,18 @@ function PosScreenInner() {
     const pending = registerState?.pendingAutoPrintReport;
     const store = storeData as any;
     if (!pending || !store?.printerIp) return;
-    let cancelled = false;
+    if (autoPrintedSessionsRef.current.has(pending.id)) return;
+    autoPrintedSessionsRef.current.add(pending.id);
     (async () => {
       try {
         await printRegisterReport(pending);
-        if (!cancelled) {
-          await api.pos.markRegisterSummaryPrinted(pending.id);
-          refetchRegister();
-        }
+        await api.pos.markRegisterSummaryPrinted(pending.id);
+        refetchRegister();
       } catch {
-        // Keep the pending report so the user can print it manually if needed.
+        autoPrintedSessionsRef.current.delete(pending.id);
       }
     })();
-    return () => { cancelled = true; };
-  }, [printRegisterReport, refetchRegister, registerState?.pendingAutoPrintReport, storeData]);
+  }, [printRegisterReport, refetchRegister, registerState?.pendingAutoPrintReport?.id, storeData]);
 
   // ── Filtered products ─────────────────────────────────────────────────────
   const allProducts = useMemo(() => {

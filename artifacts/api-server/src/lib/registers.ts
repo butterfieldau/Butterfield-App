@@ -9,7 +9,7 @@ import {
   storesTable,
   storeSettingsTable,
 } from '@workspace/db';
-import { and, asc, desc, eq, isNull, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, isNotNull, isNull, sql } from 'drizzle-orm';
 
 const REGISTER_AUTO_CLOSE_KEY = 'auto_close_register_enabled';
 const DEFAULT_REGISTER_AUTO_CLOSE_ENABLED = true;
@@ -777,7 +777,11 @@ export async function markRegisterSummaryPrinted(sessionId: string) {
 export async function getPendingAutoPrintReport(userId: string) {
   await ensureRegisterSchemaReady();
   const context = await getRegisterContext(userId);
-  const conditions = [eq(registerSessionsTable.closeMethod, 'auto'), isNull(registerSessionsTable.printedAt)];
+  const conditions = [
+    eq(registerSessionsTable.closeMethod, 'auto'),
+    isNull(registerSessionsTable.printedAt),
+    isNotNull(registerSessionsTable.startingFloatCents),
+  ];
   if (context.storeId) conditions.push(eq(registerSessionsTable.storeId, context.storeId));
   else conditions.push(eq(registerSessionsTable.registerName, context.registerName));
   const [session] = await db
