@@ -362,6 +362,8 @@ export function buildOrderConfirmationEmail(opts: {
   items: Array<{ name: string; quantity: number; isFreeReward?: boolean; unitPriceCents?: number; lineCents?: number }>;
   totalCents: number;
   loyaltyPointsEarned: number;
+  rewardSavingsCents?: number | null;
+  rewardName?: string | null;
   orderType: 'pickup' | 'delivery';
   scheduledFor?: string | null;
   storeName?: string | null;
@@ -371,7 +373,8 @@ export function buildOrderConfirmationEmail(opts: {
 }): string {
   const {
     customerName, orderNumber, shortOrderId, items, totalCents,
-    loyaltyPointsEarned, orderType, scheduledFor, storeName, date, trackingUrl,
+    loyaltyPointsEarned, rewardSavingsCents, rewardName,
+    orderType, scheduledFor, storeName, date, trackingUrl,
     paymentMethodType,
   } = opts;
   const fmt = (cents: number) => `$${(cents / 100).toFixed(2)}`;
@@ -460,13 +463,26 @@ export function buildOrderConfirmationEmail(opts: {
         </tr>
 
         ${loyaltyPointsEarned > 0 ? `
-        <!-- Loyalty -->
+        <!-- Loyalty points earned -->
         <tr>
           <td style="padding:10px 40px 0;">
             <table width="100%" cellpadding="0" cellspacing="0" style="background:#EFF6FF;border-radius:10px;padding:12px 16px;">
               <tr>
                 <td style="font-size:13px;color:#1D4ED8;font-weight:600;">Points earned this order</td>
                 <td style="font-size:15px;color:#1D4ED8;font-weight:800;text-align:right;">+${loyaltyPointsEarned}</td>
+              </tr>
+            </table>
+          </td>
+        </tr>` : ''}
+
+        ${rewardSavingsCents && rewardSavingsCents > 0 ? `
+        <!-- Reward savings -->
+        <tr>
+          <td style="padding:8px 40px 0;">
+            <table width="100%" cellpadding="0" cellspacing="0" style="background:#F0FDF4;border-radius:10px;border:1px solid #BBF7D0;padding:12px 16px;">
+              <tr>
+                <td style="font-size:13px;color:#15803D;font-weight:600;">You saved with ${rewardName ?? 'your reward'}</td>
+                <td style="font-size:15px;color:#15803D;font-weight:800;text-align:right;">-${fmt(rewardSavingsCents)}</td>
               </tr>
             </table>
           </td>

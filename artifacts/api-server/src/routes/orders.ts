@@ -397,6 +397,17 @@ router.post('/', async (req, res) => {
     ).catch((err) => req.log.warn({ err, orderId }, 'Customer order notification failed'));
   }
 
+  // ── Compute reward savings for email / response ────────────────────────────
+  const emailRewardSavingsCents = claimedRewardDiscountCents > 0
+    ? claimedRewardDiscountCents
+    : birthdayCookieDiscountCents > 0
+      ? birthdayCookieDiscountCents
+      : freeCoffeeDiscountCents > 0
+        ? freeCoffeeDiscountCents
+        : 0;
+  const emailRewardName = claimedRewardData?.rewardName
+    ?? (freeCoffeeRewardUsed ? 'Free Coffee' : null);
+
   // ── Send order confirmation email ─────────────────────────────────────────
   void (async () => {
     try {
@@ -426,6 +437,8 @@ router.post('/', async (req, res) => {
           items: emailItems,
           totalCents: order.totalCents,
           loyaltyPointsEarned: order.loyaltyPointsEarned ?? 0,
+          rewardSavingsCents: emailRewardSavingsCents > 0 ? emailRewardSavingsCents : null,
+          rewardName: emailRewardName,
           orderType: order.type as 'pickup' | 'delivery',
           scheduledFor: order.scheduledFor ? order.scheduledFor.toISOString() : null,
           storeName: selectedStore?.name ?? null,
