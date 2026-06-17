@@ -79,13 +79,16 @@ router.post('/', async (req, res) => {
   let discountCodeAmountCents = 0;
   let validatedDiscountCodeId: string | null = null;
   let validatedDiscountCode: string | null = null;
-  let claimedRewardData: { id: string; rewardType: string; linkedProductId: string | null; voucherValueCents: number | null } | null = null;
+  let claimedRewardData: { id: string; rewardType: string; rewardName: string; linkedProductId: string | null; voucherValueCents: number | null } | null = null;
   let authorativeTotalCents = 0;
   let authorativeDiscountCents = 0;
   let computed: any;
   let resolvedOrderType: 'pickup' | 'delivery' = type === 'delivery' ? 'delivery' : 'pickup';
   let resolvedPaymentMethod: 'card' | 'pay_at_pickup' = paymentMethod === 'pay_at_pickup' ? 'pay_at_pickup' : 'card';
   let freeCoffeeRewardUsed = false;
+  let claimedRewardDiscountCents = 0;
+  let freeCoffeeDiscountCents = 0;
+  let birthdayCookieDiscountCents = 0;
   try {
     ({
       items,
@@ -100,6 +103,9 @@ router.post('/', async (req, res) => {
       authorativeDiscountCents,
       computed,
       freeCoffeeRewardUsed,
+      claimedRewardDiscountCents,
+      freeCoffeeDiscountCents,
+      birthdayCookieDiscountCents,
     } = await prepareRetailCheckout({
       userId: req.user!.id,
       userRole: req.user!.role,
@@ -441,7 +447,22 @@ router.post('/', async (req, res) => {
     }
   })();
 
-  return res.status(201).json({ data: order });
+  const rewardSavingsCents = claimedRewardDiscountCents > 0
+    ? claimedRewardDiscountCents
+    : birthdayCookieDiscountCents > 0
+      ? birthdayCookieDiscountCents
+      : freeCoffeeDiscountCents > 0
+        ? freeCoffeeDiscountCents
+        : 0;
+
+  const rewardName = claimedRewardData?.rewardName
+    ?? (freeCoffeeRewardUsed ? 'Free Coffee' : null);
+
+  return res.status(201).json({
+    data: order,
+    rewardSavingsCents: rewardSavingsCents > 0 ? rewardSavingsCents : undefined,
+    rewardName: rewardName ?? undefined,
+  });
 });
 
 // ── Status updates are restricted to staff and management roles ───────────

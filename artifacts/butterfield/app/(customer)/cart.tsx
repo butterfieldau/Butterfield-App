@@ -1078,6 +1078,8 @@ interface Confirmation {
   scheduledDateLabel?: string;
   paymentMethodType?: string;
   isScheduled?: boolean;
+  rewardSavingsCents?: number;
+  rewardName?: string;
 }
 
 type ConfettiPiece = {
@@ -1517,7 +1519,7 @@ function CartContent() {
       qc.invalidateQueries({ queryKey: ['loyalty-claimed-rewards'] });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       const serverTotal = order.data.totalCents ?? totalCents;
-      setConfirmation({ orderId: order.data.id, orderNumber: order.data.orderNumber, totalCents: serverTotal, type: orderType, scheduledLabel, scheduledDateLabel, paymentMethodType: opts.paymentMethodType, isScheduled: (order.data as any).status === 'scheduled' });
+      setConfirmation({ orderId: order.data.id, orderNumber: order.data.orderNumber, totalCents: serverTotal, type: orderType, scheduledLabel, scheduledDateLabel, paymentMethodType: opts.paymentMethodType, isScheduled: (order.data as any).status === 'scheduled', rewardSavingsCents: order.rewardSavingsCents, rewardName: order.rewardName });
     } catch (e: any) {
       Alert.alert('Order failed', e.message ?? 'Please try again.');
     } finally {
@@ -1637,6 +1639,18 @@ function CartContent() {
                     You earned <Text style={styles.successPointsInlineStrong}>+{earnedPoints} points</Text> from this order
                   </Text>
                 </View>
+                {!!confirmation.rewardSavingsCents && confirmation.rewardSavingsCents > 0 && (
+                  <View style={styles.successRewardSavings}>
+                    <Feather name="gift" size={15} color="#15803D" />
+                    <Text style={styles.successRewardSavingsText}>
+                      You saved{' '}
+                      <Text style={styles.successRewardSavingsStrong}>
+                        ${(confirmation.rewardSavingsCents / 100).toFixed(2)}
+                      </Text>
+                      {confirmation.rewardName ? ` with your ${confirmation.rewardName}` : ' with a loyalty reward'}
+                    </Text>
+                  </View>
+                )}
               </View>
               {confirmation.paymentMethodType !== 'pay_at_pickup' ? (
                 <>
@@ -2549,6 +2563,9 @@ const styles = StyleSheet.create({
   successPointsInline: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 2, marginBottom: 8 },
   successPointsInlineText: { fontSize: 14, fontWeight: '500', color: '#5B3A00', textAlign: 'center' },
   successPointsInlineStrong: { fontWeight: '800', color: '#8A4D00' },
+  successRewardSavings: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 4, marginBottom: 4, paddingHorizontal: 12, paddingVertical: 8, backgroundColor: '#DCFCE7', borderRadius: 10 },
+  successRewardSavingsText: { fontSize: 14, fontWeight: '500', color: '#15803D', textAlign: 'center', flexShrink: 1 },
+  successRewardSavingsStrong: { fontWeight: '800', color: '#166534' },
   returnHomeBtn: { alignSelf: 'stretch', backgroundColor: '#F61D22', borderRadius: 999, minHeight: 58, alignItems: 'center', justifyContent: 'center', marginTop: 24 },
   returnHomeBtnText: { color: '#FFFFFF', fontSize: 16, fontWeight: '700' },
   // Empty

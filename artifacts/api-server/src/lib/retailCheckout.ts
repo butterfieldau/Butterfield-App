@@ -25,6 +25,7 @@ export interface RetailCheckoutPreparationInput {
 export interface PreparedClaimedReward {
   id: string;
   rewardType: string;
+  rewardName: string;
   linkedProductId: string | null;
   voucherValueCents: number | null;
 }
@@ -223,6 +224,7 @@ export async function prepareRetailCheckout(input: RetailCheckoutPreparationInpu
     claimedRewardData = {
       id: claimedRow.id,
       rewardType,
+      rewardName,
       linkedProductId,
       voucherValueCents: claimedRow.voucherValueCents,
     };

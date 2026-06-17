@@ -128,7 +128,7 @@ export const api = {
       claimedRewardId?: string;
       storeId?: string;
       useFreeCoffeeReward?: boolean;
-    }) => request<{ data: ApiOrder }>('/orders', { method: 'POST', body: JSON.stringify(data) }),
+    }) => request<{ data: ApiOrder; rewardSavingsCents?: number; rewardName?: string }>('/orders', { method: 'POST', body: JSON.stringify(data) }),
     updateStatus: (id: string, status: string) =>
       request<{ data: ApiOrder }>(`/orders/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }),
   },
