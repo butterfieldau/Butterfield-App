@@ -1063,6 +1063,7 @@ interface Confirmation {
   totalCents: number;
   type: string;
   scheduledLabel?: string;
+  scheduledDateLabel?: string;
   paymentMethodType?: string;
   isScheduled?: boolean;
 }
@@ -1443,6 +1444,7 @@ function CartContent() {
     try {
       let scheduledForDate: Date | undefined;
       let scheduledLabel: string | undefined;
+      let scheduledDateLabel: string | undefined;
       if (orderType === 'pickup') {
         if (pickupMode === 'asap') {
           scheduledLabel = 'Pickup: Within 10 minutes';
@@ -1450,11 +1452,15 @@ function CartContent() {
           const d = new Date(selectedDate);
           d.setHours(Math.floor(selectedTimeMins / 60), selectedTimeMins % 60, 0, 0);
           scheduledForDate = d;
-          scheduledLabel = `Pickup ${formatDateChip(sydNow, selectedDate)}, ${formatPickupMins(selectedTimeMins)}`;
+          const dateTimePart = `${formatDateChip(sydNow, selectedDate)}, ${formatPickupMins(selectedTimeMins)}`;
+          scheduledLabel = `Pickup ${dateTimePart}`;
+          scheduledDateLabel = dateTimePart;
         }
       } else if (orderType === 'delivery' && selectedDate) {
         scheduledForDate = selectedDate;
-        scheduledLabel = `Delivery on ${selectedDate.toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long' })}`;
+        const datePart = selectedDate.toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long' });
+        scheduledLabel = `Delivery on ${datePart}`;
+        scheduledDateLabel = datePart;
       }
       const aptPart = apt.trim() ? `${apt.trim()}/` : '';
       const deliveryAddress = orderType === 'delivery'
@@ -1499,7 +1505,7 @@ function CartContent() {
       qc.invalidateQueries({ queryKey: ['loyalty-claimed-rewards'] });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       const serverTotal = order.data.totalCents ?? totalCents;
-      setConfirmation({ orderId: order.data.id, orderNumber: order.data.orderNumber, totalCents: serverTotal, type: orderType, scheduledLabel, paymentMethodType: opts.paymentMethodType, isScheduled: (order.data as any).status === 'scheduled' });
+      setConfirmation({ orderId: order.data.id, orderNumber: order.data.orderNumber, totalCents: serverTotal, type: orderType, scheduledLabel, scheduledDateLabel, paymentMethodType: opts.paymentMethodType, isScheduled: (order.data as any).status === 'scheduled' });
     } catch (e: any) {
       Alert.alert('Order failed', e.message ?? 'Please try again.');
     } finally {
@@ -1569,7 +1575,14 @@ function CartContent() {
                   </Text>
                   <Text style={styles.successDescription}>
                     {confirmation.isScheduled
-                      ? `Your order has been placed and is awaiting confirmation for ${confirmation.scheduledLabel?.replace('Delivery on ', '') ?? 'your selected delivery date'}. You'll receive a push notification once confirmed.`
+                      ? (() => {
+                          const isPickup = confirmation.type === 'pickup';
+                          const slotKind = isPickup ? 'pickup slot' : 'delivery';
+                          const dateStr = confirmation.scheduledDateLabel
+                            ? ` on ${confirmation.scheduledDateLabel}`
+                            : '';
+                          return `Your order has been placed and is awaiting confirmation for your ${slotKind}${dateStr}. You'll receive a push notification once confirmed.`;
+                        })()
                       : confirmation.paymentMethodType === 'pay_at_pickup'
                         ? 'Your order is locked in. Please pay at the counter — check My Orders for live status updates.'
                         : 'Your order is being prepared. Tap Track My Order below to follow its live status.'}
