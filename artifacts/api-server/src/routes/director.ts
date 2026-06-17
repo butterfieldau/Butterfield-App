@@ -391,7 +391,7 @@ router.get('/stats/hourly-revenue', async (req, res) => {
 
     const result = await db.execute(sql`
       SELECT
-        EXTRACT(HOUR FROM created_at AT TIME ZONE 'Australia/Sydney')::int AS hour,
+        EXTRACT(HOUR FROM created_at::timestamptz AT TIME ZONE 'Australia/Sydney')::int AS hour,
         COALESCE(SUM(total_cents), 0)::bigint AS revenue_cents
       FROM orders
       WHERE created_at >= ${startOfDay}

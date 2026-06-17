@@ -130,7 +130,7 @@ export async function computeDailySummary(dateStr: string, storeId = ''): Promis
   // Hourly totals (Sydney-local hour bucket)
   const hourlyResult = await db.execute(sql`
     SELECT
-      EXTRACT(HOUR FROM (created_at AT TIME ZONE 'Australia/Sydney'))::int AS syd_hour,
+      EXTRACT(HOUR FROM (created_at::timestamptz AT TIME ZONE 'Australia/Sydney'))::int AS syd_hour,
       COALESCE(SUM(total_cents), 0)::int AS hour_cents
     FROM orders
     WHERE source = 'pos'
