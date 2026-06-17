@@ -99,6 +99,7 @@ import {
   saveLinklyConfig,
   startPurchaseTransaction,
   startRefundTransaction,
+  subscribeToLinklyTransaction,
 } from '../lib/linklyCloud.js';
 
 const router = Router();
@@ -1934,6 +1935,96 @@ router.post('/linkly/transaction', async (req, res) => {
     req.log.error({ err }, 'POS Linkly transaction initiation error');
     return res.status(400).json({ error: err.message ?? 'Could not reach Linkly Cloud.' });
   }
+});
+
+// ── Shared helper: build the Linkly result payload for both SSE and poll ─────
+function buildLinklyResultPayload(status: any) {
+  return {
+    sessionId: status.sessionId,
+    txnRef: status.txnRef,
+    status: status.status,
+    responseCode: status.responseCode,
+    responseText: status.responseText,
+    approved: status.success,
+    complete: status.complete,
+    amountSurchargeCents: status.amountSurchargeCents,
+    authCode: status.authCode,
+    rrn: status.rrn,
+    stan: status.stan,
+    catid: status.catid,
+    caid: status.caid,
+    rfn: status.rfn,
+    ref: status.ref,
+    receiptText: status.receiptText ?? null,
+  };
+}
+
+// ── GET /pos/linkly/transaction/:sessionId/stream — SSE push for EFTPOS ──────
+// Opens an SSE stream that resolves the instant Linkly's webhook fires. Falls
+// back automatically on the client if the stream drops (1-second poll safety net).
+// Closes after the first completion event or a 90-second timeout.
+router.get('/linkly/transaction/:sessionId/stream', async (req, res) => {
+  await ensurePosSchemaReady();
+  const { sessionId } = req.params;
+
+  const binding = posActiveSessions.get(sessionId);
+  if (!binding) return res.status(404).json({ error: 'Session not found or expired.' });
+  if (binding.deviceUserId !== req.user!.id) return res.status(403).json({ error: 'Session belongs to a different device.' });
+
+  // If already complete, send the result immediately without holding a connection open
+  const existing = await getStoredLinklyTransaction(sessionId);
+  if (existing?.complete) {
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no');
+    res.flushHeaders();
+    res.write(`data: ${JSON.stringify(buildLinklyResultPayload(existing))}\n\n`);
+    posActiveSessions.delete(sessionId);
+    res.end();
+    return;
+  }
+
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no');
+  res.flushHeaders();
+
+  let unsubscribe: (() => void) | null = null;
+  let done = false;
+
+  const heartbeat = setInterval(() => {
+    try { res.write(': heartbeat\n\n'); } catch {}
+  }, 20_000);
+
+  const cleanup = () => {
+    if (done) return;
+    done = true;
+    clearInterval(heartbeat);
+    clearTimeout(streamTimeout);
+    if (unsubscribe) { unsubscribe(); unsubscribe = null; }
+  };
+
+  const streamTimeout = setTimeout(() => {
+    cleanup();
+    try {
+      res.write(`event: timeout\ndata: ${JSON.stringify({ status: 'timeout' })}\n\n`);
+      res.end();
+    } catch {}
+  }, 90_000);
+
+  unsubscribe = subscribeToLinklyTransaction(sessionId, (result) => {
+    cleanup();
+    try {
+      res.write(`data: ${JSON.stringify(buildLinklyResultPayload(result))}\n\n`);
+      posActiveSessions.delete(sessionId);
+      res.end();
+    } catch {}
+  });
+
+  req.on('close', cleanup);
+  return;
 });
 
 // ── GET /pos/linkly/:sessionId — poll Linkly transaction status ───────────

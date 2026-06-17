@@ -1,7 +1,28 @@
 import { createCipheriv, createDecipheriv, createHash, randomBytes, randomUUID } from 'crypto';
+import { EventEmitter } from 'events';
 import { db } from '@workspace/db';
 import { sql } from 'drizzle-orm';
 import { logger } from './logger.js';
+
+// ── In-process event bus for real-time Linkly completion notifications ────────
+// The Linkly webhook handler fires emitLinklyTransactionResult() the moment a
+// transaction completes. The SSE endpoint subscribes via subscribeToLinklyTransaction()
+// so the POS client is notified in <200ms instead of waiting for the next poll.
+const linklyTxnEmitter = new EventEmitter();
+linklyTxnEmitter.setMaxListeners(200);
+
+export function subscribeToLinklyTransaction(
+  sessionId: string,
+  callback: (result: LinklyTransactionRecord) => void,
+): () => void {
+  const event = `txn:${sessionId}`;
+  linklyTxnEmitter.once(event, callback);
+  return () => linklyTxnEmitter.removeListener(event, callback);
+}
+
+export function emitLinklyTransactionResult(result: LinklyTransactionRecord): void {
+  linklyTxnEmitter.emit(`txn:${result.sessionId}`, result);
+}
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -795,6 +816,9 @@ export async function handleLinklyTransactionNotification(sessionId: string, pay
     payload,
   );
   await upsertTransaction(userId, parsed);
+  if (parsed.complete) {
+    emitLinklyTransactionResult(parsed);
+  }
   return parsed;
 }
 

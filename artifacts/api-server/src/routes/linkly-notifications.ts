@@ -13,6 +13,7 @@ router.post('/notifications/:sessionId', async (req, res) => {
         handled: Boolean(result),
         status: result?.status,
         responseCode: result?.responseCode,
+        complete: result?.complete,
       },
       'Linkly transaction notification received',
     );
