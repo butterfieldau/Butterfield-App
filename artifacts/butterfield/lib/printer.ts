@@ -157,9 +157,16 @@ export async function sendTestPrint(printerIp: string, printerPort = 9100, print
 }
 
 export async function sendReceiptPrint(job: PrintJob, printerIp: string, printerPort = 9100, fetchBytes: BytesFetcher = api.director.printerBytes): Promise<void> {
-  await sendPrinterBytes(printerIp, printerPort, await fetchBytes(job));
+  const isStarDrawerJob = job.printerBrand === 'star' && job.autoDrawer;
+  const printJob = isStarDrawerJob ? { ...job, autoDrawer: false } : job;
+  await sendPrinterBytes(printerIp, printerPort, await fetchBytes(printJob));
   if (job.printerBrand === 'star' && job.autoDrawer) {
-    await tryOpenDrawerWithStarSdk(printerIp, job.drawerPin ?? 0);
+    const openedWithSdk = await tryOpenDrawerWithStarSdk(printerIp, job.drawerPin ?? 0);
+    if (!openedWithSdk) {
+      throw new Error(
+        'Star drawer command did not complete. Make sure this app build includes the Star SDK and the drawer is connected to the printer.',
+      );
+    }
   }
 }
 
@@ -179,6 +186,9 @@ export async function sendOpenDrawer(printerIp: string, printerPort = 9100, fetc
   if (printerBrand === 'star') {
     const openedWithSdk = await tryOpenDrawerWithStarSdk(printerIp, drawerPin);
     if (openedWithSdk) return;
+    throw new Error(
+      'Star drawer command did not complete. Make sure this app build includes the Star SDK and the drawer is connected to the printer.',
+    );
   }
   return sendPrinterBytes(printerIp, printerPort, await fetchBytes({ jobType: 'open_drawer', drawerPin, printerBrand }));
 }
