@@ -31,6 +31,9 @@ export const loyaltyRewardsTable = pgTable("loyalty_rewards", {
   staffRedeemable: boolean("staff_redeemable").notNull().default(false),
   customerRedeemable: boolean("customer_redeemable").notNull().default(true),
   claimExpiryDays: integer("claim_expiry_days"),
+  tierRestriction: text("tier_restriction"),
+  minOrderValueCents: integer("min_order_value_cents"),
+  autoGrantPointsThreshold: integer("auto_grant_points_threshold"),
 });
 
 export const loyaltyRedemptionsTable = pgTable("loyalty_redemptions", {

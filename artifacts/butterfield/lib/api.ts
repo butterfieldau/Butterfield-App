@@ -1436,6 +1436,7 @@ export interface LoyaltyProfile {
   freeCoffeesEarned?: number;
   loyaltyTierSettings?: LoyaltyTierSettings;
   birthdayRewardGranted?: boolean;
+  autoGrantedRewards?: string[];
 }
 
 export type LoyaltyTierKey = 'blue' | 'silver' | 'gold' | 'black';
@@ -1611,6 +1612,9 @@ export interface LoyaltyReward {
   customerRedeemable?: boolean;
   staffRedeemable?: boolean;
   stock?: number | null;
+  tierRestriction?: string | null;
+  minOrderValueCents?: number | null;
+  autoGrantPointsThreshold?: number | null;
 }
 
 export interface SavedAddress {
@@ -1718,6 +1722,9 @@ export interface DirectorReward {
   staffRedeemable: boolean;
   claimCount?: number;
   claimExpiryDays?: number | null;
+  tierRestriction?: string | null;
+  minOrderValueCents?: number | null;
+  autoGrantPointsThreshold?: number | null;
 }
 
 export interface ClaimedReward {

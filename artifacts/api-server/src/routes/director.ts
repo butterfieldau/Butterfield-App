@@ -2039,8 +2039,8 @@ router.post('/rewards', async (req, res) => {
   if (!b.name?.trim()) return res.status(400).json({ error: 'Reward name is required.' });
   if (typeof b.pointsCost !== 'number') return res.status(400).json({ error: 'pointsCost must be a number.' });
   const rewardType = b.rewardType ?? 'item_reward';
-  if (!['item_reward', 'money_voucher', 'cookie_any'].includes(rewardType)) {
-    return res.status(400).json({ error: 'rewardType must be item_reward, money_voucher, or cookie_any.' });
+  if (!['item_reward', 'money_voucher', 'cookie_any', 'birthday_cookie'].includes(rewardType)) {
+    return res.status(400).json({ error: 'rewardType must be item_reward, money_voucher, cookie_any, or birthday_cookie.' });
   }
   if (rewardType === 'money_voucher' && (!b.voucherValueCents || typeof b.voucherValueCents !== 'number' || b.voucherValueCents < 1)) {
     return res.status(400).json({ error: 'money_voucher rewards require a voucherValueCents value.' });
@@ -2065,6 +2065,9 @@ router.post('/rewards', async (req, res) => {
     customerRedeemable: b.customerRedeemable !== false,
     staffRedeemable:  b.staffRedeemable === true,
     claimExpiryDays,
+    tierRestriction: b.tierRestriction != null ? String(b.tierRestriction) : null,
+    minOrderValueCents: b.minOrderValueCents != null ? Math.round(Number(b.minOrderValueCents)) : null,
+    autoGrantPointsThreshold: b.autoGrantPointsThreshold != null ? Math.round(Number(b.autoGrantPointsThreshold)) : null,
   }).returning();
   return res.status(201).json({ data: reward });
 });
@@ -2072,7 +2075,8 @@ router.post('/rewards', async (req, res) => {
 router.patch('/rewards/:id', async (req, res) => {
   const b = req.body ?? {};
   const allowed = ['name','description','pointsCost','category','imageUrl','isActive','isAppOnly','stock',
-    'rewardType','voucherValueCents','linkedProductId','customerRedeemable','staffRedeemable'];
+    'rewardType','voucherValueCents','linkedProductId','customerRedeemable','staffRedeemable',
+    'tierRestriction','minOrderValueCents','autoGrantPointsThreshold'];
   const updates: Record<string, any> = {};
   for (const k of allowed) if (b[k] !== undefined) updates[k] = b[k];
   if (b.expiresAt !== undefined) updates.expiresAt = b.expiresAt ? new Date(b.expiresAt) : null;

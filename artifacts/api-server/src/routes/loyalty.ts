@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { randomUUID } from 'crypto';
 import { db, loyaltyRewardsTable, loyaltyRedemptionsTable, loyaltyTransactionsTable, customerProfilesTable, loyaltyActivityLogTable, usersTable, claimedRewardsTable } from '@workspace/db';
-import { eq, desc, and, isNull, sql, inArray, gte } from 'drizzle-orm';
+import { eq, desc, and, isNull, sql, inArray, gte, lte, isNotNull } from 'drizzle-orm';
 import { requireAuth, requireRole } from '../middlewares/auth.js';
 import { requireManagerPermission } from '../middlewares/managerPermission.js';
 import {
@@ -79,6 +79,54 @@ router.get('/profile', requireAuth, async (req, res) => {
   }
   // ─────────────────────────────────────────────────────────────────────────
 
+  // ── Auto-grant milestone rewards (points threshold) ───────────────────────
+  const autoGrantedRewards: string[] = [];
+  const currentPoints = profile.loyaltyPoints ?? 0;
+  if (currentPoints > 0) {
+    const thresholdRewards = await db.select()
+      .from(loyaltyRewardsTable)
+      .where(and(
+        isNull(loyaltyRewardsTable.deletedAt),
+        eq(loyaltyRewardsTable.isActive, true),
+        isNotNull(loyaltyRewardsTable.autoGrantPointsThreshold),
+        lte(loyaltyRewardsTable.autoGrantPointsThreshold, currentPoints),
+      ));
+    for (const tr of thresholdRewards) {
+      const [alreadyGranted] = await db
+        .select({ id: claimedRewardsTable.id })
+        .from(claimedRewardsTable)
+        .where(and(
+          eq(claimedRewardsTable.userId, req.user!.id),
+          eq(claimedRewardsTable.rewardId, tr.id),
+        ))
+        .limit(1);
+      if (!alreadyGranted) {
+        const expiryDays = typeof tr.claimExpiryDays === 'number' && tr.claimExpiryDays > 0
+          ? tr.claimExpiryDays : 30;
+        await db.insert(claimedRewardsTable).values({
+          id: randomUUID(),
+          userId: req.user!.id,
+          rewardId: tr.id,
+          status: 'available',
+          pointsSpent: 0,
+          voucherValueCents: tr.voucherValueCents ?? null,
+          expiresAt: new Date(Date.now() + expiryDays * 24 * 60 * 60 * 1000),
+        });
+        await db.insert(loyaltyActivityLogTable).values({
+          id: randomUUID(),
+          customerId: req.user!.id,
+          activityType: 'milestone_reward',
+          pointsDelta: 0,
+          coffeeStampsDelta: 0,
+          freeCoffeeRewardsDelta: 0,
+          description: `🎁 Milestone unlocked: ${tr.name}`,
+        });
+        autoGrantedRewards.push(tr.name);
+      }
+    }
+  }
+  // ─────────────────────────────────────────────────────────────────────────
+
   if (correctTier !== profile.loyaltyTier) {
     await db.update(customerProfilesTable)
       .set({ loyaltyTier: correctTier })
@@ -103,6 +151,7 @@ router.get('/profile', requireAuth, async (req, res) => {
         loyaltyTierSettings,
         recentActivity,
         birthdayRewardGranted,
+        autoGrantedRewards,
       },
     });
   }
@@ -127,6 +176,7 @@ router.get('/profile', requireAuth, async (req, res) => {
       loyaltyTierSettings,
       recentActivity,
       birthdayRewardGranted,
+      autoGrantedRewards,
     },
   });
 });
@@ -351,6 +401,20 @@ router.post('/redeem', requireAuth, async (req, res) => {
   const profile = await getOrCreateCustomerLoyaltyProfile(req.user!.id, req.user!.name);
   if (profile.loyaltyPoints < reward.pointsCost) {
     return res.status(400).json({ error: 'Not enough points' });
+  }
+
+  // Check tier restriction — ensure customer's loyalty tier is in the allowed list
+  if (reward.tierRestriction) {
+    try {
+      const allowedTiers: string[] = JSON.parse(reward.tierRestriction);
+      const customerTier = profile.loyaltyTier ?? 'blue';
+      if (allowedTiers.length > 0 && !allowedTiers.includes(customerTier)) {
+        const tierLabels: Record<string, string> = { blue: 'Blue', silver: 'Silver', gold: 'Gold', black: 'Black' };
+        return res.status(403).json({
+          error: `This reward is only available for ${allowedTiers.map(t => tierLabels[t] ?? t).join(' / ')} members`,
+        });
+      }
+    } catch { /* invalid JSON — allow claim */ }
   }
 
   // ── Truly atomic claim: points + stock + row creation in a single DB transaction ──

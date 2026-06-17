@@ -1202,12 +1202,17 @@ function StoreHoursSection() {
 
 // ─── Product Picker (used inside RewardModal for item rewards) ────────────────
 function ProductPicker({ selectedId, onSelect }: { selectedId: string; onSelect: (id: string) => void }) {
+  const [search, setSearch] = useState('');
   const { data, isLoading } = useQuery({
     queryKey: ['director-products-picker'],
     queryFn:  () => api.director.products(),
     staleTime: 60_000,
   });
   const products: DirectorProduct[] = (data?.data ?? []).filter((p: DirectorProduct) => p.isActive);
+  const filtered = search.trim()
+    ? products.filter(p => p.name.toLowerCase().includes(search.toLowerCase().trim()))
+    : products;
+  const selectedProduct = products.find(p => p.id === selectedId);
 
   return (
     <View style={{ gap: 6 }}>
@@ -1215,29 +1220,49 @@ function ProductPicker({ selectedId, onSelect }: { selectedId: string; onSelect:
       {isLoading ? (
         <ActivityIndicator color={BLUE} size="small" style={{ alignSelf: 'flex-start' }} />
       ) : (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
-          <Pressable
-            onPress={() => { onSelect(''); Haptics.selectionAsync(); }}
-            style={[styles.chip, {
-              backgroundColor: !selectedId ? BLUE : '#F3F4F6',
-              borderColor: !selectedId ? BLUE : BORDER,
-            }]}>
-            <Text style={[styles.chipText, { color: !selectedId ? '#fff' : TEXT }]}>None</Text>
-          </Pressable>
-          {products.map((p: DirectorProduct) => (
-            <Pressable
-              key={p.id}
-              onPress={() => { onSelect(p.id); Haptics.selectionAsync(); }}
-              style={[styles.chip, {
-                backgroundColor: selectedId === p.id ? BLUE : '#F3F4F6',
-                borderColor: selectedId === p.id ? BLUE : BORDER,
-              }]}>
-              <Text style={[styles.chipText, { color: selectedId === p.id ? '#fff' : TEXT }]} numberOfLines={1}>
-                {p.name}
-              </Text>
-            </Pressable>
-          ))}
-        </ScrollView>
+        <>
+          <TextInput
+            style={[styles.input, { borderColor: BORDER, color: TEXT }]}
+            value={search}
+            onChangeText={setSearch}
+            placeholder="Search products…"
+            placeholderTextColor={MUTED}
+          />
+          {selectedProduct && (
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 4 }}>
+              <Text style={{ fontSize: 12, color: MUTED }}>Selected:</Text>
+              <View style={[styles.chip, { backgroundColor: BLUE, borderColor: BLUE }]}>
+                <Text style={[styles.chipText, { color: '#fff' }]} numberOfLines={1}>{selectedProduct.name}</Text>
+              </View>
+              <Pressable onPress={() => { onSelect(''); Haptics.selectionAsync(); }}>
+                <Text style={{ fontSize: 12, color: RED }}>Clear</Text>
+              </Pressable>
+            </View>
+          )}
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+            {!selectedId && (
+              <View style={[styles.chip, { backgroundColor: '#F3F4F6', borderColor: BORDER }]}>
+                <Text style={[styles.chipText, { color: MUTED }]}>None selected</Text>
+              </View>
+            )}
+            {filtered.map((p: DirectorProduct) => (
+              <Pressable
+                key={p.id}
+                onPress={() => { onSelect(selectedId === p.id ? '' : p.id); Haptics.selectionAsync(); }}
+                style={[styles.chip, {
+                  backgroundColor: selectedId === p.id ? BLUE : '#F3F4F6',
+                  borderColor: selectedId === p.id ? BLUE : BORDER,
+                }]}>
+                <Text style={[styles.chipText, { color: selectedId === p.id ? '#fff' : TEXT }]} numberOfLines={1}>
+                  {p.name}
+                </Text>
+              </Pressable>
+            ))}
+            {filtered.length === 0 && search.trim() && (
+              <Text style={{ fontSize: 12, color: MUTED, paddingVertical: 4 }}>No products match "{search}"</Text>
+            )}
+          </View>
+        </>
       )}
       <Text style={{ fontSize: 11, color: MUTED }}>Select the product that will be added free to the customer's cart.</Text>
     </View>
@@ -1260,6 +1285,9 @@ function RewardModal({ visible, reward, onClose, onSuccess }: {
   const [linkedProductId,   setLinkedProductId]   = useState('');
   const [customerRedeemable,setCustomerRedeemable]= useState(true);
   const [claimExpiryDays,   setClaimExpiryDays]   = useState('');
+  const [tierRestriction,   setTierRestriction]   = useState<string[]>([]);
+  const [minOrderDollars,   setMinOrderDollars]   = useState('');
+  const [autoGrantThreshold,setAutoGrantThreshold]= useState('');
   const [loading,           setLoading]           = useState(false);
   const [error,             setError]             = useState('');
 
@@ -1274,11 +1302,17 @@ function RewardModal({ visible, reward, onClose, onSuccess }: {
       setLinkedProductId(reward.linkedProductId ?? '');
       setCustomerRedeemable(reward.customerRedeemable !== false);
       setClaimExpiryDays(reward.claimExpiryDays != null ? String(reward.claimExpiryDays) : '');
+      try {
+        const tiers = reward.tierRestriction ? JSON.parse(reward.tierRestriction) : [];
+        setTierRestriction(Array.isArray(tiers) ? tiers : []);
+      } catch { setTierRestriction([]); }
+      setMinOrderDollars(reward.minOrderValueCents ? String(reward.minOrderValueCents / 100) : '');
+      setAutoGrantThreshold(reward.autoGrantPointsThreshold ? String(reward.autoGrantPointsThreshold) : '');
     } else {
       setName(''); setDesc(''); setPts(''); setCategory('food'); setStock('');
       setIsAppOnly(false); setIsActive(true); setRewardType('item_reward');
       setVoucherDollars(''); setLinkedProductId(''); setCustomerRedeemable(true);
-      setClaimExpiryDays('');
+      setClaimExpiryDays(''); setTierRestriction([]); setMinOrderDollars(''); setAutoGrantThreshold('');
     }
     setError('');
   }, [reward, visible]);
@@ -1299,20 +1333,10 @@ function RewardModal({ visible, reward, onClose, onSuccess }: {
         ? Math.round(parseFloat(voucherDollars) * 100)
         : null;
       const parsedExpiryDays = claimExpiryDays.trim() ? parseInt(claimExpiryDays.trim(), 10) : null;
-      const payload: {
-        name: string;
-        description: string;
-        pointsCost: number;
-        category: string;
-        stock: number | null;
-        isAppOnly: boolean;
-        isActive: boolean;
-        rewardType: RewardType;
-        voucherValueCents: number | null;
-        linkedProductId: string | null;
-        customerRedeemable: boolean;
-        claimExpiryDays: number | null;
-      } = {
+      const minOrderValueCents = minOrderDollars.trim() ? Math.round(parseFloat(minOrderDollars) * 100) : null;
+      const autoGrantPointsThreshold = autoGrantThreshold.trim() ? parseInt(autoGrantThreshold.trim(), 10) : null;
+      const tierRestrictionJson = tierRestriction.length > 0 ? JSON.stringify(tierRestriction) : null;
+      const payload = {
         name: name.trim(), description: desc.trim(), pointsCost, category,
         stock: stock ? parseInt(stock, 10) : null, isAppOnly, isActive,
         rewardType,
@@ -1320,6 +1344,9 @@ function RewardModal({ visible, reward, onClose, onSuccess }: {
         linkedProductId: linkedProductId.trim() || null,
         customerRedeemable,
         claimExpiryDays: parsedExpiryDays && parsedExpiryDays > 0 ? parsedExpiryDays : null,
+        tierRestriction: tierRestrictionJson,
+        minOrderValueCents: minOrderValueCents && minOrderValueCents > 0 ? minOrderValueCents : null,
+        autoGrantPointsThreshold: autoGrantPointsThreshold && autoGrantPointsThreshold > 0 ? autoGrantPointsThreshold : null,
       };
       if (reward?.id) await api.director.updateReward(reward.id, payload);
       else            await api.director.createReward(payload);
@@ -1425,6 +1452,48 @@ function RewardModal({ visible, reward, onClose, onSuccess }: {
               How many days after claiming before the reward expires and points are restored. Default is 30 days.
             </Text>
           </View>
+
+          <View style={{ gap: 8 }}>
+            <Text style={styles.fieldLabel}>Tier restriction (leave empty = all tiers)</Text>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+              {(['blue', 'silver', 'gold', 'black'] as const).map(tier => {
+                const labels: Record<string, string> = { blue: 'Blue', silver: 'Silver', gold: 'Gold', black: 'Black' };
+                const selected = tierRestriction.includes(tier);
+                return (
+                  <Pressable key={tier} onPress={() => {
+                    Haptics.selectionAsync();
+                    setTierRestriction(prev => selected ? prev.filter(t => t !== tier) : [...prev, tier]);
+                  }} style={[styles.chip, { backgroundColor: selected ? BLUE : '#F3F4F6', borderColor: selected ? BLUE : BORDER }]}>
+                    <Text style={[styles.chipText, { color: selected ? '#fff' : TEXT }]}>{labels[tier]}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+            <Text style={{ fontSize: 11, color: MUTED, lineHeight: 15 }}>
+              Only selected tier members can claim this reward. Leave empty to allow all tiers.
+            </Text>
+          </View>
+
+          <View style={{ gap: 6 }}>
+            <Text style={styles.fieldLabel}>Minimum order value (AUD, optional)</Text>
+            <TextInput style={[styles.input, { borderColor: BORDER, color: TEXT }]} value={minOrderDollars}
+              onChangeText={setMinOrderDollars} keyboardType="decimal-pad" placeholder="e.g. 20.00"
+              placeholderTextColor={MUTED} />
+            <Text style={{ fontSize: 11, color: MUTED, lineHeight: 15 }}>
+              Cart subtotal must reach this amount before the reward can be applied at checkout.
+            </Text>
+          </View>
+
+          <View style={{ gap: 6 }}>
+            <Text style={styles.fieldLabel}>Auto-grant points threshold (optional)</Text>
+            <TextInput style={[styles.input, { borderColor: BORDER, color: TEXT }]} value={autoGrantThreshold}
+              onChangeText={setAutoGrantThreshold} keyboardType="number-pad" placeholder="e.g. 1000"
+              placeholderTextColor={MUTED} />
+            <Text style={{ fontSize: 11, color: MUTED, lineHeight: 15 }}>
+              Reward is automatically added to the customer's wallet once they reach this points total. Set points cost to 0 for a free milestone grant.
+            </Text>
+          </View>
+
           <View style={styles.switchRow}>
             <Text style={styles.fieldLabel}>Claimable by customers in app</Text>
             <Switch value={customerRedeemable} onValueChange={v => { setCustomerRedeemable(v); Haptics.selectionAsync(); }}

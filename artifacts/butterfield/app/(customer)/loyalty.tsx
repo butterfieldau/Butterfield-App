@@ -388,6 +388,7 @@ function LoyaltyContent() {
 
   const profile = profileData?.data;
   const rewards = rewardsData?.data ?? [];
+  const autoGrantedRewards: string[] = (profile as any)?.autoGrantedRewards ?? [];
   const transactions = txnData?.data ?? [];
   const claimedRewards: ClaimedReward[] = claimedData?.data ?? [];
   const allHistory: ClaimedReward[] = historyData?.data ?? [];
@@ -400,6 +401,14 @@ function LoyaltyContent() {
   const stampsRemaining = Math.max(0, STAMP_COUNT - stampCount);
   const freeCoffeeRewards = profile?.freeCoffeeRewards ?? profile?.freeCoffeesEarned ?? 0;
   const serverTier = profile?.loyaltyTier || getTierBySpendCents(spendCents, profile?.loyaltyTierSettings).key;
+  const visibleRewards = rewards.filter((r: LoyaltyReward) => {
+    if (r.customerRedeemable === false) return false;
+    if (!r.tierRestriction) return true;
+    try {
+      const allowedTiers: string[] = JSON.parse(r.tierRestriction);
+      return allowedTiers.length === 0 || allowedTiers.includes(serverTier);
+    } catch { return true; }
+  });
   const displayTier = getDisplayTierByServerTier(serverTier);
   const nextTier = getNextDisplayTier(spendCents, profile?.loyaltyTierSettings);
   const spendProgress = nextTier
@@ -848,9 +857,83 @@ function LoyaltyContent() {
             )}
           </View>
 
+          {autoGrantedRewards.length > 0 && (
+            <View style={[styles.section, { paddingTop: 0 }]}>
+              <LinearGradient colors={['#E8F9F0', '#D0F2E2']} style={{ borderRadius: 14, padding: 14, flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                <Feather name="gift" size={20} color="#1A7A4A" />
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 13, fontWeight: '700', color: '#1A7A4A' }}>Milestone reward unlocked!</Text>
+                  <Text style={{ fontSize: 12, color: '#1A7A4A', marginTop: 2 }}>
+                    {autoGrantedRewards.length === 1
+                      ? `"${autoGrantedRewards[0]}" has been added to your wallet.`
+                      : `${autoGrantedRewards.map((n: string) => `"${n}"`).join(', ')} added to your wallet.`}
+                  </Text>
+                </View>
+              </LinearGradient>
+            </View>
+          )}
+
           <View style={styles.section}>
             <View style={styles.sectionHeadRow}>
-              <Text style={styles.sectionTitle}>Your tier perks</Text>
+              <Text style={styles.sectionTitle}>Available rewards</Text>
+              <Text style={styles.sectionMeta}>{visibleRewards.length} available</Text>
+            </View>
+
+            <View style={styles.rewardList}>
+              {visibleRewards.map((reward: LoyaltyReward) => {
+                const rewardTitle = reward.title ?? reward.name ?? 'Reward';
+                const preset = rewardPresetForTitle(rewardTitle, reward.rewardType);
+                const canClaim = points >= reward.pointsCost;
+                const minOrderText = reward.minOrderValueCents
+                  ? `Min. $${(reward.minOrderValueCents / 100).toFixed(0)} order`
+                  : null;
+                const tierBadge = reward.tierRestriction
+                  ? (() => { try { const t: string[] = JSON.parse(reward.tierRestriction!); return t.length > 0 ? t[0]! : null; } catch { return null; } })()
+                  : null;
+                return (
+                  <View key={reward.id} style={styles.rewardRedeemCard}>
+                    <LinearGradient colors={preset.bg} style={styles.rewardRedeemArt}>
+                      {preset.image ? <Image source={preset.image} style={styles.rewardRedeemImage} contentFit="cover" /> : null}
+                    </LinearGradient>
+                    <View style={styles.rewardRedeemContent}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, flexWrap: 'wrap' }}>
+                        <Text style={styles.rewardRedeemTitle}>{rewardTitle}</Text>
+                        {tierBadge && (
+                          <View style={{ backgroundColor: '#F0E8FF', borderRadius: 8, paddingHorizontal: 5, paddingVertical: 2 }}>
+                            <Text style={{ fontSize: 9, color: '#7B2FBE', fontWeight: '700', textTransform: 'uppercase' }}>
+                              {tierBadge}+
+                            </Text>
+                          </View>
+                        )}
+                      </View>
+                      <Text style={styles.rewardRedeemDesc}>{reward.description}</Text>
+                      <View style={styles.rewardRedeemMetaRow}>
+                        <Text style={styles.rewardRedeemPts}>{reward.rewardType === 'money_voucher' && reward.voucherValueCents ? `$${(reward.voucherValueCents / 100).toFixed(2)} voucher` : `${reward.pointsCost} pts`}</Text>
+                        {minOrderText ? (
+                          <Text style={styles.rewardRedeemHint}>{minOrderText}</Text>
+                        ) : reward.rewardType === 'money_voucher' && reward.voucherValueCents ? (
+                          <Text style={styles.rewardRedeemHint}>{reward.pointsCost} points to claim</Text>
+                        ) : (
+                          <Text style={styles.rewardRedeemHint}>Use at checkout</Text>
+                        )}
+                      </View>
+                    </View>
+                    <Pressable
+                      style={[styles.redeemButton, !canClaim && styles.redeemButtonDisabled]}
+                      onPress={() => handleClaim(reward)}
+                      disabled={redeeming === reward.id || !canClaim}
+                    >
+                      {redeeming === reward.id ? <ActivityIndicator size="small" color={WHITE} /> : <Text style={styles.redeemButtonText}>{canClaim ? 'Claim' : 'Need more'}</Text>}
+                    </Pressable>
+                  </View>
+                );
+              })}
+            </View>
+          </View>
+
+          <View style={styles.section}>
+            <View style={styles.sectionHeadRow}>
+              <Text style={styles.sectionTitle}>Loyalty tiers</Text>
               <Text style={styles.sectionMeta}>{previewTier.shortLabel}</Text>
             </View>
 
@@ -884,47 +967,6 @@ function LoyaltyContent() {
                   <Text style={styles.perkDetail}>{perk.detail}</Text>
                 </View>
               ))}
-            </View>
-          </View>
-
-          <View style={styles.section}>
-            <View style={styles.sectionHeadRow}>
-              <Text style={styles.sectionTitle}>Available rewards</Text>
-              <Text style={styles.sectionMeta}>{rewards.filter((r: any) => r.customerRedeemable !== false).length} available</Text>
-            </View>
-
-            <View style={styles.rewardList}>
-              {rewards.filter((r: any) => r.customerRedeemable !== false).map((reward) => {
-                const rewardTitle = reward.title ?? reward.name ?? 'Reward';
-                const preset = rewardPresetForTitle(rewardTitle, reward.rewardType);
-                const canClaim = points >= reward.pointsCost;
-                return (
-                  <View key={reward.id} style={styles.rewardRedeemCard}>
-                    <LinearGradient colors={preset.bg} style={styles.rewardRedeemArt}>
-                      {preset.image ? <Image source={preset.image} style={styles.rewardRedeemImage} contentFit="cover" /> : null}
-                    </LinearGradient>
-                    <View style={styles.rewardRedeemContent}>
-                      <Text style={styles.rewardRedeemTitle}>{rewardTitle}</Text>
-                      <Text style={styles.rewardRedeemDesc}>{reward.description}</Text>
-                      <View style={styles.rewardRedeemMetaRow}>
-                        <Text style={styles.rewardRedeemPts}>{reward.rewardType === 'money_voucher' && reward.voucherValueCents ? `$${(reward.voucherValueCents / 100).toFixed(2)} voucher` : `${reward.pointsCost} pts`}</Text>
-                        {reward.rewardType === 'money_voucher' && reward.voucherValueCents ? (
-                          <Text style={styles.rewardRedeemHint}>{reward.pointsCost} points to claim</Text>
-                        ) : (
-                          <Text style={styles.rewardRedeemHint}>Use at checkout</Text>
-                        )}
-                      </View>
-                    </View>
-                    <Pressable
-                      style={[styles.redeemButton, !canClaim && styles.redeemButtonDisabled]}
-                      onPress={() => handleClaim(reward)}
-                      disabled={redeeming === reward.id || !canClaim}
-                    >
-                      {redeeming === reward.id ? <ActivityIndicator size="small" color={WHITE} /> : <Text style={styles.redeemButtonText}>{canClaim ? 'Claim' : 'Need more'}</Text>}
-                    </Pressable>
-                  </View>
-                );
-              })}
             </View>
           </View>
 

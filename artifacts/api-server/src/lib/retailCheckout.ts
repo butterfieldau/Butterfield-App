@@ -106,9 +106,42 @@ export async function prepareRetailCheckout(input: RetailCheckoutPreparationInpu
         rewardType: loyaltyRewardsTable.rewardType,
         linkedProductId: loyaltyRewardsTable.linkedProductId,
         name: loyaltyRewardsTable.name,
+        tierRestriction: loyaltyRewardsTable.tierRestriction,
+        minOrderValueCents: loyaltyRewardsTable.minOrderValueCents,
       })
       .from(loyaltyRewardsTable)
       .where(eq(loyaltyRewardsTable.id, claimedRow.rewardId));
+
+    // Enforce tier restriction at checkout (double-check in addition to claim-time check)
+    if (rewardRow?.tierRestriction) {
+      try {
+        const allowedTiers: string[] = JSON.parse(rewardRow.tierRestriction);
+        if (allowedTiers.length > 0) {
+          const [customerProfile] = await db
+            .select({ loyaltyTier: customerProfilesTable.loyaltyTier })
+            .from(customerProfilesTable)
+            .where(eq(customerProfilesTable.userId, input.userId));
+          const customerTier = customerProfile?.loyaltyTier ?? 'blue';
+          if (!allowedTiers.includes(customerTier)) {
+            throw new Error(`This reward is only available for ${allowedTiers.join(' / ')} tier members`);
+          }
+        }
+      } catch (e) {
+        if ((e as Error).message.startsWith('This reward')) throw e;
+      }
+    }
+
+    // Enforce minimum order value — compute item subtotal server-side
+    if (rewardRow?.minOrderValueCents && rewardRow.minOrderValueCents > 0) {
+      const resolvedType: 'pickup' | 'delivery' = input.orderType === 'delivery' ? 'delivery' : 'pickup';
+      const baseComputed = await computeOrderTotal(items, resolvedType, 0, 'card');
+      if (baseComputed.subtotalCents < rewardRow.minOrderValueCents) {
+        throw new Error(
+          `This reward requires a minimum order of $${(rewardRow.minOrderValueCents / 100).toFixed(2)}. ` +
+          `Your cart is $${(baseComputed.subtotalCents / 100).toFixed(2)}.`,
+        );
+      }
+    }
 
     const rewardType = rewardRow?.rewardType ?? 'item_reward';
     const linkedProductId = rewardRow?.linkedProductId ?? null;
