@@ -682,7 +682,7 @@ export const api = {
       request<{ data: ReportsRefundsData }>(`/director/reports/refunds?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`),
     reportsCustomers: (from: string, to: string) =>
       request<{ data: ReportsCustomerGrowth }>(`/director/reports/customers?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`),
-    registerReports: (params?: { from?: string; to?: string; register?: string; staffUserId?: string; closeMethod?: 'manual' | 'auto'; variance?: 'all' | 'with_variance' | 'without_variance' }) => {
+    registerReports: (params?: { from?: string; to?: string; register?: string; staffUserId?: string; closeMethod?: 'manual' | 'auto'; variance?: 'all' | 'with_variance' | 'without_variance'; activity?: 'all' | 'meaningful' | 'empty' }) => {
       const qs = new URLSearchParams();
       if (params?.from) qs.set('from', params.from);
       if (params?.to) qs.set('to', params.to);
@@ -690,6 +690,7 @@ export const api = {
       if (params?.staffUserId) qs.set('staffUserId', params.staffUserId);
       if (params?.closeMethod) qs.set('closeMethod', params.closeMethod);
       if (params?.variance) qs.set('variance', params.variance);
+      if (params?.activity) qs.set('activity', params.activity);
       return request<{ data: RegisterSessionReport[] }>(`/director/reports/register-sessions${qs.toString() ? `?${qs}` : ''}`);
     },
     registerReport: (id: string) =>
@@ -1212,6 +1213,7 @@ export interface RegisterSessionReport {
   varianceApprovedByName: string | null;
   printedAt: string | null;
   autoClosed: boolean;
+  isEmpty: boolean;
   summary: RegisterSessionSummary;
 }
 

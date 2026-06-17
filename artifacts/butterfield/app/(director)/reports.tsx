@@ -999,6 +999,7 @@ function RegisterReportsTab() {
   const [staffUserId, setStaffUserId] = useState<string>('all');
   const [closeMethod, setCloseMethod] = useState<'all' | 'manual' | 'auto'>('all');
   const [variance, setVariance] = useState<'all' | 'with_variance' | 'without_variance'>('all');
+  const [activity, setActivity] = useState<'all' | 'meaningful' | 'empty'>('meaningful');
   const [selectedReportId, setSelectedReportId] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
 
@@ -1023,7 +1024,7 @@ function RegisterReportsTab() {
     isLoading,
     refetch,
   } = useQuery({
-    queryKey: ['director-register-reports', range.from, range.to, registerFilter, staffUserId, closeMethod, variance],
+    queryKey: ['director-register-reports', range.from, range.to, registerFilter, staffUserId, closeMethod, variance, activity],
     queryFn: () => api.director.registerReports({
       from: range.from,
       to: range.to,
@@ -1031,6 +1032,7 @@ function RegisterReportsTab() {
       staffUserId: staffUserId !== 'all' ? staffUserId : undefined,
       closeMethod: closeMethod !== 'all' ? closeMethod : undefined,
       variance,
+      activity,
     }),
     staleTime: 60_000,
   });
@@ -1203,6 +1205,23 @@ function RegisterReportsTab() {
                 </Pressable>
               ))}
             </View>
+
+            <Text style={s.filterLabel}>Session Activity</Text>
+            <View style={s.filterChipWrap}>
+              {[
+                { key: 'meaningful', label: 'Active Only' },
+                { key: 'all',        label: 'All' },
+                { key: 'empty',      label: 'Empty Only' },
+              ].map((option) => (
+                <Pressable
+                  key={option.key}
+                  onPress={() => { Haptics.selectionAsync(); setActivity(option.key as 'all' | 'meaningful' | 'empty'); }}
+                  style={[s.filterChip, activity === option.key && s.filterChipActive]}
+                >
+                  <Text style={[s.filterChipText, activity === option.key && s.filterChipTextActive]}>{option.label}</Text>
+                </Pressable>
+              ))}
+            </View>
           </View>
         </View>
 
@@ -1230,10 +1249,17 @@ function RegisterReportsTab() {
                           {fmtDisplayDate(report.tradingDate)} · {report.registerLocation ?? 'Butterfield Cookies'}
                         </Text>
                       </View>
-                      <View style={[s.statusPill, report.autoClosed ? s.statusPillAuto : s.statusPillManual]}>
-                        <Text style={[s.statusPillText, report.autoClosed ? s.statusPillTextAuto : s.statusPillTextManual]}>
-                          {report.autoClosed ? 'Auto Close' : 'Manual Close'}
-                        </Text>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                        {report.isEmpty && (
+                          <View style={s.statusPillEmpty}>
+                            <Text style={s.statusPillTextEmpty}>Empty</Text>
+                          </View>
+                        )}
+                        <View style={[s.statusPill, report.autoClosed ? s.statusPillAuto : s.statusPillManual]}>
+                          <Text style={[s.statusPillText, report.autoClosed ? s.statusPillTextAuto : s.statusPillTextManual]}>
+                            {report.autoClosed ? 'Auto Close' : 'Manual Close'}
+                          </Text>
+                        </View>
                       </View>
                     </View>
 
@@ -1593,9 +1619,11 @@ const s = StyleSheet.create({
   statusPill: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, borderWidth: 1 },
   statusPillManual: { backgroundColor: '#ECFDF5', borderColor: '#BBF7D0' },
   statusPillAuto: { backgroundColor: '#EFF6FF', borderColor: '#BFDBFE' },
+  statusPillEmpty: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 999, borderWidth: 1, backgroundColor: '#F5F5F5', borderColor: '#D1D5DB' },
   statusPillText: { fontSize: 11, fontWeight: '700' },
   statusPillTextManual: { color: '#15803D' },
   statusPillTextAuto: { color: BLUE },
+  statusPillTextEmpty: { fontSize: 11, fontWeight: '600', color: MUTED },
   registerRevRow: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     backgroundColor: '#EFF6FF', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10,

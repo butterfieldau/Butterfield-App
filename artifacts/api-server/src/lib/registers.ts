@@ -57,6 +57,7 @@ export interface RegisterSessionReport {
   varianceApprovedByName: string | null;
   printedAt: string | null;
   autoClosed: boolean;
+  isEmpty: boolean;
   summary: RegisterSessionSummary;
 }
 
@@ -717,6 +718,11 @@ export async function getRegisterSessionReport(sessionId: string): Promise<Regis
     varianceApprovedByName: row.variance_approved_by_name ?? null,
     printedAt: row.printed_at ? new Date(row.printed_at).toISOString() : null,
     autoClosed: row.close_method === 'auto',
+    isEmpty:
+      row.starting_float_cents === null &&
+      summary.totalSalesCents === 0 &&
+      summary.cashAddedCents === 0 &&
+      summary.cashRemovedCents === 0,
     summary,
   };
 }
@@ -728,6 +734,7 @@ export async function listRegisterSessionReports(filters?: {
   staffUserId?: string;
   closeMethod?: 'manual' | 'auto';
   variance?: 'all' | 'with_variance' | 'without_variance';
+  activity?: 'all' | 'meaningful' | 'empty';
 }) {
   await ensureRegisterSchemaReady();
   await ensureAutoClosedRegisterSessions();
@@ -747,13 +754,24 @@ export async function listRegisterSessionReports(filters?: {
     ORDER BY rs.trading_date DESC, rs.closed_at DESC NULLS LAST, rs.opened_at DESC
   `);
   const ids = (((result as any).rows ?? (result as any) ?? []) as Array<{ id: string }>).map((row) => row.id);
-  const reports = (await Promise.all(ids.map((id) => getRegisterSessionReport(id)))).filter(Boolean) as RegisterSessionReport[];
+  let reports = (await Promise.all(ids.map((id) => getRegisterSessionReport(id)))).filter(Boolean) as RegisterSessionReport[];
 
-  if (!filters?.variance || filters.variance === 'all') return reports;
-  if (filters.variance === 'with_variance') {
-    return reports.filter((report) => report.summary.varianceCents !== null && report.summary.varianceCents !== 0);
+  if (filters?.variance && filters.variance !== 'all') {
+    if (filters.variance === 'with_variance') {
+      reports = reports.filter((r) => r.summary.varianceCents !== null && r.summary.varianceCents !== 0);
+    } else {
+      reports = reports.filter((r) => r.summary.varianceCents === 0 || r.summary.varianceCents === null);
+    }
   }
-  return reports.filter((report) => report.summary.varianceCents === 0 || report.summary.varianceCents === null);
+
+  const activity = filters?.activity ?? 'meaningful';
+  if (activity === 'meaningful') {
+    reports = reports.filter((r) => !r.isEmpty);
+  } else if (activity === 'empty') {
+    reports = reports.filter((r) => r.isEmpty);
+  }
+
+  return reports;
 }
 
 export async function updateClosedRegisterSessionNotes(params: {

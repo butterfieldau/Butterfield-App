@@ -2699,6 +2699,9 @@ router.get('/reports/register-sessions', async (req, res) => {
   const variance = req.query.variance === 'with_variance' || req.query.variance === 'without_variance' || req.query.variance === 'all'
     ? req.query.variance
     : undefined;
+  const activity = req.query.activity === 'all' || req.query.activity === 'meaningful' || req.query.activity === 'empty'
+    ? req.query.activity
+    : undefined;
   const data = await listRegisterSessionReports({
     from: typeof req.query.from === 'string' ? req.query.from : undefined,
     to: typeof req.query.to === 'string' ? req.query.to : undefined,
@@ -2706,6 +2709,7 @@ router.get('/reports/register-sessions', async (req, res) => {
     staffUserId: typeof req.query.staffUserId === 'string' ? req.query.staffUserId : undefined,
     closeMethod,
     variance,
+    activity,
   });
   return res.json({ data });
 });
