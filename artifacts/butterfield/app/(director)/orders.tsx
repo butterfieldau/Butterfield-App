@@ -289,7 +289,11 @@ function OrderDetailModal({ order, visible, onClose, onStatusChange, onAcceptOrd
               </View>
               {order.scheduledFor && (
                 <Text style={{ fontSize: 13, color: '#92400E', fontWeight: '400' }}>
-                  Delivery scheduled for {new Date(order.scheduledFor).toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long' })}
+                  {order.type === 'delivery' ? 'Delivery' : 'Pickup'} scheduled for{' '}
+                  {new Date(order.scheduledFor).toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long' })}
+                  {order.type !== 'delivery'
+                    ? ` at ${new Date(order.scheduledFor).toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit', hour12: true })}`
+                    : ''}
                 </Text>
               )}
               <Pressable
@@ -297,7 +301,7 @@ function OrderDetailModal({ order, visible, onClose, onStatusChange, onAcceptOrd
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
                   Alert.alert(
                     'Accept Order',
-                    'Confirm this delivery order and notify the customer?',
+                    `Confirm this ${order.type === 'delivery' ? 'delivery' : 'pickup'} order and notify the customer?`,
                     [
                       { text: 'Cancel', style: 'cancel' },
                       {
@@ -317,7 +321,7 @@ function OrderDetailModal({ order, visible, onClose, onStatusChange, onAcceptOrd
                   ? <ActivityIndicator color="#fff" size="small" />
                   : <>
                       <Feather name="check-circle" size={14} color="#fff" />
-                      <Text style={{ color: '#fff', fontWeight: '700', fontSize: 14 }}>Accept & Confirm Delivery</Text>
+                      <Text style={{ color: '#fff', fontWeight: '700', fontSize: 14 }}>Accept & Confirm {order.type === 'delivery' ? 'Delivery' : 'Pickup'}</Text>
                     </>}
               </Pressable>
             </View>
@@ -328,6 +332,9 @@ function OrderDetailModal({ order, visible, onClose, onStatusChange, onAcceptOrd
               <Feather name="check-circle" size={16} color="#166534" />
               <Text style={{ fontSize: 13, fontWeight: '600', color: '#166534', flex: 1 }}>
                 Confirmed for {new Date(order.scheduledFor).toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long' })}
+                {order.type !== 'delivery'
+                  ? ` at ${new Date(order.scheduledFor).toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit', hour12: true })}`
+                  : ''}
               </Text>
             </View>
           )}
