@@ -7,6 +7,7 @@ import shareRouter from "./routes/share.js";
 import { logger } from "./lib/logger.js";
 import { WebhookHandlers } from "./webhookHandlers.js";
 import { startDailySummaryJob } from "./lib/dailySummaryJob.js";
+import { seedBirthdayCookieReward } from "./lib/birthdayRewardSeeder.js";
 
 const app: Express = express();
 
@@ -98,5 +99,8 @@ app.use("/api", router);
 
 // Start background jobs (non-blocking; unref'd so they don't prevent graceful shutdown)
 startDailySummaryJob();
+
+// Seed required reward rows idempotently on boot (non-blocking)
+void seedBirthdayCookieReward();
 
 export default app;

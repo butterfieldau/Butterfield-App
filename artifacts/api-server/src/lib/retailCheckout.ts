@@ -46,6 +46,7 @@ export interface RetailCheckoutPreparationResult {
   computed: Awaited<ReturnType<typeof computeOrderTotal>>;
   freeCoffeeRewardUsed: boolean;
   freeCoffeeDiscountCents: number;
+  birthdayCookieDiscountCents: number;
 }
 
 export function stripClientRewardFlags(rawItems: unknown): RetailCheckoutItem[] {
@@ -62,6 +63,7 @@ export async function prepareRetailCheckout(input: RetailCheckoutPreparationInpu
   let claimedLoyaltyPoints = Math.max(0, Math.floor(Number(input.loyaltyPointsUsed ?? 0)));
   let claimedRewardDiscountCents = 0;
   let claimedRewardData: PreparedClaimedReward | null = null;
+  let birthdayCookieDiscountCents = 0;
 
   if (claimedLoyaltyPoints > 0) {
     const [profile] = await db.select().from(customerProfilesTable).where(eq(customerProfilesTable.userId, input.userId));
@@ -113,6 +115,86 @@ export async function prepareRetailCheckout(input: RetailCheckoutPreparationInpu
 
     if (rewardType === 'money_voucher') {
       claimedRewardDiscountCents = claimedRow.voucherValueCents ?? 0;
+    } else if (rewardType === 'birthday_cookie') {
+      // Apply 100% off the cheapest cookie in the cart (server-side pricing only)
+      const productIds = [...new Set(items.map((i) => i.productId))];
+      const products = productIds.length > 0
+        ? await db.select({
+            id: productsTable.id,
+            category: productsTable.category,
+            priceCents: productsTable.priceCents,
+            salePriceCents: productsTable.salePriceCents,
+          }).from(productsTable).where(inArray(productsTable.id, productIds))
+        : [];
+
+      const cookieCategories = new Set(['cookies', 'cookie-frappes']);
+      const cookieProductMap = new Map(
+        products
+          .filter((p) => cookieCategories.has(String(p.category ?? '').toLowerCase()))
+          .map((p) => [p.id, p]),
+      );
+
+      if (cookieProductMap.size === 0) {
+        throw new Error('No cookie items in your order to apply the Birthday Cookie reward');
+      }
+
+      {
+        const cookieItems = items.filter((i) => cookieProductMap.has(i.productId) && !i.isFreeReward);
+        const cookieVariantIds = [...new Set(cookieItems.flatMap((i) => i.variantId ? [i.variantId] : []))];
+        const cookieOptionIds  = [...new Set(
+          cookieItems.flatMap((i) => (i.selectedOptions ?? []).map((o) => o.optionId).filter(Boolean) as string[]),
+        )];
+
+        const [cookieVariants, cookieOptions] = await Promise.all([
+          cookieVariantIds.length
+            ? db.select().from(productVariantsTable).where(inArray(productVariantsTable.id, cookieVariantIds))
+            : Promise.resolve([]),
+          cookieOptionIds.length
+            ? db.select().from(productOptionsTable).where(inArray(productOptionsTable.id, cookieOptionIds))
+            : Promise.resolve([]),
+        ]);
+        const variantMap = new Map(cookieVariants.map((v) => [v.id, v]));
+        const optionMap  = new Map(cookieOptions.map((o) => [o.id, o]));
+
+        let cheapestIdx = -1;
+        let cheapestPrice = Infinity;
+        for (let i = 0; i < items.length; i++) {
+          const item = items[i]!;
+          const cp = cookieProductMap.get(item.productId);
+          if (!cp || item.isFreeReward) continue;
+          let unitCents: number;
+          if (item.variantId) {
+            const variant = variantMap.get(item.variantId);
+            unitCents = variant ? variant.priceCents : (cp.salePriceCents ?? cp.priceCents ?? 0);
+          } else {
+            unitCents = cp.salePriceCents ?? cp.priceCents ?? 0;
+          }
+          for (const sel of (item.selectedOptions ?? [])) {
+            if (sel.optionId) {
+              const opt = optionMap.get(sel.optionId);
+              if (opt) unitCents += opt.priceAdjustmentCents;
+            }
+          }
+          if (unitCents < cheapestPrice) {
+            cheapestPrice = unitCents;
+            cheapestIdx = i;
+          }
+        }
+
+        if (cheapestIdx < 0) {
+          throw new Error('No cookie items in your order to apply the Birthday Cookie reward');
+        }
+
+        birthdayCookieDiscountCents = cheapestPrice;
+        const target = items[cheapestIdx]!;
+        const targetQty = Math.max(1, Math.floor(Number(target.quantity ?? 1)));
+        if (targetQty === 1) {
+          items[cheapestIdx] = { ...target, isFreeReward: true };
+        } else {
+          items[cheapestIdx] = { ...target, quantity: targetQty - 1 };
+          items.push({ ...target, quantity: 1, isFreeReward: true });
+        }
+      }
     } else if (rewardType === 'item_reward') {
       if (linkedProductId) {
         const existingIdx = items.findIndex((item) => item.productId === linkedProductId && !item.isFreeReward);
@@ -307,5 +389,6 @@ export async function prepareRetailCheckout(input: RetailCheckoutPreparationInpu
     computed,
     freeCoffeeRewardUsed,
     freeCoffeeDiscountCents,
+    birthdayCookieDiscountCents,
   };
 }

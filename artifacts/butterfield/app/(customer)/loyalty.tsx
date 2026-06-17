@@ -363,6 +363,7 @@ function LoyaltyContent() {
   const [celebrateTier, setCelebrateTier] = useState<DisplayTier | null>(null);
   const [showStampCelebration, setShowStampCelebration] = useState(false);
   const [displayedPoints, setDisplayedPoints] = useState(0);
+  const [showBirthdayBanner, setShowBirthdayBanner] = useState(false);
 
   const progressAnim = useRef(new Animated.Value(0)).current;
   const sectionFade = useRef(new Animated.Value(0)).current;
@@ -492,6 +493,12 @@ function LoyaltyContent() {
       ]).start();
     }
   }, [stampCount, stampScaleAnims]);
+
+  useEffect(() => {
+    if (profile?.birthdayRewardGranted) {
+      setShowBirthdayBanner(true);
+    }
+  }, [profile?.birthdayRewardGranted]);
 
   useEffect(() => {
     if (prevPointsRef.current === null) {
@@ -721,6 +728,28 @@ function LoyaltyContent() {
             </LinearGradient>
           </View>
 
+          {showBirthdayBanner && (
+            <View style={styles.section}>
+              <LinearGradient
+                colors={['#FF5A7E', '#FF3860', '#C8245C']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.birthdayBannerCard}
+              >
+                <View style={styles.birthdayBannerRow}>
+                  <Text style={styles.birthdayBannerEmoji}>🎂</Text>
+                  <View style={styles.birthdayBannerCopy}>
+                    <Text style={styles.birthdayBannerTitle}>Happy Birthday, {profile?.customerName?.split(' ')[0] ?? 'you'}!</Text>
+                    <Text style={styles.birthdayBannerSub}>Your free Birthday Cookie is waiting in your wallet below.</Text>
+                  </View>
+                  <Pressable onPress={() => setShowBirthdayBanner(false)} hitSlop={12}>
+                    <Feather name="x" size={18} color="rgba(255,255,255,0.8)" />
+                  </Pressable>
+                </View>
+              </LinearGradient>
+            </View>
+          )}
+
           <View style={styles.section}>
             <View style={styles.sectionHeadRow}>
               <Text style={styles.sectionTitle}>Rewards wallet</Text>
@@ -733,8 +762,14 @@ function LoyaltyContent() {
                   const rewardName = claim.rewardName ?? 'Butterfield reward';
                   const preset = rewardPresetForTitle(rewardName, claim.rewardType);
                   const expiryInfo = getClaimExpiryInfo(claim.expiresAt ?? null);
+                  const isBirthdayCookie = claim.rewardType === 'birthday_cookie';
                   return (
                     <LinearGradient key={claim.id} colors={preset.bg} style={styles.walletCard}>
+                      {isBirthdayCookie && (
+                        <View style={styles.birthdayWalletBadge}>
+                          <Text style={styles.birthdayWalletBadgeText}>🎂 Birthday Gift</Text>
+                        </View>
+                      )}
                       <View style={styles.walletArtWrap}>
                         {preset.image ? (
                           <Image source={preset.image} style={styles.walletArt} contentFit="cover" />
@@ -745,9 +780,11 @@ function LoyaltyContent() {
                       </View>
                       <Text style={styles.walletTitle}>{rewardName}</Text>
                       <Text style={styles.walletTerms}>
-                        {claim.rewardType === 'money_voucher'
-                          ? `$${((claim.voucherValueCents ?? 0) / 100).toFixed(2)} voucher`
-                          : 'Use at checkout or counter'}
+                        {isBirthdayCookie
+                          ? '100% off your cheapest cookie'
+                          : claim.rewardType === 'money_voucher'
+                            ? `$${((claim.voucherValueCents ?? 0) / 100).toFixed(2)} voucher`
+                            : 'Use at checkout or counter'}
                       </Text>
                       <Text style={styles.walletExpiry}>{expiryInfo?.label ?? 'Ready now'}</Text>
                       <View style={styles.walletButtonRow}>
@@ -1196,6 +1233,31 @@ const styles = StyleSheet.create({
   walletSecondaryButtonText: { color: '#091221', fontSize: 12, fontWeight: '700' },
   walletCancelAction: { marginTop: 12, alignSelf: 'flex-start' },
   walletCancelActionText: { color: '#9A2D2A', fontSize: 12, fontWeight: '700' },
+  birthdayWalletBadge: {
+    position: 'absolute',
+    top: 10,
+    left: 10,
+    borderRadius: 999,
+    backgroundColor: '#FF3860',
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+    zIndex: 2,
+  },
+  birthdayWalletBadgeText: { color: WHITE, fontSize: 11, fontWeight: '700' },
+  birthdayBannerCard: {
+    borderRadius: 20,
+    overflow: 'hidden',
+    padding: 16,
+  },
+  birthdayBannerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  birthdayBannerEmoji: { fontSize: 32 },
+  birthdayBannerCopy: { flex: 1 },
+  birthdayBannerTitle: { color: WHITE, fontSize: 16, fontWeight: '700', lineHeight: 20, marginBottom: 3 },
+  birthdayBannerSub: { color: 'rgba(255,255,255,0.85)', fontSize: 12, fontWeight: '500', lineHeight: 17 },
   emptyCard: {
     borderRadius: 24,
     padding: 18,

@@ -13,6 +13,8 @@ import {
   recordLoyaltyPoints,
 } from '../lib/loyaltyIdentity.js';
 import { computeLoyaltyTierFromSpend, getLoyaltyTierSettings } from '../lib/loyaltyTierSettings.js';
+import { sydneyDateParts } from '../lib/sydneyTime.js';
+import { BIRTHDAY_COOKIE_REWARD_ID } from '../lib/birthdayRewardSeeder.js';
 
 // Infer the Drizzle transaction type from the db object so helper functions
 // can be typed without depending on internal Drizzle generic parameters.
@@ -29,6 +31,53 @@ router.get('/profile', requireAuth, async (req, res) => {
   // Always recompute tier from totalSpentCents so it is the single source of truth.
   const correctTier = await computeLoyaltyTierFromSpend(profile.totalSpentCents);
   const loyaltyTierSettings = await getLoyaltyTierSettings();
+
+  // ── Birthday cookie auto-grant ─────────────────────────────────────────────
+  let birthdayRewardGranted = false;
+  if (profile.birthday) {
+    const { monthNum, day, year } = sydneyDateParts();
+    const [, bdMonthStr, bdDayStr] = (profile.birthday ?? '').split('-');
+    const bdMonth = parseInt(bdMonthStr ?? '0', 10);
+    const bdDay   = parseInt(bdDayStr ?? '0', 10);
+    if (bdMonth === monthNum && bdDay === day) {
+      // Guard: only grant once per calendar year (UTC anchor)
+      const yearStart = new Date(Date.UTC(year, 0, 1));
+      const [existing] = await db
+        .select({ id: claimedRewardsTable.id })
+        .from(claimedRewardsTable)
+        .where(
+          and(
+            eq(claimedRewardsTable.userId, req.user!.id),
+            eq(claimedRewardsTable.rewardId, BIRTHDAY_COOKIE_REWARD_ID),
+            gte(claimedRewardsTable.claimedAt, yearStart),
+          ),
+        )
+        .limit(1);
+
+      if (!existing) {
+        const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+        await db.insert(claimedRewardsTable).values({
+          id: randomUUID(),
+          userId: req.user!.id,
+          rewardId: BIRTHDAY_COOKIE_REWARD_ID,
+          status: 'available',
+          pointsSpent: 0,
+          expiresAt,
+        });
+        await db.insert(loyaltyActivityLogTable).values({
+          id: randomUUID(),
+          customerId: req.user!.id,
+          activityType: 'birthday_reward',
+          pointsDelta: 0,
+          coffeeStampsDelta: 0,
+          freeCoffeeRewardsDelta: 0,
+          description: '🎂 Birthday Cookie — free cookie granted!',
+        });
+        birthdayRewardGranted = true;
+      }
+    }
+  }
+  // ─────────────────────────────────────────────────────────────────────────
 
   if (correctTier !== profile.loyaltyTier) {
     await db.update(customerProfilesTable)
@@ -53,6 +102,7 @@ router.get('/profile', requireAuth, async (req, res) => {
         qrPayload: buildLoyaltyQrPayload(profile.loyaltyQrToken),
         loyaltyTierSettings,
         recentActivity,
+        birthdayRewardGranted,
       },
     });
   }
@@ -76,6 +126,7 @@ router.get('/profile', requireAuth, async (req, res) => {
       qrPayload: buildLoyaltyQrPayload(profile.loyaltyQrToken),
       loyaltyTierSettings,
       recentActivity,
+      birthdayRewardGranted,
     },
   });
 });

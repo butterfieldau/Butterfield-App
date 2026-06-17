@@ -1435,6 +1435,7 @@ export interface LoyaltyProfile {
   recentActivity?: LoyaltyActivity[];
   freeCoffeesEarned?: number;
   loyaltyTierSettings?: LoyaltyTierSettings;
+  birthdayRewardGranted?: boolean;
 }
 
 export type LoyaltyTierKey = 'blue' | 'silver' | 'gold' | 'black';
@@ -1732,7 +1733,7 @@ export interface ClaimedReward {
   expiresAt?: string | null;
   rewardName?: string;
   rewardDescription?: string;
-  rewardType?: 'item_reward' | 'money_voucher';
+  rewardType?: 'item_reward' | 'money_voucher' | 'birthday_cookie';
   linkedProductId?: string | null;
 }
 
