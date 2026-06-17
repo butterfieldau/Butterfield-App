@@ -349,8 +349,8 @@ export default function ShopDisplayLayout() {
 
   // Re-lock dashboard whenever user navigates away from it
   useEffect(() => {
-    const seg = pathname.split('/').filter(Boolean).pop() ?? '';
-    if (seg !== 'dashboard') setDashboardLocked(true);
+    const isDashboard = pathname.endsWith('/dashboard') || pathname === 'dashboard';
+    if (!isDashboard) setDashboardLocked(true);
   }, [pathname]);
 
   // ── Display lock ─────────────────────────────────────────────────────────────
@@ -835,7 +835,9 @@ export default function ShopDisplayLayout() {
           onSuccess={() => {
             setShowDashboardPin(false);
             setDashboardLocked(false);
-            router.navigate('/(shop-display)/dashboard' as any);
+            setTimeout(() => {
+              router.navigate('/(shop-display)/dashboard' as any);
+            }, 0);
           }}
         />
       )}

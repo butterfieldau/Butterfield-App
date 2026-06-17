@@ -54,11 +54,15 @@ function todayString() {
 }
 
 function dateFromString(s: string) {
-  const [y, m, d] = s.split('-').map(Number);
+  if (!s || typeof s !== 'string') return new Date();
+  const parts = s.split('-').map(Number);
+  if (parts.length < 3 || parts.some(isNaN)) return new Date();
+  const [y, m, d] = parts;
   return new Date(y, m - 1, d);
 }
 
 function offsetDate(s: string, days: number) {
+  if (!s || typeof s !== 'string') return todayString();
   const d = dateFromString(s);
   d.setDate(d.getDate() + days);
   const y = d.getFullYear(), mo = String(d.getMonth() + 1).padStart(2, '0'), da = String(d.getDate()).padStart(2, '0');
@@ -67,23 +71,33 @@ function offsetDate(s: string, days: number) {
 
 /** Move forward/back by whole calendar months, always landing on the 1st. */
 function offsetMonth(s: string, delta: number) {
-  const [y, m] = s.split('-').map(Number);
+  if (!s || typeof s !== 'string') return todayString().slice(0, 7) + '-01';
+  const parts = s.split('-').map(Number);
+  if (parts.length < 2 || parts.some(isNaN)) return todayString().slice(0, 7) + '-01';
+  const [y, m] = parts;
   const result = new Date(Date.UTC(y, m - 1 + delta, 1));
   return `${result.getUTCFullYear()}-${String(result.getUTCMonth() + 1).padStart(2, '0')}-01`;
 }
 
 /** True when dateStr falls inside the current day/week/month (so Next should be disabled). */
 function isCurrentPeriod(dateStr: string, range: Range): boolean {
-  const today = todayString();
-  if (range === 'day') return dateStr === today;
-  if (range === 'month') return dateStr.slice(0, 7) === today.slice(0, 7);
-  // week: compare Monday of dateStr's week to Monday of today's week
-  const mondayOf = (s: string) => {
-    const [y, m, d] = s.split('-').map(Number);
-    const dow = new Date(Date.UTC(y, m - 1, d)).getUTCDay();
-    return offsetDate(s, dow === 0 ? -6 : 1 - dow);
-  };
-  return mondayOf(dateStr) === mondayOf(today);
+  if (!dateStr || typeof dateStr !== 'string') return true;
+  try {
+    const today = todayString();
+    if (range === 'day') return dateStr === today;
+    if (range === 'month') return dateStr.slice(0, 7) === today.slice(0, 7);
+    // week: compare Monday of dateStr's week to Monday of today's week
+    const mondayOf = (s: string) => {
+      const parts = s.split('-').map(Number);
+      if (parts.length < 3 || parts.some(isNaN)) return s;
+      const [y, m, d] = parts;
+      const dow = new Date(Date.UTC(y, m - 1, d)).getUTCDay();
+      return offsetDate(s, dow === 0 ? -6 : 1 - dow);
+    };
+    return mondayOf(dateStr) === mondayOf(today);
+  } catch {
+    return true;
+  }
 }
 
 function formatDateLabel(date: string, range: Range) {
@@ -522,34 +536,42 @@ export default function DashboardScreen() {
   };
 
   const handlePrev = () => {
-    if (range === 'month') {
-      setDate(d => offsetMonth(d, -1));
-    } else {
-      const days = range === 'day' ? -1 : -7;
-      setDate(d => offsetDate(d, days));
+    try {
+      if (range === 'month') {
+        setDate(d => offsetMonth(d, -1));
+      } else {
+        const days = range === 'day' ? -1 : -7;
+        setDate(d => offsetDate(d, days));
+      }
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    } catch {
+      // swallow edge-case date errors silently
     }
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
   };
 
   const handleNext = () => {
-    const today = todayString();
-    if (range === 'month') {
-      const next = offsetMonth(date, 1);
-      if (next.slice(0, 7) <= today.slice(0, 7)) {
-        setDate(next);
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    try {
+      const today = todayString();
+      if (range === 'month') {
+        const next = offsetMonth(date, 1);
+        if (next.slice(0, 7) <= today.slice(0, 7)) {
+          setDate(next);
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        }
+      } else {
+        const days = range === 'day' ? 1 : 7;
+        const next = offsetDate(date, days);
+        if (next <= today) {
+          setDate(next);
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        }
       }
-    } else {
-      const days = range === 'day' ? 1 : 7;
-      const next = offsetDate(date, days);
-      if (next <= today) {
-        setDate(next);
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      }
+    } catch {
+      // swallow edge-case date errors silently
     }
   };
 
-  const atCurrentPeriod = isCurrentPeriod(date, range);
+  const atCurrentPeriod = (() => { try { return isCurrentPeriod(date, range); } catch { return true; } })();
   const pb = layoutHandled ? 0 : insets.bottom;
 
   return (
