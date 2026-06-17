@@ -103,13 +103,16 @@ export function buildOpenDrawerBytes(pin: 0 | 1 = 0): Buffer {
   return Buffer.from([0x1b, 0x70, pin === 1 ? 0x01 : 0x00, 0x19, 0xfa]);
 }
 
-// Star printers can be temperamental across firmware / emulation modes.
-// We send both the standard ESC/POS drawer pulse and the Star real-time pulse
-// in a single write so the kick works whether the device is behaving like an
-// ESC/POS printer or a Star-native one.
+// Star MCP30 / mC-Print3 — DLE DC4 real-time cash drawer pulse.
+// DLE DC4 (0x10 0x14 0x01 [pin] 0x02) is processed immediately out-of-band
+// by the Star firmware regardless of buffer state, so it is correct for both
+// standalone open_drawer sends and when embedded mid-receipt buffer.
+// Do NOT prefix with ESC p — the Star printer does not understand ESC p and
+// renders the 0x70 byte as a triangle glyph (CP437), disrupting the DLE DC4
+// bytes that follow and preventing the drawer from opening.
+// pin 0 → drawer 1, pin 1 → drawer 2.
 export function buildStarOpenDrawerBytes(pin: 0 | 1 = 0): Buffer {
-  const starRealTimePulse = Buffer.from([0x10, 0x14, 0x01, pin === 1 ? 0x01 : 0x00, 0x02]);
-  return Buffer.concat([buildOpenDrawerBytes(pin), starRealTimePulse]);
+  return Buffer.from([0x10, 0x14, 0x01, pin === 1 ? 0x01 : 0x00, 0x02]);
 }
 
 export function buildReceiptBytes(job: PrintJob): Buffer {
