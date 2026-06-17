@@ -1,13 +1,17 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Image as ExpoImage } from 'expo-image';
 
-const PRODUCTS_KEY       = '@pos_products_v1';
-const SYNCED_AT_KEY      = '@pos_synced_at_v1';
-const OFFLINE_QUEUE_KEY  = '@pos_offline_queue_v1';
-const CUSTOMER_CACHE_KEY = '@pos_customer_cache_v1';
+const PRODUCTS_KEY        = '@pos_products_v1';
+const SYNCED_AT_KEY       = '@pos_synced_at_v1';
+const OFFLINE_QUEUE_KEY   = '@pos_offline_queue_v1';
+const CUSTOMER_CACHE_KEY  = '@pos_customer_cache_v1';
 const DETAIL_CACHE_KEY    = '@pos_detail_cache_v1';
 const STORE_CONFIG_KEY    = '@pos_store_config_v1';
 const SURCHARGES_KEY      = '@pos_surcharges_v1';
 const LOYALTY_CONFIG_KEY  = '@pos_loyalty_config_v1';
+const PREFETCHED_URLS_KEY = '@pos_prefetched_urls_v1';
+
+const PREFETCH_BATCH_SIZE = 8;
 
 // ── Product cache ──────────────────────────────────────────────────────────────
 
@@ -24,6 +28,65 @@ export async function savePosProductsCache(products: any[]): Promise<void> {
       [PRODUCTS_KEY,  JSON.stringify(products)],
       [SYNCED_AT_KEY, new Date().toISOString()],
     ]);
+  } catch {}
+}
+
+// ── Image prefetch cache ───────────────────────────────────────────────────────
+
+async function loadPrefetchedUrls(): Promise<Set<string>> {
+  try {
+    const raw = await AsyncStorage.getItem(PREFETCHED_URLS_KEY);
+    return raw ? new Set(JSON.parse(raw) as string[]) : new Set();
+  } catch { return new Set(); }
+}
+
+async function savePrefetchedUrls(urls: Set<string>): Promise<void> {
+  try {
+    await AsyncStorage.setItem(PREFETCHED_URLS_KEY, JSON.stringify([...urls]));
+  } catch {}
+}
+
+/**
+ * Pre-warm the expo-image disk cache for all product image URLs.
+ * Skips URLs that have already been prefetched in a previous sync, so
+ * subsequent syncs only fetch genuinely new or changed images.
+ * Runs prefetch calls in batches to avoid flooding the network.
+ */
+export async function prefetchProductImages(products: any[]): Promise<void> {
+  try {
+    const uniqueUrls = [
+      ...new Set(
+        products
+          .map((p: any) => p.images?.[0] as string | null | undefined)
+          .filter((u): u is string => typeof u === 'string' && u.length > 0),
+      ),
+    ];
+
+    if (uniqueUrls.length === 0) return;
+
+    const already = await loadPrefetchedUrls();
+    const toFetch = uniqueUrls.filter(u => !already.has(u));
+
+    if (toFetch.length === 0) return;
+
+    const succeeded = new Set<string>();
+
+    for (let i = 0; i < toFetch.length; i += PREFETCH_BATCH_SIZE) {
+      const batch = toFetch.slice(i, i + PREFETCH_BATCH_SIZE);
+      const results = await Promise.allSettled(
+        batch.map(url => ExpoImage.prefetch(url, 'disk')),
+      );
+      results.forEach((result, idx) => {
+        if (result.status === 'fulfilled') {
+          succeeded.add(batch[idx]!);
+        }
+      });
+    }
+
+    if (succeeded.size === 0) return;
+
+    const updated = new Set([...already, ...succeeded]);
+    await savePrefetchedUrls(updated);
   } catch {}
 }
 

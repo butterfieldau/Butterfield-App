@@ -5,11 +5,12 @@ import React, {
   useCallback, useEffect, useMemo, useRef, useState,
 } from 'react';
 import {
-  ActivityIndicator, Animated, Alert, FlatList, Image, Keyboard,
+  ActivityIndicator, Animated, Alert, FlatList, Keyboard,
   KeyboardAvoidingView, Modal, PanResponder, Platform, Pressable, ScrollView,
   StyleSheet, Text, TextInput, TouchableOpacity, useWindowDimensions,
   View,
 } from 'react-native';
+import { Image as ExpoImage } from 'expo-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
@@ -28,7 +29,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useLayoutHandledSafeArea } from '@/context/LayoutSafeAreaContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
-  savePosProductsCache,
+  savePosProductsCache, prefetchProductImages,
   loadDetailCache, saveDetailEntry, clearDetailCache,
   saveStoreConfig, saveSurchargesCache, saveLoyaltyConfig,
   getPosLastSyncedAt, formatSyncTime,
@@ -683,7 +684,8 @@ function PosScreenInner() {
     queryFn: async () => {
       const res = await api.products.list();
       if ((res as any)?.data?.length) {
-        savePosProductsCache((res as any).data);
+        await savePosProductsCache((res as any).data);
+        await prefetchProductImages((res as any).data);
       }
       return res;
     },
@@ -2025,7 +2027,7 @@ function ProductGridCard({
       activeOpacity={0.75}
     >
       {imgUrl ? (
-        <Image source={{ uri: imgUrl }} style={styles.productCardImage} resizeMode="cover" />
+        <ExpoImage source={{ uri: imgUrl }} style={styles.productCardImage} contentFit="cover" cachePolicy="disk" />
       ) : (
         <View style={[styles.productCardImage, { backgroundColor: '#EFF6FF', justifyContent: 'center', alignItems: 'center' }]}>
           <Feather name="package" size={28} color={BLUE} />
