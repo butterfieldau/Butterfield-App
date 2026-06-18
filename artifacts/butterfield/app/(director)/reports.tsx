@@ -1,5 +1,5 @@
 import { Feather } from '@expo/vector-icons';
-import * as FileSystem from 'expo-file-system/legacy';
+import * as FileSystem from 'expo-file-system';
 import * as Haptics from 'expo-haptics';
 import * as Sharing from 'expo-sharing';
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
@@ -56,6 +56,7 @@ function toYMD(d: Date): string {
   const day = String(d.getDate()).padStart(2, '0');
   return `${y}-${m}-${day}`;
 }
+
 
 function fmtAUD(cents: number) {
   return `$${(cents / 100).toLocaleString('en-AU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -845,18 +846,13 @@ function DownloadReportModal({ visible, onClose }: DownloadModalProps) {
         document.body.appendChild(a); a.click(); document.body.removeChild(a);
         URL.revokeObjectURL(objUrl);
       } else {
-        const fileUri = (FileSystem.cacheDirectory ?? '') + filename;
         const res2 = await fetch(url, { headers: { Authorization: `Bearer ${token ?? ''}` } });
         if (!res2.ok) throw new Error(await res2.text());
         const buf = await res2.arrayBuffer();
         const bytes = new Uint8Array(buf);
-        let binary = '';
-        const chunk = 8192;
-        for (let i = 0; i < bytes.length; i += chunk) {
-          binary += String.fromCharCode(...(bytes.subarray(i, i + chunk) as any));
-        }
-        const base64 = btoa(binary);
-        await FileSystem.writeAsStringAsync(fileUri, base64, { encoding: FileSystem.EncodingType.Base64 });
+        const xlsxFile = new FileSystem.File(FileSystem.Paths.cache, filename);
+        xlsxFile.write(bytes);
+        const fileUri = xlsxFile.uri;
         const canShare = await Sharing.isAvailableAsync();
         if (canShare) {
           await Sharing.shareAsync(fileUri, {
@@ -1109,8 +1105,9 @@ function RegisterReportsTab() {
         document.body.removeChild(a);
         URL.revokeObjectURL(objUrl);
       } else {
-        const fileUri = `${FileSystem.cacheDirectory ?? ''}${filename}`;
-        await FileSystem.writeAsStringAsync(fileUri, csv, { encoding: FileSystem.EncodingType.UTF8 });
+        const csvFile = new FileSystem.File(FileSystem.Paths.cache, filename);
+        csvFile.write(csv);
+        const fileUri = csvFile.uri;
         if (await Sharing.isAvailableAsync()) {
           await Sharing.shareAsync(fileUri, {
             mimeType: 'text/csv',
