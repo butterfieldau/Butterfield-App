@@ -12,7 +12,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRefreshControl } from '@/hooks/useRefreshControl';
 import { DirectorTabScreen } from '@/components/DirectorTabScreen';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, getWholesaleInvoiceUrl } from '@/lib/api';
 import type { ApiOrder, PosTransaction } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
@@ -1090,6 +1090,7 @@ export default function DirectorOrdersScreen() {
     queryKey: isStaff ? ['staff-orders'] : ['director-orders'],
     queryFn: () => isStaff ? api.staff.allOrders() : api.director.orders(),
     refetchInterval: 20000,
+    placeholderData: keepPreviousData,
   });
   const { data: posData, isLoading: posLoading, refetch: posRefetch } = useQuery({
     queryKey: ['director-pos-orders', posDayStr],

@@ -13,7 +13,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRefreshControl } from '@/hooks/useRefreshControl';
 import { DirectorTabScreen } from '@/components/DirectorTabScreen';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import type { AccessRole, DeletedAccount, DirectorStaffMember, DirectorUserSummary, LoginHistoryEntry, ShopDisplayUser, StaffInviteToken, StaffLeaveRequest, StaffShift, StaffStoreAssignment, StoreSummary, WholesaleAccount, WholesaleCard } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
@@ -2003,6 +2003,7 @@ export function DirectorUsersScreen({ modeOverride }: { modeOverride?: UsersMode
   const { data, isLoading, refetch } = useQuery({
     queryKey: ['director-users'],
     queryFn: () => api.director.users(),
+    placeholderData: keepPreviousData,
   });
   const { refreshing, onRefresh } = useRefreshControl(refetch);
   const allUsers: DirectorUserSummary[] = data?.data ?? [];

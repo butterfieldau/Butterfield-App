@@ -11,7 +11,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRefreshControl } from '@/hooks/useRefreshControl';
 import { DirectorTabScreen } from '@/components/DirectorTabScreen';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 
 const BG     = '#EFF6FF';
@@ -1569,6 +1569,7 @@ export default function DirectorProductsScreen() {
   const { data, isLoading, refetch } = useQuery({
     queryKey: ['director-products'],
     queryFn: () => api.director.products(),
+    placeholderData: keepPreviousData,
   });
   const { refreshing: productsRefreshing, onRefresh: onRefreshProducts } = useRefreshControl(refetch);
   const { data: catsData } = useQuery({
