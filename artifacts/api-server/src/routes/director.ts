@@ -2514,7 +2514,7 @@ router.get('/reports/staff', async (req, res) => {
         isNotNull(staffShiftsTable.clockOut),
       )),
     db.select({ id: usersTable.id, name: usersTable.name }).from(usersTable)
-      .where(sql`${usersTable.role} IN ('staff','manager','supervisor','store_manager','area_manager')`),
+      .where(sql`${usersTable.role} IN ('staff','manager')`),
     db.select({
       userId: staffProfilesTable.userId,
       employeeId: staffProfilesTable.employeeId,
