@@ -1971,7 +1971,9 @@ router.get('/linkly/transaction/:sessionId/stream', async (req, res) => {
   if (!binding) return res.status(404).json({ error: 'Session not found or expired.' });
   if (binding.deviceUserId !== req.user!.id) return res.status(403).json({ error: 'Session belongs to a different device.' });
 
-  // If already complete, send the result immediately without holding a connection open
+  // If already complete, send the result immediately without holding a connection open.
+  // Do NOT delete from posActiveSessions here — the parallel poll fallback on the client
+  // may still be in-flight and needs the session binding to return a 200 instead of 404.
   const existing = await getStoredLinklyTransaction(sessionId);
   if (existing?.complete) {
     res.setHeader('Content-Type', 'text/event-stream');
@@ -1980,7 +1982,6 @@ router.get('/linkly/transaction/:sessionId/stream', async (req, res) => {
     res.setHeader('X-Accel-Buffering', 'no');
     res.flushHeaders();
     res.write(`data: ${JSON.stringify(buildLinklyResultPayload(existing))}\n\n`);
-    posActiveSessions.delete(sessionId);
     res.end();
     return;
   }
@@ -2018,7 +2019,10 @@ router.get('/linkly/transaction/:sessionId/stream', async (req, res) => {
     cleanup();
     try {
       res.write(`data: ${JSON.stringify(buildLinklyResultPayload(result))}\n\n`);
-      posActiveSessions.delete(sessionId);
+      // Do NOT delete from posActiveSessions here. The parallel poll running on the
+      // client may still be in-flight; it needs the session to get a 200 result
+      // rather than a 404. The poll endpoint deletes the session when it sees
+      // complete=true, and the 5-minute GC prunes anything the poll doesn't reach.
       res.end();
     } catch {}
   });

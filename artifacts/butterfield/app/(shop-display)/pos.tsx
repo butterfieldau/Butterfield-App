@@ -292,6 +292,12 @@ function startLinklyStream(
     }, delay);
   };
 
+  // Start a 2-second parallel poll immediately. This is the reliable path that
+  // worked before SSE was added. If the SSE fires first, cancel() clears this
+  // timer. If the SSE is buffered/delayed by the production proxy, the poll
+  // picks up the result on its own.
+  startPoll(2000);
+
   (async () => {
     if (cancelled) return;
     try {
