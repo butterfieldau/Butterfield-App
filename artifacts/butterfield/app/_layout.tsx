@@ -7,11 +7,10 @@ import { router, Stack } from "expo-router";
 import * as Notifications from "expo-notifications";
 import * as SplashScreen from "expo-splash-screen";
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { Animated, AppState, Image, StyleSheet, View } from "react-native";
+import { AppState } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
-import { LinearGradient } from "expo-linear-gradient";
 import { KeyboardProvider } from "react-native-keyboard-controller";
-import { SafeAreaProvider, useSafeAreaInsets } from "react-native-safe-area-context";
+import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { InAppNotificationBanner, type InAppNotificationPayload } from "@/components/InAppNotificationBanner";
@@ -57,6 +56,21 @@ const directorStandaloneScreenOptions = {
   fullScreenGestureEnabled: false,
   gestureDirection: "horizontal" as const,
 };
+
+/**
+ * Hides the native splash screen once the auth check has completed.
+ * Must live inside AuthProvider to read isLoading.
+ */
+function SplashHider() {
+  const { isLoading } = useAuth();
+
+  useEffect(() => {
+    if (isLoading) return;
+    SplashScreen.hideAsync().catch(() => {});
+  }, [isLoading]);
+
+  return null;
+}
 
 /**
  * Handles notification taps and routes the user to the correct in-app screen.
@@ -201,61 +215,9 @@ function RootLayoutNav() {
   );
 }
 
-// JS-layer splash overlay — renders the same image as the native splash so
-// there's no visible jump, holds for 2 s, then fades out at 60 fps.
-function JsSplashOverlay({ onDone }: { onDone: () => void }) {
-  const opacity = useRef(new Animated.Value(1)).current;
-  const insets = useSafeAreaInsets();
-
-  useEffect(() => {
-    const holdTimer = setTimeout(() => {
-      Animated.timing(opacity, {
-        toValue:         0,
-        duration:        500,
-        useNativeDriver: true,
-      }).start(() => onDone());
-    }, 2000);
-
-    return () => clearTimeout(holdTimer);
-  }, [opacity, onDone]);
-
-  return (
-    <Animated.View style={[StyleSheet.absoluteFill, { opacity, zIndex: 9999 }]}>
-      <LinearGradient
-        colors={['#1481ff', '#3cbbee']}
-        start={{ x: 0.5, y: 0 }}
-        end={{ x: 0.5, y: 1 }}
-        style={StyleSheet.absoluteFill}
-      >
-        <View style={styles.splashContent}>
-          <Image
-            source={require('../assets/images/logo-white.png')}
-            style={styles.splashLogo}
-            resizeMode="contain"
-          />
-        </View>
-        <View style={[styles.splashWatermarkContainer, { paddingBottom: insets.bottom + 24 }]}>
-          <Image
-            source={require('../assets/images/launchtime-watermark.png')}
-            style={styles.splashWatermark}
-            resizeMode="contain"
-          />
-        </View>
-      </LinearGradient>
-    </Animated.View>
-  );
-}
-
 export default function RootLayout() {
-  const [splashDone, setSplashDone] = useState(false);
   const [inAppNotif, setInAppNotif] = useState<InAppNotificationPayload | null>(null);
   const inAppNavTarget = useRef<string | null>(null);
-
-  useEffect(() => {
-    // Hide the native Expo splash immediately — the JS overlay takes over
-    // so there's no visible gap between the two layers.
-    SplashScreen.hideAsync();
-  }, []);
 
   useEffect(() => {
     clearAppBadge().catch(() => {});
@@ -301,6 +263,8 @@ export default function RootLayout() {
           }}
         >
           <AuthProvider>
+            {/* Hides native splash once auth check is done — must be inside AuthProvider */}
+            <SplashHider />
             <CartProvider>
               <GestureHandlerRootView style={{ flex: 1 }}>
                 <KeyboardProvider>
@@ -330,37 +294,6 @@ export default function RootLayout() {
           }
         />
       )}
-
-      {/* JS splash sits above everything until its fade completes */}
-      {!splashDone && (
-        <JsSplashOverlay onDone={() => setSplashDone(true)} />
-      )}
     </SafeAreaProvider>
   );
 }
-
-const styles = StyleSheet.create({
-  splashContent: {
-    flex: 1,
-    paddingHorizontal: 28,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  splashLogo: {
-    width: '100%',
-    maxWidth: 340,
-    height: 92,
-  },
-  splashWatermarkContainer: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    alignItems: 'center',
-  },
-  splashWatermark: {
-    width: 140,
-    height: 20,
-    opacity: 0.85,
-  },
-});
