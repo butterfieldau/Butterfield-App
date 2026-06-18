@@ -84,7 +84,7 @@ function isThisWeek(d: Date | string) {
   return date >= weekAgo;
 }
 function fmtTime(d: Date | string) {
-  return new Date(d).toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit' });
+  return new Date(d).toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit', timeZone: 'Australia/Sydney' });
 }
 
 function getOrderTimelineDate(order: ApiOrder) {
@@ -206,7 +206,7 @@ function OrderDetailModal({ order, visible, onClose, onStatusChange, onAcceptOrd
             </Text>
             <Text style={[{ color: MUTED, fontWeight: '400', fontSize: 12 }]}>
               {new Date(order.createdAt).toLocaleDateString('en-AU', {
-                weekday: 'short', day: 'numeric', month: 'short', year: 'numeric',
+                weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Australia/Sydney',
               })} · {fmtTime(order.createdAt)}
             </Text>
           </View>
@@ -225,9 +225,9 @@ function OrderDetailModal({ order, visible, onClose, onStatusChange, onAcceptOrd
               {order.scheduledFor && (
                 <Text style={{ fontSize: 13, color: '#92400E', fontWeight: '400' }}>
                   {order.type === 'delivery' ? 'Delivery' : 'Pickup'} scheduled for{' '}
-                  {new Date(order.scheduledFor).toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long' })}
+                  {new Date(order.scheduledFor).toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Australia/Sydney' })}
                   {order.type !== 'delivery'
-                    ? ` at ${new Date(order.scheduledFor).toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit', hour12: true })}`
+                    ? ` at ${new Date(order.scheduledFor).toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'Australia/Sydney' })}`
                     : ''}
                 </Text>
               )}
@@ -266,9 +266,9 @@ function OrderDetailModal({ order, visible, onClose, onStatusChange, onAcceptOrd
             <View style={{ backgroundColor: '#DCFCE7', borderRadius: 14, padding: 14, borderWidth: 1, borderColor: '#86EFAC', flexDirection: 'row', alignItems: 'center', gap: 8 }}>
               <Feather name="check-circle" size={16} color="#166534" />
               <Text style={{ fontSize: 13, fontWeight: '600', color: '#166534', flex: 1 }}>
-                Confirmed for {new Date(order.scheduledFor).toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long' })}
+                Confirmed for {new Date(order.scheduledFor).toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Australia/Sydney' })}
                 {order.type !== 'delivery'
-                  ? ` at ${new Date(order.scheduledFor).toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit', hour12: true })}`
+                  ? ` at ${new Date(order.scheduledFor).toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'Australia/Sydney' })}`
                   : ''}
               </Text>
             </View>
@@ -386,7 +386,7 @@ function OrderDetailModal({ order, visible, onClose, onStatusChange, onAcceptOrd
                 <View style={styles.detailRow}>
                   <Feather name="calendar" size={14} color={MUTED} />
                   <Text style={styles.detailText}>
-                    {new Date(order.scheduledDate).toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long' })}
+                    {new Date(order.scheduledDate).toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Australia/Sydney' })}
                   </Text>
                 </View>
               )}
@@ -964,7 +964,7 @@ function PosTabContent({
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
-        style={{ flexGrow: 0, backgroundColor: CARD, borderBottomWidth: 1, borderBottomColor: BORDER }}
+        style={{ height: 48, flexShrink: 0, backgroundColor: CARD, borderBottomWidth: 1, borderBottomColor: BORDER }}
         contentContainerStyle={{ paddingHorizontal: 12, paddingVertical: 8, gap: 6, flexDirection: 'row', alignItems: 'center' }}
       >
         {POS_CHIP_FILTERS.map(chip => {
