@@ -313,7 +313,7 @@ router.get('/delivery-config', async (_req, res) => {
         .from(productCategoriesTable)
         .where(eq(productCategoriesTable.isActive, true));
       deliverableCategories = cats
-        .filter((c) => (c as any).isDeliveryAvailable)
+        .filter((c) => c.isDeliveryAvailable)
         .map((c) => c.slug);
     } catch {
       deliverableCategories = [];
