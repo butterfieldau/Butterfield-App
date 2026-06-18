@@ -1416,10 +1416,12 @@ router.get('/analytics', async (req, res) => {
       const tenderBreakdown: Record<string, number> =
         (rawTender && typeof rawTender === 'object' && !Array.isArray(rawTender)) ? rawTender
         : (typeof rawTender === 'string' ? JSON.parse(rawTender) : {});
+      // count is not stored in pos_daily_summaries — mark as null so the UI
+      // can show "—" instead of a misleading "0×".
       const tenderTypes = Object.entries(tenderBreakdown)
         .map(([type, cents]) => ({
           type,
-          count: 0,
+          count: null as number | null,
           pct: posCents > 0 ? Math.round((Number(cents) / posCents) * 100) : 0,
         }))
         .sort((a, b) => b.pct - a.pct);

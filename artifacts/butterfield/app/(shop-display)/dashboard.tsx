@@ -2,10 +2,10 @@ import { Feather } from '@expo/vector-icons';
 import * as FileSystem from 'expo-file-system';
 import * as Haptics from 'expo-haptics';
 import * as Sharing from 'expo-sharing';
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator, Alert, Modal, Pressable, RefreshControl,
-  ScrollView, StyleSheet, Text, TouchableOpacity, useWindowDimensions, View,
+  ScrollView, StyleSheet, Text, TouchableOpacity, View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Circle, Defs, LinearGradient, Path, Stop, Svg, Text as SvgText } from 'react-native-svg';
@@ -244,20 +244,26 @@ function DonutChart({ segments, size = 130, thickness = 22 }: DonutChartProps) {
 // ── Animated Number ───────────────────────────────────────────────────────────
 function AnimatedNumber({ value, formatter }: { value: number; formatter: (v: number) => string }) {
   const [displayed, setDisplayed] = useState(0);
+  // Use a ref to track the live displayed value so the effect can read the
+  // current position without being listed as a dependency (which would restart
+  // the animation on every tick).
+  const displayedRef = useRef(0);
   useEffect(() => {
     let frame: ReturnType<typeof requestAnimationFrame>;
     const start = Date.now();
-    const from = displayed;
+    const from = displayedRef.current; // read current value at effect start
     const tick = () => {
       const elapsed = Date.now() - start;
       const t = Math.min(1, elapsed / 900);
       const eased = 1 - Math.pow(1 - t, 3);
-      setDisplayed(Math.round(from + (value - from) * eased));
+      const next = Math.round(from + (value - from) * eased);
+      displayedRef.current = next;
+      setDisplayed(next);
       if (t < 1) frame = requestAnimationFrame(tick);
     };
     frame = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(frame);
-  }, [value]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [value]);
   return <Text>{formatter(displayed)}</Text>;
 }
 
@@ -290,6 +296,41 @@ function CountCard({ label, value, icon, color = WHITE, suffix = '' }:
       <Text style={styles.statLabel}>{label}</Text>
     </View>
   );
+}
+
+// ── Error Boundary ────────────────────────────────────────────────────────────
+interface EBState { hasError: boolean }
+class DashboardErrorBoundary extends React.Component<{ children: React.ReactNode }, EBState> {
+  constructor(props: { children: React.ReactNode }) {
+    super(props);
+    this.state = { hasError: false };
+  }
+  static getDerivedStateFromError(): EBState { return { hasError: true }; }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <View style={{ flex: 1, backgroundColor: BG, alignItems: 'center', justifyContent: 'center', padding: 32 }}>
+          <View style={{ width: 80, height: 80, borderRadius: 20, backgroundColor: AMBER + '22', borderWidth: 1.5, borderColor: AMBER + '44', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
+            <Feather name="alert-triangle" size={36} color={AMBER} />
+          </View>
+          <Text style={{ color: WHITE, fontSize: 20, fontWeight: '800', textAlign: 'center', letterSpacing: -0.3 }}>
+            Something went wrong
+          </Text>
+          <Text style={{ color: MUTED, fontSize: 14, textAlign: 'center', lineHeight: 20, marginTop: 8, maxWidth: 280 }}>
+            The dashboard encountered an error. Pull down to refresh or tap below to try again.
+          </Text>
+          <TouchableOpacity
+            style={{ marginTop: 24, backgroundColor: BLUE + '22', borderRadius: 12, paddingHorizontal: 28, paddingVertical: 13, borderWidth: 1, borderColor: BLUE + '44' }}
+            onPress={() => this.setState({ hasError: false })}
+            activeOpacity={0.75}
+          >
+            <Text style={{ color: BLUE, fontSize: 15, fontWeight: '700' }}>Try Again</Text>
+          </TouchableOpacity>
+        </View>
+      );
+    }
+    return this.props.children;
+  }
 }
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -372,7 +413,7 @@ async function exportReport(data: ShopDisplayAnalytics, range: Range, date: stri
     '',
     '--- TENDER TYPES ---',
     'Type,Count,Share',
-    ...data.tenderTypes.map(t => `${t.type},${t.count},${t.pct}%`),
+    ...data.tenderTypes.map(t => `${t.type},${t.count != null ? t.count : ''},${t.pct}%`),
   ];
   const csv = lines.join('\n');
   const safeName = label.replace(/[^a-z0-9]/gi, '-').toLowerCase();
@@ -392,17 +433,20 @@ async function exportReport(data: ShopDisplayAnalytics, range: Range, date: stri
   }
 }
 
-// ── Main Screen ───────────────────────────────────────────────────────────────
-export default function DashboardScreen() {
+// ── Inner Screen (wrapped by DashboardErrorBoundary below) ────────────────────
+function DashboardScreenInner() {
   const insets = useSafeAreaInsets();
   const layoutHandled = useLayoutHandledSafeArea();
-  const { width } = useWindowDimensions();
   const [range, setRange] = useState<Range>('day');
   const [date, setDate] = useState(todayString);
   const [exporting, setExporting] = useState(false);
   const [printing, setPrinting] = useState(false);
   const [showCalendar, setShowCalendar] = useState(false);
   const [selectedStoreId, setSelectedStoreId] = useState<string | null>(null);
+  // Measure the actual content width via onLayout so the chart fits correctly
+  // on iPad (where a 220 px sidebar reduces the available width) and handles
+  // rotation without computing from the raw device width.
+  const [chartW, setChartW] = useState(300);
 
   const { data: storesResp } = useQuery({
     queryKey: ['shop-display-stores'],
@@ -418,9 +462,6 @@ export default function DashboardScreen() {
   });
 
   const data = resp?.data;
-
-  // Chart width (full width minus card padding)
-  const chartW = width - 64;
 
   const pct = data ? pctChange(data.totalCents, data.prevPeriodTotalCents) : 0;
   const pctPositive = pct >= 0;
@@ -505,7 +546,8 @@ export default function DashboardScreen() {
       if (data.tenderTypes.length > 0) {
         lines.push('', 'TENDER BREAKDOWN', '---');
         data.tenderTypes.forEach(t => {
-          lines.push(`${t.type}\t${t.count}x  (${t.pct}%)`);
+          const countStr = t.count != null ? `${t.count}x  ` : '';
+          lines.push(`${t.type}\t${countStr}(${t.pct}%)`);
         });
       }
 
@@ -743,8 +785,14 @@ export default function DashboardScreen() {
                 </View>
               </View>
 
-              {/* Area chart */}
-              <View style={styles.chartWrap}>
+              {/* Area chart — measured via onLayout so width is correct on iPad */}
+              <View
+                style={styles.chartWrap}
+                onLayout={e => {
+                  const w = e.nativeEvent.layout.width;
+                  if (w > 0) setChartW(w);
+                }}
+              >
                 <AreaChart data={data.chartData} width={chartW} range={range} />
               </View>
             </View>
@@ -846,7 +894,7 @@ export default function DashboardScreen() {
                       <View key={i} style={styles.rankRow}>
                         <View style={[styles.rankDot, { backgroundColor: TENDER_PALETTE[t.type] ?? '#64748B' }]} />
                         <Text style={styles.rankName} numberOfLines={1}>{t.type}</Text>
-                        <Text style={styles.rankCount}>{t.count}×</Text>
+                        <Text style={styles.rankCount}>{t.count != null ? `${t.count}×` : '—'}</Text>
                         <Text style={styles.rankPct}>{t.pct}%</Text>
                       </View>
                     ))}
@@ -861,6 +909,15 @@ export default function DashboardScreen() {
         )}
       </ScrollView>
     </View>
+  );
+}
+
+// ── Public export — wraps inner screen in error boundary ──────────────────────
+export default function DashboardScreen() {
+  return (
+    <DashboardErrorBoundary>
+      <DashboardScreenInner />
+    </DashboardErrorBoundary>
   );
 }
 

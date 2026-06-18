@@ -3019,7 +3019,7 @@ export interface ShopDisplayAnalytics {
   channelBreakdown: { appCents: number; posCents: number; wholesaleCents: number };
   chartData: Array<{ label: string; valueCents: number; prevValueCents: number }>;
   topSellers: Array<{ name: string; units: number; revenueCents: number; pct: number }>;
-  tenderTypes: Array<{ type: string; count: number; pct: number }>;
+  tenderTypes: Array<{ type: string; count: number | null; pct: number }>;
   periodStart: string;
   periodEnd: string;
 }
