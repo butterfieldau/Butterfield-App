@@ -23,6 +23,7 @@ import { useCart } from '@/context/CartContext';
 import { useAuth } from '@/context/AuthContext';
 import { LoginRequiredModal } from '@/components/LoginRequiredModal';
 import SuggestionTile from '@/components/SuggestionTile';
+import { PRODUCT_IMAGES } from '@/components/ProductTile';
 import { getPalette } from '@/constants/categoryColors';
 import { getSelectedProduct, setSelectedProduct } from '@/lib/selectedProduct';
 import { getPreselectedOptions, setPreselectedOptions } from '@/lib/preselectedOptions';
@@ -256,9 +257,11 @@ export default function ProductDetailScreen() {
   const category     = product?.category ?? product?.metadata?.category ?? 'cookies';
   const palette      = getPalette(category);
   const galleryUrls  = useMemo(() => {
+    const fallback = product?.name ? (PRODUCT_IMAGES[product.name] ?? null) : null;
     const combined = [
       ...((product?.images ?? []) as string[]),
       ...parseArr(product?.galleryUrls),
+      ...(fallback ? [fallback] : []),
     ].filter(Boolean);
     return Array.from(new Set(combined));
   }, [product]);
