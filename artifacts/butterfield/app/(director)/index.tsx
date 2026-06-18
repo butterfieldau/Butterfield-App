@@ -717,15 +717,12 @@ function DirectorDashboardInner() {
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={BLUE} />}
     >
       <View style={{ paddingHorizontal: 16, gap: 16, paddingTop: 14 }}>
-        <Text style={{ fontSize: 28, fontWeight: '700', color: TEXT }}>Dashboard</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+          <Text style={{ fontSize: 28, fontWeight: '700', color: TEXT, flex: 1 }}>Dashboard</Text>
+          {isLoading && <ActivityIndicator color={BLUE} size="small" />}
+        </View>
 
-        {isLoading && !data ? (
-          <View style={{ alignItems: 'center', marginTop: 80 }}>
-            <ActivityIndicator color={BLUE} size="large" />
-            <Text style={{ color: MUTED, marginTop: 12, fontWeight: '400' }}>Loading control centre…</Text>
-          </View>
-        ) : (
-          <>
+        <>
             {/* ── Revenue hero ─────────────────────────────────── */}
             <View style={[styles.revCard, { backgroundColor: NAVY }]}>
               <View style={styles.revHeader}>
@@ -1029,7 +1026,6 @@ function DirectorDashboardInner() {
               )}
             </View>
           </>
-        )}
       </View>
     </ScrollView>
   );
