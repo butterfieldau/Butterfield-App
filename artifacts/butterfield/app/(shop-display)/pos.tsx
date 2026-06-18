@@ -321,8 +321,14 @@ function startLinklyStream(
 
       while (!cancelled) {
         const { value, done } = await reader.read();
-        if (done) { if (!cancelled) startPoll(); break; }
-        buffer += decoder.decode(value, { stream: true });
+
+        // Always decode any bytes received — React Native can deliver the final
+        // data chunk and done=true together in the same read(). Processing value
+        // BEFORE the done-check ensures we never discard the approval payload.
+        if (value?.byteLength) {
+          buffer += decoder.decode(value, { stream: !done });
+        }
+
         const lines = buffer.split('\n');
         buffer = lines.pop() ?? '';
 
@@ -346,6 +352,7 @@ function startLinklyStream(
           }
         }
         if (handled) break;
+        if (done) { if (!cancelled) startPoll(); break; }
       }
     } catch (err: any) {
       if (!cancelled && err?.name !== 'AbortError') startPoll();
