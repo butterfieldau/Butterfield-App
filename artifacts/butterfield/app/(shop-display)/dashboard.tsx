@@ -8,7 +8,7 @@ import {
   ScrollView, StyleSheet, Text, TouchableOpacity, View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Circle, Defs, LinearGradient, Path, Stop, Svg, Text as SvgText } from 'react-native-svg';
+import { Circle, Defs, LinearGradient, Path, Stop, Svg } from 'react-native-svg';
 import { useQuery } from '@tanstack/react-query';
 import { api, type ShopDisplayAnalytics } from '@/lib/api';
 import InlineCalendarPicker from '@/components/InlineCalendarPicker';
@@ -162,37 +162,42 @@ function AreaChart({ data, width, height = 160, range }: AreaChartProps) {
   }));
 
   return (
-    <Svg width={W} height={H + 24}>
-      <Defs>
-        <LinearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
-          <Stop offset="0" stopColor={BLUE} stopOpacity="0.45" />
-          <Stop offset="1" stopColor={BLUE} stopOpacity="0.02" />
-        </LinearGradient>
-      </Defs>
-      {/* Grid lines */}
+    <View style={{ width: W, height: H + 28 }}>
+      <Svg width={W} height={H} style={{ position: 'absolute', top: 0, left: 0 }}>
+        <Defs>
+          <LinearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
+            <Stop offset="0" stopColor={BLUE} stopOpacity="0.45" />
+            <Stop offset="1" stopColor={BLUE} stopOpacity="0.02" />
+          </LinearGradient>
+        </Defs>
+        {/* Grid lines */}
+        {yTicks.map((t, i) => (
+          <Path key={i} d={`M0,${t.y.toFixed(1)} L${W},${t.y.toFixed(1)}`} stroke={DIM} strokeWidth="1" />
+        ))}
+        {/* Current area fill */}
+        {currArea ? <Path d={currArea} fill="url(#areaGrad)" /> : null}
+        {/* Prior period line */}
+        {prevLine ? <Path d={prevLine} stroke={AMBER} strokeWidth="1.5" fill="none" strokeDasharray="4 3" opacity="0.7" /> : null}
+        {/* Current line */}
+        {currLine ? <Path d={currLine} stroke={BLUE} strokeWidth="2.5" fill="none" strokeLinecap="round" strokeLinejoin="round" /> : null}
+      </Svg>
+      {/* Y-axis labels — RN Text (SVG Text crashes on new arch in prod builds) */}
       {yTicks.map((t, i) => (
-        <React.Fragment key={i}>
-          <Path d={`M0,${t.y.toFixed(1)} L${W},${t.y.toFixed(1)}`} stroke={DIM} strokeWidth="1" />
-          <SvgText x="2" y={(t.y - 3).toFixed(1)} fontSize="9" fill={MUTED} fontWeight="600">{t.label}</SvgText>
-        </React.Fragment>
+        <Text key={i} style={{ position: 'absolute', top: t.y - 14, left: 2, fontSize: 9, color: MUTED, fontWeight: '600' }}>
+          {t.label}
+        </Text>
       ))}
-      {/* Current area fill */}
-      {currArea ? <Path d={currArea} fill="url(#areaGrad)" /> : null}
-      {/* Prior period line */}
-      {prevLine ? <Path d={prevLine} stroke={AMBER} strokeWidth="1.5" fill="none" strokeDasharray="4 3" opacity="0.7" /> : null}
-      {/* Current line */}
-      {currLine ? <Path d={currLine} stroke={BLUE} strokeWidth="2.5" fill="none" strokeLinecap="round" strokeLinejoin="round" /> : null}
-      {/* X-axis labels */}
+      {/* X-axis labels — RN Text */}
       {xLabels.map((d, i) => {
         const idx = data.indexOf(d);
         const x = data.length === 1 ? W / 2 : (idx / (data.length - 1)) * W;
         return (
-          <SvgText key={i} x={x.toFixed(1)} y={H + 18} fontSize="9" fill={MUTED} fontWeight="600" textAnchor="middle">
+          <Text key={i} style={{ position: 'absolute', top: H + 6, left: x - 20, width: 40, fontSize: 9, color: MUTED, fontWeight: '600', textAlign: 'center' }}>
             {d.label}
-          </SvgText>
+          </Text>
         );
       })}
-    </Svg>
+    </View>
   );
 }
 

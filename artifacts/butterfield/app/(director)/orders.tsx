@@ -965,7 +965,7 @@ function PosTabContent({
         horizontal
         showsHorizontalScrollIndicator={false}
         style={{ flexGrow: 0, backgroundColor: CARD, borderBottomWidth: 1, borderBottomColor: BORDER }}
-        contentContainerStyle={{ paddingHorizontal: 12, paddingVertical: 8, gap: 6, flexDirection: 'row' }}
+        contentContainerStyle={{ paddingHorizontal: 12, paddingVertical: 8, gap: 6, flexDirection: 'row', alignItems: 'center' }}
       >
         {POS_CHIP_FILTERS.map(chip => {
           const active = chipFilter === chip.key;
