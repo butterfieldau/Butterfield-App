@@ -825,7 +825,7 @@ export default function ShopDisplayOrdersScreen() {
                     const meta = STATUS_META[order.status] ?? STATUS_META.received;
                     const total = `$${((order.totalCents ?? 0) / 100).toFixed(2)}`;
                     const isDelivery = order.type === 'delivery';
-                    const timeStr = new Date(order.createdAt).toLocaleString('en-AU', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit', hour12: true });
+                    const timeStr = new Date(order.createdAt).toLocaleString('en-AU', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'Australia/Sydney' });
                     return (
                       <Pressable
                         key={order.id}
@@ -995,8 +995,8 @@ export default function ShopDisplayOrdersScreen() {
         const deliveryAddr = [d.street, d.suburb, d.postcode].filter(Boolean).join(', ') || d.deliveryAddress || null;
         const paymentLabel = d.isPaid ? 'Paid' : d.stripePaymentStatus ? d.stripePaymentStatus.replace(/_/g, ' ') : 'Pending';
         const paymentColour = d.isPaid || d.stripePaymentStatus === 'succeeded' ? '#16A34A' : '#D97706';
-        const orderTime = new Date(d.createdAt).toLocaleString('en-AU', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit', hour12: true });
-        const scheduledLabel = d.scheduledFor ? new Date(d.scheduledFor).toLocaleString('en-AU', { weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit', hour12: true }) : null;
+        const orderTime = new Date(d.createdAt).toLocaleString('en-AU', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'Australia/Sydney' });
+        const scheduledLabel = d.scheduledFor ? new Date(d.scheduledFor).toLocaleString('en-AU', { weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'Australia/Sydney' }) : null;
         return (
           <Modal visible transparent animationType="fade" onRequestClose={() => setDetailOrder(null)}>
             <View style={s.detailBackdrop}>
