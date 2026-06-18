@@ -129,7 +129,7 @@ async function tryOpenDrawerWithStarSdk(printerIp: string, drawerPin: 0 | 1 = 0)
         ?? commandRoot.Drawer?.Channel?.Channel1;
 
     if (drawerChannel !== undefined) {
-      openParameter.channel = drawerChannel;
+      openParameter.setChannel(drawerChannel);
     }
 
     drawerBuilder.actionOpen(openParameter);
