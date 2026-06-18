@@ -1209,62 +1209,60 @@ function ProductPicker({ selectedId, onSelect }: { selectedId: string; onSelect:
     staleTime: 60_000,
   });
   const products: DirectorProduct[] = (data?.data ?? []).filter((p: DirectorProduct) => p.isActive);
-  const filtered = search.trim()
+  const hasQuery = search.trim().length > 0;
+  const filtered = hasQuery
     ? products.filter(p => p.name.toLowerCase().includes(search.toLowerCase().trim()))
-    : products;
+    : [];
   const selectedProduct = products.find(p => p.id === selectedId);
 
   return (
-    <View style={{ gap: 6 }}>
+    <View style={{ gap: 8 }}>
       <Text style={styles.fieldLabel}>Linked product (optional)</Text>
       {isLoading ? (
         <ActivityIndicator color={BLUE} size="small" style={{ alignSelf: 'flex-start' }} />
       ) : (
         <>
+          {selectedProduct ? (
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, backgroundColor: '#F0F7FF', borderRadius: 10, borderWidth: 1, borderColor: '#BAD8F7' }}>
+              <Feather name="check-circle" size={16} color={BLUE} />
+              <Text style={{ flex: 1, fontSize: 14, color: TEXT, fontWeight: '500' }} numberOfLines={1}>{selectedProduct.name}</Text>
+              <Pressable onPress={() => { onSelect(''); setSearch(''); Haptics.selectionAsync(); }}>
+                <Feather name="x" size={16} color={MUTED} />
+              </Pressable>
+            </View>
+          ) : null}
           <TextInput
             style={[styles.input, { borderColor: BORDER, color: TEXT }]}
             value={search}
             onChangeText={setSearch}
-            placeholder="Search products…"
+            placeholder={selectedProduct ? 'Search to change product…' : 'Search products…'}
             placeholderTextColor={MUTED}
           />
-          {selectedProduct && (
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 4 }}>
-              <Text style={{ fontSize: 12, color: MUTED }}>Selected:</Text>
-              <View style={[styles.chip, { backgroundColor: BLUE, borderColor: BLUE }]}>
-                <Text style={[styles.chipText, { color: '#fff' }]} numberOfLines={1}>{selectedProduct.name}</Text>
-              </View>
-              <Pressable onPress={() => { onSelect(''); Haptics.selectionAsync(); }}>
-                <Text style={{ fontSize: 12, color: RED }}>Clear</Text>
-              </Pressable>
+          {hasQuery && (
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+              {filtered.map((p: DirectorProduct) => (
+                <Pressable
+                  key={p.id}
+                  onPress={() => { onSelect(p.id); setSearch(''); Haptics.selectionAsync(); }}
+                  style={[styles.chip, {
+                    backgroundColor: selectedId === p.id ? BLUE : '#F3F4F6',
+                    borderColor: selectedId === p.id ? BLUE : BORDER,
+                  }]}>
+                  <Text style={[styles.chipText, { color: selectedId === p.id ? '#fff' : TEXT }]} numberOfLines={1}>
+                    {p.name}
+                  </Text>
+                </Pressable>
+              ))}
+              {filtered.length === 0 && (
+                <Text style={{ fontSize: 12, color: MUTED, paddingVertical: 4 }}>No products match "{search}"</Text>
+              )}
             </View>
           )}
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-            {!selectedId && (
-              <View style={[styles.chip, { backgroundColor: '#F3F4F6', borderColor: BORDER }]}>
-                <Text style={[styles.chipText, { color: MUTED }]}>None selected</Text>
-              </View>
-            )}
-            {filtered.map((p: DirectorProduct) => (
-              <Pressable
-                key={p.id}
-                onPress={() => { onSelect(selectedId === p.id ? '' : p.id); Haptics.selectionAsync(); }}
-                style={[styles.chip, {
-                  backgroundColor: selectedId === p.id ? BLUE : '#F3F4F6',
-                  borderColor: selectedId === p.id ? BLUE : BORDER,
-                }]}>
-                <Text style={[styles.chipText, { color: selectedId === p.id ? '#fff' : TEXT }]} numberOfLines={1}>
-                  {p.name}
-                </Text>
-              </Pressable>
-            ))}
-            {filtered.length === 0 && search.trim() && (
-              <Text style={{ fontSize: 12, color: MUTED, paddingVertical: 4 }}>No products match "{search}"</Text>
-            )}
-          </View>
+          {!hasQuery && !selectedProduct && (
+            <Text style={{ fontSize: 12, color: MUTED }}>Type above to search all products.</Text>
+          )}
         </>
       )}
-      <Text style={{ fontSize: 11, color: MUTED }}>Select the product that will be added free to the customer's cart.</Text>
     </View>
   );
 }
@@ -1367,7 +1365,7 @@ function RewardModal({ visible, reward, onClose, onSuccess }: {
             {loading ? <ActivityIndicator color={BLUE} /> : <Text style={[styles.modalSave, { color: BLUE }]}>Save</Text>}
           </Pressable>
         </View>
-        <ScrollView contentContainerStyle={{ padding: 20, gap: 14 }} keyboardShouldPersistTaps="handled">
+        <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 56, gap: 16 }} keyboardShouldPersistTaps="handled">
           {error ? <Text style={[styles.errorText, { color: RED }]}>{error}</Text> : null}
 
           <View style={{ gap: 8 }}>
