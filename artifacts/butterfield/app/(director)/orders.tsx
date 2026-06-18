@@ -14,11 +14,15 @@ import { useRefreshControl } from '@/hooks/useRefreshControl';
 import { DirectorTabScreen } from '@/components/DirectorTabScreen';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, getWholesaleInvoiceUrl } from '@/lib/api';
-import type { ApiOrder } from '@/lib/api';
+import type { ApiOrder, PosTransaction } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import { orderToPrintJob, sendReceiptPrint } from '@/lib/printer';
 import { normalizeOrderItems, summarizeOrderItems } from '@/lib/orderItems';
 import InlineCalendarPicker from '@/components/InlineCalendarPicker';
+import {
+  STATUS_COLORS, STATUS_LABEL, ACTION_LABEL, WHOLESALE_NEXT,
+  getCustomerNextStatuses, ORDER_STATUS_SECTIONS, getOrderSectionKey,
+} from '@/lib/orderStatus';
 
 const BG     = '#EFF6FF';
 const CARD   = '#FFFFFF';
@@ -30,77 +34,8 @@ const GLASS_BG    = 'rgba(255,255,255,0.6)';
 const GLASS_BORDER= 'rgba(255,255,255,0.85)';
 const GREEN  = '#22C55E';
 const NAVY   = '#1A2B4A';
+const PURPLE = '#8B5CF6';
 const RED_CONST = '#DC2626';
-// ── Status config ─────────────────────────────────────────────────────────────
-const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
-  received:         { bg: '#FEF9C3', text: '#854D0E' },
-  being_prepared:   { bg: '#EDE9FE', text: '#5B21B6' },
-  ready_for_pickup: { bg: '#DCFCE7', text: '#166534' },
-  out_for_delivery: { bg: '#DBEAFE', text: '#1E40AF' },
-  completed:        { bg: '#F3F4F6', text: '#6B7280' },
-  cancelled:        { bg: '#FEE2E2', text: '#991B1B' },
-  refunded:         { bg: '#F3E8FF', text: '#6B21A8' },
-  pending:          { bg: '#DBEAFE', text: '#1E40AF' },
-  processing:       { bg: '#FEF3C7', text: '#92400E' },
-  dispatched:       { bg: '#EDE9FE', text: '#5B21B6' },
-  delivered:        { bg: '#DCFCE7', text: '#166534' },
-  scheduled:        { bg: '#FEF3C7', text: '#92400E' },
-  accepted:         { bg: '#DCFCE7', text: '#166534' },
-};
-const STATUS_LABEL: Record<string, string> = {
-  received: 'Pending', being_prepared: 'Preparing',
-  ready_for_pickup: 'Ready', out_for_delivery: 'Out for Delivery',
-  completed: 'Completed', cancelled: 'Cancelled', refunded: 'Refunded',
-  pending: 'Pending', processing: 'Processing',
-  dispatched: 'Dispatched', delivered: 'Delivered',
-  scheduled: 'Scheduled', accepted: 'Confirmed',
-};
-function getCustomerNextStatuses(order: ApiOrder): string[] {
-  const isDelivery = order.type === 'delivery' || order.deliveryType === 'delivery';
-  const isQuickPickup = !isDelivery && !order.scheduledFor;
-
-  const transitions: Record<string, string[]> = isQuickPickup
-    ? {
-        received:       ['being_prepared', 'cancelled', 'refunded'],
-        being_prepared: ['completed', 'cancelled', 'refunded'],
-      }
-    : isDelivery
-    ? {
-        scheduled:        ['accepted', 'cancelled', 'refunded'],
-        accepted:         ['being_prepared', 'cancelled', 'refunded'],
-        being_prepared:   ['out_for_delivery', 'cancelled', 'refunded'],
-        out_for_delivery: ['completed', 'cancelled', 'refunded'],
-      }
-    : {
-        scheduled:        ['accepted', 'cancelled', 'refunded'],
-        accepted:         ['being_prepared', 'cancelled', 'refunded'],
-        being_prepared:   ['ready_for_pickup', 'cancelled', 'refunded'],
-        ready_for_pickup: ['completed', 'cancelled', 'refunded'],
-      };
-
-  return transitions[order.status] ?? [];
-}
-
-const ACTION_LABEL: Record<string, string> = {
-  accepted:         'Accept Order',
-  being_prepared:   'Start Preparing',
-  ready_for_pickup: 'Mark Ready for Pickup',
-  out_for_delivery: 'Mark Out for Delivery',
-  completed:        'Mark Complete',
-  cancelled:        'Cancel Order',
-  refunded:         'Process Refund',
-  received:         'Move Back to Pending',
-  processing:       'Start Processing',
-  dispatched:       'Mark Dispatched',
-  delivered:        'Mark Delivered',
-  pending:          'Move Back to Pending',
-};
-const WHOLESALE_NEXT: Record<string, string[]> = {
-  pending:    ['processing', 'cancelled', 'refunded'],
-  processing: ['pending', 'dispatched', 'cancelled', 'refunded'],
-  dispatched: ['processing', 'delivered', 'cancelled', 'refunded'],
-  delivered: [], cancelled: [], refunded: [],
-};
 const TWO_WEEKS_MS = 14 * 24 * 60 * 60 * 1000;
 const FILTER_TABS = [
   { key: 'all',              label: 'All' },
@@ -678,9 +613,13 @@ function OrderCard({ order, onPress, onPrint, printing }: { order: ApiOrder; onP
                   ? `#${order.poReference ?? order.id.slice(0, 8).toUpperCase()}`
                   : (order.orderNumber ?? `#${order.id.slice(0, 8).toUpperCase()}`)}
               </Text>
-              {isWholesale && (
+              {isWholesale ? (
                 <View style={{ backgroundColor: '#DCFCE7', borderRadius: 5, paddingHorizontal: 5, paddingVertical: 2 }}>
                   <Text style={{ color: '#166534', fontWeight: '700', fontSize: 9 }}>WHOLESALE</Text>
+                </View>
+              ) : (
+                <View style={{ backgroundColor: '#DBEAFE', borderRadius: 5, paddingHorizontal: 5, paddingVertical: 2 }}>
+                  <Text style={{ color: '#1E40AF', fontWeight: '700', fontSize: 9 }}>APP</Text>
                 </View>
               )}
             </View>
@@ -807,6 +746,204 @@ function CalendarModal({
   );
 }
 
+// ── POS tab utilities ─────────────────────────────────────────────────────────
+function sydneyDateStr(d: Date = new Date()): string {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Australia/Sydney' }).format(d);
+}
+function shiftPosDate(dateStr: string, days: number): string {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const date = new Date(Date.UTC(y, m - 1, d, 2, 0, 0));
+  date.setUTCDate(date.getUTCDate() + days);
+  return sydneyDateStr(date);
+}
+function fmtCents(cents: number): string {
+  return `$${(cents / 100).toFixed(2)}`;
+}
+function formatPosDay(dateStr: string): string {
+  const today = sydneyDateStr();
+  const yesterday = shiftPosDate(today, -1);
+  if (dateStr === today) return 'Today';
+  if (dateStr === yesterday) return 'Yesterday';
+  const [y, m, d] = dateStr.split('-').map(Number);
+  return new Date(Date.UTC(y, m - 1, d, 2, 0, 0)).toLocaleDateString('en-AU', {
+    timeZone: 'Australia/Sydney', weekday: 'short', day: 'numeric', month: 'short',
+  });
+}
+const POS_METHOD_CONFIG: Record<string, { label: string; color: string }> = {
+  eftpos: { label: 'EFTPOS', color: BLUE },
+  cash:   { label: 'Cash',   color: GREEN },
+  split:  { label: 'Split',  color: '#8B5CF6' },
+};
+function getPosPaymentLabel(tx: PosTransaction): { label: string; color: string } {
+  if (tx.splitPayments && Array.isArray(tx.splitPayments) && tx.splitPayments.length > 1) {
+    return POS_METHOD_CONFIG.split;
+  }
+  const pm = (tx.paymentMethod ?? 'eftpos').toLowerCase();
+  return POS_METHOD_CONFIG[pm] ?? { label: pm.toUpperCase(), color: MUTED };
+}
+function summarisePosItems(items: any[]): string {
+  if (!items || items.length === 0) return 'No items';
+  const names = items.map((i: any) => {
+    const qty = i.quantity ?? i.qty ?? 1;
+    const name = i.name ?? i.productName ?? 'Item';
+    return qty > 1 ? `${qty}× ${name}` : name;
+  });
+  if (names.length <= 3) return names.join(', ');
+  return names.slice(0, 2).join(', ') + ` & ${names.length - 2} more`;
+}
+const POS_STATUS_COLORS: Record<string, { bg: string; text: string }> = {
+  received:  { bg: '#DCFCE7', text: '#166534' },
+  completed: { bg: '#F3F4F6', text: '#6B7280' },
+  refunded:  { bg: '#F3E8FF', text: '#6B21A8' },
+  voided:    { bg: '#FEE2E2', text: '#991B1B' },
+  cancelled: { bg: '#FEE2E2', text: '#991B1B' },
+};
+function PosTransactionCard({ tx }: { tx: PosTransaction }) {
+  const statusStyle = POS_STATUS_COLORS[tx.status] ?? { bg: '#F3F4F6', text: '#6B7280' };
+  const payMethod = getPosPaymentLabel(tx);
+  const hasExtras = tx.tipCents > 0 || tx.surchargeCents > 0 || tx.discountCents > 0;
+  return (
+    <View style={{ backgroundColor: CARD, borderRadius: 16, padding: 14, borderWidth: 1, borderColor: BORDER, gap: 8, marginBottom: 10 }}>
+      <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 12 }}>
+        <View style={{ flex: 1, gap: 2 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <Text style={{ fontSize: 15, fontWeight: '700', color: TEXT }}>
+              {tx.orderNumber ?? tx.id.slice(0, 8).toUpperCase()}
+            </Text>
+            <View style={{ paddingHorizontal: 8, paddingVertical: 3, borderRadius: 20, backgroundColor: statusStyle.bg }}>
+              <Text style={{ fontSize: 11, fontWeight: '700', color: statusStyle.text, letterSpacing: 0.3 }}>
+                {tx.status.charAt(0).toUpperCase() + tx.status.slice(1)}
+              </Text>
+            </View>
+          </View>
+          <Text style={{ fontSize: 12, color: MUTED }}>{fmtTime(tx.createdAt)}</Text>
+        </View>
+        <View style={{ alignItems: 'flex-end', gap: 4 }}>
+          <Text style={{ fontSize: 17, fontWeight: '700', color: TEXT }}>{fmtCents(tx.totalCents)}</Text>
+          <View style={{ paddingHorizontal: 8, paddingVertical: 3, borderRadius: 20, backgroundColor: payMethod.color + '18' }}>
+            <Text style={{ fontSize: 11, fontWeight: '700', color: payMethod.color }}>{payMethod.label}</Text>
+          </View>
+        </View>
+      </View>
+      <View style={{ height: 1, backgroundColor: BORDER }} />
+      <Text style={{ fontSize: 13, color: MUTED, lineHeight: 18 }} numberOfLines={2}>
+        {summarisePosItems(tx.items)}
+      </Text>
+      {hasExtras && (
+        <View style={{ flexDirection: 'row', gap: 10, flexWrap: 'wrap' }}>
+          {tx.discountCents > 0 && <Text style={{ fontSize: 12, color: GREEN }}>−{fmtCents(tx.discountCents)} disc</Text>}
+          {tx.surchargeCents > 0 && <Text style={{ fontSize: 12, color: MUTED }}>+{fmtCents(tx.surchargeCents)} surcharge</Text>}
+          {tx.tipCents > 0 && <Text style={{ fontSize: 12, color: '#F59E0B' }}>+{fmtCents(tx.tipCents)} tip</Text>}
+        </View>
+      )}
+      {tx.operatorName ? (
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+          <Feather name="user" size={11} color={MUTED} />
+          <Text style={{ fontSize: 12, color: MUTED }}>{tx.operatorName}</Text>
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+const POS_SECTIONS = [
+  { key: 'active',   label: 'In Progress',      statuses: ['received', 'being_prepared'],         accentColor: '#F59E0B' },
+  { key: 'done',     label: 'Completed',         statuses: ['completed'],                          accentColor: GREEN },
+  { key: 'issues',   label: 'Refunded / Voided', statuses: ['refunded', 'voided', 'cancelled'],   accentColor: '#DC2626' },
+] as const;
+
+function PosTabContent({
+  dayStr, onSetDay, posOrders, isLoading, refreshing, onRefresh,
+}: {
+  dayStr: string; onSetDay: (d: string) => void;
+  posOrders: PosTransaction[]; isLoading: boolean;
+  refreshing: boolean; onRefresh: () => Promise<void>;
+}) {
+  const todayStr = sydneyDateStr();
+  const isToday  = dayStr === todayStr;
+  const dailyRevenue = posOrders
+    .filter(tx => tx.status !== 'cancelled' && tx.status !== 'voided' && tx.status !== 'refunded')
+    .reduce((acc, tx) => acc + tx.totalCents, 0);
+
+  const sections = POS_SECTIONS.map(s => ({
+    ...s,
+    items: posOrders.filter(tx => (s.statuses as readonly string[]).includes(tx.status)),
+  })).filter(s => s.items.length > 0);
+
+  return (
+    <View style={{ flex: 1 }}>
+      {/* Day navigation */}
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: CARD, borderBottomWidth: 1, borderBottomColor: BORDER, paddingHorizontal: 8, paddingVertical: 10 }}>
+        <Pressable onPress={() => onSetDay(shiftPosDate(dayStr, -1))} style={{ padding: 8 }} hitSlop={12}>
+          <Feather name="chevron-left" size={22} color={NAVY} />
+        </Pressable>
+        <View style={{ flex: 1, alignItems: 'center' }}>
+          <Text style={{ fontSize: 15, fontWeight: '600', color: TEXT }}>{formatPosDay(dayStr)}</Text>
+        </View>
+        <Pressable
+          onPress={() => { if (!isToday) onSetDay(shiftPosDate(dayStr, 1)); }}
+          style={[{ padding: 8 }, isToday && { opacity: 0.35 }]}
+          disabled={isToday}
+          hitSlop={12}
+        >
+          <Feather name="chevron-right" size={22} color={isToday ? BORDER : NAVY} />
+        </Pressable>
+      </View>
+
+      {isLoading && !refreshing ? (
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+          <ActivityIndicator color={BLUE} size="large" />
+        </View>
+      ) : posOrders.length === 0 ? (
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+          <Feather name="monitor" size={40} color={MUTED} />
+          <Text style={{ color: MUTED, marginTop: 12, fontSize: 15, fontWeight: '600' }}>
+            {isToday ? 'No POS transactions today' : 'No transactions on this day'}
+          </Text>
+          <Text style={{ color: MUTED, marginTop: 4, fontSize: 13, textAlign: 'center' }}>
+            {isToday ? 'Terminal sales will appear here in real time.' : 'Use the arrows to navigate to another day.'}
+          </Text>
+        </View>
+      ) : (
+        <ScrollView
+          contentContainerStyle={{ padding: 16, paddingBottom: 120 }}
+          showsVerticalScrollIndicator={false}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={BLUE} />}
+        >
+          {/* Daily summary row */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: CARD, borderRadius: 12, padding: 12, marginBottom: 14, borderWidth: 1, borderColor: BORDER }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <Feather name="monitor" size={16} color={BLUE} />
+              <Text style={{ fontSize: 13, color: MUTED, fontWeight: '500' }}>
+                {posOrders.length} transaction{posOrders.length !== 1 ? 's' : ''}
+              </Text>
+            </View>
+            {dailyRevenue > 0 && (
+              <Text style={{ fontSize: 15, color: TEXT, fontWeight: '700' }}>{fmtCents(dailyRevenue)}</Text>
+            )}
+          </View>
+
+          {/* Sectioned transaction list */}
+          {sections.map(section => (
+            <View key={section.key} style={{ marginBottom: 4 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                <View style={{ width: 3, height: 14, borderRadius: 2, backgroundColor: section.accentColor }} />
+                <Text style={{ fontSize: 12, fontWeight: '700', color: MUTED, letterSpacing: 0.8, textTransform: 'uppercase' }}>
+                  {section.label}
+                </Text>
+                <View style={{ backgroundColor: section.accentColor + '18', borderRadius: 10, paddingHorizontal: 7, paddingVertical: 2 }}>
+                  <Text style={{ fontSize: 11, fontWeight: '700', color: section.accentColor }}>{section.items.length}</Text>
+                </View>
+              </View>
+              {section.items.map(tx => <PosTransactionCard key={tx.id} tx={tx} />)}
+            </View>
+          ))}
+        </ScrollView>
+      )}
+    </View>
+  );
+}
+
 // ── Main screen ───────────────────────────────────────────────────────────────
 export default function DirectorOrdersScreen() {
   const qc = useQueryClient();
@@ -815,8 +952,11 @@ export default function DirectorOrdersScreen() {
   const params = useLocalSearchParams<{
     drillMode?: string;
     drillValue?: string;
+    tab?: string;
   }>();
 
+  const [channelTab, setChannelTab] = useState<'app' | 'pos'>('app');
+  const [posDayStr, setPosDayStr]   = useState<string>(sydneyDateStr());
   const [filter, setFilter]         = useState('all');
   const [viewMode, setViewMode]     = useState<'today' | 'week' | 'month' | 'date'>('today');
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
@@ -832,6 +972,12 @@ export default function DirectorOrdersScreen() {
     queryKey: isStaff ? ['staff-orders'] : ['director-orders'],
     queryFn: () => isStaff ? api.staff.allOrders() : api.director.orders(),
     refetchInterval: 20000,
+  });
+  const { data: posData, isLoading: posLoading, refetch: posRefetch } = useQuery({
+    queryKey: ['director-pos-orders', posDayStr],
+    queryFn: () => api.director.posOrders({ date: posDayStr }),
+    staleTime: 30_000,
+    enabled: channelTab === 'pos' && !isStaff,
   });
 
   useFocusEffect(
@@ -865,7 +1011,13 @@ export default function DirectorOrdersScreen() {
         setViewMode(isStaff ? 'week' : 'today');
         setSelectedDate(new Date());
       }
-    }, [isStaff, params.drillMode, params.drillValue]),
+      // Handle tab deep-link param
+      if (params.tab === 'pos' && !isStaff) {
+        setChannelTab('pos');
+      } else if (params.tab === 'app') {
+        setChannelTab('app');
+      }
+    }, [isStaff, params.drillMode, params.drillValue, params.tab]),
   );
 
   const { refreshing, onRefresh } = useRefreshControl(refetch);
@@ -1045,6 +1197,41 @@ export default function DirectorOrdersScreen() {
   const totalToday = drillFiltered.filter((o) => isSameDay(getOrderTimelineDate(o), today)).length;
   return (
     <DirectorTabScreen title="Orders">
+      {/* ── Channel segmented control (director/manager only) ── */}
+      {!isStaff && (
+        <View style={{ backgroundColor: CARD, borderBottomWidth: 1, borderBottomColor: BORDER, paddingHorizontal: 16, paddingTop: 10, paddingBottom: 10 }}>
+          <View style={{ flexDirection: 'row', backgroundColor: BG, borderRadius: 12, padding: 3 }}>
+            {[
+              { key: 'app' as const, label: 'App & Wholesale' },
+              { key: 'pos' as const, label: 'POS Terminal' },
+            ].map(t => {
+              const active = channelTab === t.key;
+              return (
+                <Pressable
+                  key={t.key}
+                  onPress={() => { setChannelTab(t.key); Haptics.selectionAsync(); }}
+                  style={[{ flex: 1, paddingVertical: 9, borderRadius: 10, alignItems: 'center' }, active && { backgroundColor: '#fff', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.08, shadowRadius: 4, elevation: 2 }]}
+                >
+                  <Text style={{ fontSize: 13, fontWeight: active ? '700' : '500', color: active ? NAVY : MUTED }}>
+                    {t.label}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        </View>
+      )}
+      {(channelTab === 'pos' && !isStaff) ? (
+        <PosTabContent
+          dayStr={posDayStr}
+          onSetDay={setPosDayStr}
+          posOrders={posData?.data ?? []}
+          isLoading={posLoading}
+          refreshing={refreshing}
+          onRefresh={async () => { await posRefetch(); }}
+        />
+      ) : (
+        <>
       {/* Drill-down banner */}
       {isDrillActive && drillLabel && (
         <View style={{ backgroundColor: '#EFF6FF', borderBottomWidth: 1, borderBottomColor: '#BFDBFE', flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 10, gap: 10 }}>
@@ -1138,117 +1325,74 @@ export default function DirectorOrdersScreen() {
           showsVerticalScrollIndicator={false}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={BLUE} />}
         >
-          {viewMode === 'today' && (
-            <>
-              <SectionHeader title="Today's Orders" count={todayOrders.length} />
-              {todayOrders.length === 0 ? (
-                <View style={styles.emptySection}>
-                  <Feather name="coffee" size={28} color={BORDER} />
-                  <Text style={styles.emptyText}>No orders today yet</Text>
-                </View>
-              ) : (
-                todayOrders.map((o) => (
-                  <OrderCard
-                    key={o.id}
-                    order={o}
-                    onPress={() => { setSelectedOrder(o); Haptics.selectionAsync(); }}
-                    onPrint={() => printOrder(o)}
-                    printing={printingOrderId === o.id}
-                  />
-                ))
-              )}
-            </>
-          )}
-          {viewMode === 'week' && (
-            <>
-              <View style={{ height: 8 }} />
-              {isDrillActive ? (
-                <>
-                  <SectionHeader title="This Week (7 Days)" count={weekDrillOrders.length} />
-                  {weekDrillOrders.length === 0 ? (
-                    <View style={styles.emptySection}>
-                      <Text style={styles.emptyText}>No orders this week</Text>
-                    </View>
-                  ) : (
-                    weekDrillOrders.map((o) => (
-                      <OrderCard
-                        key={o.id}
-                        order={o}
-                        onPress={() => { setSelectedOrder(o); Haptics.selectionAsync(); }}
-                        onPrint={() => printOrder(o)}
-                        printing={printingOrderId === o.id}
-                      />
-                    ))
-                  )}
-                </>
-              ) : (
-                <>
-                  <SectionHeader title={isStaff ? 'This Week' : 'Earlier This Week'} count={thisWeekOrders.length} />
-                  {thisWeekOrders.length === 0 ? (
-                    <View style={styles.emptySection}>
-                      <Text style={styles.emptyText}>No other orders this week</Text>
-                    </View>
-                  ) : (
-                    thisWeekOrders.map((o) => (
-                      <OrderCard
-                        key={o.id}
-                        order={o}
-                        onPress={() => { setSelectedOrder(o); Haptics.selectionAsync(); }}
-                        onPrint={() => printOrder(o)}
-                        printing={printingOrderId === o.id}
-                      />
-                    ))
-                  )}
-                </>
-              )}
-            </>
-          )}
-          {viewMode === 'month' && (
-            <>
-              <View style={{ height: 8 }} />
-              <SectionHeader
-                title={new Date().toLocaleDateString('en-AU', { month: 'long', year: 'numeric' })}
-                count={thisMonthOrders.length}
+          {(() => {
+            // Resolve the active date-range bucket
+            const [orders, title, emptyMsg, needsTopGap] = (() => {
+              if (viewMode === 'today')  return [todayOrders,     "Today's Orders",                                                                       'No orders today yet',          false] as const;
+              if (viewMode === 'week')   return [isDrillActive ? weekDrillOrders : thisWeekOrders,
+                                                isDrillActive ? 'This Week (7 Days)' : (isStaff ? 'This Week' : 'Earlier This Week'),
+                                                isDrillActive ? 'No orders this week' : 'No other orders this week',                                      true] as const;
+              if (viewMode === 'month')  return [thisMonthOrders, new Date().toLocaleDateString('en-AU', { month: 'long', year: 'numeric' }),              'No orders this month yet',     true] as const;
+              return                           [dateOrders,       fmtDateChip(selectedDate),                                                               'No orders on this date',       false] as const;
+            })();
+
+            // When "All" is selected, bucket by status section
+            const sectionedGroups: Array<{ key: string; label: string; accentColor: string; items: ApiOrder[] }> =
+              filter === 'all' && orders.length > 0
+                ? (() => {
+                    const map: Record<string, ApiOrder[]> = {};
+                    for (const o of orders) {
+                      const sk = getOrderSectionKey(o);
+                      (map[sk] ??= []).push(o);
+                    }
+                    return ORDER_STATUS_SECTIONS
+                      .map(s => ({ key: s.key, label: s.label, accentColor: s.accentColor, items: map[s.key] ?? [] }))
+                      .filter(s => s.items.length > 0);
+                  })()
+                : [];
+
+            const renderCard = (o: ApiOrder) => (
+              <OrderCard
+                key={o.id}
+                order={o}
+                onPress={() => { setSelectedOrder(o); Haptics.selectionAsync(); }}
+                onPrint={() => printOrder(o)}
+                printing={printingOrderId === o.id}
               />
-              {thisMonthOrders.length === 0 ? (
-                <View style={styles.emptySection}>
-                  <Feather name="calendar" size={28} color={BORDER} />
-                  <Text style={styles.emptyText}>No orders this month yet</Text>
-                </View>
-              ) : (
-                thisMonthOrders.map((o) => (
-                  <OrderCard
-                    key={o.id}
-                    order={o}
-                    onPress={() => { setSelectedOrder(o); Haptics.selectionAsync(); }}
-                    onPrint={() => printOrder(o)}
-                    printing={printingOrderId === o.id}
-                  />
-                ))
-              )}
-            </>
-          )}
-          {viewMode === 'date' && (
-            <>
-              <SectionHeader title={fmtDateChip(selectedDate)} count={dateOrders.length} />
-              {dateOrders.length === 0 ? (
-                <View style={styles.emptySection}>
-                  <Feather name="calendar" size={28} color={BORDER} />
-                  <Text style={styles.emptyText}>No orders on this date</Text>
-                </View>
-              ) : (
-                dateOrders.map((o) => (
-                  <OrderCard
-                    key={o.id}
-                    order={o}
-                    onPress={() => { setSelectedOrder(o); Haptics.selectionAsync(); }}
-                    onPrint={() => printOrder(o)}
-                    printing={printingOrderId === o.id}
-                  />
-                ))
-              )}
-            </>
-          )}
+            );
+
+            return (
+              <>
+                {needsTopGap && <View style={{ height: 8 }} />}
+                <SectionHeader title={title} count={orders.length} />
+                {orders.length === 0 ? (
+                  <View style={styles.emptySection}>
+                    <Feather name="coffee" size={28} color={BORDER} />
+                    <Text style={styles.emptyText}>{emptyMsg}</Text>
+                  </View>
+                ) : sectionedGroups.length > 0 ? (
+                  sectionedGroups.map(group => (
+                    <View key={group.key}>
+                      {/* Status section header */}
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10, marginTop: 8 }}>
+                        <View style={{ width: 3, height: 14, borderRadius: 2, backgroundColor: group.accentColor }} />
+                        <Text style={{ fontSize: 12, fontWeight: '700', color: MUTED, letterSpacing: 0.8, textTransform: 'uppercase', flex: 1 }}>
+                          {group.label}
+                        </Text>
+                        <View style={{ backgroundColor: group.accentColor + '18', borderRadius: 10, paddingHorizontal: 7, paddingVertical: 2 }}>
+                          <Text style={{ fontSize: 11, fontWeight: '700', color: group.accentColor }}>{group.items.length}</Text>
+                        </View>
+                      </View>
+                      {group.items.map(renderCard)}
+                      <View style={{ height: 8 }} />
+                    </View>
+                  ))
+                ) : (
+                  orders.map(renderCard)
+                )}
+              </>
+            );
+          })()}
         </ScrollView>
       )}
       {/* Order detail modal */}
@@ -1282,6 +1426,8 @@ export default function DirectorOrdersScreen() {
         onSelectDate={(d) => setSelectedDate(d)}
         ordersByDate={ordersByDate}
       />
+        </>
+      )}
     </DirectorTabScreen>
   );
 }

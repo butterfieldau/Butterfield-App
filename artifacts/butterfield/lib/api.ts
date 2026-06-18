@@ -473,7 +473,14 @@ export const api = {
     deletedAccounts:     () => request<{ data: DeletedAccount[] }>('/director/deleted-accounts'),
     restoreAccount:      (id: string) => request<{ success: boolean; data: DeletedAccount }>(`/director/deleted-accounts/${id}/restore`, { method: 'POST' }),
     orders:              () => request<{ data: ApiOrder[] }>('/director/orders'),
-    posOrders:           (opts?: { date?: string }) => request<{ data: PosTransaction[] }>(`/director/pos-orders${opts?.date ? `?date=${encodeURIComponent(opts.date)}` : ''}`),
+    posOrders: (opts?: { date?: string; status?: string; paymentMethod?: string }) => {
+      const params = new URLSearchParams();
+      if (opts?.date)          params.set('date',          opts.date);
+      if (opts?.status)        params.set('status',        opts.status);
+      if (opts?.paymentMethod) params.set('paymentMethod', opts.paymentMethod);
+      const qs = params.toString();
+      return request<{ data: PosTransaction[] }>(`/director/pos-orders${qs ? `?${qs}` : ''}`);
+    },
     acceptOrder:         (id: string) => request<{ data: ApiOrder }>(`/director/orders/${id}/accept`, { method: 'POST' }),
     updateOrderStatus:   (id: string, status: string, cancelReason?: string) => request<{ data: ApiOrder }>(`/director/orders/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status, ...(cancelReason ? { cancelReason } : {}) }) }),
     users:               () => request<{ data: DirectorUserSummary[] }>('/director/users'),
@@ -2628,6 +2635,11 @@ export interface DirectorStats {
   };
   tasks: {
     open: number;
+  };
+  channels?: {
+    appOrders:       { countToday: number; revenueTodayCents: number };
+    posTransactions: { countToday: number; revenueTodayCents: number };
+    wholesaleOrders: { activeCount: number; outstandingCents: number };
   };
   products: {
     soldOut: number;

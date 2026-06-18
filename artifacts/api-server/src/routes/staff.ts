@@ -481,28 +481,19 @@ router.get('/orders', async (req, res) => {
   if (!profile?.canViewOrders) {
     return res.status(403).json({ error: 'You do not have permission to view orders.' });
   }
-  const [customerOrders, wholesaleOrders, allUsers, wsAccounts] = await Promise.all([
-    db.select().from(ordersTable).orderBy(desc(ordersTable.createdAt)).limit(100),
-    db.select().from(wholesaleOrdersTable).orderBy(desc(wholesaleOrdersTable.createdAt)).limit(50),
+  // Staff see only app orders (non-POS). Wholesale orders are managed separately.
+  const [customerOrders, allUsers] = await Promise.all([
+    db.select().from(ordersTable).where(sql`(source IS NULL OR source != 'pos')`).orderBy(desc(ordersTable.createdAt)).limit(150),
     db.select({ id: usersTable.id, name: usersTable.name, email: usersTable.email }).from(usersTable),
-    db.select({ id: wholesaleAccountsTable.id, userId: wholesaleAccountsTable.userId, companyName: wholesaleAccountsTable.companyName }).from(wholesaleAccountsTable),
   ]);
   const userMap = Object.fromEntries(allUsers.map(u => [u.id, u]));
-  const wsMap   = Object.fromEntries(wsAccounts.map(w => [w.userId, w]));
-  const all = [
-    ...customerOrders.map(o => ({
+  return res.json({
+    data: customerOrders.map(o => ({
       ...o,
       orderSource:  'customer' as const,
       customerName: userMap[o.userId]?.name ?? null,
     })),
-    ...wholesaleOrders.map(wo => ({
-      ...wo,
-      type:         'wholesale',
-      orderSource:  'wholesale' as const,
-      customerName: wsMap[wo.userId]?.companyName ?? userMap[wo.userId]?.name ?? null,
-    })),
-  ].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).slice(0, 150);
-  return res.json({ data: all });
+  });
 });
 
 router.get('/profile', async (req, res) => {

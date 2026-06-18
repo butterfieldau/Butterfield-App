@@ -791,6 +791,68 @@ function DirectorDashboardInner() {
               onApply={handleApplyRevRange}
             />
 
+            {/* ── Channel KPI strip ───────────────────────────── */}
+            {s?.channels && (
+              <View>
+                <Text style={[styles.sectionTitle, { fontWeight: '600' }]}>ORDERS BY CHANNEL · TODAY</Text>
+                <View style={{ flexDirection: 'row', gap: 10 }}>
+                  {/* App */}
+                  <Pressable
+                    onPress={() => { Haptics.selectionAsync(); router.push({ pathname: '/(director)/orders', params: { tab: 'app' } } as any); }}
+                    style={[styles.channelCard, { flex: 1 }]}
+                  >
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+                      <View style={{ width: 26, height: 26, borderRadius: 8, backgroundColor: `${BLUE}18`, alignItems: 'center', justifyContent: 'center' }}>
+                        <Feather name="smartphone" size={13} color={BLUE} />
+                      </View>
+                      <Text style={{ fontSize: 11, fontWeight: '700', color: MUTED, letterSpacing: 0.4 }}>APP</Text>
+                    </View>
+                    <Text style={{ fontSize: 20, fontWeight: '700', color: TEXT }}>{s.channels.appOrders.countToday}</Text>
+                    <Text style={{ fontSize: 11, color: MUTED, fontWeight: '400', marginTop: 1 }}>orders</Text>
+                    <Text style={{ fontSize: 13, fontWeight: '600', color: BLUE, marginTop: 4 }}>{fmtAUD(s.channels.appOrders.revenueTodayCents)}</Text>
+                  </Pressable>
+                  {/* POS */}
+                  <Pressable
+                    onPress={() => { Haptics.selectionAsync(); router.push({ pathname: '/(director)/orders', params: { tab: 'pos' } } as any); }}
+                    style={[styles.channelCard, { flex: 1 }]}
+                  >
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+                      <View style={{ width: 26, height: 26, borderRadius: 8, backgroundColor: `${PURPLE}18`, alignItems: 'center', justifyContent: 'center' }}>
+                        <Feather name="monitor" size={13} color={PURPLE} />
+                      </View>
+                      <Text style={{ fontSize: 11, fontWeight: '700', color: MUTED, letterSpacing: 0.4 }}>POS</Text>
+                    </View>
+                    <Text style={{ fontSize: 20, fontWeight: '700', color: TEXT }}>{s.channels.posTransactions.countToday}</Text>
+                    <Text style={{ fontSize: 11, color: MUTED, fontWeight: '400', marginTop: 1 }}>transactions</Text>
+                    <Text style={{ fontSize: 13, fontWeight: '600', color: PURPLE, marginTop: 4 }}>{fmtAUD(s.channels.posTransactions.revenueTodayCents)}</Text>
+                  </Pressable>
+                  {/* Wholesale */}
+                  <Pressable
+                    onPress={() => { Haptics.selectionAsync(); router.push({ pathname: '/(director)/orders', params: { tab: 'app' } } as any); }}
+                    style={[styles.channelCard, { flex: 1 }]}
+                  >
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+                      <View style={{ width: 26, height: 26, borderRadius: 8, backgroundColor: `${GREEN}18`, alignItems: 'center', justifyContent: 'center' }}>
+                        <Feather name="package" size={13} color={GREEN} />
+                      </View>
+                      <Text style={{ fontSize: 11, fontWeight: '700', color: MUTED, letterSpacing: 0.4 }}>WHOLESALE</Text>
+                    </View>
+                    <Text style={{ fontSize: 20, fontWeight: '700', color: TEXT }}>{s.channels.wholesaleOrders.activeCount}</Text>
+                    <Text style={{ fontSize: 11, color: MUTED, fontWeight: '400', marginTop: 1 }}>active orders</Text>
+                    {s.channels.wholesaleOrders.outstandingCents > 0 && (
+                      <Text style={{ fontSize: 13, fontWeight: '600', color: GREEN, marginTop: 4 }}>{fmtAUD(s.channels.wholesaleOrders.outstandingCents)}</Text>
+                    )}
+                    {s.channels.wholesaleOrders.outstandingCents === 0 && (
+                      <View style={{ marginTop: 4, flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+                        <Feather name="chevron-right" size={11} color={GREEN} />
+                        <Text style={{ fontSize: 11, color: GREEN, fontWeight: '500' }}>View all</Text>
+                      </View>
+                    )}
+                  </Pressable>
+                </View>
+              </View>
+            )}
+
             {/* ── AOV + Customer split ─────────────────────────── */}
             {s && (
               <AovCustomerRow
@@ -1001,6 +1063,7 @@ const styles = StyleSheet.create({
   activityTime:  { fontSize: 11 },
   emptyCard:     { alignItems: 'center', gap: 10, padding: 32, borderRadius: 20, borderWidth: 1, backgroundColor: GLASS_BG, borderColor: GLASS_BORDER, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 14, elevation: 3 },
   emptyText:     { fontSize: 14 },
+  channelCard:   { backgroundColor: GLASS_BG, borderRadius: 16, borderWidth: 1, borderColor: GLASS_BORDER, padding: 14, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 14, elevation: 3 },
 });
 
 const kpi = StyleSheet.create({

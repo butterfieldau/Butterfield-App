@@ -184,6 +184,9 @@ router.get('/stats', async (req, res) => {
     [sameDayLastWeekCount],
     [lastMondayRevAtHour],
     [lastMondayFullRev],
+    [appOrdersToday],
+    [posOrdersToday],
+    [wholesaleActiveToday],
   ] = await Promise.all([
     db.select({ count: count() }).from(ordersTable),
     db.select({ count: count() }).from(ordersTable).where(gte(ordersTable.createdAt, startOfToday)),
@@ -225,6 +228,12 @@ router.get('/stats', async (req, res) => {
     db.select({ total: sum(ordersTable.totalCents) }).from(ordersTable).where(and(gte(ordersTable.createdAt, lastMondayStart), lt(ordersTable.createdAt, lastMondayAtThisHour), sql`${ordersTable.status} NOT IN ('cancelled','refunded')`)),
     // Last Monday full-day revenue (for EOD projection)
     db.select({ total: sum(ordersTable.totalCents) }).from(ordersTable).where(and(gte(ordersTable.createdAt, lastMondayStart), lt(ordersTable.createdAt, lastMondayEnd), sql`${ordersTable.status} NOT IN ('cancelled','refunded')`)),
+    // Channel breakdown — App orders today (all non-POS sources)
+    db.select({ count: count(), total: sum(ordersTable.totalCents) }).from(ordersTable).where(and(gte(ordersTable.createdAt, startOfToday), sql`(source IS NULL OR source != 'pos')`, sql`status NOT IN ('cancelled','refunded')`)),
+    // Channel breakdown — POS transactions today
+    db.select({ count: count(), total: sum(ordersTable.totalCents) }).from(ordersTable).where(and(gte(ordersTable.createdAt, startOfToday), sql`source = 'pos'`, sql`status NOT IN ('cancelled','refunded','voided')`)),
+    // Channel breakdown — Wholesale active orders + outstanding value
+    db.select({ count: count(), total: sql<string>`COALESCE(SUM(total_cents), 0)::text` }).from(wholesaleOrdersTable).where(sql`status IN ('pending','confirmed','processing')`),
   ]);
 
   const weekShifts = await db.select({
@@ -379,6 +388,11 @@ router.get('/stats', async (req, res) => {
       tasks: {
         open: openTasks.count,
       },
+      channels: {
+        appOrders:        { countToday: appOrdersToday.count,       revenueTodayCents: Number(appOrdersToday.total ?? 0) },
+        posTransactions:  { countToday: posOrdersToday.count,       revenueTodayCents: Number(posOrdersToday.total ?? 0) },
+        wholesaleOrders:  { activeCount: wholesaleActiveToday.count, outstandingCents: Number(wholesaleActiveToday.total ?? 0) },
+      },
     },
   });
 });
@@ -491,13 +505,19 @@ router.get('/pos-orders', async (req, res) => {
   const rawDate = typeof req.query.date === 'string' ? req.query.date.trim() : '';
   let dateStr = rawDate;
   if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
-    // Fall back to today in Sydney timezone
     const sydParts = new Intl.DateTimeFormat('en-CA', { timeZone: 'Australia/Sydney' }).formatToParts(new Date());
-    dateStr = sydParts.map(p => p.value).join(''); // en-CA produces YYYY-MM-DD naturally
+    dateStr = sydParts.map(p => p.value).join('');
   }
-
   const dayStart = sydneyBoundary(dateStr, false);
   const dayEnd   = sydneyBoundary(dateStr, true);
+
+  // Optional filters
+  const statusFilter      = typeof req.query.status        === 'string' ? req.query.status.trim()        : null;
+  const methodFilter      = typeof req.query.paymentMethod === 'string' ? req.query.paymentMethod.trim() : null;
+  const validStatuses     = ['received','being_prepared','completed','refunded','voided','cancelled'];
+  const validMethods      = ['eftpos','cash','split','card'];
+  const safeStatus        = statusFilter && validStatuses.includes(statusFilter) ? statusFilter : null;
+  const safeMethod        = methodFilter && validMethods.includes(methodFilter)  ? methodFilter : null;
 
   const result = await db.execute(sql`
     SELECT
@@ -509,6 +529,7 @@ router.get('/pos-orders', async (req, res) => {
       o.payment_method,
       o.items,
       o.notes,
+      o.source,
       COALESCE(o.tip_cents, 0)       AS tip_cents,
       COALESCE(o.surcharge_cents, 0) AS surcharge_cents,
       o.split_payments,
@@ -519,6 +540,8 @@ router.get('/pos-orders', async (req, res) => {
     WHERE o.source = 'pos'
       AND o.created_at >= ${dayStart}
       AND o.created_at <= ${dayEnd}
+      ${safeStatus ? sql`AND o.status = ${safeStatus}` : sql``}
+      ${safeMethod ? sql`AND o.payment_method = ${safeMethod}` : sql``}
     ORDER BY o.created_at DESC
     LIMIT 500
   `);
@@ -528,6 +551,7 @@ router.get('/pos-orders', async (req, res) => {
     created_at: Date | string;
     total_cents: string | number;
     status: string;
+    source: string | null;
     payment_method: string | null;
     items: any;
     notes: string | null;
@@ -544,14 +568,16 @@ router.get('/pos-orders', async (req, res) => {
       createdAt:      new Date(r.created_at).toISOString(),
       totalCents:     Number(r.total_cents),
       status:         r.status,
+      source:         r.source ?? 'pos',
       paymentMethod:  r.payment_method ?? 'eftpos',
       items:          r.items ?? [],
       notes:          r.notes ?? null,
       tipCents:       Number(r.tip_cents),
       surchargeCents: Number(r.surcharge_cents),
       splitPayments:  r.split_payments ?? null,
-      discountCents:  Number(r.discount_cents ?? 0),
-      operatorName:   r.operator_name ?? null,
+      discountCents:        Number(r.discount_cents ?? 0),
+      operatorName:         r.operator_name ?? null,
+      registerSessionId:    null,
     })),
   });
 });
