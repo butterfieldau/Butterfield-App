@@ -11,7 +11,7 @@ import Svg, {
   Defs, LinearGradient, Path, Rect, Stop, Line, Text as SvgText,
 } from 'react-native-svg';
 import type { DirectorHourlyRevenue, DirectorTopProduct } from '@/lib/api';
-import { useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/context/AuthContext';
 import { PortalHeader } from '@/components/PortalHeader';
 import { api } from '@/lib/api';
@@ -648,30 +648,35 @@ function DirectorDashboardInner() {
     queryKey: ['director-stats'],
     queryFn: () => api.director.stats(),
     refetchInterval: 30000,
+    placeholderData: keepPreviousData,
   });
 
   const { data: activityData, refetch: refetchActivity } = useQuery({
     queryKey: ['director-activity'],
     queryFn: () => api.director.activity(),
     refetchInterval: 60000,
+    placeholderData: keepPreviousData,
   });
 
   const { data: sessionsData, refetch: refetchSessions } = useQuery({
     queryKey: ['director-sessions'],
     queryFn: () => api.director.sessions(),
     refetchInterval: 60000,
+    placeholderData: keepPreviousData,
   });
 
   const { data: hourlyData, refetch: refetchHourly } = useQuery({
     queryKey: ['director-hourly-revenue'],
     queryFn: () => api.director.hourlyRevenue(),
     refetchInterval: 30000,
+    placeholderData: keepPreviousData,
   });
 
   const { data: topProductsData, refetch: refetchTopProducts } = useQuery({
     queryKey: ['director-top-products'],
     queryFn: () => api.director.topProducts(),
     refetchInterval: 30000,
+    placeholderData: keepPreviousData,
   });
 
   const [showRevPicker, setShowRevPicker]     = useState(false);
@@ -714,7 +719,7 @@ function DirectorDashboardInner() {
       <View style={{ paddingHorizontal: 16, gap: 16, paddingTop: 14 }}>
         <Text style={{ fontSize: 28, fontWeight: '700', color: TEXT }}>Dashboard</Text>
 
-        {isLoading ? (
+        {isLoading && !data ? (
           <View style={{ alignItems: 'center', marginTop: 80 }}>
             <ActivityIndicator color={BLUE} size="large" />
             <Text style={{ color: MUTED, marginTop: 12, fontWeight: '400' }}>Loading control centre…</Text>

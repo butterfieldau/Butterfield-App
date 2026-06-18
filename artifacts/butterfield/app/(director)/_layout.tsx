@@ -225,6 +225,7 @@ export default function DirectorLayout() {
         <Tabs.Screen name="settings-rewards" options={{ href: null }} />
         <Tabs.Screen name="settings-notify"  options={{ href: null }} />
         <Tabs.Screen name="settings-scheduled-notifications" options={{ href: null }} />
+        <Tabs.Screen name="settings-delivery" options={{ href: null }} />
         <Tabs.Screen name="settings-managers" options={{ href: null }} />
         <Tabs.Screen name="settings-directors" options={{ href: null }} />
         <Tabs.Screen name="stores"           options={{ href: null }} />
