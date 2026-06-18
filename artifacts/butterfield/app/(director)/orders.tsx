@@ -961,34 +961,35 @@ function PosTabContent({
       </View>
 
       {/* Filter chips */}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={{ height: 48, flexShrink: 0, backgroundColor: CARD, borderBottomWidth: 1, borderBottomColor: BORDER }}
-        contentContainerStyle={{ paddingHorizontal: 12, paddingVertical: 8, gap: 6, flexDirection: 'row', alignItems: 'center' }}
-      >
-        {POS_CHIP_FILTERS.map(chip => {
-          const active = chipFilter === chip.key;
-          return (
-            <Pressable
-              key={chip.key}
-              onPress={() => { setChipFilter(chip.key); Haptics.selectionAsync(); }}
-              style={{
-                paddingHorizontal: 12,
-                paddingVertical: 6,
-                borderRadius: 20,
-                backgroundColor: active ? NAVY : BG,
-                borderWidth: 1,
-                borderColor: active ? NAVY : BORDER,
-              }}
-            >
-              <Text style={{ fontSize: 13, fontWeight: active ? '700' : '500', color: active ? '#FFFFFF' : TEXT }}>
-                {chip.label}
-              </Text>
-            </Pressable>
-          );
-        })}
-      </ScrollView>
+      <View style={{ backgroundColor: CARD, borderBottomWidth: 1, borderBottomColor: BORDER }}>
+        <FlatList
+          horizontal
+          data={POS_CHIP_FILTERS}
+          keyExtractor={c => c.key}
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={{ paddingHorizontal: 12, paddingVertical: 10, gap: 8 }}
+          renderItem={({ item: chip }) => {
+            const active = chipFilter === chip.key;
+            return (
+              <Pressable
+                onPress={() => { setChipFilter(chip.key); Haptics.selectionAsync(); }}
+                style={{
+                  paddingHorizontal: 14,
+                  paddingVertical: 7,
+                  borderRadius: 20,
+                  backgroundColor: active ? NAVY : BG,
+                  borderWidth: 1,
+                  borderColor: active ? NAVY : BORDER,
+                }}
+              >
+                <Text style={{ fontSize: 13, fontWeight: active ? '700' : '500', color: active ? '#FFFFFF' : TEXT }}>
+                  {chip.label}
+                </Text>
+              </Pressable>
+            );
+          }}
+        />
+      </View>
 
       {isLoading && !refreshing ? (
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
