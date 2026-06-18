@@ -714,7 +714,7 @@ function DirectorDashboardInner() {
       style={{ flex: 1, backgroundColor: BG }}
       contentContainerStyle={{ paddingBottom: 120 }}
       showsVerticalScrollIndicator={false}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={BLUE} />}
+      refreshControl={<RefreshControl refreshing={false} onRefresh={onRefresh} tintColor={BLUE} />}
     >
       <View style={{ paddingHorizontal: 16, gap: 16, paddingTop: 14 }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
