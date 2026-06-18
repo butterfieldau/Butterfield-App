@@ -130,6 +130,53 @@ export interface DeliveryDate {
   label: string;
   available: boolean;
   note?: string;
+  window?: string;
+}
+
+export interface RetailDeliverySlotLike {
+  deliveryDow: number;
+  cutoffDow: number;
+  cutoffDayOffset: number;
+  cutoffHour: number;
+  windowOpen: string;
+  windowClose: string;
+  cutoffLabel?: string;
+}
+
+export function getRetailDeliveryDates(
+  slots: RetailDeliverySlotLike[],
+  blackoutDates: string[],
+): DeliveryDate[] {
+  if (!slots.length) return [];
+  const syd = getSydneyNow();
+  const blackoutSet = new Set(blackoutDates);
+  const results: DeliveryDate[] = [];
+  for (let i = 1; i <= 28 && results.length < 8; i++) {
+    const d = new Date(syd);
+    d.setDate(d.getDate() + i);
+    d.setHours(0, 0, 0, 0);
+    const dow = d.getDay();
+    const slot = slots.find((s) => s.deliveryDow === dow);
+    if (!slot) continue;
+    const yr  = d.getFullYear();
+    const mo  = String(d.getMonth() + 1).padStart(2, '0');
+    const dy  = String(d.getDate()).padStart(2, '0');
+    const dateStr = `${yr}-${mo}-${dy}`;
+    if (blackoutSet.has(dateStr)) continue;
+    const label = d.toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short' });
+    const cutoff = new Date(d);
+    cutoff.setDate(d.getDate() + slot.cutoffDayOffset);
+    cutoff.setHours(slot.cutoffHour, 0, 0, 0);
+    const available = syd.getTime() < cutoff.getTime();
+    results.push({
+      date: d,
+      label,
+      available,
+      window: `${slot.windowOpen} – ${slot.windowClose}`,
+      note: available ? undefined : `Order by ${slot.cutoffLabel ?? ''}`,
+    });
+  }
+  return results;
 }
 
 export function getDeliveryDates(): DeliveryDate[] {

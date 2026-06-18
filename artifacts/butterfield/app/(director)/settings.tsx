@@ -41,7 +41,7 @@ const GREEN  = '#22C55E';
 const RED    = '#EF4444';
 const AMBER  = '#F59E0B';
 
-type TabKey = 'Store' | 'Banner' | 'Rewards' | 'Notify' | 'Managers' | 'Directors';
+type TabKey = 'Store' | 'Banner' | 'Rewards' | 'Notify' | 'Managers' | 'Directors' | 'Delivery';
 
 const REWARD_CATEGORIES = ['food', 'drink', 'discount', 'experience', 'merchandise'];
 const TARGET_ROLES      = ['customer', 'staff', 'wholesale'];
@@ -2358,6 +2358,9 @@ export default function DirectorSettingsScreen() {
   }
   if (tab === 'Directors') {
     return <Redirect href="/director-settings-directors" />;
+  }
+  if (tab === 'Delivery') {
+    return <Redirect href="/director-settings-delivery" />;
   }
 
   return <Redirect href="/(director)/more" />;

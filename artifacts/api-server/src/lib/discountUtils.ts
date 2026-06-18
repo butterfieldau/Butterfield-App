@@ -17,6 +17,7 @@ export async function validateDiscountCode(
   userRole: string,
   subtotalCents: number,
   orderType: 'pickup' | 'delivery',
+  deliveryFeeCents = DELIVERY_FEE_CENTS,
 ): Promise<ValidatedDiscount> {
   const [dc] = await db
     .select()
@@ -76,7 +77,7 @@ export async function validateDiscountCode(
     discountAmountCents = dc.discountValue;
   } else if (dc.discountType === 'free_delivery') {
     if (orderType !== 'delivery') throw new Error('This code is only valid for delivery orders.');
-    discountAmountCents = DELIVERY_FEE_CENTS;
+    discountAmountCents = deliveryFeeCents;
   } else {
     discountAmountCents = 0;
   }

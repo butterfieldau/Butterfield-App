@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { requireAuth } from '../middlewares/auth.js';
 import { computeOrderTotal } from '../lib/orderPricing.js';
 import { validateDiscountCode } from '../lib/discountUtils.js';
+import { getRetailDeliverySettings } from '../lib/retailDelivery.js';
 
 const router = Router();
 router.use(requireAuth);
@@ -22,13 +23,16 @@ router.post('/validate', async (req, res) => {
   const validationUserRole = (customerId && typeof customerId === 'string') ? 'customer' : req.user!.role;
 
   try {
-    const base = await computeOrderTotal(items, orderType ?? 'pickup', 0, 'card');
+    const deliveryConfig = await getRetailDeliverySettings();
+    const configuredDeliveryFeeCents = deliveryConfig.feeCents;
+    const base = await computeOrderTotal(items, orderType ?? 'pickup', 0, 'card', configuredDeliveryFeeCents);
     const validated = await validateDiscountCode(
       code,
       validationUserId,
       validationUserRole,
       base.subtotalCents,
       orderType ?? 'pickup',
+      configuredDeliveryFeeCents,
     );
     return res.json({ valid: true, ...validated });
   } catch (e: any) {

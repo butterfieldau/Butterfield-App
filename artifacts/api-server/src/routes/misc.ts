@@ -1,8 +1,9 @@
 import { Router } from 'express';
 import { randomUUID } from 'crypto';
-import { db, announcementsTable, favouritesTable, feedbackTable, waitlistsTable, storeSettingsTable } from '@workspace/db';
+import { db, announcementsTable, favouritesTable, feedbackTable, waitlistsTable, storeSettingsTable, productsTable, productCategoriesTable } from '@workspace/db';
 import { eq, and } from 'drizzle-orm';
 import { requireAuth } from '../middlewares/auth.js';
+import { getRetailDeliverySettings } from '../lib/retailDelivery.js';
 
 const router = Router();
 
@@ -295,6 +296,62 @@ router.post('/waitlist', requireAuth, async (req, res) => {
     return res.status(201).json({ data: entry });
   } catch {
     return res.status(409).json({ error: 'Already on waitlist' });
+  }
+});
+
+// ── Public delivery config ──────────────────────────────────────────────────
+// Returns the retail delivery configuration for the customer cart (no auth).
+router.get('/delivery-config', async (_req, res) => {
+  try {
+    const config = await getRetailDeliverySettings();
+
+    // Collect deliverable category slugs from product_categories table
+    let deliverableCategories: string[] = [];
+    try {
+      const cats = await db
+        .select({ slug: productCategoriesTable.slug, isDeliveryAvailable: productCategoriesTable.isDeliveryAvailable })
+        .from(productCategoriesTable)
+        .where(eq(productCategoriesTable.isActive, true));
+      deliverableCategories = cats
+        .filter((c) => (c as any).isDeliveryAvailable)
+        .map((c) => c.slug);
+    } catch {
+      deliverableCategories = [];
+    }
+
+    // Collect pickup-only product IDs
+    let pickupOnlyProductIds: string[] = [];
+    try {
+      const pOnly = await db
+        .select({ id: productsTable.id })
+        .from(productsTable)
+        .where(eq(productsTable.isPickupOnly, true));
+      pickupOnlyProductIds = pOnly.map((p) => p.id);
+    } catch {
+      pickupOnlyProductIds = [];
+    }
+
+    return res.json({
+      data: {
+        deliveryEnabled: config.enabled,
+        feeCents: config.feeCents,
+        deliverableCategories,
+        pickupOnlyProductIds,
+        slots: config.slots,
+        blackoutDates: config.blackoutDates,
+      },
+    });
+  } catch {
+    return res.json({
+      data: {
+        deliveryEnabled: false,
+        feeCents: 1200,
+        deliverableCategories: [],
+        pickupOnlyProductIds: [],
+        slots: [],
+        blackoutDates: [],
+      },
+    });
   }
 });
 

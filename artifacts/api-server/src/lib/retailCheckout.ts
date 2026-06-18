@@ -3,6 +3,7 @@ import { and, eq, inArray, sql } from 'drizzle-orm';
 import { computeOrderTotal, type OrderItemInput, type PaymentMethod } from './orderPricing.js';
 import { validateDiscountCode } from './discountUtils.js';
 import { LOYALTY_POINT_VALUE_CENTS } from './loyaltyIdentity.js';
+import { getRetailDeliverySettings } from './retailDelivery.js';
 
 export type RetailCheckoutItem = OrderItemInput & {
   name?: string;
@@ -62,6 +63,10 @@ export function stripClientRewardFlags(rawItems: unknown): RetailCheckoutItem[] 
 export async function prepareRetailCheckout(input: RetailCheckoutPreparationInput): Promise<RetailCheckoutPreparationResult> {
   const items = stripClientRewardFlags(input.rawItems);
   let claimedLoyaltyPoints = Math.max(0, Math.floor(Number(input.loyaltyPointsUsed ?? 0)));
+
+  // Fetch authoritative delivery fee once — this governs all pricing, not the client-supplied value.
+  const deliveryConfig = await getRetailDeliverySettings();
+  const configuredDeliveryFeeCents = deliveryConfig.feeCents;
   let claimedRewardDiscountCents = 0;
   let claimedRewardData: PreparedClaimedReward | null = null;
   let birthdayCookieDiscountCents = 0;
@@ -134,7 +139,7 @@ export async function prepareRetailCheckout(input: RetailCheckoutPreparationInpu
     // Enforce minimum order value — compute item subtotal server-side
     if (rewardRow?.minOrderValueCents && rewardRow.minOrderValueCents > 0) {
       const resolvedType: 'pickup' | 'delivery' = input.orderType === 'delivery' ? 'delivery' : 'pickup';
-      const baseComputed = await computeOrderTotal(items, resolvedType, 0, 'card');
+      const baseComputed = await computeOrderTotal(items, resolvedType, 0, 'card', configuredDeliveryFeeCents);
       if (baseComputed.subtotalCents < rewardRow.minOrderValueCents) {
         throw new Error(
           `This reward requires a minimum order of $${(rewardRow.minOrderValueCents / 100).toFixed(2)}. ` +
@@ -372,13 +377,14 @@ export async function prepareRetailCheckout(input: RetailCheckoutPreparationInpu
   const resolvedPaymentMethod: PaymentMethod = input.paymentMethod === 'pay_at_pickup' ? 'pay_at_pickup' : 'card';
 
   if (input.discountCode && typeof input.discountCode === 'string') {
-    const base = await computeOrderTotal(items, resolvedOrderType, 0, 'card');
+    const base = await computeOrderTotal(items, resolvedOrderType, 0, 'card', configuredDeliveryFeeCents);
     const validated = await validateDiscountCode(
       input.discountCode,
       input.userId,
       input.userRole,
       base.subtotalCents,
       resolvedOrderType,
+      configuredDeliveryFeeCents,
     );
     discountCodeAmountCents = validated.discountAmountCents;
     validatedDiscountCodeId = validated.id;
@@ -391,6 +397,7 @@ export async function prepareRetailCheckout(input: RetailCheckoutPreparationInpu
     resolvedOrderType,
     baseDiscountCents,
     resolvedPaymentMethod,
+    configuredDeliveryFeeCents,
   );
 
   claimedLoyaltyPoints = Math.min(
@@ -405,6 +412,7 @@ export async function prepareRetailCheckout(input: RetailCheckoutPreparationInpu
     resolvedOrderType,
     totalDiscountCents,
     resolvedPaymentMethod,
+    configuredDeliveryFeeCents,
   );
 
   return {

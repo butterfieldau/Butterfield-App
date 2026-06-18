@@ -103,6 +103,12 @@ const ALL_CATEGORIES: Category[] = [
         ],
       },
       {
+        label: 'Retail Delivery',
+        items: [
+          { icon: 'truck', label: 'Delivery Settings', sub: 'Slots, fee, blackout dates & category eligibility', color: BLUE, perm: 'settings', onPress: () => router.push('/director-settings-delivery' as any) },
+        ],
+      },
+      {
         label: 'Catalogue & Menu',
         items: [
           { icon: 'package', label: 'Products', sub: 'Browse, search and manage the product library', color: BLUE, perm: 'products', onPress: () => router.push('/(director)/products' as any) },

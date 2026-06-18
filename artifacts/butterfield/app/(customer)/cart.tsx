@@ -2,8 +2,8 @@ import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
-import { router, useLocalSearchParams } from 'expo-router';
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -42,7 +42,7 @@ import { AddressSearchInput } from '@/components/AddressSearchInput';
 import InlineCalendarPicker from '@/components/InlineCalendarPicker';
 import {
   formatDateChip,
-  getDeliveryDates,
+  getRetailDeliveryDates,
   getSydneyNow,
   isSameDay,
 } from '@/lib/dateUtils';
@@ -72,18 +72,18 @@ const TABS = [
   { label: 'PAYMENT',  icon: 'credit-card' },
 ] as const;
 
-const DELIVERY_FEE_CENTS = 1200;
+const DEFAULT_DELIVERY_FEE_CENTS = 1200;
+const DEFAULT_DELIVERY_ELIGIBLE_CATEGORIES = new Set(['cookies', 'boxes', 'merch']);
 
 const STRIPE_CARD_RATE = 0.017;
 const STRIPE_CARD_FIXED_FEE_CENTS = 30;
-const DELIVERY_ELIGIBLE_CATEGORIES = new Set(['cookies', 'boxes', 'merch']);
 
 function estimateStripeFeeCents(amountCents: number) {
   return amountCents > 0 ? Math.max(0, Math.round(amountCents * STRIPE_CARD_RATE) + STRIPE_CARD_FIXED_FEE_CENTS) : 0;
 }
 
-function calcTotals(subtotalCents: number, step: number, orderType: 'pickup' | 'delivery', paymentMethod: 'card' | 'pay_at_pickup') {
-  const deliv     = (step >= 1 && orderType === 'delivery') ? DELIVERY_FEE_CENTS : 0;
+function calcTotals(subtotalCents: number, step: number, orderType: 'pickup' | 'delivery', paymentMethod: 'card' | 'pay_at_pickup', deliveryFeeCents = DEFAULT_DELIVERY_FEE_CENTS) {
+  const deliv     = (step >= 1 && orderType === 'delivery') ? deliveryFeeCents : 0;
   const base      = subtotalCents + deliv;
   const stripeFee = paymentMethod === 'pay_at_pickup' ? 0 : estimateStripeFeeCents(base);
   return { deliv, stripeFee, total: base + stripeFee };
@@ -154,6 +154,7 @@ function PaymentStepWithStripe({
   items,
   orderType,
   subtotalCents,
+  deliveryFeeCents,
   canPayAtPickup,
   stripeReady,
   onSuccess,
@@ -166,6 +167,7 @@ function PaymentStepWithStripe({
   }>;
   orderType: 'pickup' | 'delivery';
   subtotalCents: number;
+  deliveryFeeCents: number;
   canPayAtPickup: boolean;
   stripeReady: boolean;
   onSuccess: (opts: {
@@ -349,7 +351,7 @@ function PaymentStepWithStripe({
   }, [selectedClaimed, cartItemsWithPrices, cheapestCookiePriceCents]);
 
   const discountCents = (discountApplied?.discountAmountCents ?? 0) + claimedRewardDiscountCents + cheapestCoffeePriceCents;
-  const deliveryCents = orderType === 'delivery' ? DELIVERY_FEE_CENTS : 0;
+  const deliveryCents = orderType === 'delivery' ? deliveryFeeCents : 0;
   const baseForFee = subtotalCents + deliveryCents - discountCents;
   const stripeFee = method === 'pay_at_pickup' ? 0 : estimateStripeFeeCents(Math.max(0, baseForFee));
   const totalBeforePointsCents = Math.max(0, baseForFee + stripeFee);
@@ -1160,6 +1162,24 @@ function CartContent() {
     staleTime: 5 * 60_000,
   });
 
+  const { data: deliveryConfigRes } = useQuery({
+    queryKey: ['delivery-config'],
+    queryFn: () => api.delivery.config(),
+    staleTime: 5 * 60_000,
+  });
+
+  useFocusEffect(
+    useCallback(() => {
+      qc.invalidateQueries({ queryKey: ['delivery-config'] });
+    }, [qc])
+  );
+
+  const deliveryConfig         = deliveryConfigRes?.data;
+  const deliveryFeeCents       = deliveryConfig?.feeCents ?? DEFAULT_DELIVERY_FEE_CENTS;
+  const globalDeliveryEnabled  = !!deliveryConfig?.deliveryEnabled;
+  const eligibleCategories     = new Set(deliveryConfig?.deliverableCategories ?? []);
+  const pickupOnlyIds          = new Set(deliveryConfig?.pickupOnlyProductIds ?? []);
+
   const cartProductIdsKey = items.map((i) => i.productId).join(',');
   const cartSuggestedProducts = useMemo(() => {
     const allProducts = allProductsData?.data ?? [];
@@ -1259,18 +1279,19 @@ function CartContent() {
       .map((item) => `${item.category ?? ''}`.trim().toLowerCase())
       .filter(Boolean);
 
-    const hasDeliverableItems = categories.some((category) => DELIVERY_ELIGIBLE_CATEGORIES.has(category));
+    const hasDeliverableItems = categories.some((category) => eligibleCategories.has(category));
     const hasUndeliverableItems = items.some((item) => {
       const category = `${item.category ?? ''}`.trim().toLowerCase();
-      return !DELIVERY_ELIGIBLE_CATEGORIES.has(category);
+      return !eligibleCategories.has(category) || pickupOnlyIds.has(item.productId);
     });
 
     return {
       hasDeliverableItems,
       hasUndeliverableItems,
-      deliveryEnabled: items.length > 0 && !hasUndeliverableItems,
+      deliveryEnabled: globalDeliveryEnabled && items.length > 0 && !hasUndeliverableItems,
     };
-  }, [items]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [items, globalDeliveryEnabled, eligibleCategories, pickupOnlyIds]);
   const { hasDeliverableItems, hasUndeliverableItems, deliveryEnabled } = cartCategoryFlags;
   const showMixedDeliveryMessage = hasDeliverableItems && hasUndeliverableItems;
 
@@ -1357,11 +1378,11 @@ function CartContent() {
   }, [orderType, defaultAddress]);
 
   const subtotalCents = totalPriceCents;
-  const { stripeFee: stripeFeeCents, total: totalCents } = calcTotals(subtotalCents, step, orderType, 'card');
+  const { stripeFee: stripeFeeCents, total: totalCents } = calcTotals(subtotalCents, step, orderType, 'card', deliveryFeeCents);
 
   const sydNow        = getSydneyNow();
   const storeOpen     = isStoreOpenForAsap(selectedStore, sydNow);
-  const deliveryDates = getDeliveryDates();
+  const deliveryDates = getRetailDeliveryDates(deliveryConfig?.slots ?? [], deliveryConfig?.blackoutDates ?? []);
   const pickupDates   = getStorePickupDates(selectedStore, sydNow);
 
   useEffect(() => {
@@ -1860,7 +1881,7 @@ function CartContent() {
       <View style={styles.orderTypeRow}>
         {[
           { id: 'pickup',   label: 'Pickup',   sub: 'In-store, free',      icon: 'shopping-bag' as const },
-          { id: 'delivery', label: 'Delivery', sub: 'AUD 12.00 flat',      icon: 'truck' as const },
+          { id: 'delivery', label: 'Delivery', sub: `AUD ${(deliveryFeeCents / 100).toFixed(2)} flat`, icon: 'truck' as const },
         ].map((t) => {
           const active = orderType === t.id;
           const disabled = t.id === 'delivery' && !deliveryEnabled;
@@ -1910,8 +1931,12 @@ function CartContent() {
           </View>
           <View style={{ flex: 1 }}>
             <Text style={[styles.deliveryInfoTag, { color: BLUE }]}>SYDNEY DELIVERY</Text>
-            <Text style={styles.deliveryInfoTitle}>Flat AU$12, NSW only</Text>
-            <Text style={styles.deliveryInfoSub}>Mondays &amp; Thursdays, 8am – 5pm. 24 hours notice required.</Text>
+            <Text style={styles.deliveryInfoTitle}>Flat AU${(deliveryFeeCents / 100).toFixed(2)}, NSW only</Text>
+            <Text style={styles.deliveryInfoSub}>
+              {deliveryConfig?.slots && deliveryConfig.slots.length > 0
+                ? deliveryConfig.slots.map(s => s.deliveryLabel).join(' & ') + ', ' + deliveryConfig.slots[0].windowOpen + ' – ' + deliveryConfig.slots[0].windowClose
+                : '24 hours notice required'}
+            </Text>
           </View>
         </View>
       )}
@@ -2027,7 +2052,7 @@ function CartContent() {
                     >
                       <Text style={{ fontSize: 11, fontWeight: '700', letterSpacing: 0.5, color: BLUE }}>{dayName}</Text>
                       <Text style={{ fontSize: 16, fontWeight: '700', color: TEXT }}>{dayDate}</Text>
-                      <Text style={{ fontSize: 12, fontWeight: '400', color: MUTED }}>8am – 5pm</Text>
+                      <Text style={{ fontSize: 12, fontWeight: '400', color: MUTED }}>{slot.window ?? '8am – 5pm'}</Text>
                     </Pressable>
                   );
                 })}
@@ -2204,7 +2229,7 @@ function CartContent() {
             <View style={[styles.summaryDivider, { backgroundColor: BORDER }]} />
             <View style={styles.summaryRow}>
               <Text style={styles.summaryRowLabel}>Delivery (Sydney NSW)</Text>
-              <Text style={styles.summaryRowValue}>AUD {(DELIVERY_FEE_CENTS / 100).toFixed(2)}</Text>
+              <Text style={styles.summaryRowValue}>AUD {(deliveryFeeCents / 100).toFixed(2)}</Text>
             </View>
           </>
         )}
@@ -2254,7 +2279,7 @@ function CartContent() {
             <View style={[styles.summaryDivider, { backgroundColor: BORDER }]} />
             <View style={styles.summaryRow}>
               <Text style={styles.summaryRowLabel}>Delivery (Sydney NSW)</Text>
-              <Text style={styles.summaryRowValue}>AUD {(DELIVERY_FEE_CENTS / 100).toFixed(2)}</Text>
+              <Text style={styles.summaryRowValue}>AUD {(deliveryFeeCents / 100).toFixed(2)}</Text>
             </View>
           </>
         )}
@@ -2298,6 +2323,7 @@ function CartContent() {
             items={items.map((i) => ({ productId: i.productId, variantId: i.variantId ?? null, quantity: i.quantity, selectedOptions: i.selectedOptions }))}
             orderType={orderType}
             subtotalCents={subtotalCents}
+            deliveryFeeCents={deliveryFeeCents}
             canPayAtPickup={canPayAtPickup}
             stripeReady
             onSuccess={handlePlaceOrder}
@@ -2308,6 +2334,7 @@ function CartContent() {
           items={items.map((i) => ({ productId: i.productId, variantId: i.variantId ?? null, quantity: i.quantity, selectedOptions: i.selectedOptions }))}
           orderType={orderType}
           subtotalCents={subtotalCents}
+          deliveryFeeCents={deliveryFeeCents}
           canPayAtPickup={canPayAtPickup}
           stripeReady={false}
           onSuccess={handlePlaceOrder}

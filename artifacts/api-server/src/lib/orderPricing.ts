@@ -42,12 +42,14 @@ export function estimateStripeFeeCents(amountCents: number): number {
 /**
  * Compute an order's authoritative total from server-side product pricing.
  * Always use this instead of trusting any client-supplied totalCents.
+ * Pass deliveryFeeCents from getRetailDeliverySettings() so the configured fee governs all charges.
  */
 export async function computeOrderTotal(
   items: OrderItemInput[],
   orderType: 'pickup' | 'delivery',
   discountCents = 0,
   paymentMethod: PaymentMethod = 'card',
+  deliveryFeeCents = DELIVERY_FEE_CENTS,
 ): Promise<ComputedOrderTotal> {
   if (!items?.length) throw new Error('No items provided');
 
@@ -113,12 +115,12 @@ export async function computeOrderTotal(
     itemizedCents.push({ productId: item.productId, variantId: item.variantId, unitCents, quantity: qty, lineCents });
   }
 
-  const deliveryFeeCents = orderType === 'delivery' ? DELIVERY_FEE_CENTS : 0;
-  const base = subtotalCents + deliveryFeeCents;
+  const deliveryFee = orderType === 'delivery' ? deliveryFeeCents : 0;
+  const base = subtotalCents + deliveryFee;
   const stripeFeeCents = paymentMethod === 'pay_at_pickup' ? 0 : estimateStripeFeeCents(base);
   const totalBeforeDiscount = base + stripeFeeCents;
   const clampedDiscount = Math.min(Math.max(0, discountCents), totalBeforeDiscount);
   const totalCents = Math.max(0, totalBeforeDiscount - clampedDiscount);
 
-  return { subtotalCents, deliveryFeeCents, stripeFeeCents, discountCents: clampedDiscount, totalCents, itemizedCents };
+  return { subtotalCents, deliveryFeeCents: deliveryFee, stripeFeeCents, discountCents: clampedDiscount, totalCents, itemizedCents };
 }

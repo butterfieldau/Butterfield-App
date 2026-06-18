@@ -332,6 +332,9 @@ export const api = {
     deliverySchedule: () =>
       request<{ data: { slots: WholesaleDeliverySlot[] } }>('/wholesale/delivery-schedule'),
   },
+  delivery: {
+    config: () => request<{ data: RetailDeliveryConfig }>('/delivery-config'),
+  },
   addresses: {
     list: () => request<{ data: SavedAddress[] }>('/addresses'),
     create: (data: { label?: string; street: string; apt?: string; suburb: string; postcode: string; state?: string; isDefault?: boolean }) =>
@@ -751,6 +754,11 @@ export const api = {
     // Pricing preview
     pricingPreview:      (data: { customerId: string; productId: string; qty: number }) =>
       request<{ data: WholesalePricePreview }>('/director/pricing-preview', { method: 'POST', body: JSON.stringify(data) }),
+
+    // Retail delivery settings
+    deliverySettings:    () => request<{ data: DirectorDeliverySettings }>('/director/delivery-settings'),
+    updateDeliverySettings: (data: Partial<RetailDeliveryConfigPatch>) =>
+      request<{ data: RetailDeliveryConfig }>('/director/delivery-settings', { method: 'PATCH', body: JSON.stringify(data) }),
 
     // CRM — Customer profiles
     customers: {
@@ -3022,4 +3030,60 @@ export interface ShopDisplayAnalytics {
   tenderTypes: Array<{ type: string; count: number | null; pct: number }>;
   periodStart: string;
   periodEnd: string;
+}
+
+export interface RetailDeliverySlot {
+  id: string;
+  deliveryDow: number;
+  deliveryLabel: string;
+  cutoffDow: number;
+  cutoffDayLabel: string;
+  cutoffDayOffset: number;
+  cutoffLabel: string;
+  cutoffHour: number;
+  windowOpen: string;
+  windowClose: string;
+}
+
+export interface RetailDeliveryConfig {
+  deliveryEnabled: boolean;
+  feeCents: number;
+  deliverableCategories: string[];
+  pickupOnlyProductIds: string[];
+  slots: RetailDeliverySlot[];
+  blackoutDates: string[];
+}
+
+export interface RetailDeliveryConfigPatch {
+  enabled: boolean;
+  feeCents: number;
+  slots: RetailDeliverySlot[];
+  blackoutDates: string[];
+}
+
+export interface DirectorDeliveryCategory {
+  id: string;
+  name: string;
+  slug: string;
+  sortOrder: number;
+  isDeliveryAvailable: boolean;
+  productCount: number;
+}
+
+export interface DirectorDeliveryProduct {
+  id: string;
+  name: string;
+  category: string | null;
+  categoryId: string | null;
+  isPickupOnly: boolean;
+  isActive: boolean;
+}
+
+export interface DirectorDeliverySettings {
+  enabled: boolean;
+  feeCents: number;
+  slots: RetailDeliverySlot[];
+  blackoutDates: string[];
+  categories: DirectorDeliveryCategory[];
+  products: DirectorDeliveryProduct[];
 }
