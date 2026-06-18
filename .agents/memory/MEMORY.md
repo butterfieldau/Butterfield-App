@@ -5,3 +5,4 @@
 - [Stripe schema _raw_data pattern](stripe-raw-data.md) — All stripe.* table columns are generated from _raw_data JSONB; must INSERT into (_raw_data, _account_id) only.
 - [Linkly Cloud notification flow](linkly-notification-flow.md) — GET endpoint returns 202 {} (useless for polling); only the webhook callback signals completion; LINKLY_NOTIFICATION_BASE_URL must only be set in production.
 - [Star MCP30 cash drawer commands](star-mcp30-drawer.md) — DLE DC4 (0x10 0x14 0x01) for standalone; ESC p also usable embedded but DLE DC4 is safer; /shop-display/store must include autoDrawer+drawerPin.
+- [sydneyTime recurring UTC bug](sydney-time-recurring-bug.md) — Never parse locale strings back with new Date(); use Intl.DateTimeFormat.formatToParts + Date.UTC.

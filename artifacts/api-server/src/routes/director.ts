@@ -410,7 +410,7 @@ router.get('/stats/hourly-revenue', async (req, res) => {
       FROM orders
       WHERE created_at >= ${startOfDay}
         AND created_at  < ${endOfDay}
-        AND status NOT IN ('cancelled','refunded')
+        AND status NOT IN ('cancelled','refunded','voided')
       GROUP BY hour
       ORDER BY hour
     `);
@@ -445,7 +445,7 @@ router.get('/stats/top-products', async (req, res) => {
         jsonb_array_elements(items) AS item
       WHERE created_at >= ${startOfDay}
         AND created_at  < ${endOfDay}
-        AND status NOT IN ('cancelled','refunded')
+        AND status NOT IN ('cancelled','refunded','voided')
         AND jsonb_typeof(items) = 'array'
       GROUP BY product_key, name
       ORDER BY units DESC
