@@ -852,6 +852,26 @@ const POS_SECTIONS = [
   { key: 'issues',   label: 'Refunded / Voided', statuses: ['refunded', 'voided', 'cancelled'],   accentColor: '#DC2626' },
 ] as const;
 
+const POS_CHIP_FILTERS = [
+  { key: 'all',      label: 'All' },
+  { key: 'eftpos',   label: 'EFTPOS' },
+  { key: 'cash',     label: 'Cash' },
+  { key: 'refunded', label: 'Refunded' },
+  { key: 'voided',   label: 'Voided' },
+] as const;
+type PosChipKey = (typeof POS_CHIP_FILTERS)[number]['key'];
+
+function applyPosChipFilter(tx: PosTransaction, chip: PosChipKey): boolean {
+  if (chip === 'all') return true;
+  if (chip === 'refunded') return tx.status === 'refunded';
+  if (chip === 'voided')   return tx.status === 'voided' || tx.status === 'cancelled';
+  const method = (tx.paymentMethod ?? 'eftpos').toLowerCase();
+  const isSplit = tx.splitPayments && Array.isArray(tx.splitPayments) && tx.splitPayments.length > 1;
+  if (chip === 'eftpos') return !isSplit && (method === 'eftpos' || method === 'card');
+  if (chip === 'cash')   return !isSplit && method === 'cash';
+  return true;
+}
+
 function PosTabContent({
   dayStr, onSetDay, posOrders, isLoading, refreshing, onRefresh,
 }: {
@@ -861,14 +881,41 @@ function PosTabContent({
 }) {
   const todayStr = sydneyDateStr();
   const isToday  = dayStr === todayStr;
+
+  const [searchQuery, setSearchQuery]       = useState('');
+  const [chipFilter, setChipFilter]         = useState<PosChipKey>('all');
+
+  useEffect(() => {
+    setSearchQuery('');
+    setChipFilter('all');
+  }, [dayStr]);
+
+  const filteredOrders = useMemo(() => {
+    let list = posOrders;
+    if (chipFilter !== 'all') {
+      list = list.filter(tx => applyPosChipFilter(tx, chipFilter));
+    }
+    const q = searchQuery.trim().toLowerCase();
+    if (q) {
+      list = list.filter(tx => {
+        const num = (tx.orderNumber ?? '').toLowerCase();
+        const op  = (tx.operatorName ?? '').toLowerCase();
+        return num.includes(q) || op.includes(q);
+      });
+    }
+    return list;
+  }, [posOrders, chipFilter, searchQuery]);
+
   const dailyRevenue = posOrders
     .filter(tx => tx.status !== 'cancelled' && tx.status !== 'voided' && tx.status !== 'refunded')
     .reduce((acc, tx) => acc + tx.totalCents, 0);
 
   const sections = POS_SECTIONS.map(s => ({
     ...s,
-    items: posOrders.filter(tx => (s.statuses as readonly string[]).includes(tx.status)),
+    items: filteredOrders.filter(tx => (s.statuses as readonly string[]).includes(tx.status)),
   })).filter(s => s.items.length > 0);
+
+  const hasActiveFilters = chipFilter !== 'all' || searchQuery.trim().length > 0;
 
   return (
     <View style={{ flex: 1 }}>
@@ -890,6 +937,59 @@ function PosTabContent({
         </Pressable>
       </View>
 
+      {/* Search bar */}
+      <View style={{ backgroundColor: CARD, paddingHorizontal: 12, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: BORDER }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: BG, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 7, gap: 8 }}>
+          <Feather name="search" size={15} color={MUTED} />
+          <TextInput
+            style={{ flex: 1, fontSize: 14, color: TEXT, padding: 0 }}
+            placeholder="Order number or operator…"
+            placeholderTextColor={MUTED}
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            returnKeyType="search"
+            clearButtonMode="while-editing"
+            autoCorrect={false}
+            autoCapitalize="none"
+          />
+          {searchQuery.length > 0 && (
+            <Pressable onPress={() => setSearchQuery('')} hitSlop={8}>
+              <Feather name="x-circle" size={15} color={MUTED} />
+            </Pressable>
+          )}
+        </View>
+      </View>
+
+      {/* Filter chips */}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={{ flexGrow: 0, backgroundColor: CARD, borderBottomWidth: 1, borderBottomColor: BORDER }}
+        contentContainerStyle={{ paddingHorizontal: 12, paddingVertical: 8, gap: 6, flexDirection: 'row' }}
+      >
+        {POS_CHIP_FILTERS.map(chip => {
+          const active = chipFilter === chip.key;
+          return (
+            <Pressable
+              key={chip.key}
+              onPress={() => { setChipFilter(chip.key); Haptics.selectionAsync(); }}
+              style={{
+                paddingHorizontal: 12,
+                paddingVertical: 6,
+                borderRadius: 20,
+                backgroundColor: active ? NAVY : BG,
+                borderWidth: 1,
+                borderColor: active ? NAVY : BORDER,
+              }}
+            >
+              <Text style={{ fontSize: 13, fontWeight: active ? '700' : '500', color: active ? '#FFFFFF' : TEXT }}>
+                {chip.label}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </ScrollView>
+
       {isLoading && !refreshing ? (
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
           <ActivityIndicator color={BLUE} size="large" />
@@ -904,6 +1004,22 @@ function PosTabContent({
             {isToday ? 'Terminal sales will appear here in real time.' : 'Use the arrows to navigate to another day.'}
           </Text>
         </View>
+      ) : filteredOrders.length === 0 ? (
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+          <Feather name="search" size={36} color={MUTED} />
+          <Text style={{ color: MUTED, marginTop: 12, fontSize: 15, fontWeight: '600' }}>No matching transactions</Text>
+          <Text style={{ color: MUTED, marginTop: 4, fontSize: 13, textAlign: 'center' }}>
+            Try a different search term or filter.
+          </Text>
+          {hasActiveFilters && (
+            <Pressable
+              onPress={() => { setSearchQuery(''); setChipFilter('all'); }}
+              style={{ marginTop: 14, paddingHorizontal: 16, paddingVertical: 8, backgroundColor: NAVY, borderRadius: 20 }}
+            >
+              <Text style={{ fontSize: 13, fontWeight: '600', color: '#FFFFFF' }}>Clear filters</Text>
+            </Pressable>
+          )}
+        </View>
       ) : (
         <ScrollView
           contentContainerStyle={{ padding: 16, paddingBottom: 120 }}
@@ -915,7 +1031,9 @@ function PosTabContent({
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
               <Feather name="monitor" size={16} color={BLUE} />
               <Text style={{ fontSize: 13, color: MUTED, fontWeight: '500' }}>
-                {posOrders.length} transaction{posOrders.length !== 1 ? 's' : ''}
+                {hasActiveFilters
+                  ? `${filteredOrders.length} of ${posOrders.length} transaction${posOrders.length !== 1 ? 's' : ''}`
+                  : `${posOrders.length} transaction${posOrders.length !== 1 ? 's' : ''}`}
               </Text>
             </View>
             {dailyRevenue > 0 && (
