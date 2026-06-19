@@ -4,6 +4,7 @@ import * as Haptics from 'expo-haptics';
 import React, {
   useCallback, useEffect, useMemo, useRef, useState,
 } from 'react';
+import { Swipeable } from 'react-native-gesture-handler';
 import {
   ActivityIndicator, Animated, Alert, FlatList, Keyboard,
   KeyboardAvoidingView, Modal, PanResponder, Platform, Pressable, ScrollView,
@@ -2465,6 +2466,8 @@ function TicketPanel({
   const isEmpty = ticket.items.length === 0;
   const discount = ticket.appliedDiscount;
 
+  const openSwipeableRef = useRef<Swipeable | null>(null);
+
   // Local discount input state
   const [codeInput, setCodeInput] = React.useState('');
   const [validating, setValidating] = React.useState(false);
@@ -2678,6 +2681,7 @@ function TicketPanel({
               onDecrement={() => onUpdateQty(item.localId, -1)}
               onEdit={() => onEditItem(item)}
               onPriceOverride={(newPriceCents, pin) => onPriceOverride(item.localId, newPriceCents, pin)}
+              openSwipeableRef={openSwipeableRef}
             />
           ))
         )}
@@ -2815,11 +2819,12 @@ function TicketPanel({
 
 // ── Ticket Item Row ───────────────────────────────────────────────────────────
 function TicketItemRow({
-  item, onRemove, onIncrement, onDecrement, onEdit, onPriceOverride,
+  item, onRemove, onIncrement, onDecrement, onEdit, onPriceOverride, openSwipeableRef,
 }: {
   item: TicketItem; onRemove: () => void;
   onIncrement: () => void; onDecrement: () => void; onEdit: () => void;
   onPriceOverride: (newPriceCents: number | undefined, supervisorPin?: string) => void;
+  openSwipeableRef: React.MutableRefObject<Swipeable | null>;
 }) {
   const effectiveUnitPrice = item.priceOverrideCents ?? item.unitPriceCents;
   const lineTotal = effectiveUnitPrice * item.quantity;
@@ -2827,6 +2832,8 @@ function TicketItemRow({
   const hasOverride = item.priceOverrideCents !== undefined;
   const optionSummary = item.selectedOptions.map(o => o.optionName).join(', ');
   const variantLabel = item.variantName;
+
+  const swipeableRef = useRef<Swipeable>(null);
 
   const [showPriceEdit, setShowPriceEdit] = React.useState(false);
   const [rawPrice, setRawPrice] = React.useState('');
@@ -2859,47 +2866,69 @@ function TicketItemRow({
     }
   };
 
+  const renderRightActions = () => (
+    <View style={styles.ticketSwipeDelete}>
+      <Feather name="trash-2" size={18} color="#FFFFFF" />
+      <Text style={styles.ticketSwipeDeleteLabel}>Delete</Text>
+    </View>
+  );
+
   return (
     <>
-      <View style={styles.ticketItem}>
-        <TouchableOpacity onPress={onEdit} style={{ flex: 1 }} activeOpacity={0.7}>
-          <Text style={styles.ticketItemName} numberOfLines={1}>{item.productName}</Text>
-          {(variantLabel || optionSummary) && (
-            <Text style={styles.ticketItemMeta} numberOfLines={1}>
-              {[variantLabel, optionSummary].filter(Boolean).join(' · ')}
-            </Text>
-          )}
-          {item.notes ? (
-            <Text style={styles.ticketItemNotes} numberOfLines={1}>Note: {item.notes}</Text>
-          ) : null}
-        </TouchableOpacity>
-        <View style={styles.ticketItemRight}>
-          <TouchableOpacity onPress={openPriceEdit} activeOpacity={0.7} hitSlop={6}>
-            {hasOverride ? (
-              <View style={{ alignItems: 'flex-end' }}>
-                <Text style={styles.ticketItemPriceStrike}>{fmtCents(origLineTotal)}</Text>
-                <Text style={[styles.ticketItemPrice, { color: CHERRY }]}>{fmtCents(lineTotal)}</Text>
-              </View>
-            ) : (
-              <Text style={styles.ticketItemPrice}>{fmtCents(lineTotal)}</Text>
+      <Swipeable
+        ref={swipeableRef}
+        renderRightActions={renderRightActions}
+        rightThreshold={160}
+        overshootRight={false}
+        friction={2}
+        onSwipeableWillOpen={() => {
+          if (openSwipeableRef.current && openSwipeableRef.current !== swipeableRef.current) {
+            openSwipeableRef.current.close();
+          }
+          openSwipeableRef.current = swipeableRef.current;
+        }}
+        onSwipeableOpen={() => {
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+          onRemove();
+        }}
+      >
+        <View style={styles.ticketItem}>
+          <TouchableOpacity onPress={onEdit} style={{ flex: 1 }} activeOpacity={0.7}>
+            <Text style={styles.ticketItemName} numberOfLines={1}>{item.productName}</Text>
+            {(variantLabel || optionSummary) && (
+              <Text style={styles.ticketItemMeta} numberOfLines={1}>
+                {[variantLabel, optionSummary].filter(Boolean).join(' · ')}
+              </Text>
             )}
+            {item.notes ? (
+              <Text style={styles.ticketItemNotes} numberOfLines={1}>Note: {item.notes}</Text>
+            ) : null}
           </TouchableOpacity>
-          <View style={styles.qtyControls}>
-            <Pressable onPress={onDecrement} style={styles.qtyBtn} hitSlop={6}>
-              {item.quantity === 1
-                ? <Feather name="trash-2" size={14} color={CHERRY} />
-                : <Feather name="minus" size={14} color={MID} />}
-            </Pressable>
-            <Text style={styles.qtyText}>{item.quantity}</Text>
-            <Pressable onPress={onIncrement} style={styles.qtyBtn} hitSlop={6}>
-              <Feather name="plus" size={14} color={BLUE} />
-            </Pressable>
+          <View style={styles.ticketItemRight}>
+            <TouchableOpacity onPress={openPriceEdit} activeOpacity={0.7} hitSlop={6}>
+              {hasOverride ? (
+                <View style={{ alignItems: 'flex-end' }}>
+                  <Text style={styles.ticketItemPriceStrike}>{fmtCents(origLineTotal)}</Text>
+                  <Text style={[styles.ticketItemPrice, { color: CHERRY }]}>{fmtCents(lineTotal)}</Text>
+                </View>
+              ) : (
+                <Text style={styles.ticketItemPrice}>{fmtCents(lineTotal)}</Text>
+              )}
+            </TouchableOpacity>
+            <View style={styles.qtyControls}>
+              <Pressable onPress={onDecrement} style={styles.qtyBtn} hitSlop={6}>
+                {item.quantity === 1
+                  ? <Feather name="trash-2" size={14} color={CHERRY} />
+                  : <Feather name="minus" size={14} color={MID} />}
+              </Pressable>
+              <Text style={styles.qtyText}>{item.quantity}</Text>
+              <Pressable onPress={onIncrement} style={styles.qtyBtn} hitSlop={6}>
+                <Feather name="plus" size={14} color={BLUE} />
+              </Pressable>
+            </View>
           </View>
         </View>
-        <Pressable onPress={onRemove} style={styles.ticketItemDelete} hitSlop={8}>
-          <Feather name="x" size={14} color={MUTED} />
-        </Pressable>
-      </View>
+      </Swipeable>
 
       <Modal visible={showPriceEdit} transparent animationType="fade" onRequestClose={() => setShowPriceEdit(false)}>
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
@@ -6269,7 +6298,8 @@ const styles = StyleSheet.create({
   qtyControls:        { flexDirection: 'row', alignItems: 'center', gap: 8 },
   qtyBtn:             { width: 26, height: 26, borderRadius: 6, backgroundColor: '#F1F5F9', justifyContent: 'center', alignItems: 'center' },
   qtyText:            { fontSize: 14, fontWeight: '700', color: DARK, minWidth: 20, textAlign: 'center' },
-  ticketItemDelete:   { marginLeft: 8, marginTop: 2, padding: 4 },
+  ticketSwipeDelete:      { backgroundColor: CHERRY, width: 80, justifyContent: 'center', alignItems: 'center', gap: 4 },
+  ticketSwipeDeleteLabel: { color: '#FFFFFF', fontSize: 11, fontWeight: '600' },
 
   totalsSection:      { borderTopWidth: 1, borderTopColor: BORDER, paddingHorizontal: 14, paddingTop: 12, paddingBottom: 4, backgroundColor: WHITE },
   totalRow:           { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 },
