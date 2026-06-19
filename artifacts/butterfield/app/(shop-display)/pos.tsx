@@ -906,7 +906,7 @@ function PosScreenInner() {
     refetch: refetchCategories,
   } = useQuery({
     queryKey: ['pos-categories'],
-    queryFn: () => api.products.categories(),
+    queryFn: () => api.shopDisplay.categories(),
     staleTime: Infinity,   // only refresh on manual sync
   });
 

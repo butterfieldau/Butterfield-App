@@ -457,6 +457,73 @@ router.get('/idle-products', async (req, res) => {
   return res.json({ data });
 });
 
+// ── Categories (all active, including POS-only) ───────────────────────────
+// Returns ALL active categories regardless of showPos so the POS screen can
+// display POS-only categories that are hidden from the customer/wholesale apps.
+// Three-tier fallback identical to the director fetchCategories() pattern.
+router.get('/categories', async (_req, res) => {
+  try {
+    const { productCategoriesTable: catTable } = await import('@workspace/db');
+    const { asc: ascFn, eq: eqFn } = await import('drizzle-orm');
+    const cats = await db.select().from(catTable)
+      .where(eqFn(catTable.isActive, true))
+      .orderBy(ascFn(catTable.sortOrder));
+    return res.json({ data: cats });
+  } catch {
+    try {
+      // Fallback 2: raw SQL with optional columns (color, show_pos) referenced directly.
+      const result = await db.execute(sql`
+        SELECT
+          id, name, slug, description,
+          image_url            AS "imageUrl",
+          sort_order           AS "sortOrder",
+          is_active            AS "isActive",
+          show_public          AS "showPublic",
+          show_wholesale       AS "showWholesale",
+          COALESCE(is_pickup_available,  true)  AS "isPickupAvailable",
+          COALESCE(is_delivery_available, false) AS "isDeliveryAvailable",
+          COALESCE(show_on_home, false)          AS "showOnHome",
+          COALESCE(home_order, 0)                AS "homeOrder",
+          color,
+          show_pos             AS "showPos",
+          created_at           AS "createdAt",
+          updated_at           AS "updatedAt"
+        FROM product_categories
+        WHERE is_active = true
+        ORDER BY sort_order ASC
+      `);
+      return res.json({ data: (result.rows ?? []).map((r: any) => ({ ...r, showPos: r.showPos ?? true })) });
+    } catch {
+      // Fallback 3: pre-migration DB — color and show_pos columns absent; default showPos true.
+      try {
+        const result = await db.execute(sql`
+          SELECT
+            id, name, slug, description,
+            image_url            AS "imageUrl",
+            sort_order           AS "sortOrder",
+            is_active            AS "isActive",
+            show_public          AS "showPublic",
+            show_wholesale       AS "showWholesale",
+            COALESCE(is_pickup_available,  true)  AS "isPickupAvailable",
+            COALESCE(is_delivery_available, false) AS "isDeliveryAvailable",
+            COALESCE(show_on_home, false)          AS "showOnHome",
+            COALESCE(home_order, 0)                AS "homeOrder",
+            NULL::text                             AS color,
+            true                                   AS "showPos",
+            created_at           AS "createdAt",
+            updated_at           AS "updatedAt"
+          FROM product_categories
+          WHERE is_active = true
+          ORDER BY sort_order ASC
+        `);
+        return res.json({ data: result.rows ?? [] });
+      } catch {
+        return res.json({ data: [] });
+      }
+    }
+  }
+});
+
 // ── Products (permission-gated) ───────────────────────────────────────────
 router.get('/products', async (req, res) => {
   await ensureShopDisplaySchemaReady();

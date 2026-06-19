@@ -319,28 +319,24 @@ router.get('/', async (_req, res) => {
   }
 });
 
-// ── GET /products/categories — active category list ────────────────────────
-// Returns ALL active categories (not filtered by showPublic) so the POS
-// always reflects the complete director-managed category set.
-// Uses a raw SQL fallback so optional columns (e.g. `color`) that may not
-// yet exist in production don't silently break the endpoint.
+// ── GET /products/categories — customer-facing active category list ───────
+// Returns active categories that are NOT flagged as POS-only (showPos = false).
+// Three-tier fallback so the endpoint survives production DBs at any migration stage:
+//   1. Drizzle ORM with showPos filter (fast path, fully migrated schema)
+//   2. Raw SQL with show_pos column reference (show_pos exists but Drizzle errored)
+//   3. Raw SQL without show_pos (pre-migration DB — all categories visible to customers)
 router.get('/categories', async (_req, res) => {
   try {
     const { productCategoriesTable: catTable } = await import('@workspace/db');
     const cats = await db.select().from(catTable)
-      .where(eq(catTable.isActive, true))
+      .where(and(eq(catTable.isActive, true), eq(catTable.showPos, true)))
       .orderBy(asc(catTable.sortOrder));
     return res.json({ data: cats });
   } catch {
-    // Fallback raw query — safe against schema drift where optional columns
-    // (like `color`) haven't yet been applied to the production database.
     try {
       const result = await db.execute(sql`
         SELECT
-          id,
-          name,
-          slug,
-          description,
+          id, name, slug, description,
           image_url            AS "imageUrl",
           sort_order           AS "sortOrder",
           is_active            AS "isActive",
@@ -350,16 +346,42 @@ router.get('/categories', async (_req, res) => {
           COALESCE(is_delivery_available, false) AS "isDeliveryAvailable",
           COALESCE(show_on_home, false)          AS "showOnHome",
           COALESCE(home_order, 0)                AS "homeOrder",
-          NULL::text                             AS color,
+          color,
+          show_pos             AS "showPos",
           created_at           AS "createdAt",
           updated_at           AS "updatedAt"
         FROM product_categories
-        WHERE is_active = true
+        WHERE is_active = true AND show_pos = true
         ORDER BY sort_order ASC
       `);
       return res.json({ data: result.rows ?? [] });
     } catch {
-      return res.json({ data: [] });
+      // Pre-migration DB: show_pos column doesn't exist — show all active categories.
+      try {
+        const result = await db.execute(sql`
+          SELECT
+            id, name, slug, description,
+            image_url            AS "imageUrl",
+            sort_order           AS "sortOrder",
+            is_active            AS "isActive",
+            show_public          AS "showPublic",
+            show_wholesale       AS "showWholesale",
+            COALESCE(is_pickup_available,  true)  AS "isPickupAvailable",
+            COALESCE(is_delivery_available, false) AS "isDeliveryAvailable",
+            COALESCE(show_on_home, false)          AS "showOnHome",
+            COALESCE(home_order, 0)                AS "homeOrder",
+            NULL::text                             AS color,
+            true                                   AS "showPos",
+            created_at           AS "createdAt",
+            updated_at           AS "updatedAt"
+          FROM product_categories
+          WHERE is_active = true
+          ORDER BY sort_order ASC
+        `);
+        return res.json({ data: result.rows ?? [] });
+      } catch {
+        return res.json({ data: [] });
+      }
     }
   }
 });

@@ -16,6 +16,7 @@ export const productCategoriesTable = pgTable("product_categories", {
   showOnHome:          boolean("show_on_home").notNull().default(false),
   homeOrder:           integer("home_order").notNull().default(0),
   color:               text("color"),
+  showPos:             boolean("show_pos").notNull().default(true),
   createdAt:           timestamp("created_at").notNull().defaultNow(),
   updatedAt:           timestamp("updated_at").notNull().defaultNow(),
 });

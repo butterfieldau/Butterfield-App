@@ -42,32 +42,58 @@ function parseJsonArr(val: string | null | undefined): string[] {
   try { const r = JSON.parse(val); return Array.isArray(r) ? r : []; } catch { return []; }
 }
 
-// Resilient category fetch — Drizzle SELECT * fails when optional columns
-// (e.g. `color`) haven't been applied to the production database yet.
-// Falls back to an explicit raw-SQL query that returns NULL for missing columns.
+// Resilient category fetch — three-tier fallback:
+// 1. Drizzle ORM (full schema, fast path)
+// 2. Raw SQL including optional columns (color, show_pos) — handles Drizzle quirks on partial schema
+// 3. Raw SQL without optional columns — handles production DBs that haven't migrated yet
 async function fetchCategories(): Promise<any[]> {
   try {
     return await db.select().from(productCategoriesTable).orderBy(asc(productCategoriesTable.sortOrder));
   } catch {
-    const result = await db.execute(sql`
-      SELECT
-        id, name, slug, description,
-        image_url            AS "imageUrl",
-        sort_order           AS "sortOrder",
-        is_active            AS "isActive",
-        show_public          AS "showPublic",
-        show_wholesale       AS "showWholesale",
-        COALESCE(is_pickup_available,  true)  AS "isPickupAvailable",
-        COALESCE(is_delivery_available, false) AS "isDeliveryAvailable",
-        COALESCE(show_on_home, false)          AS "showOnHome",
-        COALESCE(home_order, 0)                AS "homeOrder",
-        NULL::text                             AS color,
-        created_at           AS "createdAt",
-        updated_at           AS "updatedAt"
-      FROM product_categories
-      ORDER BY sort_order ASC
-    `);
-    return result.rows ?? [];
+    try {
+      const result = await db.execute(sql`
+        SELECT
+          id, name, slug, description,
+          image_url            AS "imageUrl",
+          sort_order           AS "sortOrder",
+          is_active            AS "isActive",
+          show_public          AS "showPublic",
+          show_wholesale       AS "showWholesale",
+          COALESCE(is_pickup_available,  true)  AS "isPickupAvailable",
+          COALESCE(is_delivery_available, false) AS "isDeliveryAvailable",
+          COALESCE(show_on_home, false)          AS "showOnHome",
+          COALESCE(home_order, 0)                AS "homeOrder",
+          color,
+          show_pos             AS "showPos",
+          created_at           AS "createdAt",
+          updated_at           AS "updatedAt"
+        FROM product_categories
+        ORDER BY sort_order ASC
+      `);
+      return (result.rows ?? []).map((r: any) => ({ ...r, showPos: r.showPos ?? true }));
+    } catch {
+      // Oldest schema — color and show_pos columns may not exist yet; default showPos to true.
+      const result = await db.execute(sql`
+        SELECT
+          id, name, slug, description,
+          image_url            AS "imageUrl",
+          sort_order           AS "sortOrder",
+          is_active            AS "isActive",
+          show_public          AS "showPublic",
+          show_wholesale       AS "showWholesale",
+          COALESCE(is_pickup_available,  true)  AS "isPickupAvailable",
+          COALESCE(is_delivery_available, false) AS "isDeliveryAvailable",
+          COALESCE(show_on_home, false)          AS "showOnHome",
+          COALESCE(home_order, 0)                AS "homeOrder",
+          NULL::text                             AS color,
+          true                                   AS "showPos",
+          created_at           AS "createdAt",
+          updated_at           AS "updatedAt"
+        FROM product_categories
+        ORDER BY sort_order ASC
+      `);
+      return result.rows ?? [];
+    }
   }
 }
 
@@ -96,23 +122,58 @@ router.get('/categories', allowedRoles, requireProducts, async (_req, res) => {
 });
 
 router.post('/categories', allowedRoles, requireProducts, async (req, res) => {
-  const { name, slug, description, imageUrl, sortOrder, isActive, showPublic, showWholesale, isPickupAvailable, isDeliveryAvailable, showOnHome, homeOrder } = req.body;
+  const { name, slug, description, imageUrl, sortOrder, isActive, showPublic, showWholesale, isPickupAvailable, isDeliveryAvailable, showOnHome, homeOrder, color, showPos } = req.body;
   if (!name?.trim()) return res.status(400).json({ error: 'Name is required' });
   const id = `cat_${randomUUID().slice(0, 12)}`;
-  const [cat] = await db.insert(productCategoriesTable).values({
+  const values = {
     id, name: name.trim(), slug: slug?.trim() || name.toLowerCase().replace(/[^a-z0-9]/g, '-'),
     description: description?.trim() || null, imageUrl: imageUrl?.trim() || null,
     sortOrder: sortOrder ?? 0, isActive: isActive ?? true,
     showPublic: showPublic ?? true, showWholesale: showWholesale ?? false,
     isPickupAvailable: isPickupAvailable ?? true, isDeliveryAvailable: isDeliveryAvailable ?? false,
     showOnHome: showOnHome ?? false, homeOrder: homeOrder ?? 0,
-  }).returning();
-  return res.json({ data: cat });
+    color: color?.trim() || null, showPos: showPos ?? true,
+  };
+  // Attempt 1: full insert with .returning() (fast path on migrated schema).
+  // Attempt 2: insert without .returning() and re-fetch (handles .returning() quirks).
+  // Attempt 3: fallback insert omitting optional columns (color, showPos) that may not
+  //            exist in production yet, then re-fetch with the resilient fetchCategories().
+  try {
+    const [cat] = await db.insert(productCategoriesTable).values(values).returning();
+    return res.json({ data: cat });
+  } catch {
+    try {
+      await db.insert(productCategoriesTable).values(values);
+      const all = await fetchCategories();
+      const cat = all.find((c: any) => c.id === id);
+      if (!cat) return res.status(500).json({ error: 'Category created but could not be fetched' });
+      return res.json({ data: cat });
+    } catch {
+      // Last resort: omit optional columns that may not exist in the production DB yet.
+      const { color: _c, showPos: _sp, ...baseValues } = values;
+      await db.execute(sql`
+        INSERT INTO product_categories
+          (id, name, slug, description, image_url, sort_order, is_active,
+           show_public, show_wholesale, is_pickup_available, is_delivery_available,
+           show_on_home, home_order)
+        VALUES
+          (${baseValues.id}, ${baseValues.name}, ${baseValues.slug},
+           ${baseValues.description}, ${baseValues.imageUrl}, ${baseValues.sortOrder},
+           ${baseValues.isActive}, ${baseValues.showPublic}, ${baseValues.showWholesale},
+           ${baseValues.isPickupAvailable}, ${baseValues.isDeliveryAvailable},
+           ${baseValues.showOnHome}, ${baseValues.homeOrder})
+      `);
+      const all = await fetchCategories();
+      const cat = all.find((c: any) => c.id === id);
+      if (!cat) return res.status(500).json({ error: 'Category created but could not be fetched' });
+      return res.json({ data: cat });
+    }
+  }
 });
 
 router.patch('/categories/:id', allowedRoles, requireProducts, async (req, res) => {
   const categoryId = getRouteParam(req.params.id);
-  const { name, slug, description, imageUrl, sortOrder, isActive, showPublic, showWholesale, isPickupAvailable, isDeliveryAvailable, showOnHome, homeOrder, color } = req.body;
+  const { name, slug, description, imageUrl, sortOrder, isActive, showPublic, showWholesale, isPickupAvailable, isDeliveryAvailable, showOnHome, homeOrder, color, showPos } = req.body;
   const updates: any = {};
   if (name !== undefined) updates.name = name.trim();
   if (slug !== undefined) updates.slug = slug.trim();
@@ -127,6 +188,7 @@ router.patch('/categories/:id', allowedRoles, requireProducts, async (req, res) 
   if (showOnHome !== undefined) updates.showOnHome = Boolean(showOnHome);
   if (homeOrder !== undefined) updates.homeOrder = Number(homeOrder);
   if (color !== undefined) updates.color = color?.trim() || null;
+  if (showPos !== undefined) updates.showPos = Boolean(showPos);
   updates.updatedAt = new Date();
   // .returning() includes `color` which may not exist in production yet — fall back to re-fetch.
   try {

@@ -251,6 +251,7 @@ export const api = {
       return request<{ data: ShopDisplayTaskHistory[] }>(`/shop-display/tasks/history${qs ? `?${qs}` : ''}`);
     },
     store:         () => request<{ data: ShopDisplayStore[] }>('/shop-display/store'),
+    categories:    () => request<{ data: ProductCategory[] }>('/shop-display/categories'),
     products:      () => request<{ data: ApiProduct[] }>('/shop-display/products'),
     idleProducts:  () => request<{ data: ApiProduct[] }>('/shop-display/idle-products'),
     customers:     (search: string) =>

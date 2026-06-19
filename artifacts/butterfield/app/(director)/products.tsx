@@ -794,6 +794,7 @@ function CatalogTab() {
   const [catHomeOrder, setCatHomeOrder] = useState('0');
   const [catImageUrl, setCatImageUrl] = useState('');
   const [catColor, setCatColor] = useState<string | null>(null);
+  const [catShowPos, setCatShowPos] = useState(true);
   const [catUploading, setCatUploading] = useState(false);
   const [catSaving, setCatSaving] = useState(false);
   const recommendedCategorySort = useMemo(
@@ -810,6 +811,7 @@ function CatalogTab() {
     setEditCat(null); setCatName(''); setCatSlug(''); setCatDesc('');
     setCatSortOrder('0'); setCatShowPublic(true); setCatShowWholesale(false);
     setCatShowOnHome(false); setCatHomeOrder('0'); setCatImageUrl(''); setCatColor(null);
+    setCatShowPos(true);
     setCatModal(true);
   };
   const openEditCat = (c: any) => {
@@ -817,6 +819,7 @@ function CatalogTab() {
     setCatSortOrder(String(c.sortOrder ?? 0)); setCatShowPublic(c.showPublic ?? true); setCatShowWholesale(c.showWholesale ?? false);
     setCatShowOnHome(c.showOnHome ?? false); setCatHomeOrder(String(c.homeOrder ?? 0));
     setCatImageUrl(c.imageUrl ?? ''); setCatColor(c.color ?? null);
+    setCatShowPos(c.showPos ?? true);
     setCatModal(true);
   };
   const saveCat = async () => {
@@ -834,6 +837,7 @@ function CatalogTab() {
         homeOrder: parseInt(catHomeOrder) || 0,
         imageUrl: catImageUrl.trim() || null,
         color: catColor || null,
+        showPos: catShowPos,
       };
       if (editCat) {
         await api.director.updateCategory(editCat.id, payload);
@@ -881,6 +885,7 @@ function CatalogTab() {
         try {
           await api.director.deleteCategory(c.id);
           await qc.invalidateQueries({ queryKey: ['director-categories'] });
+          await qc.invalidateQueries({ queryKey: ['categories'] });
         } catch (e: any) { Alert.alert('Error', e.message); }
       }},
     ]);
@@ -932,6 +937,11 @@ function CatalogTab() {
                   {c.showOnHome && (
                     <View style={{ backgroundColor: AMBER + '22', paddingHorizontal: 7, paddingVertical: 2, borderRadius: 10, borderWidth: 1, borderColor: AMBER + '44' }}>
                       <Text style={{ fontSize: 10, fontWeight: '700', color: AMBER }}>HOME</Text>
+                    </View>
+                  )}
+                  {(c.showPos ?? true) === false && (
+                    <View style={{ backgroundColor: PURPLE + '22', paddingHorizontal: 7, paddingVertical: 2, borderRadius: 10, borderWidth: 1, borderColor: PURPLE + '44' }}>
+                      <Text style={{ fontSize: 10, fontWeight: '700', color: PURPLE }}>POS ONLY</Text>
                     </View>
                   )}
                 </View>
@@ -1069,6 +1079,16 @@ function CatalogTab() {
             </Field>
             <Toggle label="Visible to customers" value={catShowPublic} onChange={setCatShowPublic} color={GREEN} desc="Show in the customer ordering portal and menu" />
             <Toggle label="Visible to wholesale" value={catShowWholesale} onChange={setCatShowWholesale} color={BLUE} desc="Show in the wholesale product catalog" />
+            <Toggle
+              label="POS only"
+              value={!catShowPos}
+              onChange={(v) => {
+                setCatShowPos(!v);
+                if (v) { setCatShowPublic(false); setCatShowWholesale(false); }
+              }}
+              color={PURPLE}
+              desc="Hide from customer app and wholesale catalog — visible only in the POS screen"
+            />
           </ScrollView>
         </View>
       </Modal>
