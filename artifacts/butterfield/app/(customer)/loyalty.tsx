@@ -14,6 +14,7 @@ import {
   Pressable,
   RefreshControl,
   ScrollView,
+  StatusBar,
   StyleSheet,
   Text,
   useWindowDimensions,
@@ -619,6 +620,7 @@ function LoyaltyContent() {
 
   return (
     <>
+      <StatusBar barStyle="light-content" />
       <CelebrateOverlay visible={!!celebrateTier} tier={celebrateTier} onClose={() => setCelebrateTier(null)} />
       <StampCelebrateOverlay visible={showStampCelebration} onClose={() => setShowStampCelebration(false)} />
 

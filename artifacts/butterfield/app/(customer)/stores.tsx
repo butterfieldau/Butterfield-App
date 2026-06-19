@@ -4,7 +4,7 @@ import { router } from 'expo-router';
 import React from 'react';
 import {
   ActivityIndicator, Alert, Linking, Pressable, RefreshControl,
-  ScrollView, StyleSheet, Text, View,
+  ScrollView, StatusBar, StyleSheet, Text, View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRefreshControl } from '@/hooks/useRefreshControl';
@@ -209,6 +209,8 @@ export default function CustomerStoresScreen() {
     }
   };
   return (
+    <>
+    <StatusBar barStyle="light-content" />
     <ScrollView
       style={{ flex: 1, backgroundColor: colors.background }}
       contentContainerStyle={{ paddingBottom: insets.bottom + 40 }}
@@ -247,5 +249,6 @@ export default function CustomerStoresScreen() {
         )}
       </View>
     </ScrollView>
+    </>
   );
 }

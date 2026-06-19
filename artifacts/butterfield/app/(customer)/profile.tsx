@@ -5,7 +5,7 @@ import { router } from 'expo-router';
 import React, { useRef } from 'react';
 import { useScrollToTopCompat as useScrollToTop } from '@/hooks/useScrollToTopCompat';
 import {
-  Alert, Pressable, ScrollView, StyleSheet, Text, View,
+  Alert, Pressable, ScrollView, StatusBar, StyleSheet, Text, View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -90,7 +90,7 @@ export default function AccountScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: BG }}>
-
+      <StatusBar barStyle="light-content" />
       {/* ── Frozen blue gradient header ────────────────────────────────────── */}
       <LinearGradient
         colors={['#1493FF', '#3CBBEE']}

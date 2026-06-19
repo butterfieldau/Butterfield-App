@@ -12,6 +12,7 @@ import {
   Platform,
   Pressable,
   ScrollView,
+  StatusBar,
   StyleSheet,
   Text,
   TextInput,
@@ -2346,7 +2347,7 @@ function CartContent() {
   // ── Main render ───────────────────────────────────────────────────────────
   return (
     <View style={{ flex: 1, backgroundColor: BG }} {...edgeBackPan.panHandlers}>
-
+      <StatusBar barStyle="light-content" />
       {/* Fixed header — blue gradient matching main customer portal */}
       <LinearGradient
         colors={['#1493FF', '#3CBBEE']}
