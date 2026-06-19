@@ -261,7 +261,10 @@ const GROUP_W   = BAR_W * 2 + BAR_GAP + GROUP_GAP; // 36
 const CHART_H   = 110;
 const PAD_TOP   =   8;
 const SVG_H     = PAD_TOP + CHART_H;               // 118
-const SVG_W     = GROUP_GAP + NUM_HOURS * GROUP_W; // 656
+const SVG_W      = GROUP_GAP + NUM_HOURS * GROUP_W; // 656
+const CALLOUT_W  = 112;
+// approx Y from card top to chart top (header ~62px + legend ~22px)
+const CALLOUT_TOP = 84;
 
 function hrLabel(h: number): string {
   if (h === 0)  return '12A';
@@ -291,7 +294,17 @@ function HourlyInsightsChart({
   totalSessions: number;
   liveCount: number;
 }) {
-  const [selected, setSelected] = useState<number | null>(null);
+  const [selected, setSelected]   = useState<number | null>(null);
+  const [scrollX, setScrollX]     = useState(0);
+  const [cardWidth, setCardWidth] = useState(0);
+
+  // Callout left in card-relative coords, clamped so it never overflows the card
+  const calloutLeft = selected !== null ? (() => {
+    const xRev      = GROUP_GAP / 2 + selected * GROUP_W;
+    const barCenter = xRev + (BAR_W * 2 + BAR_GAP) / 2 - scrollX + 4; // +4 = contentPaddingH
+    const cw        = cardWidth > 0 ? cardWidth : 350;
+    return Math.max(8, Math.min(barCenter - CALLOUT_W / 2, cw - CALLOUT_W - 8));
+  })() : 0;
 
   const nowHour = parseInt(
     new Intl.DateTimeFormat('en-AU', {
@@ -309,10 +322,15 @@ function HourlyInsightsChart({
   sessions.forEach(s => { sessMap[s.hour] = s.count; });
 
   return (
-    <View style={{
-      backgroundColor: CARD, borderRadius: 20, borderWidth: 1,
-      borderColor: BORDER, overflow: 'hidden', ...GLASS_SHADOW,
-    }}>
+    // Outer card is a Pressable — tapping header/legend area dismisses callout
+    <Pressable
+      onPress={() => setSelected(null)}
+      onLayout={e => setCardWidth(e.nativeEvent.layout.width)}
+      style={{
+        backgroundColor: CARD, borderRadius: 20, borderWidth: 1,
+        borderColor: BORDER, overflow: 'hidden', ...GLASS_SHADOW,
+      }}
+    >
       {/* ── Header ── */}
       <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingTop: 14, paddingBottom: 8 }}>
         <View style={{ flex: 1 }}>
@@ -354,11 +372,19 @@ function HourlyInsightsChart({
         showsHorizontalScrollIndicator={false}
         style={{ marginBottom: 14 }}
         contentContainerStyle={{ paddingHorizontal: 4 }}
+        onScroll={e => setScrollX(e.nativeEvent.contentOffset.x)}
+        scrollEventThrottle={16}
       >
         <View style={{ width: SVG_W, height: SVG_H + 22, position: 'relative' }}>
+          {/* Background Pressable — tapping empty chart area dismisses callout */}
+          <Pressable
+            onPress={() => setSelected(null)}
+            style={{ position: 'absolute', left: 0, top: 0, width: SVG_W, height: SVG_H }}
+          />
 
-          {/* SVG bar shapes — Rect only, no SvgText */}
-          <Svg width={SVG_W} height={SVG_H}>
+          {/* SVG bar shapes — pointerEvents="none" so touches pass through to Pressables.
+              Never use SvgText — crashes TestFlight with newArchEnabled. */}
+          <Svg width={SVG_W} height={SVG_H} pointerEvents="none">
             <Line x1={0} y1={PAD_TOP + CHART_H} x2={SVG_W} y2={PAD_TOP + CHART_H} stroke={BORDER} strokeWidth={1} />
             {Array.from({ length: NUM_HOURS }, (_, i) => {
               const h          = HOUR_START + i;
@@ -366,10 +392,12 @@ function HourlyInsightsChart({
               const sess       = sessMap[h] ?? 0;
               const isCurrent  = h === nowHour;
               const isPast     = h < nowHour;
+              const isFuture   = !isCurrent && !isPast;
               const xRev       = GROUP_GAP / 2 + i * GROUP_W;
               const xSess      = xRev + BAR_W + BAR_GAP;
-              const revH       = rev  > 0 ? Math.max((rev  / maxRev)  * CHART_H, 4) : 0;
-              const sessH      = sess > 0 ? Math.max((sess / maxSess) * CHART_H, 4) : 0;
+              // Past/current: scale to data; future: always show 4px ghost placeholder
+              const revH       = rev  > 0 ? Math.max((rev  / maxRev)  * CHART_H, 4) : isFuture ? 4 : 0;
+              const sessH      = sess > 0 ? Math.max((sess / maxSess) * CHART_H, 4) : isFuture ? 4 : 0;
               const revOp      = isCurrent ? 1 : isPast ? 0.85 : 0.15;
               const sessOp     = isCurrent ? 1 : isPast ? 0.85 : 0.15;
               const isSelected = selected === i;
@@ -439,42 +467,46 @@ function HourlyInsightsChart({
             12A
           </Text>
 
-          {/* Floating callout (RN View + Text) */}
-          {selected !== null && (() => {
-            const h    = HOUR_START + selected;
-            const rev  = revMap[h]  ?? 0;
-            const sess = sessMap[h] ?? 0;
-            const xRev = GROUP_GAP / 2 + selected * GROUP_W;
-            const cw   = 112;
-            const cl   = Math.max(0, Math.min(
-              xRev - cw / 2 + (BAR_W * 2 + BAR_GAP) / 2,
-              SVG_W - cw - 4,
-            ));
-            return (
-              <View style={{
-                position: 'absolute', left: cl, top: 4,
-                width: cw, backgroundColor: NAVY, borderRadius: 10,
-                padding: 9, gap: 5,
-                shadowColor: '#000', shadowOffset: { width: 0, height: 4 },
-                shadowOpacity: 0.28, shadowRadius: 8, elevation: 9, zIndex: 100,
-              }}>
-                <Text style={{ fontSize: 10, fontWeight: '700', color: 'rgba(255,255,255,0.55)', letterSpacing: 0.4 }}>
-                  {hrFull(h)}
-                </Text>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  <View style={{ width: 6, height: 6, borderRadius: 1, backgroundColor: BLUE }} />
-                  <Text style={{ fontSize: 14, fontWeight: '700', color: '#fff' }}>{fmtAUD(rev)}</Text>
-                </View>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  <View style={{ width: 6, height: 6, borderRadius: 1, backgroundColor: GREEN }} />
-                  <Text style={{ fontSize: 14, fontWeight: '700', color: '#fff' }}>{sess} session{sess !== 1 ? 's' : ''}</Text>
-                </View>
-              </View>
-            );
-          })()}
         </View>
       </ScrollView>
-    </View>
+
+      {/* ── Callout — outside ScrollView, positioned relative to the card ──────
+          Key fix: because the callout lives here (not inside the horizontal
+          ScrollView), it can never be clipped by scrolled content. `calloutLeft`
+          is computed from the bar's scroll-adjusted screen position and clamped
+          to [8 … cardWidth - CALLOUT_W - 8], so it always stays within the card.
+          Wrapping in a Pressable consumes the touch so the outer card onPress
+          (deselect) doesn't fire when the user taps on the callout itself. */}
+      {selected !== null && (() => {
+        const h    = HOUR_START + selected;
+        const rev  = revMap[h]  ?? 0;
+        const sess = sessMap[h] ?? 0;
+        return (
+          <Pressable
+            onPress={() => {/* consume — prevents outer card Pressable from deselecting */}}
+            style={{
+              position: 'absolute', left: calloutLeft, top: CALLOUT_TOP,
+              width: CALLOUT_W, backgroundColor: NAVY, borderRadius: 10,
+              padding: 9, gap: 5,
+              shadowColor: '#000', shadowOffset: { width: 0, height: 4 },
+              shadowOpacity: 0.28, shadowRadius: 8, elevation: 9, zIndex: 10,
+            }}
+          >
+            <Text style={{ fontSize: 10, fontWeight: '700', color: 'rgba(255,255,255,0.55)', letterSpacing: 0.4 }}>
+              {hrFull(h)}
+            </Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <View style={{ width: 6, height: 6, borderRadius: 1, backgroundColor: BLUE }} />
+              <Text style={{ fontSize: 14, fontWeight: '700', color: '#fff' }}>{fmtAUD(rev)}</Text>
+            </View>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <View style={{ width: 6, height: 6, borderRadius: 1, backgroundColor: GREEN }} />
+              <Text style={{ fontSize: 14, fontWeight: '700', color: '#fff' }}>{sess} session{sess !== 1 ? 's' : ''}</Text>
+            </View>
+          </Pressable>
+        );
+      })()}
+    </Pressable>
   );
 }
 
