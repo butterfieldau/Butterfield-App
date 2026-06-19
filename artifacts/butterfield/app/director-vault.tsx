@@ -29,6 +29,8 @@ const MUTED    = '#9CA3AF';
 const GOLD     = '#C9A84C';
 const GOLD_BG  = '#FDF8EC';
 const GOLD_DK  = '#A07830';
+const BLUE     = '#40C0F2';
+const BLUE_BG  = '#EDF8FE';
 const ERROR    = '#EF4444';
 
 const DEFAULT_CATEGORIES = ['cookies', 'coffee', 'desserts', 'sauces', 'seasonal'];
@@ -477,9 +479,7 @@ export default function VaultScreen() {
               </View>
             )}
 
-            {filtered.map(recipe => {
-              const cc = catColor(recipe.category);
-              return (
+            {filtered.map(recipe => (
                 <Pressable
                   key={recipe.id}
                   onPress={() => {
@@ -488,15 +488,14 @@ export default function VaultScreen() {
                   }}
                   style={({ pressed }) => [s.recipeCard, pressed && { opacity: 0.85 }]}
                 >
-                  <View style={[s.catBar, { backgroundColor: cc }]} />
                   <View style={{ flex: 1, padding: 14, gap: 6 }}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
                       <Text style={s.recipeName} numberOfLines={1}>{recipe.name}</Text>
                       <Feather name="chevron-right" size={16} color={MUTED} />
                     </View>
                     <View style={{ flexDirection: 'row', gap: 12 }}>
-                      <View style={[s.badge, { backgroundColor: cc + '18', borderColor: cc + '44' }]}>
-                        <Text style={[s.badgeText, { color: cc }]}>
+                      <View style={[s.badge, { backgroundColor: BLUE_BG, borderColor: BLUE + '55' }]}>
+                        <Text style={[s.badgeText, { color: BLUE }]}>
                           {recipe.category.charAt(0).toUpperCase() + recipe.category.slice(1)}
                         </Text>
                       </View>
@@ -508,14 +507,13 @@ export default function VaultScreen() {
                       )}
                     </View>
                     {recipe.totalCostCents > 0 && (
-                      <Text style={{ fontSize: 13, fontWeight: '700', color: GOLD }}>
+                      <Text style={{ fontSize: 13, fontWeight: '700', color: BLUE }}>
                         Batch cost ${(recipe.totalCostCents / 100).toFixed(2)}
                       </Text>
                     )}
                   </View>
                 </Pressable>
-              );
-            })}
+            ))}
 
             <Pressable
               onPress={() => setShowArchived(a => !a)}
@@ -610,8 +608,7 @@ const s = StyleSheet.create({
   catChip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, borderWidth: 1, backgroundColor: SURFACE, borderColor: BORD },
   catChipText: { fontSize: 13, fontWeight: '500', color: MUTED },
 
-  recipeCard: { flexDirection: 'row', backgroundColor: '#FFF', borderRadius: 14, borderWidth: 1, borderColor: BORD, overflow: 'hidden', shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 1 },
-  catBar: { width: 4 },
+  recipeCard: { backgroundColor: '#FFF', borderRadius: 14, borderWidth: 1, borderColor: BORD, overflow: 'hidden', shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 1 },
   recipeName: { fontSize: 15, fontWeight: '700', color: TEXT, flex: 1 },
   recipeMetaText: { fontSize: 12, color: MUTED },
   badge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 20, borderWidth: 1 },
