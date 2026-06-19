@@ -7,7 +7,7 @@ import React, {
   useState,
 } from 'react';
 import { AppState, type AppStateStatus } from 'react-native';
-import * as ScreenCapture from 'expo-screen-capture';
+
 import * as SecureStore from 'expo-secure-store';
 import { useAuth } from '@/context/AuthContext';
 
@@ -39,7 +39,6 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
       clearTimeout(inactivityTimer.current);
       inactivityTimer.current = null;
     }
-    ScreenCapture.allowScreenCaptureAsync().catch(() => {});
   }, []);
 
   // Lock vault whenever the authenticated user changes (logout / account switch)
@@ -66,7 +65,6 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
   const unlock = useCallback(async (token: string, pin?: string) => {
     setVaultToken(token);
     setIsUnlocked(true);
-    await ScreenCapture.preventScreenCaptureAsync();
     if (pin) {
       try {
         // Store PIN plainly — LocalAuthentication.authenticateAsync in the UI
