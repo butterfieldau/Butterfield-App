@@ -463,7 +463,7 @@ export default function VaultScreen() {
             ))}
           </ScrollView>
 
-          <ScrollView contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: insets.bottom + 24 }}>
+          <ScrollView contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 8, paddingBottom: insets.bottom + 24, gap: 12 }}>
             {filtered.length === 0 && !isLoading && (
               <View style={{ alignItems: 'center', paddingVertical: 48, gap: 10 }}>
                 <Feather name="book-open" size={32} color={MUTED} />
@@ -599,10 +599,10 @@ const s = StyleSheet.create({
   statLabel: { fontSize: 11, color: MUTED, marginTop: 2 },
   statDivider: { width: 1, backgroundColor: BORD, marginVertical: 10 },
 
-  searchRow: { flexDirection: 'row', alignItems: 'center', marginHorizontal: 16, marginTop: 10, backgroundColor: SURFACE, borderRadius: 10, borderWidth: 1, borderColor: BORD, height: 40, gap: 8 },
+  searchRow: { flexDirection: 'row', alignItems: 'center', marginHorizontal: 16, marginTop: 6, backgroundColor: SURFACE, borderRadius: 10, borderWidth: 1, borderColor: BORD, height: 40, gap: 8 },
   searchInput: { flex: 1, fontSize: 14, color: TEXT, paddingRight: 12 },
 
-  catScroll: { paddingHorizontal: 16, paddingVertical: 4, gap: 8, alignItems: 'center' },
+  catScroll: { paddingHorizontal: 16, paddingTop: 2, paddingBottom: 4, gap: 8, alignItems: 'center' },
   catChip: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20, borderWidth: 1, backgroundColor: SURFACE, borderColor: BORD },
   catChipText: { fontSize: 13, fontWeight: '500', color: MUTED },
 
