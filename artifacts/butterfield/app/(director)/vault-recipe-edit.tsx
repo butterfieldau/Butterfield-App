@@ -2,6 +2,7 @@ import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { router, useLocalSearchParams } from 'expo-router';
 import React, { useEffect, useState } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   Alert,
   KeyboardAvoidingView,
@@ -19,26 +20,24 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useVault } from '@/context/VaultContext';
 import { api } from '@/lib/api';
 
-const OBSIDIAN = '#0A0A0A';
-const GOLD     = '#C9A84C';
-const MUTED    = '#888888';
-const TEXT     = '#F5F5F5';
-const TEXT_DIM = '#AAAAAA';
-const SURFACE  = '#1A1A1A';
-const SURFACE2 = '#242424';
-const BORD     = '#2A2A2A';
-const GREEN    = '#16A34A';
-const ERROR    = '#EF4444';
+const BG      = '#FFFFFF';
+const SURFACE = '#F5F6FA';
+const SURF2   = '#EBEBEF';
+const BORD    = '#E5E7EB';
+const TEXT    = '#1A1A1A';
+const TEXTD   = '#6B7280';
+const MUTED   = '#9CA3AF';
+const GOLD    = '#C9A84C';
+const GOLD_BG = '#FDF8EC';
+const GREEN   = '#16A34A';
+const ERROR   = '#EF4444';
 
-const CATEGORIES = ['cookies', 'coffee', 'desserts', 'sauces', 'seasonal'];
+const DEFAULT_CATEGORIES = ['cookies', 'coffee', 'desserts', 'sauces', 'seasonal'];
+const CAT_STORAGE_KEY    = 'vault:categories';
 
 type IngredientRow = {
-  id?: string;
-  name: string;
-  quantity: string;
-  unit: string;
-  costCentsPerUnit: string;
-  supplier: string;
+  id?: string; name: string; quantity: string;
+  unit: string; costCentsPerUnit: string; supplier: string;
 };
 
 function emptyIngredient(): IngredientRow {
@@ -56,11 +55,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 
 function Input(props: React.ComponentProps<typeof TextInput>) {
   return (
-    <TextInput
-      {...props}
-      style={[s.input, props.style]}
-      placeholderTextColor={MUTED}
-    />
+    <TextInput {...props} style={[s.input, props.style]} placeholderTextColor={MUTED} />
   );
 }
 
@@ -71,25 +66,28 @@ export default function VaultRecipeEditScreen() {
   const { isUnlocked, vaultToken, resetInactivityTimer } = useVault();
   const queryClient = useQueryClient();
 
-  const [step, setStep] = useState(0);
+  const [step, setStep]       = useState(0);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [dirty, setDirty] = useState(false);
+  const [error, setError]     = useState('');
+  const [dirty, setDirty]     = useState(false);
 
-  const [name, setName] = useState('');
-  const [category, setCategory] = useState('cookies');
+  const [name, setName]               = useState('');
+  const [category, setCategory]       = useState('cookies');
   const [description, setDescription] = useState('');
-  const [yieldCount, setYieldCount] = useState('12');
-  const [yieldUnit, setYieldUnit] = useState('cookies');
-  const [prepTime, setPrepTime] = useState('');
-  const [bakeTime, setBakeTime] = useState('');
-  const [notes, setNotes] = useState('');
+  const [yieldCount, setYieldCount]   = useState('12');
+  const [yieldUnit, setYieldUnit]     = useState('cookies');
+  const [prepTime, setPrepTime]       = useState('');
+  const [bakeTime, setBakeTime]       = useState('');
+  const [notes, setNotes]             = useState('');
   const [ingredients, setIngredients] = useState<IngredientRow[]>([emptyIngredient()]);
   const [deletedIngredientIds, setDeletedIngredientIds] = useState<string[]>([]);
+  const [categories, setCategories] = useState<string[]>(DEFAULT_CATEGORIES);
 
   useEffect(() => {
-    if (!isUnlocked) router.replace('/(director)/vault-lock' as any);
-  }, [isUnlocked]);
+    AsyncStorage.getItem(CAT_STORAGE_KEY).then(raw => {
+      if (raw) { try { setCategories(JSON.parse(raw)); } catch {} }
+    });
+  }, []);
 
   const { data: existingData } = useQuery({
     queryKey: ['vault-recipe', id],
@@ -111,27 +109,19 @@ export default function VaultRecipeEditScreen() {
     setNotes(recipe.notes ?? '');
     if (recipe.ingredients?.length > 0) {
       setIngredients(recipe.ingredients.map((ing: any) => ({
-        id: ing.id,
-        name: ing.name,
-        quantity: ing.quantity,
-        unit: ing.unit,
-        costCentsPerUnit: String(ing.costCentsPerUnit / 100),
-        supplier: ing.supplier ?? '',
+        id: ing.id, name: ing.name, quantity: ing.quantity, unit: ing.unit,
+        costCentsPerUnit: String(ing.costCentsPerUnit / 100), supplier: ing.supplier ?? '',
       })));
     }
   }, [existingData]);
 
   function mark() { setDirty(true); resetInactivityTimer(); }
-
   function addIngredient() { mark(); setIngredients(prev => [...prev, emptyIngredient()]); }
   function removeIngredient(i: number) {
     mark();
     setIngredients(prev => {
       const ing = prev[i];
-      // Track server-persisted ingredients that get removed so we can delete them on save
-      if (ing?.id) {
-        setDeletedIngredientIds(ids => [...ids, ing.id!]);
-      }
+      if (ing?.id) setDeletedIngredientIds(ids => [...ids, ing.id!]);
       return prev.filter((_, idx) => idx !== i);
     });
   }
@@ -141,11 +131,8 @@ export default function VaultRecipeEditScreen() {
   }
 
   function computeLineCost(ing: IngredientRow) {
-    const qty = parseFloat(ing.quantity) || 0;
-    const cost = parseFloat(ing.costCentsPerUnit) || 0;
-    return qty * cost * 100;
+    return (parseFloat(ing.quantity) || 0) * (parseFloat(ing.costCentsPerUnit) || 0) * 100;
   }
-
   const totalBatchCostCents = ingredients.reduce((sum, ing) => sum + computeLineCost(ing), 0);
 
   function handleBack() {
@@ -154,51 +141,38 @@ export default function VaultRecipeEditScreen() {
         { text: 'Keep editing', style: 'cancel' },
         { text: 'Discard', style: 'destructive', onPress: () => router.back() },
       ]);
-    } else {
-      router.back();
-    }
+    } else { router.back(); }
   }
 
   async function handleSave() {
-    if (!name.trim()) { setError('Recipe name is required'); return; }
-    setLoading(true);
-    setError('');
+    if (!name.trim()) { setError('Recipe name is required'); setStep(0); return; }
+    setLoading(true); setError('');
     try {
       const payload = {
-        name: name.trim(),
-        category,
+        name: name.trim(), category,
         description: description || null,
-        yieldCount: parseInt(yieldCount) || 1,
-        yieldUnit,
+        yieldCount: parseInt(yieldCount) || 1, yieldUnit,
         prepTimeMin: prepTime ? parseInt(prepTime) : null,
         bakeTimeMin: bakeTime ? parseInt(bakeTime) : null,
         notes: notes || null,
         ingredients: ingredients
           .filter(i => i.name.trim())
           .map((ing, idx) => ({
-            id: ing.id,
-            name: ing.name.trim(),
-            quantity: ing.quantity || '0',
-            unit: ing.unit,
+            id: ing.id, name: ing.name.trim(),
+            quantity: ing.quantity || '0', unit: ing.unit,
             costCentsPerUnit: Math.round((parseFloat(ing.costCentsPerUnit) || 0) * 100),
-            supplier: ing.supplier || null,
-            sortOrder: idx,
+            supplier: ing.supplier || null, sortOrder: idx,
           })),
       };
 
       if (isEdit) {
         await api.vault.updateRecipe(vaultToken!, id!, payload);
-        // Delete any ingredients that were removed in the edit session
         for (const deletedId of deletedIngredientIds) {
           await api.vault.deleteIngredient(vaultToken!, deletedId);
         }
-        // Create or update remaining ingredients
         for (const ing of payload.ingredients) {
-          if (ing.id) {
-            await api.vault.updateIngredient(vaultToken!, ing.id, ing);
-          } else {
-            await api.vault.addIngredient(vaultToken!, id!, ing);
-          }
+          if (ing.id) { await api.vault.updateIngredient(vaultToken!, ing.id, ing); }
+          else { await api.vault.addIngredient(vaultToken!, id!, ing); }
         }
       } else {
         await api.vault.createRecipe(vaultToken!, payload);
@@ -206,20 +180,18 @@ export default function VaultRecipeEditScreen() {
 
       queryClient.invalidateQueries({ queryKey: ['vault-recipes'] });
       queryClient.invalidateQueries({ queryKey: ['vault-recipe', id] });
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       router.back();
-    } catch (e: any) {
-      setError(e.message ?? 'Save failed');
-    } finally {
-      setLoading(false);
-    }
+    } catch (e: any) { setError(e.message ?? 'Save failed'); }
+    finally { setLoading(false); }
   }
 
-  if (!isUnlocked) return null;
+  if (!isUnlocked) { router.back(); return null; }
 
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <View style={[s.container, { paddingTop: insets.top }]}>
-        <StatusBar barStyle="light-content" backgroundColor={OBSIDIAN} />
+        <StatusBar barStyle="dark-content" backgroundColor={BG} />
 
         {/* Header */}
         <View style={s.header}>
@@ -227,11 +199,7 @@ export default function VaultRecipeEditScreen() {
             <Feather name="x" size={20} color={MUTED} />
           </Pressable>
           <Text style={s.headerTitle}>{isEdit ? 'Edit Recipe' : 'New Recipe'}</Text>
-          <Pressable
-            onPress={handleSave}
-            disabled={loading}
-            style={[s.saveBtn, loading && { opacity: 0.6 }]}
-          >
+          <Pressable onPress={handleSave} disabled={loading} style={[s.saveBtn, loading && { opacity: 0.6 }]}>
             <Text style={s.saveBtnText}>{loading ? 'Saving…' : 'Save'}</Text>
           </Pressable>
         </View>
@@ -247,26 +215,21 @@ export default function VaultRecipeEditScreen() {
 
         {error ? <Text style={s.error}>{error}</Text> : null}
 
-        <ScrollView contentContainerStyle={{ padding: 16, gap: 16, paddingBottom: insets.bottom + 40 }}>
-
+        <ScrollView
+          contentContainerStyle={{ padding: 16, gap: 16, paddingBottom: insets.bottom + 100 }}
+          keyboardShouldPersistTaps="handled"
+        >
+          {/* ── Details step ── */}
           {step === 0 && (
             <>
               <Field label="Recipe Name *">
-                <Input
-                  value={name}
-                  onChangeText={t => { setName(t); mark(); }}
-                  placeholder="e.g. Classic Choc Chip"
-                />
+                <Input value={name} onChangeText={t => { setName(t); mark(); }} placeholder="e.g. Classic Choc Chip" />
               </Field>
 
               <Field label="Category">
                 <View style={s.catRow}>
-                  {CATEGORIES.map(cat => (
-                    <Pressable
-                      key={cat}
-                      onPress={() => { setCategory(cat); mark(); }}
-                      style={[s.catChip, category === cat && s.catChipActive]}
-                    >
+                  {categories.map(cat => (
+                    <Pressable key={cat} onPress={() => { setCategory(cat); mark(); }} style={[s.catChip, category === cat && s.catChipActive]}>
                       <Text style={[s.catChipText, category === cat && s.catChipTextActive]}>
                         {cat.charAt(0).toUpperCase() + cat.slice(1)}
                       </Text>
@@ -276,34 +239,21 @@ export default function VaultRecipeEditScreen() {
               </Field>
 
               <Field label="Description">
-                <Input
-                  value={description}
-                  onChangeText={t => { setDescription(t); mark(); }}
-                  placeholder="Brief description…"
-                  multiline
-                  numberOfLines={3}
-                  style={{ height: 72, textAlignVertical: 'top' }}
-                />
+                <Input value={description} onChangeText={t => { setDescription(t); mark(); }}
+                  placeholder="Brief description…" multiline numberOfLines={3}
+                  style={{ height: 72, textAlignVertical: 'top' }} />
               </Field>
 
               <View style={{ flexDirection: 'row', gap: 12 }}>
                 <View style={{ flex: 2 }}>
                   <Field label="Yield Count">
-                    <Input
-                      value={yieldCount}
-                      onChangeText={t => { setYieldCount(t); mark(); }}
-                      keyboardType="number-pad"
-                      placeholder="12"
-                    />
+                    <Input value={yieldCount} onChangeText={t => { setYieldCount(t); mark(); }}
+                      keyboardType="number-pad" placeholder="12" />
                   </Field>
                 </View>
                 <View style={{ flex: 3 }}>
                   <Field label="Yield Unit">
-                    <Input
-                      value={yieldUnit}
-                      onChangeText={t => { setYieldUnit(t); mark(); }}
-                      placeholder="cookies"
-                    />
+                    <Input value={yieldUnit} onChangeText={t => { setYieldUnit(t); mark(); }} placeholder="cookies" />
                   </Field>
                 </View>
               </View>
@@ -321,73 +271,62 @@ export default function VaultRecipeEditScreen() {
                 </View>
               </View>
 
-              <Field label="Notes">
-                <Input
-                  value={notes}
-                  onChangeText={t => { setNotes(t); mark(); }}
-                  placeholder="Chef notes, tips, variations…"
-                  multiline
-                  numberOfLines={4}
-                  style={{ height: 90, textAlignVertical: 'top' }}
-                />
+              <Field label="Chef Notes">
+                <Input value={notes} onChangeText={t => { setNotes(t); mark(); }}
+                  placeholder="Tips, variations, allergens…" multiline numberOfLines={4}
+                  style={{ height: 90, textAlignVertical: 'top' }} />
               </Field>
             </>
           )}
 
+          {/* ── Ingredients step ── */}
           {step === 1 && (
             <>
-              <Text style={s.sectionLabel}>INGREDIENTS ({ingredients.length})</Text>
-              <Text style={{ color: MUTED, fontSize: 12, marginBottom: 4 }}>Enter cost per unit in AUD (e.g. 0.05 for 5¢)</Text>
+              <View style={s.ingHeader}>
+                <Text style={s.sectionLabel}>INGREDIENTS ({ingredients.length})</Text>
+                <Text style={{ color: MUTED, fontSize: 12 }}>Cost per unit in AUD (e.g. 0.05 = 5¢)</Text>
+              </View>
 
               {ingredients.map((ing, i) => (
                 <View key={i} style={s.ingCard}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-                    <Text style={{ color: GOLD, fontSize: 12, fontWeight: '600' }}>#{i + 1}</Text>
-                    <Pressable onPress={() => removeIngredient(i)}>
-                      <Feather name="trash-2" size={16} color={ERROR} />
+                  <View style={s.ingCardHeader}>
+                    <View style={s.ingNumBadge}>
+                      <Text style={s.ingNumText}>#{i + 1}</Text>
+                    </View>
+                    <Text style={s.ingCardName} numberOfLines={1}>{ing.name || 'Untitled ingredient'}</Text>
+                    <Pressable onPress={() => removeIngredient(i)} style={s.ingDeleteBtn}>
+                      <Feather name="trash-2" size={15} color={ERROR} />
                     </Pressable>
                   </View>
 
-                  <Input
-                    value={ing.name}
-                    onChangeText={t => updateIngredient(i, 'name', t)}
-                    placeholder="Ingredient name (e.g. Butter)"
-                    style={{ marginBottom: 8 }}
-                  />
+                  <Input value={ing.name} onChangeText={t => updateIngredient(i, 'name', t)}
+                    placeholder="Ingredient name (e.g. Butter)" style={{ marginBottom: 8 }} />
 
                   <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
-                    <Input
-                      value={ing.quantity}
-                      onChangeText={t => updateIngredient(i, 'quantity', t)}
-                      placeholder="Qty"
-                      keyboardType="decimal-pad"
-                      style={{ flex: 1 }}
-                    />
-                    <Input
-                      value={ing.unit}
-                      onChangeText={t => updateIngredient(i, 'unit', t)}
-                      placeholder="Unit"
-                      style={{ flex: 1 }}
-                    />
-                    <Input
-                      value={ing.costCentsPerUnit}
-                      onChangeText={t => updateIngredient(i, 'costCentsPerUnit', t)}
-                      placeholder="$/unit"
-                      keyboardType="decimal-pad"
-                      style={{ flex: 1.2 }}
-                    />
+                    <View style={{ flex: 1 }}>
+                      <Text style={s.miniLabel}>Quantity</Text>
+                      <Input value={ing.quantity} onChangeText={t => updateIngredient(i, 'quantity', t)}
+                        placeholder="0" keyboardType="decimal-pad" />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={s.miniLabel}>Unit</Text>
+                      <Input value={ing.unit} onChangeText={t => updateIngredient(i, 'unit', t)} placeholder="g" />
+                    </View>
+                    <View style={{ flex: 1.2 }}>
+                      <Text style={s.miniLabel}>Cost/unit (AUD)</Text>
+                      <Input value={ing.costCentsPerUnit} onChangeText={t => updateIngredient(i, 'costCentsPerUnit', t)}
+                        placeholder="0.00" keyboardType="decimal-pad" />
+                    </View>
                   </View>
 
-                  <Input
-                    value={ing.supplier}
-                    onChangeText={t => updateIngredient(i, 'supplier', t)}
-                    placeholder="Supplier (optional)"
-                  />
+                  <Input value={ing.supplier} onChangeText={t => updateIngredient(i, 'supplier', t)}
+                    placeholder="Supplier (optional)" />
 
                   {ing.name && ing.quantity && ing.costCentsPerUnit ? (
-                    <Text style={{ color: GOLD, fontSize: 12, marginTop: 8 }}>
-                      Line total: ${(computeLineCost(ing) / 100).toFixed(4)}
-                    </Text>
+                    <View style={s.lineTotalRow}>
+                      <Text style={s.lineTotalLabel}>Line total</Text>
+                      <Text style={s.lineTotalValue}>${(computeLineCost(ing) / 100).toFixed(4)}</Text>
+                    </View>
                   ) : null}
                 </View>
               ))}
@@ -406,28 +345,40 @@ export default function VaultRecipeEditScreen() {
             </>
           )}
         </ScrollView>
+
+        {/* ── Sticky save button at bottom ── */}
+        <View style={[s.stickyFooter, { paddingBottom: insets.bottom + 12 }]}>
+          <Pressable
+            onPress={handleSave}
+            disabled={loading}
+            style={({ pressed }) => [s.stickyBtn, loading && { opacity: 0.6 }, pressed && { opacity: 0.8 }]}
+          >
+            <Feather name="check" size={18} color="#FFF" />
+            <Text style={s.stickyBtnText}>{loading ? 'Saving…' : 'Save Recipe'}</Text>
+          </Pressable>
+        </View>
       </View>
     </KeyboardAvoidingView>
   );
 }
 
 const s = StyleSheet.create({
-  container: { flex: 1, backgroundColor: OBSIDIAN },
-  header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, gap: 10 },
+  container: { flex: 1, backgroundColor: BG },
+  header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, gap: 10, borderBottomWidth: 1, borderBottomColor: BORD },
   backBtn: { padding: 6 },
   headerTitle: { flex: 1, fontSize: 18, fontWeight: '700', color: TEXT },
   saveBtn: { backgroundColor: GREEN, paddingHorizontal: 16, paddingVertical: 8, borderRadius: 10 },
-  saveBtnText: { color: '#FFFFFF', fontWeight: '700', fontSize: 14 },
-  error: { color: ERROR, fontSize: 12, textAlign: 'center', marginHorizontal: 16, marginBottom: 4 },
+  saveBtnText: { color: '#FFF', fontWeight: '700', fontSize: 14 },
+  error: { color: ERROR, fontSize: 12, textAlign: 'center', marginHorizontal: 16, marginVertical: 4 },
 
   stepRow: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: BORD, marginHorizontal: 16, marginBottom: 4 },
   stepTab: { flex: 1, paddingVertical: 10, alignItems: 'center' },
   stepTabActive: { borderBottomWidth: 2, borderBottomColor: GOLD },
   stepText: { fontSize: 14, fontWeight: '500', color: MUTED },
-  stepTextActive: { color: GOLD },
+  stepTextActive: { color: GOLD, fontWeight: '600' },
 
   field: { gap: 6 },
-  fieldLabel: { fontSize: 12, fontWeight: '600', color: MUTED, letterSpacing: 0.4 },
+  fieldLabel: { fontSize: 12, fontWeight: '600', color: TEXTD, letterSpacing: 0.4 },
   input: {
     backgroundColor: SURFACE, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10,
     color: TEXT, fontSize: 14, borderWidth: 1, borderColor: BORD,
@@ -435,24 +386,47 @@ const s = StyleSheet.create({
 
   catRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   catChip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, backgroundColor: SURFACE, borderWidth: 1, borderColor: BORD },
-  catChipActive: { backgroundColor: GOLD + '20', borderColor: GOLD + '60' },
+  catChipActive: { backgroundColor: GOLD_BG, borderColor: GOLD + '66' },
   catChipText: { fontSize: 13, color: MUTED },
   catChipTextActive: { color: GOLD, fontWeight: '600' },
 
   sectionLabel: { fontSize: 11, fontWeight: '700', color: MUTED, letterSpacing: 0.8 },
+  ingHeader: { gap: 4 },
 
-  ingCard: { backgroundColor: SURFACE, borderRadius: 14, padding: 14, borderWidth: 1, borderColor: BORD },
+  ingCard: { backgroundColor: SURFACE, borderRadius: 14, padding: 14, borderWidth: 1, borderColor: BORD, gap: 0 },
+  ingCardHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 },
+  ingNumBadge: { backgroundColor: GOLD_BG, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3, borderWidth: 1, borderColor: GOLD + '44' },
+  ingNumText: { fontSize: 11, fontWeight: '700', color: GOLD },
+  ingCardName: { flex: 1, fontSize: 13, fontWeight: '500', color: TEXTD },
+  ingDeleteBtn: { padding: 6, backgroundColor: ERROR + '10', borderRadius: 8 },
+
+  miniLabel: { fontSize: 11, fontWeight: '600', color: MUTED, marginBottom: 4, letterSpacing: 0.3 },
+
+  lineTotalRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: BORD },
+  lineTotalLabel: { fontSize: 12, color: TEXTD },
+  lineTotalValue: { fontSize: 13, fontWeight: '700', color: GOLD },
+
   addIngBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 8, justifyContent: 'center',
-    borderRadius: 12, borderWidth: 1.5, borderColor: GOLD + '44', borderStyle: 'dashed',
-    paddingVertical: 14, backgroundColor: GOLD + '08',
+    borderRadius: 12, borderWidth: 1.5, borderColor: GOLD + '66', borderStyle: 'dashed',
+    paddingVertical: 14, backgroundColor: GOLD_BG,
   },
   addIngText: { color: GOLD, fontWeight: '600', fontSize: 14 },
 
   totalCard: {
-    backgroundColor: GOLD + '18', borderRadius: 14, padding: 16, borderWidth: 1, borderColor: GOLD + '33',
+    backgroundColor: GOLD_BG, borderRadius: 14, padding: 16, borderWidth: 1, borderColor: GOLD + '44',
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
   },
-  totalLabel: { color: TEXT_DIM, fontSize: 14 },
+  totalLabel: { color: TEXTD, fontSize: 14 },
   totalValue: { color: GOLD, fontSize: 22, fontWeight: '800' },
+
+  stickyFooter: {
+    paddingHorizontal: 16, paddingTop: 12,
+    backgroundColor: BG, borderTopWidth: 1, borderTopColor: BORD,
+  },
+  stickyBtn: {
+    backgroundColor: GOLD, borderRadius: 14, paddingVertical: 15,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+  },
+  stickyBtnText: { color: '#FFF', fontSize: 16, fontWeight: '700' },
 });

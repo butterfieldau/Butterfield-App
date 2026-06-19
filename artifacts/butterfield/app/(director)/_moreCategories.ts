@@ -55,7 +55,7 @@ const ALL_CATEGORIES: Category[] = [
             sub: 'Recipes, ingredients & margin calculator',
             color: '#C9A84C',
             directorOnly: true,
-            onPress: () => router.push('/(director)/vault-lock' as any),
+            onPress: () => router.push('/(director)/vault' as any),
           },
         ],
       },
