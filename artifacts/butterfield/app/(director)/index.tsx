@@ -646,10 +646,29 @@ function DirectorDashboardInner() {
               onApply={handleApplyRevRange}
             />
 
+            {/* ── Insights Today: hourly chart + channel strip ─── */}
+            <View>
+              <Text style={[styles.sectionTitle, { fontWeight: '600' }]}>INSIGHTS TODAY</Text>
+
+              {/* Hourly chart */}
+              {insights ? (
+                <HourlyInsightsChart
+                  hours={insights.hourly}
+                  sessions={insights.sessions}
+                  totalRevenueCents={insights.totalRevenueCents}
+                  totalSessions={insights.totalSessions}
+                  liveCount={insights.liveCount}
+                />
+              ) : (
+                <View style={[styles.emptyCard, { paddingVertical: 28 }]}>
+                  <ActivityIndicator color={BLUE} />
+                </View>
+              )}
+            </View>
+
             {/* ── Channel KPI strip ───────────────────────────── */}
             {s?.channels && (
               <View>
-                <Text style={[styles.sectionTitle, { fontWeight: '600' }]}>ORDERS BY CHANNEL · TODAY</Text>
                 <View style={{ flexDirection: 'row', gap: 10 }}>
                   {/* App */}
                   <Pressable
@@ -717,24 +736,6 @@ function DirectorDashboardInner() {
                 returningCust={s.revenue.returningCustomersToday ?? 0}
               />
             )}
-
-            {/* ── Hourly Insights (Revenue + Sessions) ────────── */}
-            <View>
-              <Text style={[styles.sectionTitle, { fontWeight: '600' }]}>HOURLY INSIGHTS · TODAY</Text>
-              {insights ? (
-                <HourlyInsightsChart
-                  hours={insights.hourly}
-                  sessions={insights.sessions}
-                  totalRevenueCents={insights.totalRevenueCents}
-                  totalSessions={insights.totalSessions}
-                  liveCount={insights.liveCount}
-                />
-              ) : (
-                <View style={[styles.emptyCard, { paddingVertical: 28 }]}>
-                  <ActivityIndicator color={BLUE} />
-                </View>
-              )}
-            </View>
 
             {/* ── Urgent alerts ─────────────────────────────────── */}
             {hasAlerts && (
