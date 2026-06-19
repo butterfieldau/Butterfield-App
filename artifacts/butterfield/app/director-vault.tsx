@@ -604,7 +604,7 @@ const s = StyleSheet.create({
   searchRow: { flexDirection: 'row', alignItems: 'center', marginHorizontal: 16, marginTop: 10, backgroundColor: SURFACE, borderRadius: 10, borderWidth: 1, borderColor: BORD, height: 40, gap: 8 },
   searchInput: { flex: 1, fontSize: 14, color: TEXT, paddingRight: 12 },
 
-  catScroll: { paddingHorizontal: 16, paddingVertical: 10, gap: 8, alignItems: 'center' },
+  catScroll: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 2, gap: 8, alignItems: 'center' },
   catChip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, borderWidth: 1, backgroundColor: SURFACE, borderColor: BORD },
   catChipText: { fontSize: 13, fontWeight: '500', color: MUTED },
 
