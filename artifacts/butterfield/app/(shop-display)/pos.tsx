@@ -73,6 +73,9 @@ const CAT_ORDER_KEY            = 'pos_category_order';
 const DISCOUNT_PRESETS_KEY     = 'pos_discount_presets';
 const HELD_TICKETS_KEY         = 'pos_held_tickets';
 const VOID_PIN_THRESHOLD_CENTS = 5_000;    // $50 — ticket voids above this need supervisor PIN
+// Persists the active Linkly session across app restarts so a crashed terminal
+// can self-recover. Cleared when the transaction completes or is cancelled.
+const LINKLY_ACTIVE_SESSION_KEY = 'linkly_active_session_v1';
 function getDefaultCatColor(cat: string, apiColor?: string | null): string {
   if (apiColor) return apiColor;
   const slug = cat.toLowerCase();
@@ -687,6 +690,15 @@ function PosScreenInner() {
   const [historyOpenAtFailed, setHistoryOpenAtFailed] = useState(false);
   const [lastDrawerSuccessAt, setLastDrawerSuccessAt] = useState<Date | null>(null);
 
+  // ── Linkly crash-recovery state ───────────────────────────────────────────
+  // A non-null value means a stale session was found on cold-start and the
+  // operator chose to reconnect. The recovery stream overlay is shown until
+  // the transaction resolves or is dismissed.
+  const [recoverySession, setRecoverySession] = useState<{ sessionId: string; amountCents: number } | null>(null);
+  const [recoveryText, setRecoveryText] = useState('Checking payment status…');
+  const [recoveryDone, setRecoveryDone] = useState<{ approved: boolean; text: string } | null>(null);
+  const recoveryPollRef = useRef<LinklyStreamControl | null>(null);
+
   // ── Product list ref (scroll-to-top on category change) ──────────────────
   const productListRef = useRef<any>(null);
 
@@ -752,6 +764,111 @@ function PosScreenInner() {
     AsyncStorage.setItem(HELD_TICKETS_KEY, JSON.stringify({ tickets, activeIdx }));
   }, [tickets, activeIdx]);
 
+  // ── Linkly cold-start recovery ─────────────────────────────────────────────
+  // On mount, check if a session was in-flight before the app crashed/restarted.
+  // Sessions older than 3 hours are silently discarded.
+  useEffect(() => {
+    AsyncStorage.getItem(LINKLY_ACTIVE_SESSION_KEY).then(async (raw) => {
+      if (!raw) return;
+      let saved: { sessionId: string; amountCents: number; startedAt: number };
+      try {
+        saved = JSON.parse(raw);
+        if (!saved?.sessionId) { await AsyncStorage.removeItem(LINKLY_ACTIVE_SESSION_KEY); return; }
+      } catch { await AsyncStorage.removeItem(LINKLY_ACTIVE_SESSION_KEY); return; }
+
+      // Discard sessions older than 3 hours — terminal will have timed out anyway
+      if (Date.now() - (saved.startedAt ?? 0) > 3 * 60 * 60 * 1000) {
+        await AsyncStorage.removeItem(LINKLY_ACTIVE_SESSION_KEY);
+        return;
+      }
+
+      // Poll once to get current server-side status
+      try {
+        const pollRes = await api.pos.linklyPoll(saved.sessionId) as any;
+        const pd = pollRes?.data;
+        if (pd?.complete) {
+          // Terminal already resolved — clear storage and inform staff
+          await AsyncStorage.removeItem(LINKLY_ACTIVE_SESSION_KEY);
+          const verb = pd.approved ? 'approved' : 'declined';
+          Alert.alert(
+            'Previous Payment ' + (pd.approved ? 'Approved' : 'Declined'),
+            `A payment session (${fmtCents(saved.amountCents)}) was recovered from the terminal and was ${verb}.`,
+          );
+          return;
+        }
+        // Still pending — prompt operator to resume
+        const statusHint = pd?.responseText ? `\n\nTerminal status: ${pd.responseText}` : '';
+        Alert.alert(
+          'Resume Payment?',
+          `An EFTPOS payment of ${fmtCents(saved.amountCents)} was in progress when the app closed. Would you like to resume monitoring the terminal?${statusHint}`,
+          [
+            {
+              text: 'Dismiss',
+              style: 'destructive',
+              onPress: () => { AsyncStorage.removeItem(LINKLY_ACTIVE_SESSION_KEY).catch(() => {}); },
+            },
+            {
+              text: 'Resume',
+              onPress: () => {
+                setRecoverySession({ sessionId: saved.sessionId, amountCents: saved.amountCents });
+                setRecoveryText(pd?.responseText ?? 'Resuming — waiting for terminal…');
+                setRecoveryDone(null);
+              },
+            },
+          ],
+        );
+      } catch {
+        // Poll failed (offline / server error) — still offer manual recovery
+        Alert.alert(
+          'Resume Payment?',
+          `An EFTPOS payment of ${fmtCents(saved.amountCents)} was in progress when the app closed. Would you like to resume monitoring the terminal?`,
+          [
+            {
+              text: 'Dismiss',
+              style: 'destructive',
+              onPress: () => { AsyncStorage.removeItem(LINKLY_ACTIVE_SESSION_KEY).catch(() => {}); },
+            },
+            {
+              text: 'Resume',
+              onPress: () => {
+                setRecoverySession({ sessionId: saved.sessionId, amountCents: saved.amountCents });
+                setRecoveryText('Resuming — waiting for terminal…');
+                setRecoveryDone(null);
+              },
+            },
+          ],
+        );
+      }
+    }).catch(() => {});
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Start (or restart) the Linkly stream whenever a recovery session is activated
+  useEffect(() => {
+    if (!recoverySession) return;
+    recoveryPollRef.current?.cancel();
+    const ctrl = startLinklyStream(
+      recoverySession.sessionId,
+      (text) => setRecoveryText(text),
+      (pd) => {
+        recoveryPollRef.current = null;
+        AsyncStorage.removeItem(LINKLY_ACTIVE_SESSION_KEY).catch(() => {});
+        setRecoveryDone({
+          approved: pd.approved,
+          text: pd.approved
+            ? `Payment of ${fmtCents(recoverySession.amountCents)} approved.`
+            : `Payment of ${fmtCents(recoverySession.amountCents)} was declined.`,
+        });
+      },
+      undefined,
+      () => {
+        recoveryPollRef.current = null;
+        AsyncStorage.removeItem(LINKLY_ACTIVE_SESSION_KEY).catch(() => {});
+        setRecoveryDone({ approved: false, text: 'Payment session timed out. Please check the terminal.' });
+      },
+    );
+    recoveryPollRef.current = ctrl;
+    return () => { ctrl.cancel(); };
+  }, [recoverySession]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const saveCatColor = useCallback((cat: string, color: string | null) => {
     setCustomCatColors(prev => {
@@ -1876,6 +1993,66 @@ function PosScreenInner() {
           onClose={() => setShowRegisterPin(false)}
           onSuccess={() => { setShowRegisterPin(false); setShowRegister(true); }}
         />
+      )}
+
+      {/* ── Linkly crash-recovery overlay ──────────────────────────────────── */}
+      {recoverySession !== null && (
+        <Modal visible animationType="fade" transparent onRequestClose={() => {}}>
+          <View style={{ flex: 1, backgroundColor: 'rgba(15,23,42,0.72)', justifyContent: 'center', alignItems: 'center', padding: 24 }}>
+            <View style={{ width: '100%', maxWidth: 400, backgroundColor: WHITE, borderRadius: 22, padding: 24, gap: 16, borderWidth: 1, borderColor: BORDER, shadowColor: DARK, shadowOpacity: 0.18, shadowRadius: 28, shadowOffset: { width: 0, height: 14 }, elevation: 14 }}>
+              {/* Header */}
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                <View style={{ width: 44, height: 44, borderRadius: 12, backgroundColor: recoveryDone ? (recoveryDone.approved ? '#DCFCE7' : '#FEE2E2') : '#EFF6FF', alignItems: 'center', justifyContent: 'center' }}>
+                  {recoveryDone
+                    ? <Feather name={recoveryDone.approved ? 'check-circle' : 'x-circle'} size={22} color={recoveryDone.approved ? '#16A34A' : CHERRY} />
+                    : <ActivityIndicator color={BLUE} size="small" />
+                  }
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 17, fontWeight: '800', color: DARK }}>
+                    {recoveryDone ? (recoveryDone.approved ? 'Payment Approved' : 'Payment Declined') : 'Resuming Payment'}
+                  </Text>
+                  <Text style={{ fontSize: 12, color: MUTED, marginTop: 2 }}>
+                    {recoveryDone ? fmtCents(recoverySession.amountCents) : `${fmtCents(recoverySession.amountCents)} — recovered from previous session`}
+                  </Text>
+                </View>
+              </View>
+
+              {/* Status text */}
+              <View style={{ backgroundColor: '#F8FAFF', borderRadius: 12, padding: 14, borderWidth: 1, borderColor: BORDER }}>
+                <Text style={{ fontSize: 14, color: MID, fontWeight: '600', textAlign: 'center' }}>
+                  {recoveryDone ? recoveryDone.text : (recoveryText || 'Waiting for terminal…')}
+                </Text>
+              </View>
+
+              {/* Actions */}
+              {recoveryDone ? (
+                <Pressable
+                  onPress={() => {
+                    recoveryPollRef.current?.cancel();
+                    setRecoverySession(null);
+                    setRecoveryDone(null);
+                  }}
+                  style={({ pressed }) => [{ backgroundColor: BLUE, borderRadius: 12, paddingVertical: 13, alignItems: 'center' }, pressed && { opacity: 0.8 }]}
+                >
+                  <Text style={{ color: WHITE, fontSize: 15, fontWeight: '800' }}>Done</Text>
+                </Pressable>
+              ) : (
+                <Pressable
+                  onPress={() => {
+                    recoveryPollRef.current?.cancel();
+                    AsyncStorage.removeItem(LINKLY_ACTIVE_SESSION_KEY).catch(() => {});
+                    setRecoverySession(null);
+                    setRecoveryDone(null);
+                  }}
+                  style={({ pressed }) => [{ borderRadius: 12, paddingVertical: 13, alignItems: 'center', borderWidth: 1, borderColor: BORDER }, pressed && { opacity: 0.8 }]}
+                >
+                  <Text style={{ color: MID, fontSize: 15, fontWeight: '700' }}>Dismiss</Text>
+                </Pressable>
+              )}
+            </View>
+          </View>
+        </Modal>
       )}
 
       {/* ── Printer status modal ───────────────────────────────────────────── */}
@@ -3144,12 +3321,19 @@ function PaymentModal({
       setLinklySessionId(sessionId);
       setLinklyStep('waiting');
       setLinklyText('Waiting for card…');
+      // Persist session so a crash/restart can self-recover
+      AsyncStorage.setItem(
+        LINKLY_ACTIVE_SESSION_KEY,
+        JSON.stringify({ sessionId, amountCents: chargeTotalCents, startedAt: Date.now() }),
+      ).catch(() => {});
       linklyPollRef.current = startLinklyStream(
         sessionId,
         (text) => setLinklyText(text),
         (pd) => {
           linklyPollRef.current = null;
           setLinklyConsecErrors(0);
+          // Clear persisted session — transaction is done
+          AsyncStorage.removeItem(LINKLY_ACTIVE_SESSION_KEY).catch(() => {});
           if (pd.approved) {
             setLinklyStep('approved');
             const terminalSurchargeCents = Math.max(0, Math.floor(Number(pd.amountSurchargeCents ?? 0)));
@@ -3164,6 +3348,7 @@ function PaymentModal({
         () => {
           // 3-minute deadline elapsed
           linklyPollRef.current = null;
+          AsyncStorage.removeItem(LINKLY_ACTIVE_SESSION_KEY).catch(() => {});
           setLinklyStep('declined');
           setLinklyText('Payment timed out — please retry or use an alternative payment method.');
         },
@@ -3178,6 +3363,7 @@ function PaymentModal({
   const handleLinklyCancel = async () => {
     if (linklyPollRef.current) { linklyPollRef.current.cancel(); linklyPollRef.current = null; }
     if (linklySessionId) { try { await api.pos.linklyCancel(linklySessionId); } catch {} }
+    AsyncStorage.removeItem(LINKLY_ACTIVE_SESSION_KEY).catch(() => {});
     setLinklyStep('idle');
     setLinklySessionId(null);
     setLinklyText('');
