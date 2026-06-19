@@ -153,7 +153,7 @@ function VaultLockView({ onUnlocked }: { onUnlocked: () => void }) {
     setLoading(true);
     try {
       const res = await api.vault.unlock({ pin: storedPin }) as any;
-      await unlock(res.data.vaultToken, storedPin);
+      await unlock(res.vaultToken ?? res.data?.vaultToken, storedPin);
       onUnlocked();
     } catch {
       setError('Biometric unlock failed — use PIN');
@@ -201,14 +201,14 @@ function VaultLockView({ onUnlocked }: { onUnlocked: () => void }) {
           }
           await api.vault.setupPin({ newPin: pin }) as any;
           const res = await api.vault.unlock({ pin }) as any;
-          await unlock(res.data.vaultToken, pin);
+          await unlock(res.vaultToken ?? res.data?.vaultToken, pin);
           onUnlocked();
           return;
         }
 
         // mode === 'lock'
         const res = await api.vault.unlock({ pin }) as any;
-        await unlock(res.data.vaultToken, pin);
+        await unlock(res.vaultToken ?? res.data?.vaultToken, pin);
         onUnlocked();
       } catch (e: any) {
         shake();
