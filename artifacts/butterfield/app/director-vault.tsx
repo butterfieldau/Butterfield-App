@@ -391,7 +391,7 @@ export default function VaultScreen() {
         <Text style={s.headerTitle}>Recipe Vault</Text>
         <View style={{ flexDirection: 'row', gap: 8 }}>
           <Pressable
-            onPress={() => router.push('/(director)/vault/recipe-edit' as any)}
+            onPress={() => router.push('/director-vault-recipe-edit' as any)}
             style={s.addBtn}
           >
             <Feather name="plus" size={16} color="#FFF" />
@@ -469,7 +469,7 @@ export default function VaultScreen() {
                 <Feather name="book-open" size={32} color={MUTED} />
                 <Text style={{ color: MUTED, fontSize: 15 }}>No recipes found</Text>
                 <Pressable
-                  onPress={() => router.push('/(director)/vault/recipe-edit' as any)}
+                  onPress={() => router.push('/director-vault-recipe-edit' as any)}
                   style={s.emptyAddBtn}
                 >
                   <Text style={{ color: GOLD, fontWeight: '600' }}>+ Add First Recipe</Text>
@@ -484,7 +484,7 @@ export default function VaultScreen() {
                   key={recipe.id}
                   onPress={() => {
                     Haptics.selectionAsync();
-                    router.push({ pathname: '/(director)/vault/recipe', params: { id: recipe.id } } as any);
+                    router.push({ pathname: '/director-vault-recipe', params: { id: recipe.id } } as any);
                   }}
                   style={({ pressed }) => [s.recipeCard, pressed && { opacity: 0.85 }]}
                 >

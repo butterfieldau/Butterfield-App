@@ -127,7 +127,7 @@ export default function MoreScreen() {
             cat={cat}
             onPress={() => {
               if (cat.key === 'vault') {
-                router.push('/(director)/vault' as any);
+                router.push('/director-vault' as any);
               } else {
                 router.push({ pathname: '/director-more-category', params: { category: cat.key } } as any);
               }

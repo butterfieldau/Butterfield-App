@@ -186,6 +186,9 @@ function RootLayoutNav() {
       <Stack.Screen name="notifications" options={{ headerShown: false, animation: "slide_from_right" }} />
       <Stack.Screen name="notification-prefs" options={{ headerShown: false, animation: "slide_from_right" }} />
       <Stack.Screen name="addresses" options={{ headerShown: false, animation: "slide_from_right" }} />
+      <Stack.Screen name="director-vault"             options={directorStandaloneScreenOptions} />
+      <Stack.Screen name="director-vault-recipe"     options={directorStandaloneScreenOptions} />
+      <Stack.Screen name="director-vault-recipe-edit" options={directorStandaloneScreenOptions} />
       <Stack.Screen name="director-more-category" options={directorStandaloneScreenOptions} />
       <Stack.Screen name="director-settings-banner" options={directorStandaloneScreenOptions} />
       <Stack.Screen name="director-settings-loyalty-tiers" options={directorStandaloneScreenOptions} />

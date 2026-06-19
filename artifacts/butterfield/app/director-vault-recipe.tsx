@@ -105,7 +105,7 @@ export default function VaultRecipeScreen() {
             <Pressable
               onPress={() => {
                 Haptics.selectionAsync();
-                router.push({ pathname: '/(director)/vault/recipe-edit', params: { id: recipe.id } } as any);
+                router.push({ pathname: '/director-vault-recipe-edit', params: { id: recipe.id } } as any);
               }}
               style={s.iconBtn}
             >
