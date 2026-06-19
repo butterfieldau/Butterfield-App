@@ -54,13 +54,13 @@ export default function TimeWheelPicker({
 
             <Text style={s.colon}>:</Text>
 
-            {/* Minute — 5-min steps */}
+            {/* Minute — 1-min steps */}
             <View style={s.col}>
-              <Pressable onPress={() => setMinute(m => (m + 5) % 60)} style={s.arrow} hitSlop={6}>
+              <Pressable onPress={() => setMinute(m => (m + 1) % 60)} style={s.arrow} hitSlop={6}>
                 <Feather name="chevron-up" size={22} color={accentColor} />
               </Pressable>
               <Text style={s.digit}>{String(minute).padStart(2, '0')}</Text>
-              <Pressable onPress={() => setMinute(m => (m - 5 + 60) % 60)} style={s.arrow} hitSlop={6}>
+              <Pressable onPress={() => setMinute(m => (m - 1 + 60) % 60)} style={s.arrow} hitSlop={6}>
                 <Feather name="chevron-down" size={22} color={accentColor} />
               </Pressable>
             </View>
