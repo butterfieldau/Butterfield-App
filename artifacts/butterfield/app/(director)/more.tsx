@@ -4,7 +4,7 @@ import { router } from 'expo-router';
 import React, { useMemo } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import {
-  Alert, Pressable, ScrollView, StatusBar, StyleSheet, Text, View,
+  Alert, Pressable, ScrollView, StyleSheet, Text, View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
@@ -78,7 +78,6 @@ export default function MoreScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: BG }}>
-      <StatusBar barStyle="dark-content" />
       <ScrollView
         style={{ flex: 1 }}
         contentContainerStyle={{ paddingBottom: insets.bottom + 32 }}

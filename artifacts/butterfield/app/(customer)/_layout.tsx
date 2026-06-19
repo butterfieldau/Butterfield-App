@@ -1,7 +1,7 @@
 import * as Haptics from 'expo-haptics';
 import { Redirect, Tabs, usePathname } from 'expo-router';
 import React, { useState } from 'react';
-import { Platform, StyleSheet, View } from 'react-native';
+import { Platform, StatusBar, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useCart } from '@/context/CartContext';
 import { useAuth } from '@/context/AuthContext';
@@ -79,6 +79,7 @@ function ClassicCustomerTabs() {
 
   return (
     <>
+      <StatusBar barStyle="dark-content" />
       <Tabs
         tabBar={(props) => (isIOS ? <FloatingCustomerTabBar {...props} hideTabs={hideTabs} /> : undefined)}
         screenOptions={{

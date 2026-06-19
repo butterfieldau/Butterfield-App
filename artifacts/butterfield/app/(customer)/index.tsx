@@ -13,6 +13,7 @@ import {
   Pressable,
   RefreshControl,
   ScrollView,
+  StatusBar,
   StyleSheet,
   Text,
   useWindowDimensions,
@@ -471,6 +472,7 @@ export default function CustomerHome() {
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
+      <StatusBar barStyle="light-content" />
       <StoreInfoSheet
         visible={storeSheetVisible}
         store={featuredStore}
