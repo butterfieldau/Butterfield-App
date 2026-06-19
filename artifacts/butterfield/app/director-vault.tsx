@@ -603,7 +603,7 @@ const s = StyleSheet.create({
   searchInput: { flex: 1, fontSize: 14, color: TEXT, paddingRight: 12 },
 
   catScroll: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 2, gap: 8, alignItems: 'center' },
-  catChip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, borderWidth: 1, backgroundColor: SURFACE, borderColor: BORD },
+  catChip: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20, borderWidth: 1, backgroundColor: SURFACE, borderColor: BORD },
   catChipText: { fontSize: 13, fontWeight: '500', color: MUTED },
 
   recipeCard: { backgroundColor: '#FFF', borderRadius: 14, borderWidth: 1, borderColor: BORD, overflow: 'hidden', shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 1 },
