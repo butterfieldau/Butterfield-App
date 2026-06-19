@@ -288,7 +288,7 @@ const s = StyleSheet.create({
   },
   summaryChipText: { fontSize: 12, fontWeight: '600', color: MUTED },
 
-  filterBar: { paddingHorizontal: 16, paddingBottom: 12, gap: 8 },
+  filterBar: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingBottom: 12, gap: 8 },
   filterChip: {
     paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20,
     backgroundColor: CARD, borderWidth: StyleSheet.hairlineWidth, borderColor: BORD,
