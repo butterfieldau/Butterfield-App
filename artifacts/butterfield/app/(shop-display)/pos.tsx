@@ -240,11 +240,32 @@ function buildPosItems(items: TicketItem[]): PosOrderItem[] {
 
 const STAMP_GOAL = 6;
 
-// ── SSE-based Linkly stream with poll fallback ─────────────────────────────
-// Opens a server-sent-events stream to the SSE endpoint so the POS screen
-// updates within ~200ms of terminal approval instead of waiting for the next
-// 2-second poll. Falls back to a 1-second poll automatically if the SSE
-// connection cannot be established or drops.
+// ── Linkly polling constants ───────────────────────────────────────────────
+// Single source of truth on the client side — mirrors LINKLY_POLL_CONFIG on
+// the server (linklyCloud.ts). Tune here to adjust timing everywhere at once.
+const LINKLY_POLL_CONFIG = {
+  ACTIVE_POLL_MS: 1000,
+  PENDING_POLL_MS: 1500,
+  BACKOFF_STEPS_MS: [1000, 2000, 4000, 8000] as const,
+  BACKOFF_MAX_CONSECUTIVE: 4,
+  MAX_ACTIVE_DURATION_MS: 180_000,
+  IDLE_HEARTBEAT_MS: 20_000,
+} as const;
+
+// ── SSE-based Linkly stream with adaptive poll fallback ────────────────────
+// Primary path: SSE stream from the server fires within ~200ms of terminal
+// approval. Fallback path: recursive async poll that adapts its cadence based
+// on the server-returned `pollClassification`:
+//
+//   pending  → poll every ACTIVE_POLL_MS (1 s) — normal in-flight cadence
+//   error    → exponential backoff: 1 s → 2 s → 4 s → 8 s (capped)
+//   timeout  → same backoff as error (408 / network abort)
+//   success  → stop immediately (transaction is complete)
+//
+// After BACKOFF_MAX_CONSECUTIVE (4) consecutive error/timeout responses the
+// optional onConsecutiveErrors callback fires so the UI can show an operator
+// warning. After MAX_ACTIVE_DURATION_MS (3 min) without a success the optional
+// onPollTimeout callback fires and polling stops.
 const LINKLY_API_BASE = process.env.EXPO_PUBLIC_DOMAIN
   ? `https://${process.env.EXPO_PUBLIC_DOMAIN}/api`
   : '/api';
@@ -257,14 +278,21 @@ type LinklyStreamResult = {
   responseText: string;
 };
 
+type LinklyStreamControl = { cancel: () => void; resetAndRetry: () => void };
+
 function startLinklyStream(
   sessionId: string,
   onText: (text: string) => void,
   onComplete: (pd: LinklyStreamResult) => void,
-): () => void {
+  onConsecutiveErrors?: (count: number) => void,
+  onPollTimeout?: () => void,
+): LinklyStreamControl {
   let cancelled = false;
+  let sseConnected = false;
   let abortController: AbortController | null = null;
   let pollTimer: ReturnType<typeof setTimeout> | null = null;
+  let consecutiveErrors = 0;
+  const startTime = Date.now();
 
   const cancel = () => {
     cancelled = true;
@@ -272,31 +300,72 @@ function startLinklyStream(
     if (pollTimer) { clearTimeout(pollTimer); pollTimer = null; }
   };
 
-  const startPoll = (delay = 1000) => {
-    if (cancelled) return;
-    pollTimer = setTimeout(async () => {
-      if (cancelled) return;
-      try {
-        const pollRes = await api.pos.linklyPoll(sessionId) as any;
-        const pd = pollRes?.data;
-        if (pd?.responseText) onText(pd.responseText);
-        if (pd?.complete) {
-          cancel();
-          onComplete(pd);
-        } else if (!cancelled) {
-          startPoll(1000);
-        }
-      } catch {
-        if (!cancelled) startPoll(1000);
-      }
-    }, delay);
+  const backoffMs = (): number => {
+    const idx = Math.min(consecutiveErrors - 1, LINKLY_POLL_CONFIG.BACKOFF_STEPS_MS.length - 1);
+    return LINKLY_POLL_CONFIG.BACKOFF_STEPS_MS[Math.max(0, idx)] ?? LINKLY_POLL_CONFIG.BACKOFF_STEPS_MS[LINKLY_POLL_CONFIG.BACKOFF_STEPS_MS.length - 1]!;
   };
 
-  // Start a 2-second parallel poll immediately. This is the reliable path that
-  // worked before SSE was added. If the SSE fires first, cancel() clears this
-  // timer. If the SSE is buffered/delayed by the production proxy, the poll
-  // picks up the result on its own.
-  startPoll(2000);
+  const doPoll = async () => {
+    if (cancelled) return;
+    if (pollTimer) { clearTimeout(pollTimer); pollTimer = null; }
+
+    // 3-minute hard deadline
+    if (Date.now() - startTime > LINKLY_POLL_CONFIG.MAX_ACTIVE_DURATION_MS) {
+      cancel();
+      onPollTimeout?.();
+      return;
+    }
+
+    try {
+      const pollRes = await api.pos.linklyPoll(sessionId) as any;
+      const pd = pollRes?.data;
+      if (pd?.responseText) onText(pd.responseText);
+
+      if (pd?.complete) {
+        consecutiveErrors = 0;
+        onConsecutiveErrors?.(0);
+        cancel();
+        onComplete(pd);
+        return;
+      }
+
+      const classification = (pd?.pollClassification ?? 'pending') as string;
+      if (classification === 'timeout' || classification === 'error') {
+        consecutiveErrors++;
+        onConsecutiveErrors?.(consecutiveErrors);
+        if (!cancelled) pollTimer = setTimeout(doPoll, backoffMs());
+      } else {
+        if (consecutiveErrors > 0) {
+          consecutiveErrors = 0;
+          onConsecutiveErrors?.(0);
+        }
+        if (!cancelled) pollTimer = setTimeout(doPoll, LINKLY_POLL_CONFIG.ACTIVE_POLL_MS);
+      }
+    } catch {
+      if (!cancelled) {
+        consecutiveErrors++;
+        onConsecutiveErrors?.(consecutiveErrors);
+        pollTimer = setTimeout(doPoll, backoffMs());
+      }
+    }
+  };
+
+  // resetAndRetry: exposed control for the "Retry Now" button.
+  // Resets the internal backoff counter and triggers an immediate poll,
+  // bypassing whatever delay the backoff had scheduled.
+  const resetAndRetry = () => {
+    if (cancelled) return;
+    consecutiveErrors = 0;
+    onConsecutiveErrors?.(0);
+    if (pollTimer) { clearTimeout(pollTimer); pollTimer = null; }
+    doPoll();
+  };
+
+  // Schedule a fallback poll that fires if SSE hasn't connected by PENDING_POLL_MS.
+  // If SSE connects successfully this timer is cancelled; if SSE drops it restarts.
+  pollTimer = setTimeout(() => {
+    if (!sseConnected && !cancelled) doPoll();
+  }, LINKLY_POLL_CONFIG.PENDING_POLL_MS);
 
   (async () => {
     if (cancelled) return;
@@ -317,9 +386,14 @@ function startLinklyStream(
       );
 
       if (!response.ok || !response.body) {
-        if (!cancelled) startPoll();
+        // SSE unavailable — start poll immediately (don't wait for the fallback timer)
+        if (!cancelled) { if (pollTimer) { clearTimeout(pollTimer); pollTimer = null; } doPoll(); }
         return;
       }
+
+      // SSE connected successfully — cancel the pending fallback poll; SSE is now primary
+      sseConnected = true;
+      if (pollTimer) { clearTimeout(pollTimer); pollTimer = null; }
 
       const reader = (response.body as ReadableStream<Uint8Array>).getReader();
       const decoder = new TextDecoder();
@@ -352,20 +426,24 @@ function startLinklyStream(
               }
             } catch {}
           } else if (line.startsWith('event: timeout')) {
-            if (!cancelled) startPoll();
+            // SSE timed out server-side — fall through to poll
             handled = true;
             break;
           }
         }
         if (handled) break;
-        if (done) { if (!cancelled) startPoll(); break; }
+        if (done) break;
       }
-    } catch (err: any) {
-      if (!cancelled && err?.name !== 'AbortError') startPoll();
+
+      // SSE ended without a completion event — start poll immediately
+      if (!cancelled) pollTimer = setTimeout(doPoll, 0);
+    } catch {
+      // AbortError is expected when cancel() is called; other errors fall through to poll.
+      if (!cancelled) { if (pollTimer) { clearTimeout(pollTimer); pollTimer = null; } doPoll(); }
     }
   })();
 
-  return cancel;
+  return { cancel, resetAndRetry };
 }
 
 type PrinterStatusModalProps = {
@@ -2947,7 +3025,8 @@ function PaymentModal({
   const [linklyStep, setLinklyStep] = useState<'idle' | 'initiating' | 'waiting' | 'approved' | 'declined'>('idle');
   const [linklySessionId, setLinklySessionId] = useState<string | null>(null);
   const [linklyText, setLinklyText] = useState('');
-  const linklyPollRef = useRef<(() => void) | null>(null);
+  const [linklyConsecErrors, setLinklyConsecErrors] = useState(0);
+  const linklyPollRef = useRef<LinklyStreamControl | null>(null);
   // Guards: tracks which sessions have already fired receipt + onConfirm
   const receiptPrintedRef = useRef<Set<string>>(new Set());
 
@@ -2955,7 +3034,46 @@ function PaymentModal({
   const [splitCardStep, setSplitCardStep] = useState<'idle' | 'initiating' | 'waiting' | 'declined'>('idle');
   const [splitCardSessionId, setSplitCardSessionId] = useState<string | null>(null);
   const [splitCardText, setSplitCardText] = useState('');
-  const splitCardPollRef = useRef<(() => void) | null>(null);
+  const [splitCardConsecErrors, setSplitCardConsecErrors] = useState(0);
+  const splitCardPollRef = useRef<LinklyStreamControl | null>(null);
+
+  // Idle terminal heartbeat — checks terminal readiness every IDLE_HEARTBEAT_MS
+  // when no transaction is in flight. Stops during active transactions.
+  const [terminalStatus, setTerminalStatus] = useState<'checking' | 'ok' | 'warn' | null>(null);
+  const heartbeatRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const checkTerminalStatus = useCallback(async () => {
+    setTerminalStatus('checking');
+    try {
+      const res = await api.pos.linklyTerminalStatus() as any;
+      setTerminalStatus(res?.data?.reachable ? 'ok' : 'warn');
+    } catch {
+      setTerminalStatus('warn');
+    }
+  }, []);
+
+  // Refs so the heartbeat interval always reads the latest step values
+  // without needing to be recreated on every step change.
+  const linklyStepRef = useRef(linklyStep);
+  useEffect(() => { linklyStepRef.current = linklyStep; }, [linklyStep]);
+  const splitCardStepRef = useRef(splitCardStep);
+  useEffect(() => { splitCardStepRef.current = splitCardStep; }, [splitCardStep]);
+
+  // Run once when method becomes 'eftpos'; restart on method change.
+  // Interval callback reads step refs — never stale.
+  useEffect(() => {
+    if (method !== 'eftpos') return;
+    checkTerminalStatus().catch(() => {});
+    heartbeatRef.current = setInterval(() => {
+      // Only heartbeat when genuinely idle — reads fresh ref values
+      if (linklyStepRef.current === 'idle' && splitCardStepRef.current === 'idle') {
+        checkTerminalStatus().catch(() => {});
+      }
+    }, LINKLY_POLL_CONFIG.IDLE_HEARTBEAT_MS);
+    return () => {
+      if (heartbeatRef.current) { clearInterval(heartbeatRef.current); heartbeatRef.current = null; }
+    };
+  }, [method, checkTerminalStatus]);
 
   // Load surcharges
   const { data: surchargesData } = useQuery({
@@ -3001,8 +3119,8 @@ function PaymentModal({
 
   // Cleanup SSE streams / fallback poll timers on unmount
   useEffect(() => () => {
-    linklyPollRef.current?.();
-    splitCardPollRef.current?.();
+    linklyPollRef.current?.cancel();
+    splitCardPollRef.current?.cancel();
   }, []);
 
   useEffect(() => {
@@ -3018,6 +3136,7 @@ function PaymentModal({
   const handleLinklyInitiate = async () => {
     setLinklyStep('initiating');
     setLinklyText('Connecting to terminal…');
+    setLinklyConsecErrors(0);
     try {
       const res = await api.pos.linklyInitiate(chargeTotalCents) as any;
       const sessionId = res?.data?.sessionId;
@@ -3025,26 +3144,28 @@ function PaymentModal({
       setLinklySessionId(sessionId);
       setLinklyStep('waiting');
       setLinklyText('Waiting for card…');
-      // SSE push — updates within ~200ms of terminal approval. Falls back to
-      // 1-second polling automatically if the stream drops.
       linklyPollRef.current = startLinklyStream(
         sessionId,
         (text) => setLinklyText(text),
         (pd) => {
           linklyPollRef.current = null;
+          setLinklyConsecErrors(0);
           if (pd.approved) {
             setLinklyStep('approved');
             const terminalSurchargeCents = Math.max(0, Math.floor(Number(pd.amountSurchargeCents ?? 0)));
             const totalSurchargeCents = computedSurchargeCents + terminalSurchargeCents;
-            // Print the Linkly terminal receipt (if the terminal provided one) exactly once.
-            // onPrintReceipt marks receiptPrintedRef so createOrderMutation.onSuccess skips
-            // double-printing. If no receiptText, the ref stays unset and onSuccess falls back
-            // to a full POS receipt with the real orderId.
             onPrintReceipt?.(sessionId, pd.receiptText ?? '');
             onConfirm({ method: 'eftpos', surchargeCents: totalSurchargeCents, linklySessionId: sessionId });
           } else {
             setLinklyStep('declined');
           }
+        },
+        (count) => setLinklyConsecErrors(count),
+        () => {
+          // 3-minute deadline elapsed
+          linklyPollRef.current = null;
+          setLinklyStep('declined');
+          setLinklyText('Payment timed out — please retry or use an alternative payment method.');
         },
       );
     } catch (err: any) {
@@ -3055,11 +3176,12 @@ function PaymentModal({
   };
 
   const handleLinklyCancel = async () => {
-    if (linklyPollRef.current) { linklyPollRef.current(); linklyPollRef.current = null; }
+    if (linklyPollRef.current) { linklyPollRef.current.cancel(); linklyPollRef.current = null; }
     if (linklySessionId) { try { await api.pos.linklyCancel(linklySessionId); } catch {} }
     setLinklyStep('idle');
     setLinklySessionId(null);
     setLinklyText('');
+    setLinklyConsecErrors(0);
   };
 
   // ── Split: charge one person's portion via Linkly EFTPOS ──
@@ -3068,6 +3190,7 @@ function PaymentModal({
     if (amountCents <= 0) return;
     setSplitCardStep('initiating');
     setSplitCardText('Connecting to terminal…');
+    setSplitCardConsecErrors(0);
     try {
       const res = await api.pos.linklyInitiate(amountCents) as any;
       const sessionId = res?.data?.sessionId;
@@ -3075,15 +3198,13 @@ function PaymentModal({
       setSplitCardSessionId(sessionId);
       setSplitCardStep('waiting');
       setSplitCardText('Waiting for card…');
-      // SSE push — updates within ~200ms of terminal approval. Falls back to
-      // 1-second polling automatically if the stream drops.
       splitCardPollRef.current = startLinklyStream(
         sessionId,
         (text) => setSplitCardText(text),
         (pd) => {
           splitCardPollRef.current = null;
+          setSplitCardConsecErrors(0);
           if (pd.approved) {
-            // Guard against double-commit for this split part
             if (!receiptPrintedRef.current.has(sessionId)) {
               receiptPrintedRef.current.add(sessionId);
               setSplitParts(ps => [...ps, { amountCents, method: 'eftpos', linklySessionId: sessionId }]);
@@ -3096,6 +3217,12 @@ function PaymentModal({
             setSplitCardStep('declined');
           }
         },
+        (count) => setSplitCardConsecErrors(count),
+        () => {
+          splitCardPollRef.current = null;
+          setSplitCardStep('declined');
+          setSplitCardText('Payment timed out — please retry.');
+        },
       );
     } catch (err: any) {
       setSplitCardStep('idle');
@@ -3105,11 +3232,12 @@ function PaymentModal({
   };
 
   const handleSplitCardCancel = async () => {
-    if (splitCardPollRef.current) { splitCardPollRef.current(); splitCardPollRef.current = null; }
+    if (splitCardPollRef.current) { splitCardPollRef.current.cancel(); splitCardPollRef.current = null; }
     if (splitCardSessionId) { try { await api.pos.linklyCancel(splitCardSessionId); } catch {} }
     setSplitCardStep('idle');
     setSplitCardSessionId(null);
     setSplitCardText('');
+    setSplitCardConsecErrors(0);
   };
 
   const handleConfirm = () => {
@@ -3442,7 +3570,28 @@ function PaymentModal({
                     <ActivityIndicator size="large" color={BLUE} />
                     <Text style={styles.eftposText}>{linklyText || 'Connecting…'}</Text>
                     <Text style={styles.eftposSubText}>Present card or device to the terminal</Text>
-                    <TouchableOpacity onPress={handleLinklyCancel} style={[styles.presetBtn, { borderColor: '#FECACA', backgroundColor: '#FFF1F2' }]} activeOpacity={0.75}>
+
+                    {/* Operator warning banner — appears after BACKOFF_MAX_CONSECUTIVE consecutive errors */}
+                    {linklyConsecErrors >= LINKLY_POLL_CONFIG.BACKOFF_MAX_CONSECUTIVE && (
+                      <View style={{ width: '100%', backgroundColor: '#FEF3C7', borderRadius: 10, borderWidth: 1, borderColor: '#FCD34D', padding: 12, marginTop: 10, gap: 8 }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                          <Feather name="alert-triangle" size={16} color="#92400E" />
+                          <Text style={{ fontSize: 13, fontWeight: '700', color: '#92400E', flex: 1 }}>Terminal not responding — check connection</Text>
+                        </View>
+                        <TouchableOpacity
+                          onPress={() => {
+                            // Reset internal backoff counter and trigger an immediate poll
+                            linklyPollRef.current?.resetAndRetry();
+                          }}
+                          style={{ backgroundColor: '#92400E', borderRadius: 8, paddingVertical: 8, alignItems: 'center' }}
+                          activeOpacity={0.8}
+                        >
+                          <Text style={{ color: '#FFFFFF', fontSize: 13, fontWeight: '700' }}>Retry Now</Text>
+                        </TouchableOpacity>
+                      </View>
+                    )}
+
+                    <TouchableOpacity onPress={handleLinklyCancel} style={[styles.presetBtn, { borderColor: '#FECACA', backgroundColor: '#FFF1F2', marginTop: 8 }]} activeOpacity={0.75}>
                       <Text style={[styles.presetBtnText, { color: CHERRY }]}>Cancel Transaction</Text>
                     </TouchableOpacity>
                   </>
@@ -3458,7 +3607,7 @@ function PaymentModal({
                     <Feather name="x-circle" size={40} color={CHERRY} />
                     <Text style={[styles.eftposText, { color: CHERRY }]}>Payment Declined</Text>
                     {!!linklyText && <Text style={styles.eftposSubText}>{linklyText}</Text>}
-                    <TouchableOpacity onPress={() => { setLinklyStep('idle'); setLinklyText(''); }} style={styles.presetBtn} activeOpacity={0.75}>
+                    <TouchableOpacity onPress={() => { setLinklyStep('idle'); setLinklyText(''); setLinklyConsecErrors(0); }} style={styles.presetBtn} activeOpacity={0.75}>
                       <Text style={styles.presetBtnText}>Try Again</Text>
                     </TouchableOpacity>
                   </>
@@ -3470,6 +3619,24 @@ function PaymentModal({
 
           {/* ── Footer: confirm button ── */}
           <View style={styles.sheetFooter}>
+            {/* ── Idle terminal status row (shown above Confirm EFTPOS button) ── */}
+            {method === 'eftpos' && linklyStep === 'idle' && terminalStatus !== null && (
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, paddingHorizontal: 2 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  {terminalStatus === 'checking' ? (
+                    <ActivityIndicator size="small" color={MUTED} />
+                  ) : (
+                    <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: terminalStatus === 'ok' ? '#16A34A' : '#F59E0B' }} />
+                  )}
+                  <Text style={{ fontSize: 12, color: MUTED, fontWeight: '500' }}>
+                    {terminalStatus === 'checking' ? 'Checking terminal…' : terminalStatus === 'ok' ? 'Terminal ready' : 'Terminal not verified'}
+                  </Text>
+                </View>
+                <TouchableOpacity onPress={() => checkTerminalStatus().catch(() => {})} hitSlop={8} disabled={terminalStatus === 'checking'}>
+                  <Text style={{ fontSize: 12, color: BLUE, fontWeight: '600' }}>Check</Text>
+                </TouchableOpacity>
+              </View>
+            )}
             {loading || isLinklyBusy ? (
               <View style={[styles.addToOrderBtn, { justifyContent: 'center' }]}>
                 <ActivityIndicator color={WHITE} />
@@ -3995,13 +4162,13 @@ function HistoryModal({
   const [refundLinklyStep, setRefundLinklyStep] = useState<'idle' | 'initiating' | 'waiting' | 'approved' | 'declined'>('idle');
   const [refundLinklySessionId, setRefundLinklySessionId] = useState<string | null>(null);
   const [refundLinklyText, setRefundLinklyText] = useState('');
-  const refundLinklyPollRef = useRef<(() => void) | null>(null);
+  const refundLinklyPollRef = useRef<LinklyStreamControl | null>(null);
   const refundReceiptPrintedRef = useRef<Set<string>>(new Set());
   const [pendingRefundPayload, setPendingRefundPayload] = useState<{ orderId: string; amountCents: number; reason?: string } | null>(null);
 
   const stopRefundLinklyPoll = () => {
     if (refundLinklyPollRef.current) {
-      refundLinklyPollRef.current();
+      refundLinklyPollRef.current.cancel();
       refundLinklyPollRef.current = null;
     }
   };
@@ -4524,7 +4691,7 @@ function HistoryModal({
                 setRefundLinklyText('Present the original card to the terminal');
 
                 // SSE push — resolves within ~200ms of terminal approval.
-                // Falls back to 1-second polling automatically if the stream drops.
+                // Falls back to adaptive polling automatically if the stream drops.
                 refundLinklyPollRef.current = startLinklyStream(
                   sessionId,
                   (text) => setRefundLinklyText(text),
@@ -4550,6 +4717,12 @@ function HistoryModal({
                       setRefundLinklyStep('declined');
                       setRefundLinklyText(d.responseText || 'Declined by terminal');
                     }
+                  },
+                  undefined,
+                  () => {
+                    refundLinklyPollRef.current = null;
+                    setRefundLinklyStep('declined');
+                    setRefundLinklyText('Refund timed out — please retry.');
                   },
                 );
               } catch (err: any) {

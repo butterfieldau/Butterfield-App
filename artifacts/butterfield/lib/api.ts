@@ -1087,8 +1087,12 @@ export const api = {
         '/pos/linkly/transaction', { method: 'POST', body: JSON.stringify({ amountCents }) }
       ),
     linklyPoll: (sessionId: string) =>
-      request<{ data: { status: string; responseText: string; approved: boolean; complete: boolean; receiptText?: string | null } }>(
+      request<{ data: { status: string; responseText: string; approved: boolean; complete: boolean; receiptText?: string | null; amountSurchargeCents?: number; pollClassification?: 'success' | 'pending' | 'error' | 'timeout' } }>(
         `/pos/linkly/${sessionId}`
+      ),
+    linklyTerminalStatus: () =>
+      request<{ data: { reachable: boolean; configured: boolean; message: string; tokenExpiresAt?: string | null } }>(
+        '/pos/linkly/terminal-status'
       ),
     linklyCancel: (sessionId: string) =>
       request<{ success: boolean }>(`/pos/linkly/${sessionId}`, { method: 'DELETE' }),

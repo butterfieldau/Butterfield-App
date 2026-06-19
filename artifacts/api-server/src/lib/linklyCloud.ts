@@ -108,6 +108,28 @@ export type LinklyTransactionRecord = {
   rawResponse: any;
 };
 
+// ── Polling configuration ─────────────────────────────────────────────────────
+// Single source of truth for all timing constants. Change here to tune globally.
+export const LINKLY_POLL_CONFIG = {
+  ACTIVE_POLL_MS: 1000,
+  PENDING_POLL_MS: 1500,
+  BACKOFF_STEPS_MS: [1000, 2000, 4000, 8000] as const,
+  BACKOFF_MAX_CONSECUTIVE: 4,
+  MAX_ACTIVE_DURATION_MS: 180_000,
+  IDLE_HEARTBEAT_MS: 20_000,
+} as const;
+
+/**
+ * Classification returned with every poll result so the client can decide its
+ * next retry delay without re-parsing HTTP status codes:
+ *
+ * - `success`  — transaction is complete (approved OR declined); stop polling.
+ * - `pending`  — terminal is still processing; poll again at the normal cadence.
+ * - `error`    — recoverable server/gateway error (5xx); back off and retry.
+ * - `timeout`  — request timed out (408 / network abort); back off and retry.
+ */
+export type LinklyPollClassification = 'success' | 'pending' | 'error' | 'timeout';
+
 export type LinklyManagementResult = {
   sessionId: string;
   requestType: 'settlement' | 'reprintreceipt';
@@ -1142,14 +1164,47 @@ export async function startRefundTransaction(args: StartPurchaseArgs) {
 export async function recoverOrPollTransaction(
   userId: string,
   sessionId: string,
-) {
+): Promise<LinklyTransactionRecord & { pollClassification: LinklyPollClassification }> {
   const row = await getStoredConfig(userId);
   assertConfigComplete(row);
   const environment = normaliseEnvironment(row.linkly_environment);
   const existing = await getStoredLinklyTransaction(sessionId);
-  if (existing?.complete) return existing;
+
+  // Already finished — no further polling needed
+  if (existing?.complete) {
+    return { ...existing, pollClassification: 'success' };
+  }
 
   const response = await getRemoteTransaction(userId, environment, sessionId);
+
+  // Timeout (our fetch timed out or Linkly returned 408)
+  if (response.timedOut || response.status === 408) {
+    const base = existing ?? {
+      sessionId,
+      orderId: null,
+      source: 'management' as const,
+      amountCents: 0,
+      amountSurchargeCents: 0,
+      txnRef: sessionId.slice(0, 12).toUpperCase(),
+      status: 'pending' as const,
+      success: false,
+      complete: false,
+      responseCode: null,
+      responseText: 'Terminal not responding…',
+      authCode: null,
+      rrn: null,
+      stan: null,
+      catid: null,
+      caid: null,
+      rfn: null,
+      ref: null,
+      receiptText: null,
+      receiptData: null,
+      rawResponse: response.body,
+    };
+    return { ...base, pollClassification: 'timeout' };
+  }
+
   if (response.status === 404) {
     const notSubmitted: LinklyTransactionRecord = {
       sessionId,
@@ -1175,8 +1230,9 @@ export async function recoverOrPollTransaction(
       rawResponse: response.body,
     };
     await upsertTransaction(userId, notSubmitted);
-    return notSubmitted;
+    return { ...notSubmitted, pollClassification: 'success' };
   }
+
   if (response.status === 400) {
     const invalid: LinklyTransactionRecord = {
       sessionId,
@@ -1202,17 +1258,19 @@ export async function recoverOrPollTransaction(
       rawResponse: response.body,
     };
     await upsertTransaction(userId, invalid);
-    return invalid;
+    return { ...invalid, pollClassification: 'success' };
   }
+
+  // 5xx or other recoverable error
   if (!response.ok) {
-    return existing ?? {
+    const base = existing ?? {
       sessionId,
       orderId: null,
-      source: 'management',
+      source: 'management' as const,
       amountCents: 0,
       amountSurchargeCents: 0,
       txnRef: sessionId.slice(0, 12).toUpperCase(),
-      status: 'pending',
+      status: 'pending' as const,
       success: false,
       complete: false,
       responseCode: null,
@@ -1228,7 +1286,9 @@ export async function recoverOrPollTransaction(
       receiptData: null,
       rawResponse: response.body,
     };
+    return { ...base, pollClassification: 'error' };
   }
+
   const parsed = parseTransactionPayload(
     sessionId,
     existing?.source ?? 'management',
@@ -1238,7 +1298,7 @@ export async function recoverOrPollTransaction(
     response.body,
   );
   await upsertTransaction(userId, parsed);
-  return parsed;
+  return { ...parsed, pollClassification: parsed.complete ? 'success' : 'pending' };
 }
 
 export async function runSettlementAction(

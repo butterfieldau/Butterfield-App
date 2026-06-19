@@ -2031,6 +2031,31 @@ router.get('/linkly/transaction/:sessionId/stream', async (req, res) => {
   return;
 });
 
+// ── GET /pos/linkly/terminal-status — lightweight idle heartbeat check ────
+// Must be registered BEFORE /linkly/:sessionId to avoid being swallowed by
+// the dynamic :sessionId pattern.
+router.get('/linkly/terminal-status', async (req, res) => {
+  try {
+    const config = await getLinklyPublicConfig(req.user!.id);
+    if (!config.linklyEnabled || !config.linklyConfigComplete) {
+      return res.json({ data: { reachable: false, configured: false, message: 'Terminal not configured' } });
+    }
+    const expiresAt = config.tokenExpiresAt ? new Date(config.tokenExpiresAt).getTime() : 0;
+    const tokenValid = expiresAt - 90_000 > Date.now();
+    return res.json({
+      data: {
+        reachable: tokenValid,
+        configured: true,
+        tokenExpiresAt: config.tokenExpiresAt,
+        message: tokenValid ? 'Terminal ready' : 'Auth token expiring — will refresh on next transaction',
+      },
+    });
+  } catch (err: any) {
+    req.log.warn({ err }, 'POS Linkly terminal-status check failed');
+    return res.json({ data: { reachable: false, configured: false, message: err?.message ?? 'Failed to check terminal status' } });
+  }
+});
+
 // ── GET /pos/linkly/:sessionId — poll Linkly transaction status ───────────
 router.get('/linkly/:sessionId', async (req, res) => {
   await ensurePosSchemaReady();
@@ -2061,11 +2086,12 @@ router.get('/linkly/:sessionId', async (req, res) => {
         rfn: status.rfn,
         ref: status.ref,
         receiptText: status.receiptText ?? null,
+        pollClassification: status.pollClassification,
       },
     });
   } catch (err: any) {
     req.log.error({ err }, 'POS Linkly poll error');
-    return res.json({ data: { status: 'pending', responseText: 'Checking terminal status…', approved: false, complete: false } });
+    return res.json({ data: { status: 'pending', responseText: 'Checking terminal status…', approved: false, complete: false, pollClassification: 'error' } });
   }
 });
 
