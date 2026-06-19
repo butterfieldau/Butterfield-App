@@ -62,11 +62,15 @@ function NewOrderAlertOverlay({
   order,
   onDismiss,
   soundEnabled,
+  queueIndex,
+  queueTotal,
 }: {
   visible: boolean;
   order: NewOrderBannerOrder | null;
   onDismiss: () => void;
   soundEnabled: boolean;
+  queueIndex?: number;
+  queueTotal?: number;
 }) {
   const soundRef = useRef<Audio.Sound | null>(null);
   // On web: holds the currently-playing AudioBufferSourceNode (looping)
@@ -166,37 +170,84 @@ function NewOrderAlertOverlay({
 
   if (!visible || !order) return null;
 
+  const showCounter = typeof queueTotal === 'number' && queueTotal > 1;
+  const counterLabel = showCounter ? `${(queueIndex ?? 0) + 1} of ${queueTotal}` : null;
+
+  // Card and backdrop are SIBLINGS (not nested) so a tap on the dismiss
+  // button can never also trigger the backdrop handler — no double-shift risk.
+  const overlayContent = (
+    <View style={sAlert.overlayWrap}>
+      {/* Backdrop — full-screen, tap to dismiss */}
+      <Pressable style={StyleSheet.absoluteFill} onPress={onDismiss} />
+      {/* Card — sits above the backdrop, does not bubble touches to it */}
+      <View style={sAlert.card}>
+        {showCounter && (
+          <View style={sAlert.counterBadge}>
+            <Text style={sAlert.counterText}>{counterLabel}</Text>
+          </View>
+        )}
+        <View style={sAlert.iconWrap}>
+          <Feather name="bell" size={40} color={NAVY} />
+        </View>
+        <Text style={sAlert.title}>New Order</Text>
+        <Text style={sAlert.name}>{order.customerName}</Text>
+        <Text style={sAlert.orderNum}>{order.orderNumber}</Text>
+        <Text style={sAlert.hint}>Tap anywhere outside to dismiss</Text>
+        <TouchableOpacity style={sAlert.dismissBtn} onPress={onDismiss} activeOpacity={0.82}>
+          <Feather name="check" size={18} color={WHITE} />
+          <Text style={sAlert.dismissText}>Got it — dismiss</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+
+  // On web the POS runs inside the browser DOM; a React Native Modal does NOT
+  // guarantee rendering above browser-native elements or other high-z-index
+  // overlays. Use a plain absolute-fill View with an extreme zIndex instead.
+  if (Platform.OS === 'web') {
+    return (
+      <View style={[sAlert.webTopLayer]}>
+        {overlayContent}
+      </View>
+    );
+  }
+
+  // Native: keep Modal but promote it to the top hardware layer so it renders
+  // above the status bar and any other modal that may already be open.
   return (
     <Modal
       visible
       transparent
       animationType="fade"
       onRequestClose={onDismiss}
+      statusBarTranslucent
+      hardwareAccelerated
       supportedOrientations={['portrait', 'landscape', 'landscape-left', 'landscape-right']}
     >
-      <Pressable style={sAlert.backdrop} onPress={onDismiss}>
-        <View style={sAlert.card}>
-          <View style={sAlert.iconWrap}>
-            <Feather name="bell" size={40} color={NAVY} />
-          </View>
-          <Text style={sAlert.title}>New Order</Text>
-          <Text style={sAlert.name}>{order.customerName}</Text>
-          <Text style={sAlert.orderNum}>{order.orderNumber}</Text>
-          <Text style={sAlert.hint}>Tap anywhere to dismiss</Text>
-        </View>
-      </Pressable>
+      {overlayContent}
     </Modal>
   );
 }
 
 const sAlert = StyleSheet.create({
-  backdrop: { flex: 1, backgroundColor: 'rgba(20,43,74,0.72)', alignItems: 'center', justifyContent: 'center', padding: 32 },
-  card:     { backgroundColor: SOFT_BLUE, borderRadius: 28, padding: 36, alignItems: 'center', gap: 10, width: '100%', maxWidth: 360, borderWidth: 3, borderColor: BLUE, shadowColor: BLUE, shadowOpacity: 0.18, shadowRadius: 22, shadowOffset: { width: 0, height: 12 }, elevation: 10 },
-  iconWrap: { width: 88, height: 88, borderRadius: 44, backgroundColor: '#DBEAFE', alignItems: 'center', justifyContent: 'center', marginBottom: 4, borderWidth: 2, borderColor: '#93C5FD' },
-  title:    { fontSize: 30, fontWeight: '900', color: BLUE },
-  name:     { fontSize: 20, fontWeight: '700', color: NAVY },
-  orderNum: { fontSize: 15, fontWeight: '700', color: BLUE },
-  hint:     { fontSize: 13, color: NAVY, marginTop: 10, opacity: 0.68 },
+  // On web: sits above everything else in the stacking context
+  webTopLayer:  { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 999999 } as any,
+  // Shared container for both web and native paths — full-fill, dimmed background,
+  // centres the card. Backdrop Pressable uses absoluteFill inside this view.
+  overlayWrap:  { flex: 1, backgroundColor: 'rgba(20,43,74,0.72)', alignItems: 'center', justifyContent: 'center', padding: 32 },
+  backdrop:     { flex: 1, backgroundColor: 'rgba(20,43,74,0.72)', alignItems: 'center', justifyContent: 'center', padding: 32 },
+  card:         { backgroundColor: SOFT_BLUE, borderRadius: 28, padding: 36, alignItems: 'center', gap: 10, width: '100%', maxWidth: 360, borderWidth: 3, borderColor: BLUE, shadowColor: BLUE, shadowOpacity: 0.18, shadowRadius: 22, shadowOffset: { width: 0, height: 12 }, elevation: 10 },
+  iconWrap:    { width: 88, height: 88, borderRadius: 44, backgroundColor: '#DBEAFE', alignItems: 'center', justifyContent: 'center', marginBottom: 4, borderWidth: 2, borderColor: '#93C5FD' },
+  title:       { fontSize: 30, fontWeight: '900', color: BLUE },
+  name:        { fontSize: 20, fontWeight: '700', color: NAVY },
+  orderNum:    { fontSize: 15, fontWeight: '700', color: BLUE },
+  hint:        { fontSize: 13, color: NAVY, marginTop: 10, opacity: 0.68 },
+  // Queue counter badge — shown when more than one alert is queued
+  counterBadge: { backgroundColor: BLUE, borderRadius: 20, paddingHorizontal: 14, paddingVertical: 5, marginBottom: 4 },
+  counterText:  { color: WHITE, fontSize: 13, fontWeight: '800', letterSpacing: 0.4 },
+  // Explicit dismiss button inside the card
+  dismissBtn:  { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: NAVY, borderRadius: 14, paddingVertical: 14, paddingHorizontal: 28, marginTop: 6, width: '100%', justifyContent: 'center' },
+  dismissText: { color: WHITE, fontSize: 15, fontWeight: '700' },
 });
 
 const NAV_ITEMS = [
@@ -242,10 +293,10 @@ export default function ShopDisplayLayout() {
 
   // ── New-order popup + sound (layout-level so it fires on any tab) ──────────
   const [soundEnabled, setSoundEnabled] = useState(true);
-  // Single state — null means hidden, non-null means visible with order details.
-  // Never split into showBanner+order because calling setState inside another
-  // setState updater is illegal React (inner call gets dropped in strict mode).
-  const [alertOrder, setAlertOrder] = useState<NewOrderBannerOrder | null>(null);
+  // Queue of pending alerts — first item is currently displayed, rest are waiting.
+  // Using a queue ensures no order notification is silently dropped when multiple
+  // orders arrive in quick succession or while another alert is still showing.
+  const [alertQueue, setAlertQueue] = useState<NewOrderBannerOrder[]>([]);
   const seenRef    = useRef<Record<string, string>>({});
   const bootedRef  = useRef(false);
   const mountTimeRef = useRef(Date.now());
@@ -290,17 +341,28 @@ export default function ShopDisplayLayout() {
       });
       if (freshOnBoot) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-        // Use functional update — keep first alert, don't replace if already showing
-        setAlertOrder(prev => prev ?? toAlertOrder(freshOnBoot));
+        setAlertQueue(prev => {
+          const already = prev.some(a => a.orderNumber === toAlertOrder(freshOnBoot).orderNumber);
+          return already ? prev : [...prev, toAlertOrder(freshOnBoot)];
+        });
       }
       return;
     }
 
     const prev = seenRef.current;
-    const fresh = layoutRows.find((o) => !prev[o.id] && NEW_ORDER_STATUSES.has(o.status));
-    if (fresh) {
+    const freshOrders = layoutRows.filter((o) => !prev[o.id] && NEW_ORDER_STATUSES.has(o.status));
+    if (freshOrders.length > 0) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-      setAlertOrder(prev => prev ?? toAlertOrder(fresh));
+      setAlertQueue(q => {
+        let next = [...q];
+        for (const o of freshOrders) {
+          const alert = toAlertOrder(o);
+          if (!next.some(a => a.orderNumber === alert.orderNumber)) {
+            next = [...next, alert];
+          }
+        }
+        return next;
+      });
     }
     seenRef.current = currentMap;
   }, [layoutRows]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -819,11 +881,14 @@ export default function ShopDisplayLayout() {
       </Modal>
 
       {/* ── New order alert — layout-level so it fires on any tab ─── */}
+      {/* Queue: first item is shown; onDismiss shifts it off so the next appears */}
       <NewOrderAlertOverlay
-        visible={alertOrder !== null}
-        order={alertOrder}
-        onDismiss={() => setAlertOrder(null)}
+        visible={alertQueue.length > 0}
+        order={alertQueue[0] ?? null}
+        onDismiss={() => setAlertQueue(q => q.slice(1))}
         soundEnabled={soundEnabled}
+        queueIndex={0}
+        queueTotal={alertQueue.length}
       />
 
       {/* ── Dashboard PIN gate ─────────────────────────────────────── */}
