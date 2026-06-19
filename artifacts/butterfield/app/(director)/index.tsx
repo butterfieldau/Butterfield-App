@@ -8,9 +8,8 @@ import {
   ScrollView, StatusBar, StyleSheet, Text, TouchableOpacity, View,
 } from 'react-native';
 import Svg, {
-  Defs, LinearGradient, Path, Rect, Stop, Line, Text as SvgText,
+  Rect, Line,
 } from 'react-native-svg';
-import type { DirectorHourlyRevenue, DirectorTopProduct } from '@/lib/api';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/context/AuthContext';
 import { PortalHeader } from '@/components/PortalHeader';
@@ -50,24 +49,6 @@ function timeAgo(dateStr: string) {
   return `${Math.floor(diff / 86400)}d ago`;
 }
 
-// ── Smooth bezier path from data points ──────────────────────────────────────
-function makePath(pts: { x: number; y: number }[], close = false, baseY = 0): string {
-  if (pts.length < 2) return '';
-  let d = `M ${pts[0].x.toFixed(1)} ${pts[0].y.toFixed(1)}`;
-  for (let i = 1; i < pts.length; i++) {
-    const prev = pts[i - 1];
-    const curr = pts[i];
-    const cpx1 = (prev.x + (curr.x - prev.x) * 0.4).toFixed(1);
-    const cpy1 = prev.y.toFixed(1);
-    const cpx2 = (curr.x - (curr.x - prev.x) * 0.4).toFixed(1);
-    const cpy2 = curr.y.toFixed(1);
-    d += ` C ${cpx1} ${cpy1} ${cpx2} ${cpy2} ${curr.x.toFixed(1)} ${curr.y.toFixed(1)}`;
-  }
-  if (close) {
-    d += ` L ${pts[pts.length - 1].x.toFixed(1)} ${baseY.toFixed(1)} L ${pts[0].x.toFixed(1)} ${baseY.toFixed(1)} Z`;
-  }
-  return d;
-}
 
 // ── Revenue date-range picker modal ──────────────────────────────────────────
 function fmtDateBox(d: Date) {
@@ -168,135 +149,6 @@ function RevenueRangePicker({
   );
 }
 
-// ── Sessions line chart ───────────────────────────────────────────────────────
-type HourlyPoint = { hour: number; count: number };
-
-function SessionsChart({
-  today,
-  lastWeek,
-  totalToday,
-  pctChange,
-  liveCount,
-}: {
-  today: HourlyPoint[];
-  lastWeek: HourlyPoint[];
-  totalToday: number;
-  pctChange: number | null;
-  liveCount: number;
-}) {
-  const W    = 340;
-  const H    = 130;
-  const PAD  = { top: 12, right: 8, bottom: 28, left: 24 };
-  const cW   = W - PAD.left - PAD.right;
-  const cH   = H - PAD.top  - PAD.bottom;
-
-  const maxVal = Math.max(
-    ...today.map(p => p.count),
-    ...lastWeek.map(p => p.count),
-    1,
-  );
-
-  const toXY = (pts: HourlyPoint[]) =>
-    pts.map(p => ({
-      x: PAD.left + (p.hour / 23) * cW,
-      y: PAD.top  + cH - (p.count / maxVal) * cH,
-    }));
-
-  const todayPts    = toXY(today);
-  const lastWeekPts = toXY(lastWeek);
-
-  const todayLine    = makePath(todayPts);
-  const todayFill    = makePath(todayPts, true, PAD.top + cH);
-  const lastWeekLine = makePath(lastWeekPts);
-
-  const gridVals = [0, Math.ceil(maxVal / 2), maxVal];
-
-  const xLabels = [
-    { hour: 0,  label: '12 AM' },
-    { hour: 8,  label: '8 AM'  },
-    { hour: 12, label: '12 PM' },
-    { hour: 18, label: '6 PM'  },
-    { hour: 23, label: 'Now'   },
-  ];
-
-  const up = pctChange !== null && pctChange >= 0;
-
-  return (
-    <View style={ch.card}>
-      {/* Header stats */}
-      <View style={ch.statsRow}>
-        <View style={ch.statBlock}>
-          <Text style={ch.statLabel}>Sessions</Text>
-          <Text style={ch.statVal}>{totalToday}</Text>
-          {pctChange !== null && (
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
-              <Feather name={up ? 'trending-up' : 'trending-down'} size={12} color={up ? GREEN : RED} />
-              <Text style={[ch.pct, { color: up ? GREEN : RED }]}>
-                {up ? '+' : ''}{pctChange}%
-              </Text>
-            </View>
-          )}
-        </View>
-        <View style={ch.divider} />
-        <View style={ch.statBlock}>
-          <Text style={ch.statLabel}>Live now</Text>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-            <View style={ch.liveDot} />
-            <Text style={ch.statVal}>{liveCount}</Text>
-          </View>
-        </View>
-        <View style={ch.divider} />
-        <View style={ch.statBlock}>
-          <Text style={ch.statLabel}>vs Last Week</Text>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-            <View style={[ch.legendDash, { borderColor: MUTED }]} />
-            <Text style={[ch.statVal, { color: MUTED }]}>{lastWeek.reduce((a, p) => a + p.count, 0)}</Text>
-          </View>
-        </View>
-      </View>
-
-      {/* SVG Chart */}
-      <Svg width={W} height={H} viewBox={`0 0 ${W} ${H}`}>
-        <Defs>
-          <LinearGradient id="todayGrad" x1="0" y1="0" x2="0" y2="1">
-            <Stop offset="0"   stopColor={BLUE} stopOpacity="0.22" />
-            <Stop offset="1"   stopColor={BLUE} stopOpacity="0.0"  />
-          </LinearGradient>
-        </Defs>
-
-        {/* Grid lines */}
-        {gridVals.map((v, i) => {
-          const y = PAD.top + cH - (v / maxVal) * cH;
-          return (
-            <React.Fragment key={i}>
-              <Line x1={PAD.left} y1={y} x2={W - PAD.right} y2={y} stroke={BORDER} strokeWidth="0.7" />
-              <SvgText x={PAD.left - 4} y={y + 4} fontSize="8" fill={MUTED} textAnchor="end">{v}</SvgText>
-            </React.Fragment>
-          );
-        })}
-
-        {/* Last week dashed line */}
-        <Path d={lastWeekLine} fill="none" stroke={MUTED} strokeWidth="1.2" strokeDasharray="4 3" opacity="0.55" />
-
-        {/* Today gradient fill */}
-        <Path d={todayFill} fill="url(#todayGrad)" />
-
-        {/* Today solid line */}
-        <Path d={todayLine} fill="none" stroke={BLUE} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-
-        {/* X-axis labels */}
-        {xLabels.map(({ hour, label }) => {
-          const x = PAD.left + (hour / 23) * cW;
-          return (
-            <SvgText key={hour} x={x} y={H - 4} fontSize="8" fill={MUTED} textAnchor="middle">{label}</SvgText>
-          );
-        })}
-      </Svg>
-
-      <Text style={ch.sub}>App sessions today · logins + orders</Text>
-    </View>
-  );
-}
 
 // ── KPI Tile ──────────────────────────────────────────────────────────────────
 function KpiTile({ icon, label, value, color, alert, onPress, helper }: {
@@ -396,251 +248,236 @@ function AovCustomerRow({
   );
 }
 
-// ── Daily revenue pace bar ────────────────────────────────────────────────────
-function DailyPaceBar({
-  todayCents, pacePct, projectedCents,
-}: {
-  todayCents: number; pacePct: number | null | undefined; projectedCents: number | null | undefined;
-}) {
-  const hasBaseline = pacePct != null;
-  const pct     = Math.min(Math.max(pacePct ?? 0, 0), 200);
-  const fillPct = Math.min(pct / 2, 100); // 200% pace = full bar
-  const isAhead = (pacePct ?? 0) >= 100;
-  const color   = hasBaseline ? (isAhead ? GREEN : AMBER) : MUTED;
-  const W = 340;
 
-  return (
-    <View style={{
-      backgroundColor: CARD, borderRadius: 18, borderWidth: 1,
-      borderColor: BORDER, paddingHorizontal: 16, paddingVertical: 14, gap: 12,
-      ...GLASS_SHADOW,
-    }}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-        <Text style={{ fontSize: 9, fontWeight: '700', color: MUTED, letterSpacing: 1.5 }}>DAILY REVENUE PACE</Text>
-        {hasBaseline && (
-          <View style={{
-            backgroundColor: isAhead ? '#DCFCE7' : '#FEF3C7', borderRadius: 8,
-            paddingHorizontal: 8, paddingVertical: 3,
-            borderWidth: 1, borderColor: isAhead ? '#86EFAC' : '#FCD34D',
-          }}>
-            <Text style={{ fontSize: 10, fontWeight: '700', color }}>{pacePct}% vs last Mon</Text>
-          </View>
-        )}
-      </View>
+// ── Hourly Insights Chart (Revenue + Sessions, 6 AM – 12 AM midnight) ────────
+const HOUR_START = 6;
+const HOUR_END   = 23;        // inclusive — 18 slots (6 AM … 11 PM; "12A" is boundary)
+const NUM_HOURS  = 18;        // HOUR_END - HOUR_START + 1
 
-      {!hasBaseline ? (
-        /* ── Building baseline state ── */
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 6 }}>
-          <Feather name="clock" size={16} color={MUTED} />
-          <View>
-            <Text style={{ fontSize: 13, fontWeight: '600', color: TEXT }}>Building baseline</Text>
-            <Text style={{ fontSize: 11, fontWeight: '400', color: MUTED }}>No last Monday data available yet</Text>
-          </View>
-        </View>
-      ) : (
-        /* ── Progress track ── */
-        <View>
-          <Svg width={W - 32} height={20} viewBox={`0 0 ${W - 32} 20`}>
-            <Defs>
-              <LinearGradient id="paceGrad" x1="0" y1="0" x2="1" y2="0">
-                <Stop offset="0" stopColor={color} stopOpacity="0.4" />
-                <Stop offset="1" stopColor={color} stopOpacity="1"   />
-              </LinearGradient>
-            </Defs>
-            <Rect x={0} y={6} width={W - 32} height={8} rx={4} fill={BORDER} />
-            {fillPct > 0 && (
-              <Rect x={0} y={6} width={(W - 32) * fillPct / 100} height={8} rx={4} fill="url(#paceGrad)" />
-            )}
-            {fillPct > 2 && fillPct < 100 && (
-              <Rect x={(W - 32) * fillPct / 100 - 3} y={4} width={6} height={12} rx={3} fill={color} opacity={0.9} />
-            )}
-            <Rect x={(W - 32) / 2 - 0.5} y={3} width={1} height={14} fill={MUTED} opacity={0.4} />
-          </Svg>
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 2 }}>
-            <Text style={{ fontSize: 8, color: MUTED }}>0%</Text>
-            <Text style={{ fontSize: 8, color: MUTED }}>Last Mon pace</Text>
-            <Text style={{ fontSize: 8, color: MUTED }}>200%</Text>
-          </View>
-        </View>
-      )}
+const BAR_W     = 13;
+const BAR_GAP   =  2;
+const GROUP_GAP =  8;
+const GROUP_W   = BAR_W * 2 + BAR_GAP + GROUP_GAP; // 36
+const CHART_H   = 110;
+const PAD_TOP   =   8;
+const SVG_H     = PAD_TOP + CHART_H;               // 118
+const SVG_W     = GROUP_GAP + NUM_HOURS * GROUP_W; // 656
 
-      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-        <View>
-          <Text style={{ fontSize: 8, fontWeight: '600', color: MUTED, letterSpacing: 1 }}>TODAY</Text>
-          <Text style={{ fontSize: 18, fontWeight: '700', color: TEXT }}>{fmtAUD(todayCents)}</Text>
-        </View>
-        {hasBaseline && projectedCents != null && projectedCents > 0 && (
-          <View style={{ alignItems: 'flex-end' }}>
-            <Text style={{ fontSize: 8, fontWeight: '600', color: MUTED, letterSpacing: 1 }}>PROJ. EOD</Text>
-            <Text style={{ fontSize: 18, fontWeight: '700', color }}>{fmtAUD(projectedCents)}</Text>
-          </View>
-        )}
-      </View>
-    </View>
-  );
+function hrLabel(h: number): string {
+  if (h === 0)  return '12A';
+  if (h === 12) return '12P';
+  return h > 12 ? `${h - 12}P` : `${h}A`;
 }
 
-// ── Hourly revenue bar chart (horizontal, 6 AM–10 PM, collapsible, tappable) ─
-const HOUR_START = 6;
-const HOUR_END   = 22; // inclusive
+function hrFull(h: number): string {
+  if (h === 0)  return '12 AM';
+  if (h === 12) return '12 PM';
+  return h > 12 ? `${h - 12} PM` : `${h} AM`;
+}
 
-function HourlyRevenueChart({ hours, onPressHour }: { hours: DirectorHourlyRevenue[]; onPressHour?: (hour: number) => void }) {
-  const [expanded, setExpanded] = useState(false);
+interface InsightsHour { hour: number; revenueCents: number }
+interface InsightsSess { hour: number; count: number }
 
-  const nowHour     = parseInt(new Intl.DateTimeFormat('en-AU', { hour: 'numeric', hour12: false, timeZone: 'Australia/Sydney' }).format(new Date()), 10);
-  const hoursWindow = hours.filter(h => h.hour >= HOUR_START && h.hour <= HOUR_END);
-  const maxRev      = Math.max(...hoursWindow.map(h => h.revenueCents), 1);
-  const totalRev    = hours.reduce((a, h) => a + h.revenueCents, 0);
+function HourlyInsightsChart({
+  hours,
+  sessions,
+  totalRevenueCents,
+  totalSessions,
+  liveCount,
+}: {
+  hours: InsightsHour[];
+  sessions: InsightsSess[];
+  totalRevenueCents: number;
+  totalSessions: number;
+  liveCount: number;
+}) {
+  const [selected, setSelected] = useState<number | null>(null);
+
+  const nowHour = parseInt(
+    new Intl.DateTimeFormat('en-AU', {
+      hour: 'numeric', hour12: false, timeZone: 'Australia/Sydney',
+    }).format(new Date()),
+    10,
+  );
+
+  const maxRev  = Math.max(...hours.filter(h => h.hour >= HOUR_START && h.hour <= HOUR_END).map(h => h.revenueCents), 1);
+  const maxSess = Math.max(...sessions.filter(s => s.hour >= HOUR_START && s.hour <= HOUR_END).map(s => s.count), 1);
+
+  const revMap:  Record<number, number> = {};
+  const sessMap: Record<number, number> = {};
+  hours.forEach(h    => { revMap[h.hour]  = h.revenueCents; });
+  sessions.forEach(s => { sessMap[s.hour] = s.count; });
 
   return (
     <View style={{
       backgroundColor: CARD, borderRadius: 20, borderWidth: 1,
       borderColor: BORDER, overflow: 'hidden', ...GLASS_SHADOW,
     }}>
-      <TouchableOpacity
-        onPress={() => setExpanded(e => !e)}
-        activeOpacity={0.75}
-        style={{
-          flexDirection: 'row', justifyContent: 'space-between',
-          alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14,
-        }}
-      >
-        <Text style={{ fontSize: 9, fontWeight: '700', color: BLUE, letterSpacing: 1.5 }}>REVENUE BY HOUR</Text>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-          <Text style={{ fontSize: 11, fontWeight: '700', color: TEXT }}>{fmtAUD(totalRev)}</Text>
-          <Feather name={expanded ? 'chevron-up' : 'chevron-down'} size={14} color={MUTED} />
-        </View>
-      </TouchableOpacity>
-
-      {/* Collapsible chart body — View-based rows for touch support */}
-      {expanded && (
-        <View style={{ paddingHorizontal: 16, paddingBottom: 14, gap: 2 }}>
-          {hoursWindow.map((h) => {
-            const barPct     = h.revenueCents > 0 ? Math.max((h.revenueCents / maxRev) * 100, 1.5) : 0;
-            const isCurrent  = h.hour === nowHour;
-            const isPast     = h.hour < nowHour;
-            const label      = h.hour === 0 ? '12A' : h.hour === 12 ? '12P' : h.hour > 12 ? `${h.hour - 12}P` : `${h.hour}A`;
-            const barColor   = isCurrent ? GREEN : isPast ? BLUE : BORDER;
-            const labelColor = isCurrent ? GREEN : MUTED;
-            const valColor   = isCurrent ? GREEN : isPast ? BLUE : MUTED;
-            const valStr     = h.revenueCents > 0 ? `$${(h.revenueCents / 100).toFixed(0)}` : '';
-            const canTap     = onPressHour && (isPast || isCurrent) && h.revenueCents > 0;
-
-            return (
-              <TouchableOpacity
-                key={h.hour}
-                activeOpacity={canTap ? 0.65 : 1}
-                onPress={canTap ? () => { Haptics.selectionAsync(); onPressHour!(h.hour); } : undefined}
-                style={{ flexDirection: 'row', alignItems: 'center', gap: 6, height: 22 }}
-              >
-                {/* Hour label */}
-                <Text style={{ width: 26, fontSize: 8, color: labelColor, fontWeight: isCurrent ? '700' : '400', textAlign: 'right' }}>
-                  {label}
-                </Text>
-                {/* Bar track + fill */}
-                <View style={{ flex: 1, height: 8, backgroundColor: BORDER, borderRadius: 3, opacity: 0.6 }}>
-                  {barPct > 0 && (
-                    <View style={{
-                      width: `${barPct}%`, height: '100%', borderRadius: 3,
-                      backgroundColor: barColor,
-                      opacity: isCurrent ? 1 : isPast ? 0.85 : 0.4,
-                    }} />
-                  )}
-                </View>
-                {/* Value + NOW chip + drill caret */}
-                <View style={{ width: 56, flexDirection: 'row', alignItems: 'center', gap: 3 }}>
-                  {valStr !== '' && (
-                    <Text style={{ fontSize: 8, color: valColor, fontWeight: '600' }}>{valStr}</Text>
-                  )}
-                  {isCurrent && (
-                    <View style={{ backgroundColor: GREEN + '22', borderRadius: 4, paddingHorizontal: 3, paddingVertical: 1 }}>
-                      <Text style={{ fontSize: 7, color: GREEN, fontWeight: '700' }}>NOW</Text>
-                    </View>
-                  )}
-                  {canTap && (
-                    <Feather name="chevron-right" size={9} color={valColor} style={{ marginLeft: 'auto' }} />
-                  )}
-                </View>
-              </TouchableOpacity>
-            );
-          })}
-          <Text style={{ fontSize: 8, color: MUTED, marginTop: 4 }}>
-            6 AM – 10 PM window · tap a bar to see its orders
+      {/* ── Header ── */}
+      <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingTop: 14, paddingBottom: 8 }}>
+        <View style={{ flex: 1 }}>
+          <Text style={{ fontSize: 9, fontWeight: '700', color: BLUE, letterSpacing: 1.5 }}>REVENUE TODAY</Text>
+          <Text style={{ fontSize: 22, fontWeight: '700', color: TEXT, letterSpacing: -0.5, marginTop: 2 }}>
+            {fmtAUD(totalRevenueCents)}
           </Text>
         </View>
-      )}
-    </View>
-  );
-}
-
-// ── Top sellers strip ─────────────────────────────────────────────────────────
-function TopSellersStrip({ products, onPressProduct }: { products: DirectorTopProduct[]; onPressProduct?: (name: string) => void }) {
-  const maxUnits = Math.max(...products.map(p => p.units), 1);
-  const rankColors = [BLUE, AMBER, PURPLE];
-
-  return (
-    <View style={{
-      backgroundColor: CARD, borderRadius: 20, borderWidth: 1,
-      borderColor: BORDER, paddingHorizontal: 16, paddingVertical: 14, gap: 14,
-      ...GLASS_SHADOW,
-    }}>
-      <Text style={{ fontSize: 9, fontWeight: '700', color: MUTED, letterSpacing: 1.5 }}>TOP SELLERS TODAY</Text>
-
-      {products.length === 0 ? (
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 6 }}>
-          <Feather name="package" size={16} color={MUTED} />
-          <Text style={{ fontSize: 13, fontWeight: '500', color: MUTED }}>No sales yet today</Text>
+        <View style={{ width: 1, height: 38, backgroundColor: BORDER, marginHorizontal: 14 }} />
+        <View style={{ flex: 1 }}>
+          <Text style={{ fontSize: 9, fontWeight: '700', color: GREEN, letterSpacing: 1.5 }}>SESSIONS TODAY</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 }}>
+            <Text style={{ fontSize: 22, fontWeight: '700', color: TEXT, letterSpacing: -0.5 }}>{totalSessions}</Text>
+            {liveCount > 0 && (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: GREEN + '22', borderRadius: 8, paddingHorizontal: 6, paddingVertical: 2 }}>
+                <View style={{ width: 5, height: 5, borderRadius: 3, backgroundColor: GREEN }} />
+                <Text style={{ fontSize: 9, fontWeight: '700', color: GREEN }}>{liveCount} LIVE</Text>
+              </View>
+            )}
+          </View>
         </View>
-      ) : null}
+      </View>
 
-      {products.map((p, i) => {
-        const fillPct = Math.round((p.units / maxUnits) * 100);
-        const c = rankColors[i] ?? MUTED;
-        const W = 200;
+      {/* ── Legend ── */}
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14, paddingHorizontal: 16, paddingBottom: 10 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+          <View style={{ width: 8, height: 8, borderRadius: 2, backgroundColor: BLUE }} />
+          <Text style={{ fontSize: 10, color: MUTED, fontWeight: '500' }}>Revenue</Text>
+        </View>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+          <View style={{ width: 8, height: 8, borderRadius: 2, backgroundColor: GREEN }} />
+          <Text style={{ fontSize: 10, color: MUTED, fontWeight: '500' }}>Sessions</Text>
+        </View>
+      </View>
 
-        return (
-          <TouchableOpacity
-            key={p.name}
-            activeOpacity={onPressProduct ? 0.7 : 1}
-            onPress={onPressProduct ? () => { Haptics.selectionAsync(); onPressProduct(p.name); } : undefined}
-            style={{ gap: 6 }}
-          >
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+      {/* ── Scrollable grouped-bar chart ── */}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={{ marginBottom: 14 }}
+        contentContainerStyle={{ paddingHorizontal: 4 }}
+      >
+        <View style={{ width: SVG_W, height: SVG_H + 22, position: 'relative' }}>
+
+          {/* SVG bar shapes — Rect only, no SvgText */}
+          <Svg width={SVG_W} height={SVG_H}>
+            <Line x1={0} y1={PAD_TOP + CHART_H} x2={SVG_W} y2={PAD_TOP + CHART_H} stroke={BORDER} strokeWidth={1} />
+            {Array.from({ length: NUM_HOURS }, (_, i) => {
+              const h          = HOUR_START + i;
+              const rev        = revMap[h]  ?? 0;
+              const sess       = sessMap[h] ?? 0;
+              const isCurrent  = h === nowHour;
+              const isPast     = h < nowHour;
+              const xRev       = GROUP_GAP / 2 + i * GROUP_W;
+              const xSess      = xRev + BAR_W + BAR_GAP;
+              const revH       = rev  > 0 ? Math.max((rev  / maxRev)  * CHART_H, 4) : 0;
+              const sessH      = sess > 0 ? Math.max((sess / maxSess) * CHART_H, 4) : 0;
+              const revOp      = isCurrent ? 1 : isPast ? 0.85 : 0.15;
+              const sessOp     = isCurrent ? 1 : isPast ? 0.85 : 0.15;
+              const isSelected = selected === i;
+              return (
+                <React.Fragment key={h}>
+                  {(isSelected || isCurrent) && (
+                    <Rect
+                      x={xRev - 3} y={PAD_TOP + 2}
+                      width={BAR_W * 2 + BAR_GAP + 6} height={CHART_H - 2}
+                      rx={4} fill={isSelected ? BLUE : GREEN}
+                      opacity={isSelected ? 0.1 : 0.06}
+                    />
+                  )}
+                  {revH > 0 && (
+                    <Rect x={xRev} y={PAD_TOP + CHART_H - revH} width={BAR_W} height={revH} rx={3} fill={BLUE} opacity={revOp} />
+                  )}
+                  {sessH > 0 && (
+                    <Rect x={xSess} y={PAD_TOP + CHART_H - sessH} width={BAR_W} height={sessH} rx={3} fill={GREEN} opacity={sessOp} />
+                  )}
+                </React.Fragment>
+              );
+            })}
+          </Svg>
+
+          {/* Tap targets per group (RN Pressable, not SVG) */}
+          {Array.from({ length: NUM_HOURS }, (_, i) => {
+            const xRev = GROUP_GAP / 2 + i * GROUP_W;
+            return (
+              <Pressable
+                key={i}
+                onPress={() => { Haptics.selectionAsync(); setSelected(s => s === i ? null : i); }}
+                style={{ position: 'absolute', left: xRev - 3, top: 0, width: BAR_W * 2 + BAR_GAP + 6, height: SVG_H }}
+              />
+            );
+          })}
+
+          {/* Hour labels — RN Text, never SvgText (SvgText crashes TestFlight) */}
+          {Array.from({ length: NUM_HOURS }, (_, i) => {
+            const h          = HOUR_START + i;
+            const isCurrent  = h === nowHour;
+            const isSelected = selected === i;
+            const xRev       = GROUP_GAP / 2 + i * GROUP_W;
+            const cx         = xRev + (BAR_W * 2 + BAR_GAP) / 2;
+            return (
+              <Text
+                key={h}
+                style={{
+                  position: 'absolute', left: cx - 10, top: SVG_H + 3,
+                  width: 20, textAlign: 'center',
+                  fontSize: 8,
+                  fontWeight: isCurrent ? '700' : '400',
+                  color: isSelected ? BLUE : isCurrent ? GREEN : MUTED,
+                }}
+              >
+                {hrLabel(h)}
+              </Text>
+            );
+          })}
+          {/* "12A" boundary marker at right edge */}
+          <Text style={{
+            position: 'absolute',
+            left: GROUP_GAP / 2 + NUM_HOURS * GROUP_W - 10,
+            top: SVG_H + 3,
+            width: 20, textAlign: 'center',
+            fontSize: 8, color: MUTED,
+          }}>
+            12A
+          </Text>
+
+          {/* Floating callout (RN View + Text) */}
+          {selected !== null && (() => {
+            const h    = HOUR_START + selected;
+            const rev  = revMap[h]  ?? 0;
+            const sess = sessMap[h] ?? 0;
+            const xRev = GROUP_GAP / 2 + selected * GROUP_W;
+            const cw   = 112;
+            const cl   = Math.max(0, Math.min(
+              xRev - cw / 2 + (BAR_W * 2 + BAR_GAP) / 2,
+              SVG_W - cw - 4,
+            ));
+            return (
               <View style={{
-                width: 26, height: 26, borderRadius: 8, alignItems: 'center', justifyContent: 'center',
-                backgroundColor: c + '18', borderWidth: 1, borderColor: c + '44',
+                position: 'absolute', left: cl, top: 4,
+                width: cw, backgroundColor: NAVY, borderRadius: 10,
+                padding: 9, gap: 5,
+                shadowColor: '#000', shadowOffset: { width: 0, height: 4 },
+                shadowOpacity: 0.28, shadowRadius: 8, elevation: 9, zIndex: 100,
               }}>
-                <Text style={{ fontSize: 11, fontWeight: '800', color: c }}>#{i + 1}</Text>
-              </View>
-              <Text style={{ fontSize: 13, fontWeight: '600', color: TEXT, flex: 1 }} numberOfLines={1}>{p.name}</Text>
-              <View style={{ alignItems: 'flex-end', flexDirection: 'row', gap: 6 }}>
-                <View style={{ alignItems: 'flex-end' }}>
-                  <Text style={{ fontSize: 13, fontWeight: '700', color: c }}>{p.units} sold</Text>
-                  <Text style={{ fontSize: 10, fontWeight: '400', color: MUTED }}>{fmtAUD(p.revenueCents)}</Text>
+                <Text style={{ fontSize: 10, fontWeight: '700', color: 'rgba(255,255,255,0.55)', letterSpacing: 0.4 }}>
+                  {hrFull(h)}
+                </Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <View style={{ width: 6, height: 6, borderRadius: 1, backgroundColor: BLUE }} />
+                  <Text style={{ fontSize: 14, fontWeight: '700', color: '#fff' }}>{fmtAUD(rev)}</Text>
                 </View>
-                {onPressProduct && (
-                  <View style={{ backgroundColor: c + '18', borderRadius: 6, padding: 4, alignSelf: 'center' }}>
-                    <Feather name="chevron-right" size={11} color={c} />
-                  </View>
-                )}
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <View style={{ width: 6, height: 6, borderRadius: 1, backgroundColor: GREEN }} />
+                  <Text style={{ fontSize: 14, fontWeight: '700', color: '#fff' }}>{sess} session{sess !== 1 ? 's' : ''}</Text>
+                </View>
               </View>
-            </View>
-            <Svg width="100%" height={6} viewBox={`0 0 ${W} 6`}>
-              <Defs>
-                <LinearGradient id={`rankGrad${i}`} x1="0" y1="0" x2="1" y2="0">
-                  <Stop offset="0" stopColor={c} stopOpacity="0.3" />
-                  <Stop offset="1" stopColor={c} stopOpacity="0.9" />
-                </LinearGradient>
-              </Defs>
-              <Rect x={0} y={0} width={W} height={6} rx={3} fill={BORDER} />
-              <Rect x={0} y={0} width={W * fillPct / 100} height={6} rx={3} fill={`url(#rankGrad${i})`} />
-            </Svg>
-          </TouchableOpacity>
-        );
-      })}
+            );
+          })()}
+        </View>
+      </ScrollView>
     </View>
   );
 }
+
 
 // ── Director/Master dashboard ─────────────────────────────────────────────────
 function DirectorDashboardInner() {
@@ -658,23 +495,9 @@ function DirectorDashboardInner() {
     placeholderData: keepPreviousData,
   });
 
-  const { data: sessionsData, refetch: refetchSessions } = useQuery({
-    queryKey: ['director-sessions'],
-    queryFn: () => api.director.sessions(),
-    refetchInterval: 60000,
-    placeholderData: keepPreviousData,
-  });
-
-  const { data: hourlyData, refetch: refetchHourly } = useQuery({
-    queryKey: ['director-hourly-revenue'],
-    queryFn: () => api.director.hourlyRevenue(),
-    refetchInterval: 30000,
-    placeholderData: keepPreviousData,
-  });
-
-  const { data: topProductsData, refetch: refetchTopProducts } = useQuery({
-    queryKey: ['director-top-products'],
-    queryFn: () => api.director.topProducts(),
+  const { data: insightsData, refetch: refetchInsights } = useQuery({
+    queryKey: ['director-insights'],
+    queryFn: () => api.director.insights(),
     refetchInterval: 30000,
     placeholderData: keepPreviousData,
   });
@@ -699,14 +522,12 @@ function DirectorDashboardInner() {
 
   const s        = data?.data;
   const activity: any[] = activityData?.data ?? [];
-  const sess     = sessionsData?.data;
-  const hourly   = hourlyData?.data ?? [];
-  const topProducts = topProductsData?.data ?? [];
+  const insights = insightsData?.data;
   const hasAlerts = (s?.users.pendingStaff ?? 0) > 0 || (s?.users.pendingWholesale ?? 0) > 0 || (s?.issues.high ?? 0) > 0;
 
   const scrollRef = useRef(null);
   useScrollToTop(scrollRef);
-  const { refreshing, onRefresh } = useRefreshControl(refetch, refetchActivity, refetchSessions, refetchHourly, refetchTopProducts);
+  const { refreshing, onRefresh } = useRefreshControl(refetch, refetchActivity, refetchInsights);
 
   return (
     <ScrollView
@@ -865,25 +686,16 @@ function DirectorDashboardInner() {
               />
             )}
 
-            {/* ── Daily revenue pace ──────────────────────────── */}
-            {s && (
-              <DailyPaceBar
-                todayCents={s.revenue.today}
-                pacePct={s.revenue.dailyPacePct}
-                projectedCents={s.revenue.projectedEodCents}
-              />
-            )}
-
-            {/* ── Sessions chart ───────────────────────────────── */}
+            {/* ── Hourly Insights (Revenue + Sessions) ────────── */}
             <View>
-              <Text style={[styles.sectionTitle, { fontWeight: '600' }]}>APP SESSIONS · TODAY</Text>
-              {sess ? (
-                <SessionsChart
-                  today={sess.today}
-                  lastWeek={sess.lastWeek}
-                  totalToday={sess.totalToday}
-                  pctChange={sess.pctChange}
-                  liveCount={sess.liveCount}
+              <Text style={[styles.sectionTitle, { fontWeight: '600' }]}>HOURLY INSIGHTS · TODAY</Text>
+              {insights ? (
+                <HourlyInsightsChart
+                  hours={insights.hourly}
+                  sessions={insights.sessions}
+                  totalRevenueCents={insights.totalRevenueCents}
+                  totalSessions={insights.totalSessions}
+                  liveCount={insights.liveCount}
                 />
               ) : (
                 <View style={[styles.emptyCard, { paddingVertical: 28 }]}>
@@ -891,24 +703,6 @@ function DirectorDashboardInner() {
                 </View>
               )}
             </View>
-
-            {/* ── Hourly revenue chart ─────────────────────────── */}
-            {hourly.length > 0 && (
-              <HourlyRevenueChart
-                hours={hourly}
-                onPressHour={(hour) => {
-                  router.push({ pathname: '/(director)/orders', params: { drillMode: 'hour', drillValue: String(hour) } } as any);
-                }}
-              />
-            )}
-
-            {/* ── Top sellers ──────────────────────────────────── */}
-            <TopSellersStrip
-              products={topProducts}
-              onPressProduct={(name) => {
-                router.push({ pathname: '/(director)/orders', params: { drillMode: 'product', drillValue: name } } as any);
-              }}
-            />
 
             {/* ── Urgent alerts ─────────────────────────────────── */}
             {hasAlerts && (
@@ -1082,18 +876,6 @@ const qa = StyleSheet.create({
   label: { fontSize: 10, fontWeight: '500', textAlign: 'center' },
 });
 
-const ch = StyleSheet.create({
-  card:       { backgroundColor: GLASS_BG, borderColor: GLASS_BORDER, borderRadius: 20, borderWidth: 1, padding: 16, overflow: 'hidden', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 14, elevation: 3 },
-  statsRow:   { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 16 },
-  statBlock:  { flex: 1, gap: 3 },
-  statLabel:  { fontSize: 11, fontWeight: '400', color: MUTED },
-  statVal:    { fontSize: 22, fontWeight: '700', color: TEXT },
-  pct:        { fontSize: 12, fontWeight: '600' },
-  divider:    { width: 1, backgroundColor: BORDER, marginHorizontal: 12, height: 44, marginTop: 4 },
-  liveDot:    { width: 7, height: 7, borderRadius: 4, backgroundColor: GREEN },
-  legendDash: { width: 14, height: 0, borderTopWidth: 1.5, borderStyle: 'dashed' },
-  sub:        { fontSize: 10, fontWeight: '400', color: MUTED, marginTop: 6, textAlign: 'center' },
-});
 
 // ── Role-aware wrapper ─────────────────────────────────────────────────────────
 const BADGE_LABEL: Record<string, string> = {

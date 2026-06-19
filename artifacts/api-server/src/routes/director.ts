@@ -71,7 +71,7 @@ function resolveDirectorPermission(method: string, path: string): ManagerPermiss
   if (path === '/shop-displays' || path.startsWith('/shop-displays/')) return 'director_only';
 
   // Dashboard stats + activity feed
-  if (path === '/stats' || path === '/stats/revenue' || path === '/stats/hourly-revenue' || path === '/stats/top-products' || path === '/sessions') return 'dashboard';
+  if (path === '/stats' || path === '/stats/revenue' || path === '/stats/hourly-revenue' || path === '/stats/top-products' || path === '/stats/insights' || path === '/sessions') return 'dashboard';
   if (path === '/activity') return 'dashboard';
   // Deleted accounts — director/master only
   if (path.startsWith('/deleted-accounts')) return 'director_only';
@@ -463,6 +463,60 @@ router.get('/stats/top-products', async (req, res) => {
   } catch (e) {
     req.log.error(e, 'top-products error');
     return res.status(500).json({ error: 'Failed to load top products' });
+  }
+});
+
+// ── Hourly insights (combined revenue + sessions) ─────────────────────────────
+router.get('/stats/insights', async (req, res) => {
+  try {
+    const now        = new Date();
+    const startOfDay = sydneyStartOfDay(now);
+    const endOfDay   = new Date(startOfDay.getTime() + 24 * 60 * 60 * 1000);
+
+    const [revenueResult, todayOrders, todayLogins] = await Promise.all([
+      db.execute(sql`
+        SELECT
+          EXTRACT(HOUR FROM created_at::timestamptz AT TIME ZONE 'Australia/Sydney')::int AS hour,
+          COALESCE(SUM(total_cents), 0)::bigint AS revenue_cents
+        FROM orders
+        WHERE created_at >= ${startOfDay}
+          AND created_at  < ${endOfDay}
+          AND status NOT IN ('cancelled','refunded','voided')
+        GROUP BY hour
+        ORDER BY hour
+      `),
+      db.select({ createdAt: ordersTable.createdAt }).from(ordersTable)
+        .where(gte(ordersTable.createdAt, startOfDay)),
+      db.select({ lastLogin: usersTable.lastLogin }).from(usersTable)
+        .where(and(isNotNull(usersTable.lastLogin), gte(usersTable.lastLogin as any, startOfDay))),
+    ]);
+
+    // Revenue by hour
+    const revRows = ((revenueResult as any).rows ?? []) as Array<{ hour: number; revenue_cents: string | number }>;
+    const revMap  = Object.fromEntries(revRows.map(r => [Number(r.hour), Number(r.revenue_cents)]));
+    const hourly  = Array.from({ length: 24 }, (_, h) => ({ hour: h, revenueCents: revMap[h] ?? 0 }));
+    const totalRevenueCents = hourly.reduce((a, h) => a + h.revenueCents, 0);
+
+    // Sessions by hour (orders + logins today)
+    const sydneyHour = (ts: Date | string): number =>
+      parseInt(new Date(ts).toLocaleString('en-US', { timeZone: 'Australia/Sydney', hour: 'numeric', hour12: false }), 10);
+
+    const sessByHour = new Array(24).fill(0);
+    for (const o of todayOrders) sessByHour[sydneyHour(o.createdAt)]++;
+    for (const u of todayLogins) if (u.lastLogin) sessByHour[sydneyHour(u.lastLogin)]++;
+
+    const sessions      = sessByHour.map((count, hour) => ({ hour, count }));
+    const totalSessions = sessByHour.reduce((a, b) => a + b, 0);
+    const liveCount     = todayLogins.filter(u =>
+      u.lastLogin && (Date.now() - new Date(u.lastLogin).getTime()) < 30 * 60 * 1000,
+    ).length;
+
+    return res.json({
+      data: { hourly, sessions, totalRevenueCents, totalSessions, liveCount },
+    });
+  } catch (e) {
+    req.log.error(e, 'insights error');
+    return res.status(500).json({ error: 'Failed to load insights' });
   }
 });
 
