@@ -417,7 +417,7 @@ export default function VaultScreen() {
 
       {/* ── Recipes view ── */}
       {view === 'Recipes' && (
-        <>
+        <ScrollView style={{ flex: 1 }} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: insets.bottom + 24 }}>
           {/* Stats strip */}
           <View style={s.statsStrip}>
             <View style={s.statItem}>
@@ -449,7 +449,7 @@ export default function VaultScreen() {
           </View>
 
           {/* Category chips */}
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.catScrollWrap} contentContainerStyle={s.catScroll}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.catScroll}>
             {['all', ...categories].map(cat => (
               <Pressable
                 key={cat}
@@ -463,66 +463,67 @@ export default function VaultScreen() {
             ))}
           </ScrollView>
 
-          <ScrollView contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 8, paddingBottom: insets.bottom + 24, gap: 12 }}>
-              {filtered.length === 0 && !isLoading && (
-                <View style={{ alignItems: 'center', paddingVertical: 48, gap: 10 }}>
-                  <Feather name="book-open" size={32} color={MUTED} />
-                  <Text style={{ color: MUTED, fontSize: 15 }}>No recipes found</Text>
-                  <Pressable
-                    onPress={() => router.push('/director-vault-recipe-edit' as any)}
-                    style={s.emptyAddBtn}
-                  >
-                    <Text style={{ color: GOLD, fontWeight: '600' }}>+ Add First Recipe</Text>
-                  </Pressable>
-                </View>
-              )}
-
-              {filtered.map(recipe => (
+          {/* Recipe cards */}
+          <View style={{ paddingHorizontal: 16, paddingTop: 8, gap: 12 }}>
+            {filtered.length === 0 && !isLoading && (
+              <View style={{ alignItems: 'center', paddingVertical: 48, gap: 10 }}>
+                <Feather name="book-open" size={32} color={MUTED} />
+                <Text style={{ color: MUTED, fontSize: 15 }}>No recipes found</Text>
                 <Pressable
-                  key={recipe.id}
-                  onPress={() => {
-                    Haptics.selectionAsync();
-                    router.push({ pathname: '/director-vault-recipe', params: { id: recipe.id } } as any);
-                  }}
-                  style={({ pressed }) => [s.recipeCard, pressed && { opacity: 0.85 }]}
+                  onPress={() => router.push('/director-vault-recipe-edit' as any)}
+                  style={s.emptyAddBtn}
                 >
-                  <View style={{ flex: 1, padding: 14, gap: 6 }}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                      <Text style={s.recipeName} numberOfLines={1}>{recipe.name}</Text>
-                      <Feather name="chevron-right" size={16} color={MUTED} />
-                    </View>
-                    <View style={{ flexDirection: 'row', gap: 12 }}>
-                      <View style={[s.badge, { backgroundColor: GOLD_BG, borderColor: GOLD + '55' }]}>
-                        <Text style={[s.badgeText, { color: GOLD }]}>
-                          {recipe.category.charAt(0).toUpperCase() + recipe.category.slice(1)}
-                        </Text>
-                      </View>
-                      <Text style={s.recipeMetaText}>
-                        {recipe.yieldCount} {recipe.yieldUnit}
+                  <Text style={{ color: GOLD, fontWeight: '600' }}>+ Add First Recipe</Text>
+                </Pressable>
+              </View>
+            )}
+
+            {filtered.map(recipe => (
+              <Pressable
+                key={recipe.id}
+                onPress={() => {
+                  Haptics.selectionAsync();
+                  router.push({ pathname: '/director-vault-recipe', params: { id: recipe.id } } as any);
+                }}
+                style={({ pressed }) => [s.recipeCard, pressed && { opacity: 0.85 }]}
+              >
+                <View style={{ padding: 14, gap: 6 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <Text style={s.recipeName} numberOfLines={1}>{recipe.name}</Text>
+                    <Feather name="chevron-right" size={16} color={MUTED} />
+                  </View>
+                  <View style={{ flexDirection: 'row', gap: 12 }}>
+                    <View style={[s.badge, { backgroundColor: GOLD_BG, borderColor: GOLD + '55' }]}>
+                      <Text style={[s.badgeText, { color: GOLD }]}>
+                        {recipe.category.charAt(0).toUpperCase() + recipe.category.slice(1)}
                       </Text>
-                      {recipe.ingredientCount > 0 && (
-                        <Text style={s.recipeMetaText}>{recipe.ingredientCount} ingredients</Text>
-                      )}
                     </View>
-                    {recipe.totalCostCents > 0 && (
-                      <Text style={{ fontSize: 13, fontWeight: '700', color: GOLD }}>
-                        Batch cost ${(recipe.totalCostCents / 100).toFixed(2)}
-                      </Text>
+                    <Text style={s.recipeMetaText}>
+                      {recipe.yieldCount} {recipe.yieldUnit}
+                    </Text>
+                    {recipe.ingredientCount > 0 && (
+                      <Text style={s.recipeMetaText}>{recipe.ingredientCount} ingredients</Text>
                     )}
                   </View>
-                </Pressable>
-              ))}
-
-              <Pressable
-                onPress={() => setShowArchived(a => !a)}
-                style={{ alignSelf: 'center', padding: 12 }}
-              >
-                <Text style={{ color: MUTED, fontSize: 12 }}>
-                  {showArchived ? 'Hide archived' : 'Show archived'}
-                </Text>
+                  {recipe.totalCostCents > 0 && (
+                    <Text style={{ fontSize: 13, fontWeight: '700', color: GOLD }}>
+                      Batch cost ${(recipe.totalCostCents / 100).toFixed(2)}
+                    </Text>
+                  )}
+                </View>
               </Pressable>
-          </ScrollView>
-        </>
+            ))}
+
+            <Pressable
+              onPress={() => setShowArchived(a => !a)}
+              style={{ alignSelf: 'center', padding: 12 }}
+            >
+              <Text style={{ color: MUTED, fontSize: 12 }}>
+                {showArchived ? 'Hide archived' : 'Show archived'}
+              </Text>
+            </Pressable>
+          </View>
+        </ScrollView>
       )}
 
       {/* ── Settings view ── */}
@@ -602,8 +603,7 @@ const s = StyleSheet.create({
   searchRow: { flexDirection: 'row', alignItems: 'center', marginHorizontal: 16, marginTop: 6, backgroundColor: SURFACE, borderRadius: 10, borderWidth: 1, borderColor: BORD, height: 40, gap: 8 },
   searchInput: { flex: 1, fontSize: 14, color: TEXT, paddingRight: 12 },
 
-  catScrollWrap: { height: 36 },
-  catScroll: { paddingHorizontal: 16, alignItems: 'center', gap: 8 },
+  catScroll: { paddingHorizontal: 16, paddingVertical: 6, gap: 8, alignItems: 'center' },
   catChip: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20, borderWidth: 1, backgroundColor: SURFACE, borderColor: BORD },
   catChipText: { fontSize: 13, fontWeight: '500', color: MUTED },
 
