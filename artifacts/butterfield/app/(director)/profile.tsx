@@ -10,6 +10,7 @@ import {
 
 import { AvatarPicker } from '@/components/AvatarPicker';
 import { InternalGlassCard } from '@/components/InternalGlass';
+import { DirectorTabScreen } from '@/components/DirectorTabScreen';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/context/AuthContext';
 import { api } from '@/lib/api';
@@ -17,7 +18,7 @@ import { api } from '@/lib/api';
 const BG     = '#EFF6FF';
 const CARD   = '#FFFFFF';
 const BLUE   = '#1493FF';
-const RED    = '#F40009';
+const RED    = '#EF4444';
 const TEXT   = '#1C1C1E';
 const MUTED  = '#8E8E93';
 
@@ -61,10 +62,8 @@ export default function StaffProfileScreen() {
   ];
 
   return (
-    <ScrollView style={{ flex: 1, backgroundColor: BG }} contentContainerStyle={{ paddingBottom: 120 }} showsVerticalScrollIndicator={false}>
-      <View style={[styles.topSection, { paddingTop: 16 }]}>
-        <Text style={[styles.screenTitle, { color: TEXT }]}>Profile</Text>
-      </View>
+    <DirectorTabScreen title="Profile">
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 120 }} showsVerticalScrollIndicator={false}>
 
       <View style={{ paddingHorizontal: 20, gap: 16, paddingTop: 8 }}>
 
@@ -143,7 +142,8 @@ export default function StaffProfileScreen() {
 
         <Text style={[styles.version, { color: MUTED }]}>Butterfield Staff · Version {Constants.expoConfig?.version ?? '—'}</Text>
       </View>
-    </ScrollView>
+      </ScrollView>
+    </DirectorTabScreen>
   );
 }
 

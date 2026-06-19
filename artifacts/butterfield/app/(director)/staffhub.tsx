@@ -23,8 +23,7 @@ import {
 } from '@/lib/api';
 import { INTERNAL_GLASS_BG, INTERNAL_GLASS_BORDER } from '@/components/InternalGlass';
 import { useRefreshControl } from '@/hooks/useRefreshControl';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useLayoutHandledSafeArea } from '@/context/LayoutSafeAreaContext';
+import { DirectorStandaloneScreen } from '@/components/DirectorStandaloneScreen';
 
 const BG     = '#EFF6FF';
 const CARD   = '#FFFFFF';
@@ -32,7 +31,7 @@ const TEXT   = '#1C1C1E';
 const MUTED  = '#8E8E93';
 const BORDER = '#E5E7EB';
 const BLUE   = '#1493FF';
-const RED    = '#F40009';
+const RED    = '#EF4444';
 const AMBER  = '#F59E0B';
 const GREEN  = '#22C55E';
 const PURPLE = '#8B5CF6';
@@ -1448,8 +1447,6 @@ function FeedbackTab() {
 // MAIN SCREEN
 // ══════════════════════════════════════════════════════════════════════════════
 export default function StaffHubScreen() {
-  const insets = useSafeAreaInsets();
-  const layoutHandledSA = useLayoutHandledSafeArea();
   const { user } = useAuth();
   const params = useLocalSearchParams<{ tab?: Tab; initialTab?: Tab }>();
   const isManager = user?.role === 'manager' || user?.role === 'master' || user?.role === 'director';
@@ -1490,32 +1487,26 @@ export default function StaffHubScreen() {
   const showManagerContent = isManager && manageMode;
 
   return (
-    <View style={{ flex: 1, backgroundColor: BG }}>
-      {/* ── Header ── */}
-      <View style={[s.header, { paddingTop: layoutHandledSA ? 16 : insets.top + 16 }]}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-          <View>
-            <Text style={s.title}>Staff Hub</Text>
-            <Text style={s.subtitle}>{showManagerContent ? 'Manage your team' : 'Your shift tools'}</Text>
-          </View>
-          {isManager && (
-            <View style={s.modeToggle}>
-              <Pressable
-                onPress={() => { Haptics.selectionAsync(); setManageMode(false); }}
-                style={[s.modeBtn, !manageMode && s.modeBtnActive]}
-              >
-                <Text style={[s.modeBtnText, !manageMode && { color: '#fff' }]}>My Shift</Text>
-              </Pressable>
-              <Pressable
-                onPress={() => { Haptics.selectionAsync(); setManageMode(true); }}
-                style={[s.modeBtn, manageMode && s.modeBtnActive]}
-              >
-                <Text style={[s.modeBtnText, manageMode && { color: '#fff' }]}>Manage</Text>
-              </Pressable>
-            </View>
-          )}
+    <DirectorStandaloneScreen
+      title="Staff Hub"
+      subtitle={showManagerContent ? 'Manage your team' : 'Your shift tools'}
+      headerRight={isManager ? (
+        <View style={s.modeToggle}>
+          <Pressable
+            onPress={() => { Haptics.selectionAsync(); setManageMode(false); }}
+            style={[s.modeBtn, !manageMode && s.modeBtnActive]}
+          >
+            <Text style={[s.modeBtnText, !manageMode && { color: '#fff' }]}>My Shift</Text>
+          </Pressable>
+          <Pressable
+            onPress={() => { Haptics.selectionAsync(); setManageMode(true); }}
+            style={[s.modeBtn, manageMode && s.modeBtnActive]}
+          >
+            <Text style={[s.modeBtnText, manageMode && { color: '#fff' }]}>Manage</Text>
+          </Pressable>
         </View>
-      </View>
+      ) : undefined}
+    >
 
       {/* ── Tab bar (scrollable pills) ── */}
       <ScrollView
@@ -1547,7 +1538,7 @@ export default function StaffHubScreen() {
         {activeTab === 'leave'    && (showManagerContent ? <ManagerLeaveTab />   : <StaffLeaveTab />)}
         {activeTab === 'feedback' && showManagerContent  && <FeedbackTab />}
       </KeyboardAvoidingView>
-    </View>
+    </DirectorStandaloneScreen>
   );
 }
 

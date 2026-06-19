@@ -11,6 +11,7 @@ import { useAuth } from '@/context/AuthContext';
 import { api } from '@/lib/api';
 import { InternalGlassCard } from '@/components/InternalGlass';
 import { buildCategories, type RowItem } from './_moreCategories';
+import { DirectorStandaloneScreen } from '@/components/DirectorStandaloneScreen';
 
 const BG    = '#EFF6FF';
 const TEXT  = '#1C1C1E';
@@ -88,34 +89,13 @@ export default function MoreCategoryScreen() {
   }
 
   return (
-    <View style={{ flex: 1, backgroundColor: BG }}>
+    <DirectorStandaloneScreen title={openCategory.label} subtitle={openCategory.description}>
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: insets.bottom + 40 }}
       >
-        {/* Back row */}
-        <View style={{ height: insets.top }} />
-        <Pressable
-          onPress={() => { Haptics.selectionAsync(); router.back(); }}
-          style={s.backRow}
-        >
-          <Feather name="chevron-left" size={20} color={openCategory.color} />
-          <Text style={[s.backLabel, { color: openCategory.color }]}>More</Text>
-        </Pressable>
-
-        {/* Category header */}
-        <View style={s.detailHeader}>
-          <View style={[s.detailIcon, { backgroundColor: openCategory.color + '33', borderColor: openCategory.color + '55' }]}>
-            <Feather name={openCategory.icon as any} size={28} color={openCategory.color} />
-          </View>
-          <View style={{ flex: 1, gap: 4 }}>
-            <Text style={s.detailTitle}>{openCategory.label}</Text>
-            <Text style={s.detailDesc}>{openCategory.description}</Text>
-          </View>
-        </View>
-
         {/* Groups */}
-        <View style={{ paddingHorizontal: 16, gap: 22 }}>
+        <View style={{ paddingHorizontal: 16, paddingTop: 8, gap: 22 }}>
           {openCategory.groups.map(group => (
             <View key={group.label}>
               <Text style={s.groupLabel}>{group.label.toUpperCase()}</Text>
@@ -132,7 +112,7 @@ export default function MoreCategoryScreen() {
           ))}
         </View>
       </ScrollView>
-    </View>
+    </DirectorStandaloneScreen>
   );
 }
 

@@ -30,8 +30,8 @@ const BORDER      = '#E5E7EB';
 const GLASS_BG    = 'rgba(255,255,255,0.6)';
 const GLASS_BORDER= 'rgba(255,255,255,0.85)';
 const NAVY  = '#1A2B4A';
-const RED   = '#D20001';
-const GREEN = '#16A34A';
+const RED   = '#EF4444';
+const GREEN = '#22C55E';
 const BLUE  = '#1493FF';
 const GOLD  = '#B45309';
 

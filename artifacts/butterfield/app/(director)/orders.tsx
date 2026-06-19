@@ -882,10 +882,12 @@ function PosTabContent({
   const todayStr = sydneyDateStr();
   const isToday  = dayStr === todayStr;
 
+  const [showSearch, setShowSearch]         = useState(false);
   const [searchQuery, setSearchQuery]       = useState('');
   const [chipFilter, setChipFilter]         = useState<PosChipKey>('all');
 
   useEffect(() => {
+    setShowSearch(false);
     setSearchQuery('');
     setChipFilter('all');
   }, [dayStr]);
@@ -919,14 +921,25 @@ function PosTabContent({
 
   return (
     <View style={{ flex: 1 }}>
-      {/* Day navigation */}
-      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: CARD, borderBottomWidth: 1, borderBottomColor: BORDER, paddingHorizontal: 8, paddingVertical: 10 }}>
+      {/* Day navigation + search toggle */}
+      <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: CARD, borderBottomWidth: showSearch ? 0 : 1, borderBottomColor: BORDER, paddingHorizontal: 8, paddingVertical: 10 }}>
         <Pressable onPress={() => onSetDay(shiftPosDate(dayStr, -1))} style={{ padding: 8 }} hitSlop={12}>
           <Feather name="chevron-left" size={22} color={NAVY} />
         </Pressable>
         <View style={{ flex: 1, alignItems: 'center' }}>
           <Text style={{ fontSize: 15, fontWeight: '600', color: TEXT }}>{formatPosDay(dayStr)}</Text>
         </View>
+        <Pressable
+          onPress={() => {
+            Haptics.selectionAsync();
+            if (showSearch) { setSearchQuery(''); setShowSearch(false); }
+            else { setShowSearch(true); }
+          }}
+          style={{ padding: 8 }}
+          hitSlop={12}
+        >
+          <Feather name={showSearch ? 'x' : 'search'} size={18} color={showSearch ? BLUE : MUTED} />
+        </Pressable>
         <Pressable
           onPress={() => { if (!isToday) onSetDay(shiftPosDate(dayStr, 1)); }}
           style={[{ padding: 8 }, isToday && { opacity: 0.35 }]}
@@ -937,52 +950,49 @@ function PosTabContent({
         </Pressable>
       </View>
 
-      {/* Search bar */}
-      <View style={{ backgroundColor: CARD, paddingHorizontal: 12, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: BORDER }}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: BG, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 7, gap: 8 }}>
-          <Feather name="search" size={15} color={MUTED} />
-          <TextInput
-            style={{ flex: 1, fontSize: 14, color: TEXT, padding: 0 }}
-            placeholder="Order number or operator…"
-            placeholderTextColor={MUTED}
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-            returnKeyType="search"
-            clearButtonMode="while-editing"
-            autoCorrect={false}
-            autoCapitalize="none"
-          />
-          {searchQuery.length > 0 && (
-            <Pressable onPress={() => setSearchQuery('')} hitSlop={8}>
-              <Feather name="x-circle" size={15} color={MUTED} />
-            </Pressable>
-          )}
+      {/* Collapsible search bar */}
+      {showSearch && (
+        <View style={{ backgroundColor: CARD, paddingHorizontal: 12, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: BORDER }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: BG, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 7, gap: 8 }}>
+            <Feather name="search" size={15} color={MUTED} />
+            <TextInput
+              style={{ flex: 1, fontSize: 14, color: TEXT, padding: 0 }}
+              placeholder="Order number or operator…"
+              placeholderTextColor={MUTED}
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              returnKeyType="search"
+              clearButtonMode="while-editing"
+              autoCorrect={false}
+              autoCapitalize="none"
+              autoFocus
+            />
+            {searchQuery.length > 0 && (
+              <Pressable onPress={() => setSearchQuery('')} hitSlop={8}>
+                <Feather name="x-circle" size={15} color={MUTED} />
+              </Pressable>
+            )}
+          </View>
         </View>
-      </View>
+      )}
 
-      {/* Filter chips */}
-      <View style={{ backgroundColor: CARD, borderBottomWidth: 1, borderBottomColor: BORDER }}>
+      {/* Filter chips — same pill style as App & Wholesale */}
+      <View style={{ backgroundColor: BG, borderBottomWidth: 1, borderBottomColor: BORDER }}>
         <FlatList
           horizontal
           data={POS_CHIP_FILTERS}
           keyExtractor={c => c.key}
           showsHorizontalScrollIndicator={false}
-          contentContainerStyle={{ paddingHorizontal: 12, paddingVertical: 10, gap: 8 }}
+          contentContainerStyle={{ paddingHorizontal: 16, paddingVertical: 10, gap: 8 }}
           renderItem={({ item: chip }) => {
             const active = chipFilter === chip.key;
+            const color = chip.key === 'refunded' ? PURPLE : chip.key === 'voided' ? RED_CONST : BLUE;
             return (
               <Pressable
                 onPress={() => { setChipFilter(chip.key); Haptics.selectionAsync(); }}
-                style={{
-                  paddingHorizontal: 14,
-                  paddingVertical: 7,
-                  borderRadius: 20,
-                  backgroundColor: active ? NAVY : BG,
-                  borderWidth: 1,
-                  borderColor: active ? NAVY : BORDER,
-                }}
+                style={[styles.filterChip, { backgroundColor: active ? color : BG, borderColor: active ? color : BORDER }]}
               >
-                <Text style={{ fontSize: 13, fontWeight: active ? '700' : '500', color: active ? '#FFFFFF' : TEXT }}>
+                <Text style={{ fontSize: 12, fontWeight: '600', color: active ? '#fff' : MUTED }}>
                   {chip.label}
                 </Text>
               </Pressable>
@@ -997,7 +1007,7 @@ function PosTabContent({
         </View>
       ) : posOrders.length === 0 ? (
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 }}>
-          <Feather name="monitor" size={40} color={MUTED} />
+          <Feather name="monitor" size={36} color={MUTED} style={{ opacity: 0.4 }} />
           <Text style={{ color: MUTED, marginTop: 12, fontSize: 15, fontWeight: '600' }}>
             {isToday ? 'No POS transactions today' : 'No transactions on this day'}
           </Text>
@@ -1015,7 +1025,7 @@ function PosTabContent({
           {hasActiveFilters && (
             <Pressable
               onPress={() => { setSearchQuery(''); setChipFilter('all'); }}
-              style={{ marginTop: 14, paddingHorizontal: 16, paddingVertical: 8, backgroundColor: NAVY, borderRadius: 20 }}
+              style={{ marginTop: 14, paddingHorizontal: 16, paddingVertical: 8, backgroundColor: BLUE, borderRadius: 20 }}
             >
               <Text style={{ fontSize: 13, fontWeight: '600', color: '#FFFFFF' }}>Clear filters</Text>
             </Pressable>
@@ -1027,25 +1037,24 @@ function PosTabContent({
           showsVerticalScrollIndicator={false}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={BLUE} />}
         >
-          {/* Daily summary row */}
-          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: CARD, borderRadius: 12, padding: 12, marginBottom: 14, borderWidth: 1, borderColor: BORDER }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-              <Feather name="monitor" size={16} color={BLUE} />
-              <Text style={{ fontSize: 13, color: MUTED, fontWeight: '500' }}>
-                {hasActiveFilters
-                  ? `${filteredOrders.length} of ${posOrders.length} transaction${posOrders.length !== 1 ? 's' : ''}`
-                  : `${posOrders.length} transaction${posOrders.length !== 1 ? 's' : ''}`}
-              </Text>
-            </View>
+          {/* Summary header — matches App & Wholesale section header style */}
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionHeaderText}>
+              {hasActiveFilters
+                ? `${filteredOrders.length} of ${posOrders.length} Transaction${posOrders.length !== 1 ? 's' : ''}`
+                : `${posOrders.length} Transaction${posOrders.length !== 1 ? 's' : ''}`}
+            </Text>
             {dailyRevenue > 0 && (
-              <Text style={{ fontSize: 15, color: TEXT, fontWeight: '700' }}>{fmtCents(dailyRevenue)}</Text>
+              <View style={{ backgroundColor: `${BLUE}18`, borderRadius: 10, paddingHorizontal: 8, paddingVertical: 2 }}>
+                <Text style={{ color: BLUE, fontWeight: '700', fontSize: 11 }}>{fmtCents(dailyRevenue)}</Text>
+              </View>
             )}
           </View>
 
           {/* Sectioned transaction list */}
           {sections.map(section => (
             <View key={section.key} style={{ marginBottom: 4 }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10, marginTop: 8 }}>
                 <View style={{ width: 3, height: 14, borderRadius: 2, backgroundColor: section.accentColor }} />
                 <Text style={{ fontSize: 12, fontWeight: '700', color: MUTED, letterSpacing: 0.8, textTransform: 'uppercase' }}>
                   {section.label}

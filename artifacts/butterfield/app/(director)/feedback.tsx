@@ -3,12 +3,12 @@ import * as Haptics from 'expo-haptics';
 import React, { useMemo, useState } from 'react';
 import {
   ActivityIndicator, FlatList, Pressable, RefreshControl,
-  ScrollView, StatusBar, StyleSheet, Text, View,
+  ScrollView, StyleSheet, Text, View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, type DirectorFeedback } from '@/lib/api';
-import { useLayoutHandledSafeArea } from '@/context/LayoutSafeAreaContext';
+import { DirectorStandaloneScreen } from '@/components/DirectorStandaloneScreen';
 
 const BG    = '#EFF6FF';
 const CARD  = '#FFFFFF';
@@ -17,7 +17,7 @@ const MUTED = '#8E8E93';
 const BORD  = '#E5E7EB';
 const BLUE  = '#1493FF';
 const GOLD  = '#F59E0B';
-const GREEN = '#16A34A';
+const GREEN = '#22C55E';
 const RED   = '#EF4444';
 
 type StarFilter = 'all' | 'unread' | '1' | '2' | '3' | '4' | '5';
@@ -128,7 +128,6 @@ const FILTER_CHIPS: { key: StarFilter; label: string }[] = [
 
 export default function FeedbackScreen() {
   const insets = useSafeAreaInsets();
-  const layoutHandledSA = useLayoutHandledSafeArea();
   const queryClient = useQueryClient();
   const [activeFilter, setActiveFilter] = useState<StarFilter>('unread');
 
@@ -182,14 +181,9 @@ export default function FeedbackScreen() {
   }, [allItems]);
 
   return (
-    <View style={{ flex: 1, backgroundColor: BG }}>
-      <StatusBar barStyle="dark-content" backgroundColor={BG} />
-
-      <View style={{ paddingTop: layoutHandledSA ? 16 : insets.top + 16, paddingHorizontal: 20, paddingBottom: 16 }}>
-        <Text style={s.title}>Customer Feedback</Text>
-        <Text style={s.subtitle}>Ratings, comments & order reviews</Text>
-
-        {allItems.length > 0 && (
+    <DirectorStandaloneScreen title="Customer Feedback" subtitle="Ratings, comments & order reviews">
+      {allItems.length > 0 && (
+        <View style={{ paddingHorizontal: 20, paddingTop: 8, paddingBottom: 4 }}>
           <View style={s.summaryRow}>
             <View style={s.summaryChip}>
               <Feather name="inbox" size={13} color={unreadCount > 0 ? RED : MUTED} />
@@ -208,8 +202,8 @@ export default function FeedbackScreen() {
               <Text style={s.summaryChipText}>{allItems.length} total</Text>
             </View>
           </View>
-        )}
-      </View>
+        </View>
+      )}
 
       {allItems.length > 0 && (
         <ScrollView
@@ -272,7 +266,7 @@ export default function FeedbackScreen() {
           )}
         />
       )}
-    </View>
+    </DirectorStandaloneScreen>
   );
 }
 

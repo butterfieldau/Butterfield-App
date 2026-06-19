@@ -1,9 +1,9 @@
 import React from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Feather } from '@expo/vector-icons';
-import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import LinklyCloudSettingsCard from '@/components/LinklyCloudSettingsCard';
+import { DirectorStandaloneScreen } from '@/components/DirectorStandaloneScreen';
 
 const BG = '#EFF6FF';
 const TEXT = '#1C1C1E';
@@ -14,25 +14,9 @@ export default function DirectorLinklyScreen() {
   const insets = useSafeAreaInsets();
 
   return (
-    <View style={{ flex: 1, backgroundColor: BG }}>
+    <DirectorStandaloneScreen title="Linkly Cloud" subtitle="PIN pad, payment token & device identity">
       <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + 28 }} showsVerticalScrollIndicator={false}>
-        <View style={{ height: insets.top }} />
-        <Pressable onPress={() => router.back()} style={s.backRow}>
-          <Feather name="chevron-left" size={20} color={BLUE} />
-          <Text style={s.backText}>Systems</Text>
-        </Pressable>
-
-        <View style={s.header}>
-          <View style={s.heroIcon}>
-            <Feather name="credit-card" size={28} color={BLUE} />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={s.title}>Linkly Cloud</Text>
-            <Text style={s.subtitle}>Pair the PIN pad, refresh the payment token, and manage the device identity for this terminal.</Text>
-          </View>
-        </View>
-
-        <View style={{ paddingHorizontal: 16 }}>
+        <View style={{ paddingHorizontal: 16, paddingTop: 8 }}>
           <LinklyCloudSettingsCard
             title="Linkly Cloud Integration"
             subtitle="Server-side Linkly settings for this POS device"
@@ -45,7 +29,7 @@ export default function DirectorLinklyScreen() {
           <Text style={s.noteText}>Credentials, pairing secret, and tokens stay on the server. The iPad only asks the server to start and recover transactions.</Text>
         </View>
       </ScrollView>
-    </View>
+    </DirectorStandaloneScreen>
   );
 }
 

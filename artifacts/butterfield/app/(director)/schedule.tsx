@@ -3,11 +3,10 @@ import React, { useMemo } from 'react';
 import {
   ActivityIndicator, RefreshControl, ScrollView, StyleSheet, Text, View,
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
 import { api, type RosterShift } from '@/lib/api';
 import { useRefreshControl } from '@/hooks/useRefreshControl';
-import { useLayoutHandledSafeArea } from '@/context/LayoutSafeAreaContext';
+import { DirectorTabScreen } from '@/components/DirectorTabScreen';
 
 const BG     = '#EFF6FF';
 const CARD   = '#FFFFFF';
@@ -111,10 +110,6 @@ function ShiftCard({ shift, today }: { shift: RosterShift; today: string }) {
 }
 
 export default function ScheduleScreen() {
-  const insets = useSafeAreaInsets();
-  const layoutHandledSafeArea = useLayoutHandledSafeArea();
-  const topPad = layoutHandledSafeArea ? 0 : insets.top;
-
   const today    = useMemo(() => localYMD(new Date()), []);
   const fortnight = useMemo(() => localYMD(addDays(new Date(), 13)), []);
 
@@ -139,19 +134,7 @@ export default function ScheduleScreen() {
   }, [today]);
 
   return (
-    <View style={[s.root, { paddingTop: topPad }]}>
-
-      {/* Header */}
-      <View style={s.header}>
-        <View>
-          <Text style={s.headerTitle}>My Schedule</Text>
-          <Text style={s.headerSub}>{windowLabel}</Text>
-        </View>
-        <View style={s.calIconWrap}>
-          <Feather name="calendar" size={20} color={BLUE} />
-        </View>
-      </View>
-
+    <DirectorTabScreen title="Schedule" subtitle={windowLabel}>
       {isLoading ? (
         <View style={s.centred}>
           <ActivityIndicator color={NAVY} size="large" />
@@ -229,7 +212,7 @@ export default function ScheduleScreen() {
           ))}
         </ScrollView>
       )}
-    </View>
+    </DirectorTabScreen>
   );
 }
 

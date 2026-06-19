@@ -18,6 +18,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import type { PosTransaction } from '@/lib/api';
 import InlineCalendarPicker from '@/components/InlineCalendarPicker';
+import { DirectorStandaloneScreen } from '@/components/DirectorStandaloneScreen';
 
 const NAVY  = '#1A2B4A';
 const BG    = '#EFF6FF';
@@ -232,16 +233,7 @@ export default function PosOrdersScreen() {
   }
 
   return (
-    <View style={{ flex: 1, backgroundColor: BG }}>
-      {/* Header */}
-      <View style={[s.header, { paddingTop: insets.top + 12 }]}>
-        <View style={s.headerBadge}>
-          <Text style={s.headerBadgeText}>DIRECTOR</Text>
-        </View>
-        <Text style={s.headerTitle}>POS Transactions</Text>
-        <Text style={s.headerSub}>Terminal sales history — read only</Text>
-      </View>
-
+    <DirectorStandaloneScreen title="POS Transactions" subtitle="Terminal sales history — read only">
       {/* Day navigation strip */}
       <View style={s.dayNav}>
         <Pressable onPress={goBack} style={s.dayArrow} hitSlop={12}>
@@ -358,7 +350,7 @@ export default function PosOrdersScreen() {
           }
         />
       )}
-    </View>
+    </DirectorStandaloneScreen>
   );
 }
 
