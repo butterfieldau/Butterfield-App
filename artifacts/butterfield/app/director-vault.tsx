@@ -448,22 +448,23 @@ export default function VaultScreen() {
             />
           </View>
 
-          {/* Category chips */}
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.catScroll}>
-            {['all', ...categories].map(cat => (
-              <Pressable
-                key={cat}
-                onPress={() => { setCatFilter(cat); Haptics.selectionAsync(); }}
-                style={[s.catChip, catFilter === cat && { backgroundColor: catColor(cat) + '18', borderColor: catColor(cat) + '55' }]}
-              >
-                <Text style={[s.catChipText, catFilter === cat && { color: catColor(cat), fontWeight: '700' }]}>
-                  {cat === 'all' ? 'All' : cat.charAt(0).toUpperCase() + cat.slice(1)}
-                </Text>
-              </Pressable>
-            ))}
-          </ScrollView>
+          {/* Chips + recipe list scoped together so flex: 1 on the list is relative to remaining space only */}
+          <View style={{ flex: 1 }}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.catScroll}>
+              {['all', ...categories].map(cat => (
+                <Pressable
+                  key={cat}
+                  onPress={() => { setCatFilter(cat); Haptics.selectionAsync(); }}
+                  style={[s.catChip, catFilter === cat && { backgroundColor: catColor(cat) + '18', borderColor: catColor(cat) + '55' }]}
+                >
+                  <Text style={[s.catChipText, catFilter === cat && { color: catColor(cat), fontWeight: '700' }]}>
+                    {cat === 'all' ? 'All' : cat.charAt(0).toUpperCase() + cat.slice(1)}
+                  </Text>
+                </Pressable>
+              ))}
+            </ScrollView>
 
-          <ScrollView contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 8, paddingBottom: insets.bottom + 24, gap: 12 }}>
+          <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 8, paddingBottom: insets.bottom + 24, gap: 12 }}>
             {filtered.length === 0 && !isLoading && (
               <View style={{ alignItems: 'center', paddingVertical: 48, gap: 10 }}>
                 <Feather name="book-open" size={32} color={MUTED} />
@@ -522,6 +523,7 @@ export default function VaultScreen() {
               </Text>
             </Pressable>
           </ScrollView>
+          </View>
         </>
       )}
 
