@@ -206,6 +206,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await clearToken();
     await AsyncStorage.removeItem(USER_KEY);
     setUser(null);
+    // Vault session is in-memory only — cleared implicitly when user state resets.
+    // VaultContext will lock on next auth check since vaultToken is not persisted.
   }, []);
 
   const value = useMemo(

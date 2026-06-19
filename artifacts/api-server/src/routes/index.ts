@@ -29,6 +29,7 @@ import placesRouter from "./places.js";
 import invoicesRouter from "./invoices.js";
 import posRouter from "./pos.js";
 import linklyNotificationsRouter from "./linkly-notifications.js";
+import vaultRouter from "./vault.js";
 
 const router: IRouter = Router();
 
@@ -61,6 +62,7 @@ router.use("/invoices", invoicesRouter);
 router.use("/linkly", linklyNotificationsRouter);
 router.use("/pos", posRouter);
 router.use(adminSeedRouter);
+router.use("/vault", vaultRouter);
 router.use(miscRouter);
 
 export default router;

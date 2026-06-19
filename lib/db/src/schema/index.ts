@@ -30,3 +30,4 @@ export * from "./wholesale_settings";
 export * from "./pos_surcharges";
 export * from "./registers";
 export * from "./pos_daily_summaries";
+export * from "./vault";

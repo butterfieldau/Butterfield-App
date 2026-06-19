@@ -16,6 +16,7 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { InAppNotificationBanner, type InAppNotificationPayload } from "@/components/InAppNotificationBanner";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
 import { CartProvider } from "@/context/CartContext";
+import { VaultProvider } from "@/context/VaultContext";
 import { clearAppBadge } from "@/lib/pushNotifications";
 
 SplashScreen.preventAutoHideAsync();
@@ -266,6 +267,7 @@ export default function RootLayout() {
           <AuthProvider>
             {/* Hides native splash once auth check is done — must be inside AuthProvider */}
             <SplashHider />
+            <VaultProvider>
             <CartProvider>
               <GestureHandlerRootView style={{ flex: 1 }}>
                 <KeyboardProvider>
@@ -275,6 +277,7 @@ export default function RootLayout() {
               {/* Notification tap router — renders null, needs AuthProvider for role-aware navigation */}
               <NotificationTapHandler />
             </CartProvider>
+            </VaultProvider>
           </AuthProvider>
         </PersistQueryClientProvider>
       </ErrorBoundary>

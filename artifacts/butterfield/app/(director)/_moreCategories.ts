@@ -23,6 +23,7 @@ export type Category = {
   color: string;
   description: string;
   groups: RowGroup[];
+  premium?: boolean;
 };
 
 const BLUE   = '#1493FF';
@@ -35,6 +36,31 @@ const TEAL   = '#06B6D4';
 const ROSE   = '#F43F5E';
 
 const ALL_CATEGORIES: Category[] = [
+
+  // ── VAULT ───────────────────────────────────────────────────────────────────
+  {
+    key: 'vault',
+    label: 'Vault',
+    icon: 'lock',
+    color: '#C9A84C',
+    description: 'Secure recipe & cost repository — PIN + biometric protected',
+    premium: true,
+    groups: [
+      {
+        label: 'Recipe Repository',
+        items: [
+          {
+            icon: 'book-open',
+            label: 'Open Vault',
+            sub: 'Recipes, ingredients & margin calculator',
+            color: '#C9A84C',
+            directorOnly: true,
+            onPress: () => router.push('/(director)/vault-lock' as any),
+          },
+        ],
+      },
+    ],
+  },
 
   // ── SALES & MARKETING ──────────────────────────────────────────────────────
   {

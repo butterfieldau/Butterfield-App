@@ -51,6 +51,22 @@ export async function clearToken(): Promise<void> {
   return AsyncStorage.removeItem(TOKEN_KEY);
 }
 
+async function _vaultReq<T>(path: string, vaultToken: string, options: RequestInit = {}): Promise<T> {
+  const token = await getToken();
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...(options.headers as Record<string, string>),
+  };
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+  headers['X-Vault-Token'] = vaultToken;
+  const res = await fetch(`${BASE}${path}`, { ...options, headers });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new ApiError(body.error ?? `HTTP ${res.status}`, res.status, body);
+  }
+  return res.json();
+}
+
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const token = await getToken();
   const headers: Record<string, string> = {
@@ -1115,6 +1131,44 @@ export const api = {
     updateQuantity: (id: string, currentQuantity: number) =>
       request<{ data: StockItem }>(`/stock/items/${id}`, { method: 'PATCH', body: JSON.stringify({ currentQuantity }) }),
     delete: (id: string) => request<{ data: { success: boolean } }>(`/stock/items/${id}`, { method: 'DELETE' }),
+  },
+  vault: {
+    status: () =>
+      request<{ data: { isPinSet: boolean; isLockedOut: boolean; lockoutExpiresAt: string | null; failedAttempts: number } }>('/vault/status'),
+    setupPin: (data: { newPin: string; currentPin?: string }) =>
+      request<{ success: boolean }>('/vault/setup-pin', { method: 'POST', body: JSON.stringify(data) }),
+    unlock: (data: { pin?: string; biometricAssisted?: boolean }) =>
+      request<{ vaultToken: string }>('/vault/unlock', { method: 'POST', body: JSON.stringify(data) }),
+    changePin: (data: { currentPin: string; newPin: string }) =>
+      request<{ success: boolean }>('/vault/change-pin', { method: 'POST', body: JSON.stringify(data) }),
+    recipes: (vaultToken: string, params?: { category?: string; status?: string }) => {
+      const qs = new URLSearchParams();
+      if (params?.category) qs.set('category', params.category);
+      if (params?.status) qs.set('status', params.status);
+      const q = qs.toString();
+      return _vaultReq<{ data: any[] }>(`/vault/recipes${q ? `?${q}` : ''}`, vaultToken);
+    },
+    createRecipe: (vaultToken: string, data: Record<string, unknown>) =>
+      _vaultReq<{ data: any }>('/vault/recipes', vaultToken, { method: 'POST', body: JSON.stringify(data) }),
+    recipe: (vaultToken: string, id: string) =>
+      _vaultReq<{ data: any }>(`/vault/recipes/${id}`, vaultToken),
+    updateRecipe: (vaultToken: string, id: string, data: Record<string, unknown>) =>
+      _vaultReq<{ data: any }>(`/vault/recipes/${id}`, vaultToken, { method: 'PATCH', body: JSON.stringify(data) }),
+    archiveRecipe: (vaultToken: string, id: string) =>
+      _vaultReq<{ data: any }>(`/vault/recipes/${id}/archive`, vaultToken, { method: 'PATCH' }),
+    addIngredient: (vaultToken: string, recipeId: string, data: Record<string, unknown>) =>
+      _vaultReq<{ data: any }>(`/vault/recipes/${recipeId}/ingredients`, vaultToken, { method: 'POST', body: JSON.stringify(data) }),
+    updateIngredient: (vaultToken: string, ingredientId: string, data: Record<string, unknown>) =>
+      _vaultReq<{ data: any }>(`/vault/ingredients/${ingredientId}`, vaultToken, { method: 'PATCH', body: JSON.stringify(data) }),
+    deleteIngredient: (vaultToken: string, ingredientId: string) =>
+      _vaultReq<{ success: boolean }>(`/vault/ingredients/${ingredientId}`, vaultToken, { method: 'DELETE' }),
+    accessLog: (vaultToken: string, params?: { limit?: number; offset?: number }) => {
+      const qs = new URLSearchParams();
+      if (params?.limit) qs.set('limit', String(params.limit));
+      if (params?.offset) qs.set('offset', String(params.offset));
+      const q = qs.toString();
+      return _vaultReq<{ data: any[] }>(`/vault/access-log${q ? `?${q}` : ''}`, vaultToken);
+    },
   },
 };
 
@@ -3104,3 +3158,4 @@ export interface DirectorDeliverySettings {
   categories: DirectorDeliveryCategory[];
   products: DirectorDeliveryProduct[];
 }
+

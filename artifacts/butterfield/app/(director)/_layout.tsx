@@ -165,6 +165,10 @@ export default function DirectorLayout() {
           <Tabs.Screen name="_moreCategories"               options={{ href: null }} />
           <Tabs.Screen name="pos-orders"          options={{ href: null }} />
           <Tabs.Screen name="feedback"            options={{ href: mgrHref('announcements') }} />
+          <Tabs.Screen name="vault-lock"          options={{ href: null }} />
+          <Tabs.Screen name="vault"               options={{ href: null }} />
+          <Tabs.Screen name="vault-recipe"        options={{ href: null }} />
+          <Tabs.Screen name="vault-recipe-edit"   options={{ href: null }} />
         </Tabs>
         </LayoutSafeAreaContext.Provider>
       </View>
@@ -234,6 +238,10 @@ export default function DirectorLayout() {
         <Tabs.Screen name="_moreCategories"               options={{ href: null }} />
         <Tabs.Screen name="pos-orders"                    options={{ href: null }} />
         <Tabs.Screen name="feedback"                      options={{ href: null }} />
+        <Tabs.Screen name="vault-lock"                    options={{ href: null }} />
+        <Tabs.Screen name="vault"                         options={{ href: null }} />
+        <Tabs.Screen name="vault-recipe"                  options={{ href: null }} />
+        <Tabs.Screen name="vault-recipe-edit"             options={{ href: null }} />
       </Tabs>
     </View>
   );

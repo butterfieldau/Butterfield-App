@@ -12,13 +12,45 @@ import { useLayoutHandledSafeArea } from '@/context/LayoutSafeAreaContext';
 import { api } from '@/lib/api';
 import { buildCategories, type Category } from './_moreCategories';
 
-const BG    = '#EFF6FF';
-const TEXT  = '#1C1C1E';
-const MUTED = '#8E8E93';
-const BORD  = '#E5E7EB';
-const RED   = '#EF4444';
+const BG      = '#EFF6FF';
+const TEXT    = '#1C1C1E';
+const MUTED   = '#8E8E93';
+const BORD    = '#E5E7EB';
+const RED     = '#EF4444';
+const OBSIDIAN = '#0A0A0A';
+const GOLD    = '#C9A84C';
+
+function PremiumVaultCard({ cat, onPress }: { cat: Category; onPress: () => void }) {
+  return (
+    <Pressable
+      onPress={() => { Haptics.selectionAsync(); onPress(); }}
+      style={({ pressed }) => [s.vaultCard, { opacity: pressed ? 0.85 : 1 }]}
+    >
+      <View style={s.vaultIconWrap}>
+        <Feather name="lock" size={22} color={GOLD} />
+      </View>
+      <View style={{ flex: 1, gap: 4 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          <Text style={s.vaultLabel}>{cat.label}</Text>
+          <View style={s.vaultBadge}>
+            <Text style={s.vaultBadgeText}>DIRECTOR ONLY</Text>
+          </View>
+        </View>
+        <Text style={s.vaultDesc} numberOfLines={1}>{cat.description}</Text>
+        <View style={{ flexDirection: 'row', gap: 6, marginTop: 2 }}>
+          <View style={[s.badge, { backgroundColor: GOLD + '25' }]}>
+            <Text style={[s.badgeText, { color: GOLD }]}>PIN + Biometric</Text>
+          </View>
+        </View>
+      </View>
+      <Feather name="chevron-right" size={18} color={GOLD + 'AA'} />
+    </Pressable>
+  );
+}
 
 function CategoryCard({ cat, onPress }: { cat: Category; onPress: () => void }) {
+  if (cat.premium) return <PremiumVaultCard cat={cat} onPress={onPress} />;
+
   const allItems  = cat.groups.flatMap(g => g.items);
   const soonCount = allItems.filter(i => i.soon).length;
 
@@ -141,6 +173,22 @@ const s = StyleSheet.create({
   catDesc:  { fontSize: 12, color: MUTED },
   badge:    { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 20 },
   badgeText:{ fontSize: 11, fontWeight: '600' },
+
+  vaultCard: {
+    flexDirection: 'row', alignItems: 'center', gap: 14,
+    backgroundColor: OBSIDIAN, borderRadius: 18,
+    paddingVertical: 18, paddingHorizontal: 16,
+    borderWidth: 1.5, borderColor: GOLD + '55',
+  },
+  vaultIconWrap: {
+    width: 48, height: 48, borderRadius: 14,
+    alignItems: 'center', justifyContent: 'center',
+    backgroundColor: GOLD + '20', borderWidth: 1.5, borderColor: GOLD + '55',
+  },
+  vaultLabel:    { fontSize: 16, fontWeight: '700', color: GOLD },
+  vaultDesc:     { fontSize: 12, color: GOLD + 'AA' },
+  vaultBadge:    { backgroundColor: GOLD + '22', paddingHorizontal: 7, paddingVertical: 2, borderRadius: 20 },
+  vaultBadgeText:{ fontSize: 10, fontWeight: '700', color: GOLD, letterSpacing: 0.5 },
 
   signOut: {
     flexDirection: 'row', alignItems: 'center', gap: 14,
