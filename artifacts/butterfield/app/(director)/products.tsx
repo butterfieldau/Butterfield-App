@@ -1,7 +1,7 @@
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useRef } from 'react';
 import { useLocalSearchParams } from 'expo-router';
 import {
   ActivityIndicator, Alert, FlatList, Image, KeyboardAvoidingView, Modal,
@@ -784,6 +784,7 @@ function CatalogTab() {
   const qc = useQueryClient();
   const [catModal, setCatModal] = useState(false);
   const [editCat, setEditCat] = useState<any>(null);
+  const editCatRef = useRef<any>(null);
   const [catName, setCatName] = useState('');
   const [catSlug, setCatSlug] = useState('');
   const [catDesc, setCatDesc] = useState('');
@@ -795,6 +796,7 @@ function CatalogTab() {
   const [catImageUrl, setCatImageUrl] = useState('');
   const [catColor, setCatColor] = useState<string | null>(null);
   const [catShowPos, setCatShowPos] = useState(true);
+  const [catIsActive, setCatIsActive] = useState(true);
   const [catUploading, setCatUploading] = useState(false);
   const [catSaving, setCatSaving] = useState(false);
   const recommendedCategorySort = useMemo(
@@ -808,18 +810,20 @@ function CatalogTab() {
   const { refreshing, onRefresh } = useRefreshControl(refetch);
   const cats: any[] = data?.data ?? [];
   const openAddCat = () => {
+    editCatRef.current = null;
     setEditCat(null); setCatName(''); setCatSlug(''); setCatDesc('');
     setCatSortOrder('0'); setCatShowPublic(true); setCatShowWholesale(false);
     setCatShowOnHome(false); setCatHomeOrder('0'); setCatImageUrl(''); setCatColor(null);
-    setCatShowPos(true);
+    setCatShowPos(true); setCatIsActive(true);
     setCatModal(true);
   };
   const openEditCat = (c: any) => {
+    editCatRef.current = c;
     setEditCat(c); setCatName(c.name); setCatSlug(c.slug); setCatDesc(c.description ?? '');
     setCatSortOrder(String(c.sortOrder ?? 0)); setCatShowPublic(c.showPublic ?? true); setCatShowWholesale(c.showWholesale ?? false);
     setCatShowOnHome(c.showOnHome ?? false); setCatHomeOrder(String(c.homeOrder ?? 0));
     setCatImageUrl(c.imageUrl ?? ''); setCatColor(c.color ?? null);
-    setCatShowPos(c.showPos ?? true);
+    setCatShowPos(c.showPos ?? true); setCatIsActive(c.isActive ?? true);
     setCatModal(true);
   };
   const saveCat = async () => {
@@ -831,6 +835,7 @@ function CatalogTab() {
         name: catName.trim(), slug,
         description: catDesc.trim() || undefined,
         sortOrder: parseInt(catSortOrder) || 0,
+        isActive: catIsActive,
         showPublic: catShowPublic,
         showWholesale: catShowWholesale,
         showOnHome: catShowOnHome,
@@ -839,14 +844,22 @@ function CatalogTab() {
         color: catColor || null,
         showPos: catShowPos,
       };
-      if (editCat) {
-        await api.director.updateCategory(editCat.id, payload);
+      const current = editCatRef.current;
+      if (current) {
+        await api.director.updateCategory(current.id, payload);
       } else {
         await api.director.createCategory(payload);
       }
       await qc.invalidateQueries({ queryKey: ['director-categories'] });
       await qc.invalidateQueries({ queryKey: ['categories'] });
       setCatModal(false);
+    } catch (err: any) {
+      const msg: string = err?.message ?? '';
+      if (msg.includes('409') || msg.toLowerCase().includes('already exists')) {
+        Alert.alert('Duplicate slug', 'A category with that slug already exists. Choose a different name or slug.');
+      } else {
+        Alert.alert('Error', msg || 'Failed to save category. Please try again.');
+      }
     } finally { setCatSaving(false); }
   };
   const handlePickCategoryImage = async () => {

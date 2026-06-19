@@ -141,28 +141,41 @@ router.post('/categories', allowedRoles, requireProducts, async (req, res) => {
   try {
     const [cat] = await db.insert(productCategoriesTable).values(values).returning();
     return res.json({ data: cat });
-  } catch {
+  } catch (err1: any) {
+    if (err1?.code === '23505') {
+      return res.status(409).json({ error: 'A category with that slug already exists. Choose a different name or slug.' });
+    }
     try {
       await db.insert(productCategoriesTable).values(values);
       const all = await fetchCategories();
       const cat = all.find((c: any) => c.id === id);
       if (!cat) return res.status(500).json({ error: 'Category created but could not be fetched' });
       return res.json({ data: cat });
-    } catch {
+    } catch (err2: any) {
+      if (err2?.code === '23505') {
+        return res.status(409).json({ error: 'A category with that slug already exists. Choose a different name or slug.' });
+      }
       // Last resort: omit optional columns that may not exist in the production DB yet.
       const { color: _c, showPos: _sp, ...baseValues } = values;
-      await db.execute(sql`
-        INSERT INTO product_categories
-          (id, name, slug, description, image_url, sort_order, is_active,
-           show_public, show_wholesale, is_pickup_available, is_delivery_available,
-           show_on_home, home_order)
-        VALUES
-          (${baseValues.id}, ${baseValues.name}, ${baseValues.slug},
-           ${baseValues.description}, ${baseValues.imageUrl}, ${baseValues.sortOrder},
-           ${baseValues.isActive}, ${baseValues.showPublic}, ${baseValues.showWholesale},
-           ${baseValues.isPickupAvailable}, ${baseValues.isDeliveryAvailable},
-           ${baseValues.showOnHome}, ${baseValues.homeOrder})
-      `);
+      try {
+        await db.execute(sql`
+          INSERT INTO product_categories
+            (id, name, slug, description, image_url, sort_order, is_active,
+             show_public, show_wholesale, is_pickup_available, is_delivery_available,
+             show_on_home, home_order)
+          VALUES
+            (${baseValues.id}, ${baseValues.name}, ${baseValues.slug},
+             ${baseValues.description}, ${baseValues.imageUrl}, ${baseValues.sortOrder},
+             ${baseValues.isActive}, ${baseValues.showPublic}, ${baseValues.showWholesale},
+             ${baseValues.isPickupAvailable}, ${baseValues.isDeliveryAvailable},
+             ${baseValues.showOnHome}, ${baseValues.homeOrder})
+        `);
+      } catch (err3: any) {
+        if (err3?.code === '23505') {
+          return res.status(409).json({ error: 'A category with that slug already exists. Choose a different name or slug.' });
+        }
+        throw err3;
+      }
       const all = await fetchCategories();
       const cat = all.find((c: any) => c.id === id);
       if (!cat) return res.status(500).json({ error: 'Category created but could not be fetched' });
