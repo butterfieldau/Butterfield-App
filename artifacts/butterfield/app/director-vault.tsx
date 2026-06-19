@@ -448,37 +448,36 @@ export default function VaultScreen() {
             />
           </View>
 
-          {/* Chips + recipe list scoped together so flex: 1 on the list is relative to remaining space only */}
-          <View style={{ flex: 1 }}>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.catScrollWrap} contentContainerStyle={s.catScroll}>
-              {['all', ...categories].map(cat => (
-                <Pressable
-                  key={cat}
-                  onPress={() => { setCatFilter(cat); Haptics.selectionAsync(); }}
-                  style={[s.catChip, catFilter === cat && { backgroundColor: catColor(cat) + '18', borderColor: catColor(cat) + '55' }]}
-                >
-                  <Text style={[s.catChipText, catFilter === cat && { color: catColor(cat), fontWeight: '700' }]}>
-                    {cat === 'all' ? 'All' : cat.charAt(0).toUpperCase() + cat.slice(1)}
-                  </Text>
-                </Pressable>
-              ))}
-            </ScrollView>
+          {/* Category chips */}
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.catScrollWrap} contentContainerStyle={s.catScroll}>
+            {['all', ...categories].map(cat => (
+              <Pressable
+                key={cat}
+                onPress={() => { setCatFilter(cat); Haptics.selectionAsync(); }}
+                style={[s.catChip, catFilter === cat && { backgroundColor: catColor(cat) + '18', borderColor: catColor(cat) + '55' }]}
+              >
+                <Text style={[s.catChipText, catFilter === cat && { color: catColor(cat), fontWeight: '700' }]}>
+                  {cat === 'all' ? 'All' : cat.charAt(0).toUpperCase() + cat.slice(1)}
+                </Text>
+              </Pressable>
+            ))}
+          </ScrollView>
 
-          <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 8, paddingBottom: insets.bottom + 24, gap: 12 }}>
-            {filtered.length === 0 && !isLoading && (
-              <View style={{ alignItems: 'center', paddingVertical: 48, gap: 10 }}>
-                <Feather name="book-open" size={32} color={MUTED} />
-                <Text style={{ color: MUTED, fontSize: 15 }}>No recipes found</Text>
-                <Pressable
-                  onPress={() => router.push('/director-vault-recipe-edit' as any)}
-                  style={s.emptyAddBtn}
-                >
-                  <Text style={{ color: GOLD, fontWeight: '600' }}>+ Add First Recipe</Text>
-                </Pressable>
-              </View>
-            )}
+          <ScrollView contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 8, paddingBottom: insets.bottom + 24, gap: 12 }}>
+              {filtered.length === 0 && !isLoading && (
+                <View style={{ alignItems: 'center', paddingVertical: 48, gap: 10 }}>
+                  <Feather name="book-open" size={32} color={MUTED} />
+                  <Text style={{ color: MUTED, fontSize: 15 }}>No recipes found</Text>
+                  <Pressable
+                    onPress={() => router.push('/director-vault-recipe-edit' as any)}
+                    style={s.emptyAddBtn}
+                  >
+                    <Text style={{ color: GOLD, fontWeight: '600' }}>+ Add First Recipe</Text>
+                  </Pressable>
+                </View>
+              )}
 
-            {filtered.map(recipe => (
+              {filtered.map(recipe => (
                 <Pressable
                   key={recipe.id}
                   onPress={() => {
@@ -512,18 +511,17 @@ export default function VaultScreen() {
                     )}
                   </View>
                 </Pressable>
-            ))}
+              ))}
 
-            <Pressable
-              onPress={() => setShowArchived(a => !a)}
-              style={{ alignSelf: 'center', padding: 12 }}
-            >
-              <Text style={{ color: MUTED, fontSize: 12 }}>
-                {showArchived ? 'Hide archived' : 'Show archived'}
-              </Text>
-            </Pressable>
+              <Pressable
+                onPress={() => setShowArchived(a => !a)}
+                style={{ alignSelf: 'center', padding: 12 }}
+              >
+                <Text style={{ color: MUTED, fontSize: 12 }}>
+                  {showArchived ? 'Hide archived' : 'Show archived'}
+                </Text>
+              </Pressable>
           </ScrollView>
-          </View>
         </>
       )}
 
