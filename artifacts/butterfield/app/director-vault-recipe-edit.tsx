@@ -26,8 +26,8 @@ const BORD    = '#E5E7EB';
 const TEXT    = '#1A1A1A';
 const TEXTD   = '#6B7280';
 const MUTED   = '#9CA3AF';
-const GOLD    = '#C9A84C';
-const GOLD_BG = '#FDF8EC';
+const GOLD    = '#40C0F2';
+const GOLD_BG = '#EDF8FE';
 const GREEN   = '#16A34A';
 const ERROR   = '#EF4444';
 

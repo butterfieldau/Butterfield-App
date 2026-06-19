@@ -26,11 +26,9 @@ const BORD     = '#E5E7EB';
 const TEXT     = '#1A1A1A';
 const TEXTD    = '#6B7280';
 const MUTED    = '#9CA3AF';
-const GOLD     = '#C9A84C';
-const GOLD_BG  = '#FDF8EC';
-const GOLD_DK  = '#A07830';
-const BLUE     = '#40C0F2';
-const BLUE_BG  = '#EDF8FE';
+const GOLD     = '#40C0F2';
+const GOLD_BG  = '#EDF8FE';
+const GOLD_DK  = '#2AA8DC';
 const ERROR    = '#EF4444';
 
 const DEFAULT_CATEGORIES = ['cookies', 'coffee', 'desserts', 'sauces', 'seasonal'];
@@ -494,8 +492,8 @@ export default function VaultScreen() {
                       <Feather name="chevron-right" size={16} color={MUTED} />
                     </View>
                     <View style={{ flexDirection: 'row', gap: 12 }}>
-                      <View style={[s.badge, { backgroundColor: BLUE_BG, borderColor: BLUE + '55' }]}>
-                        <Text style={[s.badgeText, { color: BLUE }]}>
+                      <View style={[s.badge, { backgroundColor: GOLD_BG, borderColor: GOLD + '55' }]}>
+                        <Text style={[s.badgeText, { color: GOLD }]}>
                           {recipe.category.charAt(0).toUpperCase() + recipe.category.slice(1)}
                         </Text>
                       </View>
@@ -507,7 +505,7 @@ export default function VaultScreen() {
                       )}
                     </View>
                     {recipe.totalCostCents > 0 && (
-                      <Text style={{ fontSize: 13, fontWeight: '700', color: BLUE }}>
+                      <Text style={{ fontSize: 13, fontWeight: '700', color: GOLD }}>
                         Batch cost ${(recipe.totalCostCents / 100).toFixed(2)}
                       </Text>
                     )}
