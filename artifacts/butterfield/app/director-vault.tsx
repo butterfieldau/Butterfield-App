@@ -449,7 +449,7 @@ export default function VaultScreen() {
           </View>
 
           {/* Category chips */}
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.catScrollWrap} contentContainerStyle={s.catScroll}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.catScroll}>
             {['all', ...categories].map(cat => (
               <Pressable
                 key={cat}
@@ -463,7 +463,7 @@ export default function VaultScreen() {
             ))}
           </ScrollView>
 
-          <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: insets.bottom + 24 }}>
+          <ScrollView contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: insets.bottom + 24 }}>
             {filtered.length === 0 && !isLoading && (
               <View style={{ alignItems: 'center', paddingVertical: 48, gap: 10 }}>
                 <Feather name="book-open" size={32} color={MUTED} />
@@ -602,8 +602,7 @@ const s = StyleSheet.create({
   searchRow: { flexDirection: 'row', alignItems: 'center', marginHorizontal: 16, marginTop: 10, backgroundColor: SURFACE, borderRadius: 10, borderWidth: 1, borderColor: BORD, height: 40, gap: 8 },
   searchInput: { flex: 1, fontSize: 14, color: TEXT, paddingRight: 12 },
 
-  catScrollWrap: { flexShrink: 0, height: 36 },
-  catScroll: { paddingHorizontal: 16, gap: 8, alignItems: 'center', height: 36 },
+  catScroll: { paddingHorizontal: 16, paddingVertical: 4, gap: 8, alignItems: 'center' },
   catChip: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20, borderWidth: 1, backgroundColor: SURFACE, borderColor: BORD },
   catChipText: { fontSize: 13, fontWeight: '500', color: MUTED },
 
