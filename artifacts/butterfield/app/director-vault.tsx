@@ -463,7 +463,7 @@ export default function VaultScreen() {
             ))}
           </ScrollView>
 
-          <ScrollView contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: insets.bottom + 24 }}>
+          <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: insets.bottom + 24 }}>
             {filtered.length === 0 && !isLoading && (
               <View style={{ alignItems: 'center', paddingVertical: 48, gap: 10 }}>
                 <Feather name="book-open" size={32} color={MUTED} />
