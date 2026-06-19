@@ -67,17 +67,13 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     setVaultToken(token);
     setIsUnlocked(true);
     await ScreenCapture.preventScreenCaptureAsync();
-    // Store PIN in SecureStore for biometric-assisted future unlocks.
-    // requireAuthentication: true means the OS prompts FaceID/TouchID before returning the value,
-    // so the raw PIN is never readable without device biometric verification.
     if (pin) {
       try {
-        await SecureStore.setItemAsync(VAULT_PIN_KEY, pin, {
-          requireAuthentication: true,
-        });
+        // Store PIN plainly — LocalAuthentication.authenticateAsync in the UI
+        // is the biometric gate before this value is ever read back.
+        await SecureStore.setItemAsync(VAULT_PIN_KEY, pin);
       } catch {
-        // SecureStore unavailable on simulator or no biometric enrolled —
-        // biometric convenience won't work but PIN unlock still succeeds
+        // SecureStore unavailable — biometric convenience won't work but PIN unlock still succeeds
       }
     }
     resetInactivityTimer();
