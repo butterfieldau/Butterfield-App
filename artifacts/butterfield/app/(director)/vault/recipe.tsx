@@ -4,6 +4,8 @@ import { router, useLocalSearchParams } from 'expo-router';
 import React, { useState } from 'react';
 import {
   Alert,
+  KeyboardAvoidingView,
+  Platform,
   Pressable,
   ScrollView,
   StatusBar,
@@ -88,6 +90,7 @@ export default function VaultRecipeScreen() {
   if (!isUnlocked) { router.back(); return null; }
 
   return (
+    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
     <View style={[s.container, { paddingTop: insets.top }]} onTouchStart={resetInactivityTimer}>
       <StatusBar barStyle="dark-content" backgroundColor={BG} />
 
@@ -241,6 +244,7 @@ export default function VaultRecipeScreen() {
         </ScrollView>
       )}
     </View>
+    </KeyboardAvoidingView>
   );
 }
 

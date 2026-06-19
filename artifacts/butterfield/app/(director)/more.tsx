@@ -125,7 +125,13 @@ export default function MoreScreen() {
           <CategoryCard
             key={cat.key}
             cat={cat}
-            onPress={() => router.push({ pathname: '/director-more-category', params: { category: cat.key } } as any)}
+            onPress={() => {
+              if (cat.key === 'vault') {
+                router.push('/(director)/vault' as any);
+              } else {
+                router.push({ pathname: '/director-more-category', params: { category: cat.key } } as any);
+              }
+            }}
           />
         ))}
 
