@@ -236,6 +236,15 @@ export async function prepareRetailCheckout(input: RetailCheckoutPreparationInpu
       }
     } else if (rewardType === 'item_reward') {
       if (linkedProductId) {
+        // Look up the product price for savings display on the confirmation screen.
+        const [linkedProduct] = await db
+          .select({ priceCents: productsTable.priceCents, salePriceCents: productsTable.salePriceCents })
+          .from(productsTable)
+          .where(eq(productsTable.id, linkedProductId));
+        if (linkedProduct) {
+          birthdayCookieDiscountCents = linkedProduct.salePriceCents ?? linkedProduct.priceCents ?? 0;
+        }
+
         const existingIdx = items.findIndex((item) => item.productId === linkedProductId && !item.isFreeReward);
         if (existingIdx >= 0) {
           const existingQty = Math.max(1, Math.floor(Number(items[existingIdx]?.quantity ?? 1)));
