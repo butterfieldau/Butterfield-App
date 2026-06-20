@@ -374,7 +374,7 @@ router.patch('/recipes/:id', ...vaultSession, async (req: Request, res: Response
     return;
   }
 
-  const { name, category, description, yieldCount, yieldUnit, prepTimeMin, bakeTimeMin, notes } = req.body;
+  const { name, category, description, yieldCount, yieldUnit, prepTimeMin, bakeTimeMin, notes, sellingPriceCents } = req.body;
   const [updated] = await db.update(vaultRecipesTable)
     .set({
       ...(name !== undefined ? { name } : {}),
@@ -385,6 +385,7 @@ router.patch('/recipes/:id', ...vaultSession, async (req: Request, res: Response
       ...(prepTimeMin !== undefined ? { prepTimeMin } : {}),
       ...(bakeTimeMin !== undefined ? { bakeTimeMin } : {}),
       ...(notes !== undefined ? { notes } : {}),
+      ...(sellingPriceCents !== undefined ? { sellingPriceCents } : {}),
       updatedByUserId: req.user!.id,
       updatedAt: new Date(),
     })

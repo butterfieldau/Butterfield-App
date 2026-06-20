@@ -22,6 +22,7 @@ export const vaultRecipesTable = pgTable("vault_recipes", {
   bakeTimeMin: integer("bake_time_min"),
   notes: text("notes"),
   status: text("status").notNull().default("active"),
+  sellingPriceCents: integer("selling_price_cents"),
   createdByUserId: text("created_by_user_id"),
   updatedByUserId: text("updated_by_user_id"),
   createdAt: timestamp("created_at").notNull().defaultNow(),

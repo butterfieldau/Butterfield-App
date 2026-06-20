@@ -43,7 +43,8 @@ type Ingredient = {
 type Recipe = {
   id: string; name: string; category: string; description?: string | null;
   yieldCount: number; yieldUnit: string; prepTimeMin?: number | null;
-  bakeTimeMin?: number | null; notes?: string | null; status: string; ingredients: Ingredient[];
+  bakeTimeMin?: number | null; notes?: string | null; status: string;
+  sellingPriceCents?: number | null; ingredients: Ingredient[];
 };
 
 export default function VaultRecipeScreen() {
@@ -52,6 +53,7 @@ export default function VaultRecipeScreen() {
   const { isUnlocked, vaultToken, resetInactivityTimer } = useVault();
   const queryClient = useQueryClient();
   const [retailPrice, setRetailPrice] = useState('');
+  const [savingPrice, setSavingPrice] = useState(false);
 
   const { data, isLoading } = useQuery({
     queryKey: ['vault-recipe', id],
@@ -67,8 +69,33 @@ export default function VaultRecipeScreen() {
     return sum + Math.round(qty * ing.costCentsPerUnit);
   }, 0);
   const costPerItem = recipe ? totalBatchCostCents / (recipe.yieldCount || 1) : 0;
+
+  // Pre-fill from saved selling price (only on first load)
+  React.useEffect(() => {
+    if (recipe?.sellingPriceCents && !retailPrice) {
+      setRetailPrice((recipe.sellingPriceCents / 100).toFixed(2));
+    }
+  }, [recipe?.sellingPriceCents]);
+
   const retailCents = parseFloat(retailPrice) * 100;
   const margin = retailCents > 0 ? ((retailCents - costPerItem) / retailCents) * 100 : null;
+
+  async function handleSavePrice() {
+    if (!recipe || !retailPrice) return;
+    const cents = Math.round(parseFloat(retailPrice) * 100);
+    if (isNaN(cents) || cents <= 0) return;
+    setSavingPrice(true);
+    try {
+      await api.vault.updateRecipe(vaultToken!, id, { sellingPriceCents: cents });
+      queryClient.invalidateQueries({ queryKey: ['vault-recipe', id] });
+      queryClient.invalidateQueries({ queryKey: ['vault-recipes'] });
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch {
+      Alert.alert('Error', 'Could not save price.');
+    } finally {
+      setSavingPrice(false);
+    }
+  }
 
   async function handleArchive() {
     if (!recipe) return;
@@ -220,7 +247,7 @@ export default function VaultRecipeScreen() {
           {/* Margin calculator */}
           <View style={s.marginCard}>
             <Text style={s.sectionLabel}>MARGIN CALCULATOR</Text>
-            <Text style={[s.costLabel, { marginBottom: 8 }]}>Enter retail price per item (AUD) to calculate margin</Text>
+            <Text style={[s.costLabel, { marginBottom: 8 }]}>Retail price per item (AUD)</Text>
             <View style={s.marginInputRow}>
               <Text style={s.dollarSign}>$</Text>
               <TextInput
@@ -231,6 +258,13 @@ export default function VaultRecipeScreen() {
                 placeholderTextColor={MUTED}
                 keyboardType="decimal-pad"
               />
+              <Pressable
+                onPress={handleSavePrice}
+                disabled={savingPrice || !retailPrice || parseFloat(retailPrice) <= 0}
+                style={[s.savePriceBtn, (savingPrice || !retailPrice || parseFloat(retailPrice) <= 0) && { opacity: 0.4 }]}
+              >
+                <Text style={s.savePriceBtnText}>{savingPrice ? 'Saving…' : 'Save'}</Text>
+              </Pressable>
             </View>
             {margin !== null && (
               <View style={[s.marginResult, { backgroundColor: margin > 0 ? '#16A34A12' : ERROR + '12' }]}>
@@ -285,6 +319,8 @@ const s = StyleSheet.create({
   marginInputRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: BG, borderRadius: 10, borderWidth: 1, borderColor: BORD },
   dollarSign: { fontSize: 18, color: GOLD, paddingLeft: 12, fontWeight: '600' },
   marginInput: { flex: 1, fontSize: 18, color: TEXT, padding: 12, fontWeight: '600' },
+  savePriceBtn: { backgroundColor: GOLD, borderRadius: 8, paddingHorizontal: 16, paddingVertical: 10, margin: 6 },
+  savePriceBtnText: { color: '#fff', fontSize: 14, fontWeight: '700' },
   marginResult: { borderRadius: 12, padding: 16, alignItems: 'center', gap: 4 },
   marginPct: { fontSize: 32, fontWeight: '800' },
   marginLabel: { fontSize: 13, color: TEXTD },
