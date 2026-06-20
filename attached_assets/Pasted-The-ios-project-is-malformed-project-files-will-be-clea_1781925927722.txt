@@ -1,0 +1,26 @@
+The ios project is malformed, project files will be cleared and reinitialized.
+- Clearing ios
+✔ Cleared ios code
+- Creating native directory (./ios)
+✔ Created native directory
+- Updating package.json
+✔ Updated package.json
+- Running prebuild
+[withStarIOLazyInit] Wrote StarIOSafeInit.m to /Users/expo/workingdir/build/artifacts/butterfield/ios/Butterfield/StarIOSafeInit.m
+- Running prebuild
+[withGoogleSignInFix] Applied Google SDK modular-headers fix to Podfile.
+- Running prebuild
+✖ Prebuild failed
+TypeError: [ios.xcodeproj]: withIosXcodeprojBaseMod: Cannot read properties of null (reading 'path')
+TypeError: [ios.xcodeproj]: withIosXcodeprojBaseMod: Cannot read properties of null (reading 'path')
+    at correctForPath (/Users/expo/workingdir/build/node_modules/.pnpm/xcode@3.0.1/node_modules/xcode/lib/pbxProject.js:1682:38)
+    at correctForPluginsPath (/Users/expo/workingdir/build/node_modules/.pnpm/xcode@3.0.1/node_modules/xcode/lib/pbxProject.js:1668:12)
+    at pbxProject.addPluginFile (/Users/expo/workingdir/build/node_modules/.pnpm/xcode@3.0.1/node_modules/xcode/lib/pbxProject.js:106:5)
+    at pbxProject.addSourceFile (/Users/expo/workingdir/build/node_modules/.pnpm/xcode@3.0.1/node_modules/xcode/lib/pbxProject.js:166:21)
+    at /Users/expo/workingdir/build/artifacts/butterfield/plugins/withStarIOLazyInit.js:152:18
+    at action (/Users/expo/workingdir/build/node_modules/.pnpm/@expo+config-plugins@54.0.4/node_modules/@expo/config-plugins/build/plugins/withMod.js:199:29)
+    at interceptingMod (/Users/expo/workingdir/build/node_modules/.pnpm/@expo+config-plugins@54.0.4/node_modules/@expo/config-plugins/build/plugins/withMod.js:104:27)
+    at action (/Users/expo/workingdir/build/node_modules/.pnpm/@expo+config-plugins@54.0.4/node_modules/@expo/config-plugins/build/plugins/withMod.js:204:14)
+    at async interceptingMod (/Users/expo/workingdir/build/node_modules/.pnpm/@expo+config-plugins@54.0.4/node_modules/@expo/config-plugins/build/plugins/withMod.js:104:21)
+    at async interceptingMod (/Users/expo/workingdir/build/node_modules/.pnpm/@expo+config-plugins@54.0.4/node_modules/@expo/config-plugins/build/plugins/withMod.js:104:21)
+pnpm expo prebuild --no-install --platform ios exited with non-zero code: 1
