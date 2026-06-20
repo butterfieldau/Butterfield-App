@@ -235,7 +235,6 @@ export default function CustomerHome() {
                     {b.renderIcon()}
                   </View>
                   <Text style={[s.benefitTitle, { color: colors.foreground }]}>{b.title}</Text>
-                  <Text style={[s.benefitDesc, { color: colors.mutedForeground }]}>{b.desc}</Text>
                 </Pressable>
               )}
             />
