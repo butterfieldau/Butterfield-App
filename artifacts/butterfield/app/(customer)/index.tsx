@@ -5,7 +5,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { router, useFocusEffect } from 'expo-router';
 import React, { useCallback, useRef, useState } from 'react';
 import { useScrollToTopCompat as useScrollToTop } from '@/hooks/useScrollToTopCompat';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   FlatList,
   Pressable,
@@ -32,6 +32,7 @@ import { LoginRequiredModal } from '@/components/LoginRequiredModal';
 import { setSelectedProduct } from '@/lib/selectedProduct';
 import { setPreselectedOptions } from '@/lib/preselectedOptions';
 import { useRefreshControl } from '@/hooks/useRefreshControl';
+import BannerPicksCarousel from '@/components/BannerPicksCarousel';
 
 const HERO_TOP = '#0C1428';
 const HERO_BTM = '#162040';
@@ -71,6 +72,13 @@ export default function CustomerHome() {
     featuredStore,
     greeting,
   } = useHomeScreenData();
+
+  const { data: bannerData } = useQuery({
+    queryKey: ['home-banner'],
+    queryFn: () => api.misc.homeBanner(),
+    staleTime: 5 * 60_000,
+  });
+  const bannerSlides = bannerData?.data ?? [];
 
   const { refreshing, onRefresh } = useRefreshControl(refetch, refetchLoyalty);
   const qc = useQueryClient();
@@ -174,6 +182,19 @@ export default function CustomerHome() {
             <Feather name="arrow-right" size={18} color="#fff" />
           </Pressable>
         </View>
+
+        {/* ── THE DROP ── */}
+        {bannerSlides.length > 0 && (
+          <View style={{ marginTop: 28 }}>
+            <View style={[s.sectionHead, { paddingHorizontal: hPad }]}>
+              <Text style={[s.sectionTitle, { color: colors.foreground }]}>The Drop</Text>
+              <Pressable hitSlop={8} onPress={() => { Haptics.selectionAsync(); router.push('/(customer)/menu'); }}>
+                <Text style={[s.viewAll, { color: BLUE }]}>See all</Text>
+              </Pressable>
+            </View>
+            <BannerPicksCarousel slides={bannerSlides} hPad={hPad} />
+          </View>
+        )}
 
         {/* ── YOUR USUAL ── */}
         {usualItems.length > 0 && (
