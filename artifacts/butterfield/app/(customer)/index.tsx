@@ -38,6 +38,12 @@ const HERO_TOP = '#0C1428';
 const HERO_BTM = '#162040';
 const BLUE     = '#40C0F2';
 
+const GUEST_BENEFITS = [
+  { icon: 'award',  title: 'Earn points',    desc: 'Every order builds your balance' },
+  { icon: 'coffee', title: 'Free coffee',    desc: 'Stamp card rewards on us' },
+  { icon: 'gift',   title: 'Birthday treat', desc: 'A gift every year, just for you' },
+];
+
 export default function CustomerHome() {
   const colors  = useColors();
   const insets  = useSafeAreaInsets();
@@ -182,6 +188,41 @@ export default function CustomerHome() {
             <Feather name="arrow-right" size={18} color="#fff" />
           </Pressable>
         </View>
+
+        {/* ── JOIN BUTTERFIELD (guest only) ── */}
+        {!user && (
+          <View style={{ marginTop: 28 }}>
+            <View style={[s.sectionHead, { paddingHorizontal: hPad }]}>
+              <View style={{ flex: 1 }}>
+                <Text style={[s.sectionTitle, { color: colors.foreground }]}>Join Butterfield</Text>
+                <Text style={[s.sectionMeta, { color: colors.mutedForeground, marginTop: 2 }]}>Free rewards with every order</Text>
+              </View>
+            </View>
+            <FlatList
+              data={GUEST_BENEFITS}
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              keyExtractor={(b) => b.icon}
+              contentContainerStyle={{ paddingHorizontal: hPad, gap: 12 }}
+              renderItem={({ item: b }) => (
+                <Pressable
+                  style={[s.benefitCard, { backgroundColor: colors.card }]}
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    setLoginTarget('/(customer)/loyalty');
+                  }}
+                  android_ripple={{ color: 'rgba(64,192,242,0.08)' }}
+                >
+                  <View style={s.benefitIconWrap}>
+                    <Feather name={b.icon as any} size={22} color={BLUE} />
+                  </View>
+                  <Text style={[s.benefitTitle, { color: colors.foreground }]}>{b.title}</Text>
+                  <Text style={[s.benefitDesc, { color: colors.mutedForeground }]}>{b.desc}</Text>
+                </Pressable>
+              )}
+            />
+          </View>
+        )}
 
         {/* ── YOUR USUAL ── */}
         {usualItems.length > 0 && (
@@ -371,4 +412,26 @@ const s = StyleSheet.create({
   usualOpts:  { fontSize: 11, fontWeight: '400' },
   usualPrice: { fontSize: 13, fontWeight: '700' },
   usualAddBtn: { width: 30, height: 30, borderRadius: 15, backgroundColor: '#D20001', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+  benefitCard: {
+    width: 140,
+    borderRadius: 16,
+    padding: 16,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  benefitIconWrap: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: 'rgba(64,192,242,0.10)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+  },
+  benefitTitle: { fontSize: 14, fontWeight: '700', letterSpacing: -0.2, textAlign: 'center', marginBottom: 4 },
+  benefitDesc:  { fontSize: 12, fontWeight: '400', textAlign: 'center', lineHeight: 16 },
 });
