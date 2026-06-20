@@ -1,5 +1,6 @@
 import { StyleSheet } from 'react-native';
 import {
+  BG, BLUE, BORDER, CARD, MUTED,
   GLASS_BG, GLASS_BORDER,
 } from './directorColors';
 
@@ -56,4 +57,13 @@ export const styles = StyleSheet.create({
   annTitle:      { fontSize: 14, fontWeight: '700', color: TEXT_C },
   annBody:       { fontSize: 13, fontWeight: '400', color: '#6B7280', lineHeight: 18 },
   annDate:       { fontSize: 11, fontWeight: '400', color: MUTED_C, marginLeft: 'auto' as any },
+});
+
+export const screen = StyleSheet.create({
+  tabBar:        { backgroundColor: CARD, borderBottomWidth: 1, borderBottomColor: BORDER },
+  tabList:       { paddingHorizontal: 16, paddingVertical: 10, gap: 8 },
+  tab:           { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, borderWidth: 1, borderColor: BORDER, backgroundColor: BG },
+  tabActive:     { backgroundColor: BLUE, borderColor: BLUE },
+  tabText:       { fontSize: 13, fontWeight: '600', color: MUTED },
+  tabTextActive: { color: '#FFFFFF' },
 });

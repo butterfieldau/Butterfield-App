@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import React, { useState } from 'react';
-import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { FlatList, Pressable, Text, View } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { DirectorTabScreen } from '@/components/DirectorTabScreen';
@@ -8,6 +8,7 @@ import { DirectorStandaloneScreen } from '@/components/DirectorStandaloneScreen'
 import {
   StoreTab, BannerTab, RewardsTab, NotifyTab, ManagersTab, DirectorsTab,
 } from '@/components/director';
+import { screen as styles } from '@/components/director/settingsStyles';
 
 // ─── Re-exports (backward-compat for settings-*.tsx standalone routes) ─────────
 export { BannerTab }         from '@/components/director';
@@ -27,12 +28,6 @@ export function SettingsStandaloneScreen({ title, children }: { title: string; c
 }
 
 // ─── Tab config ───────────────────────────────────────────────────────────────
-const BLUE  = '#1493FF';
-const MUTED = '#8E8E93';
-const BG    = '#EFF6FF';
-const BORD  = '#E5E7EB';
-const CARD  = '#FFFFFF';
-
 const TABS = [
   { key: 'Store',     label: 'Store'    },
   { key: 'Banner',    label: 'Banner'   },
@@ -94,11 +89,3 @@ export default function DirectorSettingsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  tabBar:        { backgroundColor: CARD, borderBottomWidth: 1, borderBottomColor: BORD },
-  tabList:       { paddingHorizontal: 16, paddingVertical: 10, gap: 8 },
-  tab:           { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, borderWidth: 1, borderColor: BORD, backgroundColor: BG },
-  tabActive:     { backgroundColor: BLUE, borderColor: BLUE },
-  tabText:       { fontSize: 13, fontWeight: '600', color: MUTED },
-  tabTextActive: { color: '#FFFFFF' },
-});
