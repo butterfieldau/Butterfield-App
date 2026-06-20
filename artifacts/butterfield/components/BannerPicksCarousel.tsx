@@ -3,7 +3,7 @@ import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
 import {
   Dimensions,
   FlatList,
@@ -113,29 +113,12 @@ interface BannerPicksCarouselProps {
 export default function BannerPicksCarousel({ slides, hPad = 16 }: BannerPicksCarouselProps) {
   const flatRef = useRef<FlatList>(null);
   const [activeIndex, setActiveIndex] = useState(0);
-  const touchActive = useRef(false);
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const cardWidth = Dimensions.get('window').width - hPad * 2 - 12;
 
   const scrollTo = useCallback((index: number) => {
     flatRef.current?.scrollToIndex({ index, animated: true });
     setActiveIndex(index);
   }, []);
-
-  useEffect(() => {
-    if (slides.length <= 1) return;
-
-    timerRef.current = setInterval(() => {
-      if (touchActive.current) return;
-      setActiveIndex(prev => {
-        const next = (prev + 1) % slides.length;
-        flatRef.current?.scrollToIndex({ index: next, animated: true });
-        return next;
-      });
-    }, 4000);
-
-    return () => { if (timerRef.current) clearInterval(timerRef.current); };
-  }, [slides.length]);
 
   if (slides.length === 0) return null;
 
@@ -145,16 +128,11 @@ export default function BannerPicksCarousel({ slides, hPad = 16 }: BannerPicksCa
         ref={flatRef}
         data={slides}
         horizontal
-        pagingEnabled={slides.length > 1}
         showsHorizontalScrollIndicator={false}
         snapToInterval={cardWidth + 12}
         decelerationRate="fast"
         keyExtractor={(item) => item.id}
         contentContainerStyle={{ paddingHorizontal: hPad, gap: 12 }}
-        onTouchStart={() => { touchActive.current = true; }}
-        onTouchEnd={() => {
-          touchActive.current = false;
-        }}
         onMomentumScrollEnd={(e) => {
           const index = Math.round(e.nativeEvent.contentOffset.x / (cardWidth + 12));
           setActiveIndex(Math.max(0, Math.min(index, slides.length - 1)));

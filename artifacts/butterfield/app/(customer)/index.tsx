@@ -183,19 +183,6 @@ export default function CustomerHome() {
           </Pressable>
         </View>
 
-        {/* ── THE DROP ── */}
-        {bannerSlides.length > 0 && (
-          <View style={{ marginTop: 28 }}>
-            <View style={[s.sectionHead, { paddingHorizontal: hPad }]}>
-              <Text style={[s.sectionTitle, { color: colors.foreground }]}>The Drop</Text>
-              <Pressable hitSlop={8} onPress={() => { Haptics.selectionAsync(); router.push('/(customer)/menu'); }}>
-                <Text style={[s.viewAll, { color: BLUE }]}>See all</Text>
-              </Pressable>
-            </View>
-            <BannerPicksCarousel slides={bannerSlides} hPad={hPad} />
-          </View>
-        )}
-
         {/* ── YOUR USUAL ── */}
         {usualItems.length > 0 && (
           <View style={{ marginTop: 28 }}>
@@ -251,7 +238,7 @@ export default function CustomerHome() {
 
         {/* ── TODAY'S PICKS ── */}
         {spotlightItems.length > 0 && (
-          <View style={{ marginTop: 28, marginBottom: 8 }}>
+          <View style={{ marginTop: 28 }}>
             <View style={[s.sectionHead, { paddingHorizontal: hPad }]}>
               <Text style={[s.sectionTitle, { color: colors.foreground }]}>Today's Picks</Text>
               <Pressable hitSlop={8} onPress={() => { Haptics.selectionAsync(); router.push('/(customer)/menu'); }}>
@@ -270,6 +257,19 @@ export default function CustomerHome() {
                 </View>
               )}
             />
+          </View>
+        )}
+
+        {/* ── THE DROP ── */}
+        {bannerSlides.length > 0 && (
+          <View style={{ marginTop: 28, marginBottom: 8 }}>
+            <View style={[s.sectionHead, { paddingHorizontal: hPad }]}>
+              <Text style={[s.sectionTitle, { color: colors.foreground }]}>The Drop</Text>
+              <Pressable hitSlop={8} onPress={() => { Haptics.selectionAsync(); router.push('/(customer)/menu'); }}>
+                <Text style={[s.viewAll, { color: BLUE }]}>See all</Text>
+              </Pressable>
+            </View>
+            <BannerPicksCarousel slides={bannerSlides} hPad={hPad} />
           </View>
         )}
       </ScrollView>
