@@ -221,7 +221,7 @@ router.post('/', async (req, res) => {
   // Both must succeed together: if the claim is already consumed, the order is rolled back.
   const orderId = randomUUID();
   const orderNumber = await generateOrderNumber();
-  const pointsEarned = Math.floor(authorativeTotalCents / 100);
+  const pointsEarned = Math.floor(authorativeTotalCents / 125);
   let order!: typeof ordersTable.$inferSelect;
   const isPaid = stripePaymentStatus === 'paid' || stripePaymentStatus === 'free' || stripePaymentStatus === 'pay_at_pickup';
 

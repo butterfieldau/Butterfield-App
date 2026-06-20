@@ -102,7 +102,7 @@ interface Props {
 }
 
 export function CheckoutConfirmation({ confirmation, clearCart, insets }: Props) {
-  const earnedPoints  = Math.max(0, Math.floor(confirmation.totalCents / 100));
+  const earnedPoints  = Math.max(0, Math.floor(confirmation.totalCents / 125));
   const orderShortId  = confirmation.orderNumber ?? `#${confirmation.orderId.slice(0, 8).toUpperCase()}`;
   const placedLabel   = new Intl.DateTimeFormat('en-AU', { day: 'numeric', month: 'short', year: 'numeric' }).format(new Date());
   const { width: screenWidth } = useWindowDimensions();

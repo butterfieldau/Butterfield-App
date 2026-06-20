@@ -1183,7 +1183,7 @@ const handleCreatePosOrder: import('express').RequestHandler = async (req, res) 
       }
     } catch { /* fall back to 1× */ }
   }
-  const basePoints = Math.floor(baseTotalCents / 100 * tierMultiplierVal);
+  const basePoints = Math.floor(baseTotalCents / 125 * tierMultiplierVal);
   let birthdayBonusPoints = 0;
   let birthdayBonusMultiplier = DEFAULT_BIRTHDAY_BONUS_MULTIPLIER;
   if (birthdayBonusVerified) {
