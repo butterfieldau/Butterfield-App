@@ -267,7 +267,7 @@ export default function MenuScreen() {
             }
             ListEmptyComponent={
               <View style={{ alignItems: 'center', marginTop: 60, gap: 10 }}>
-                <Text style={{ fontSize: 36 }}>{selectedDietaryTags.length > 0 ? selectedDietaryTags.map(t => DIETARY_ICONS[t]).join(' ') : '🔍'}</Text>
+                <Feather name={selectedDietaryTags.length > 0 ? 'filter' : 'search'} size={36} color="#8E8E93" />
                 <Text style={{ color: '#1C1C1E', fontWeight: '600', fontSize: 15, textAlign: 'center' }}>
                   {selectedDietaryTags.length > 0
                     ? `No ${activeCategory !== 'all' ? (categories.find((c: any) => c.id === activeCategory)?.label ?? activeCategory) + ' ' : ''}items match your filters`

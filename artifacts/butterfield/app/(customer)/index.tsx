@@ -138,7 +138,7 @@ export default function CustomerHome() {
 
           {/* Top row */}
           <View style={s.heroTopRow}>
-            <Image source={require('@/assets/images/logo-white.png')} style={{ width: 112, height: 34 }} contentFit="contain" />
+            <Image source={require('@/assets/images/logo-blue.png')} style={{ width: 112, height: 34 }} contentFit="contain" />
             <Pressable
               style={s.qrBtn}
               onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); if (!user) { setLoginTarget('/(customer)/loyalty'); return; } setShowQR(true); }}
