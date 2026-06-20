@@ -128,12 +128,10 @@ module.exports = function withStarIOLazyInit(config) {
   config = withXcodeProject(config, (modConfig) => {
     const xcodeProject = modConfig.modResults;
     const projectName = modConfig.modRequest.projectName ?? 'butterfield';
-    const relPath = `${projectName}/${SHIM_FILENAME}`;
+    const firstTarget = xcodeProject.getFirstTarget();
 
     // Avoid adding duplicates across repeated prebuild runs.
-    const existingFiles = xcodeProject.pbxSourcesBuildPhaseObj(
-      xcodeProject.getFirstTarget().uuid,
-    );
+    const existingFiles = xcodeProject.pbxSourcesBuildPhaseObj(firstTarget.uuid);
     const alreadyAdded = Object.values(existingFiles || {}).some(
       (f) => typeof f === 'object' && f !== null && typeof (f).fileRef === 'string' &&
         (() => {
@@ -149,11 +147,33 @@ module.exports = function withStarIOLazyInit(config) {
       return modConfig;
     }
 
-    xcodeProject.addSourceFile(relPath, {
-      target: xcodeProject.getFirstTarget().uuid,
-    });
+    // Resolve the main app PBX group by UUID rather than by path string.
+    // xcode@3.0.1's addSourceFile walks the path string to find the parent group,
+    // but on a fresh EAS prebuild the group is keyed by UUID — not the project name —
+    // so the path-based lookup returns null and crashes. We locate the group UUID
+    // ourselves and pass it directly as the third argument.
+    const pbxGroups = xcodeProject.hash.project.objects['PBXGroup'] || {};
+    let appGroupKey = null;
+    for (const [key, group] of Object.entries(pbxGroups)) {
+      if (key.endsWith('_comment')) continue;
+      const groupName = (group.name || '').replace(/"/g, '');
+      const groupPath = (group.path || '').replace(/"/g, '');
+      if (groupName === projectName || groupPath === projectName) {
+        appGroupKey = key;
+        break;
+      }
+    }
 
-    console.log('[withStarIOLazyInit] Registered', relPath, 'in Xcode project.');
+    if (appGroupKey) {
+      xcodeProject.addSourceFile(SHIM_FILENAME, { target: firstTarget.uuid }, appGroupKey);
+      console.log('[withStarIOLazyInit] Registered', SHIM_FILENAME, 'in Xcode project (group:', appGroupKey, ').');
+    } else {
+      // Guard: if the group wasn't found, add without a group (goes to root group).
+      // A misplaced file is better than a broken build.
+      console.warn('[withStarIOLazyInit] Could not find PBXGroup for', projectName, '— adding', SHIM_FILENAME, 'to root group.');
+      xcodeProject.addSourceFile(SHIM_FILENAME, { target: firstTarget.uuid });
+    }
+
     return modConfig;
   });
 
