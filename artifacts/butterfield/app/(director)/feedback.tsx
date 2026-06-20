@@ -180,58 +180,57 @@ export default function FeedbackScreen() {
     return counts;
   }, [allItems]);
 
-  return (
-    <DirectorStandaloneScreen title="Customer Feedback" subtitle="Ratings, comments & order reviews">
-      {allItems.length > 0 && (
-        <View style={{ paddingHorizontal: 20, paddingTop: 4, paddingBottom: 2 }}>
-          <View style={s.summaryRow}>
+  const listHeader = allItems.length > 0 ? (
+    <>
+      <View style={{ paddingHorizontal: 20, paddingTop: 6, paddingBottom: 2 }}>
+        <View style={s.summaryRow}>
+          <View style={s.summaryChip}>
+            <Feather name="inbox" size={13} color={unreadCount > 0 ? RED : MUTED} />
+            <Text style={[s.summaryChipText, unreadCount > 0 && { color: RED }]}>
+              {unreadCount} unresolved
+            </Text>
+          </View>
+          {avgRating && (
             <View style={s.summaryChip}>
-              <Feather name="inbox" size={13} color={unreadCount > 0 ? RED : MUTED} />
-              <Text style={[s.summaryChipText, unreadCount > 0 && { color: RED }]}>
-                {unreadCount} unresolved
-              </Text>
+              <Feather name="star" size={13} color={GOLD} />
+              <Text style={s.summaryChipText}>{avgRating} avg rating</Text>
             </View>
-            {avgRating && (
-              <View style={s.summaryChip}>
-                <Feather name="star" size={13} color={GOLD} />
-                <Text style={s.summaryChipText}>{avgRating} avg rating</Text>
-              </View>
-            )}
-            <View style={s.summaryChip}>
-              <Feather name="message-square" size={13} color={BLUE} />
-              <Text style={s.summaryChipText}>{allItems.length} total</Text>
-            </View>
+          )}
+          <View style={s.summaryChip}>
+            <Feather name="message-square" size={13} color={BLUE} />
+            <Text style={s.summaryChipText}>{allItems.length} total</Text>
           </View>
         </View>
-      )}
+      </View>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={s.filterBar}
+      >
+        {FILTER_CHIPS.map(chip => {
+          const isActive = activeFilter === chip.key;
+          let count: number | null = null;
+          if (chip.key === 'unread') count = unreadCount;
+          else if (chip.key !== 'all') count = ratingCounts[parseInt(chip.key)] ?? 0;
+          return (
+            <Pressable
+              key={chip.key}
+              onPress={() => { Haptics.selectionAsync(); setActiveFilter(chip.key); }}
+              style={[s.filterChip, isActive && s.filterChipActive]}
+            >
+              <Text style={[s.filterChipText, isActive && s.filterChipTextActive]}>
+                {chip.label}
+                {count != null ? ` (${count})` : ''}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </ScrollView>
+    </>
+  ) : null;
 
-      {allItems.length > 0 && (
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={s.filterBar}
-        >
-          {FILTER_CHIPS.map(chip => {
-            const isActive = activeFilter === chip.key;
-            let count: number | null = null;
-            if (chip.key === 'unread') count = unreadCount;
-            else if (chip.key !== 'all') count = ratingCounts[parseInt(chip.key)] ?? 0;
-            return (
-              <Pressable
-                key={chip.key}
-                onPress={() => { Haptics.selectionAsync(); setActiveFilter(chip.key); }}
-                style={[s.filterChip, isActive && s.filterChipActive]}
-              >
-                <Text style={[s.filterChipText, isActive && s.filterChipTextActive]}>
-                  {chip.label}
-                  {count != null ? ` (${count})` : ''}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </ScrollView>
-      )}
-
+  return (
+    <DirectorStandaloneScreen title="Customer Feedback" subtitle="Ratings, comments & order reviews">
       {isLoading ? (
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
           <ActivityIndicator color={BLUE} size="large" />
@@ -241,8 +240,9 @@ export default function FeedbackScreen() {
           data={filtered}
           keyExtractor={item => item.id}
           style={{ flex: 1 }}
-          contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 8, paddingBottom: insets.bottom + 16, gap: 10 }}
+          contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: insets.bottom + 16, gap: 10 }}
           showsVerticalScrollIndicator={false}
+          ListHeaderComponent={listHeader}
           refreshControl={
             <RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={BLUE} />
           }
