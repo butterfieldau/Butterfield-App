@@ -14,20 +14,23 @@ import { DirectorTabScreen } from '@/components/DirectorTabScreen';
 import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 
-const BG     = '#EFF6FF';
-const CARD   = '#FFFFFF';
-const BLUE   = '#1493FF';
-const NAVY   = '#1A2B4A';
-const RED    = '#EF4444';
-const TEXT   = '#1C1C1E';
-const MUTED  = '#8E8E93';
+// ─── Palette ──────────────────────────────────────────────────────────────────
+const BG          = '#EFF6FF';
+const CARD        = '#FFFFFF';
+const BLUE        = '#1493FF';
+const NAVY        = '#1A2B4A';
+const RED         = '#EF4444';
+const TEXT        = '#1C1C1E';
+const MUTED       = '#8E8E93';
 const BORDER      = '#E5E7EB';
 const GLASS_BG    = 'rgba(255,255,255,0.6)';
 const GLASS_BORDER= 'rgba(255,255,255,0.85)';
-const GREEN  = '#22C55E';
-const AMBER  = '#F59E0B';
-const PURPLE = '#8B5CF6';
-const PINK   = '#EC4899';
+const GREEN       = '#22C55E';
+const AMBER       = '#F59E0B';
+const PURPLE      = '#8B5CF6';
+const PINK        = '#EC4899';
+
+// ─── Data constants ────────────────────────────────────────────────────────────
 const PRODUCT_TYPES = ['standard','limited','seasonal','wholesale-only','staff-only'];
 const ALLERGEN_LIST = ['Gluten','Dairy','Eggs','Nuts','Peanuts','Soy','Sesame','Sulphites','Fish','Shellfish'];
 const DIETARY_LIST  = ['Vegan','Vegetarian','Gluten-Free','Dairy-Free','Nut-Free','Halal','Kosher','Low-Sugar'];
@@ -47,13 +50,15 @@ const STATUS_OPTIONS = ['All','Active','Draft','Archived'] as const;
 type StatusOption = typeof STATUS_OPTIONS[number];
 const SORT_OPTIONS = ['Name A → Z','Name Z → A','Price: Low → High','Price: High → Low','Newest First'] as const;
 type SortOption = typeof SORT_OPTIONS[number];
-// ─── helpers ──────────────────────────────────────────────────────────────────
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 function centsToDisplay(c?: number | null) { return c != null ? ((c) / 100).toFixed(2) : ''; }
 function displayToCents(s: string) { return Math.round(parseFloat(s.replace(/[^0-9.]/g,'')) * 100) || 0; }
 function parseJsonField(val?: string | null): string[] {
   if (!val) return [];
   try { const r = JSON.parse(val); return Array.isArray(r) ? r : []; } catch { return []; }
 }
+
 // ─── Tag chip ─────────────────────────────────────────────────────────────────
 function TagChip({ label, active, color, onPress }: { label: string; active: boolean; color: string; onPress: () => void }) {
   return (
@@ -62,7 +67,8 @@ function TagChip({ label, active, color, onPress }: { label: string; active: boo
     </Pressable>
   );
 }
-// ─── Section header ───────────────────────────────────────────────────────────
+
+// ─── Section header (modal sections) ──────────────────────────────────────────
 function SectionHeader({ title, icon, color }: { title: string; icon: string; color: string }) {
   return (
     <View style={form.sectionHeader}>
@@ -73,6 +79,7 @@ function SectionHeader({ title, icon, color }: { title: string; icon: string; co
     </View>
   );
 }
+
 // ─── Field wrapper ────────────────────────────────────────────────────────────
 function Field({ label, children, required }: { label: string; children: React.ReactNode; required?: boolean }) {
   return (
@@ -110,6 +117,7 @@ function Toggle({ label, value, onChange, color, desc }: { label: string; value:
     </View>
   );
 }
+
 // ─── Segment picker ────────────────────────────────────────────────────────────
 function Segment({ options, value, onChange }: { options: string[]; value: string; onChange: (v: string) => void }) {
   return (
@@ -122,14 +130,23 @@ function Segment({ options, value, onChange }: { options: string[]; value: strin
     </View>
   );
 }
-// ─── Derive objectPath from a stored URL (absolute or relative) ───────────
+
+// ─── Modal drag handle ────────────────────────────────────────────────────────
+function DragHandle() {
+  return (
+    <View style={{ alignItems: 'center', paddingTop: 10, paddingBottom: 4, backgroundColor: CARD }}>
+      <View style={{ width: 40, height: 4, borderRadius: 2, backgroundColor: BORDER }} />
+    </View>
+  );
+}
+
+// ─── Derive objectPath from a stored URL ──────────────────────────────────────
 function getObjectPath(url: string): string | null {
   const match = url.match(/(\/objects\/.+?)(\?|$)/);
   return match ? match[1] : null;
 }
-// ─── Build a displayable absolute URL from a stored image path ────────────
-// Stored values may be relative (/api/storage/objects/...) or absolute.
-// React Native Image requires an absolute URL, so we prefix with the API domain.
+
+// ─── Build displayable URL from stored image path ────────────────────────────
 const API_DOMAIN = process.env.EXPO_PUBLIC_DOMAIN
   ? `https://${process.env.EXPO_PUBLIC_DOMAIN}`
   : '';
@@ -148,59 +165,24 @@ const CATEGORY_SORT_RECOMMENDATIONS: Array<{ key: string; label: string; sortOrd
 ];
 const PRODUCT_SORT_RECOMMENDATIONS: Record<string, Record<string, number>> = {
   cookies: {
-    'Choc Chip Cookie': 10,
-    'M&Ms Cookie': 20,
-    Biscoff: 30,
-    'Red Velvet Cookie': 40,
-    'Pistachio Cookie': 50,
-    'Bueno Cookie': 60,
-    'Almond Croissant Cookie': 70,
+    'Choc Chip Cookie': 10, 'M&Ms Cookie': 20, Biscoff: 30, 'Red Velvet Cookie': 40,
+    'Pistachio Cookie': 50, 'Bueno Cookie': 60, 'Almond Croissant Cookie': 70,
   },
   coffee: {
-    Latte: 10,
-    Cappuccino: 20,
-    'Flat White': 30,
-    'Long Black': 40,
-    Mocha: 50,
-    'White Choc Mocha': 60,
-    'Chai Latte': 70,
-    'Belgian Choc': 80,
-    Piccolo: 90,
-    Espresso: 100,
-    Macchiato: 110,
-    'Cold Brew': 120,
+    Latte: 10, Cappuccino: 20, 'Flat White': 30, 'Long Black': 40, Mocha: 50,
+    'White Choc Mocha': 60, 'Chai Latte': 70, 'Belgian Choc': 80, Piccolo: 90,
+    Espresso: 100, Macchiato: 110, 'Cold Brew': 120,
   },
-  matcha: {
-    Matcha: 10,
-    'Dirty Matcha': 20,
-  },
+  matcha: { Matcha: 10, 'Dirty Matcha': 20 },
   tea: {
-    'Earl Grey': 10,
-    'English Breakfast': 20,
-    Peppermint: 30,
-    'Lemongrass & Ginger': 40,
-    'Green Sencha': 50,
-    'Masala Chai': 60,
-    'Green Tea & Jasmine': 70,
-    'Red Silk': 80,
+    'Earl Grey': 10, 'English Breakfast': 20, Peppermint: 30, 'Lemongrass & Ginger': 40,
+    'Green Sencha': 50, 'Masala Chai': 60, 'Green Tea & Jasmine': 70, 'Red Silk': 80,
   },
-  desserts: {
-    'Cookie & Cream Sandwich': 10,
-    'Free Soft Serve': 20,
-  },
-  'soft-serve': {
-    'Free Soft Serve': 20,
-  },
-  boxes: {
-    'Cookie Party Box': 10,
-  },
-  bundles: {
-    'Cookie Party Box': 10,
-  },
-  merch: {
-    'Retro Shirt': 10,
-    'Bucket Hat': 20,
-  },
+  desserts: { 'Cookie & Cream Sandwich': 10, 'Free Soft Serve': 20 },
+  'soft-serve': { 'Free Soft Serve': 20 },
+  boxes: { 'Cookie Party Box': 10 },
+  bundles: { 'Cookie Party Box': 10 },
+  merch: { 'Retro Shirt': 10, 'Bucket Hat': 20 },
 };
 function toDisplayUrl(url: string): string {
   if (!url) return url;
@@ -222,6 +204,7 @@ function getRecommendedProductSort(category: string | null | undefined, name: st
   if (!cleanName) return null;
   return categoryMap[cleanName] ?? null;
 }
+
 // ─── Default form state ────────────────────────────────────────────────────────
 const BLANK = () => ({
   name: '', shortDescription: '', description: '',
@@ -239,13 +222,7 @@ const BLANK = () => ({
   productUrl: '',
 });
 type FormState = ReturnType<typeof BLANK>;
-type ModalTab = 'core' | 'status' | 'details' | 'inventory';
-const MODAL_TABS: { id: ModalTab; label: string; icon: string }[] = [
-  { id: 'core',      label: 'Core',      icon: 'package'        },
-  { id: 'status',    label: 'Status',    icon: 'toggle-right'   },
-  { id: 'details',   label: 'Details',   icon: 'file-text'      },
-  { id: 'inventory', label: 'Inventory', icon: 'box'            },
-];
+
 // ─── Add/Edit Modal ────────────────────────────────────────────────────────────
 function ProductModal({
   visible, onClose, onSave, initial, editing, categories = [],
@@ -253,17 +230,11 @@ function ProductModal({
   const insets = useSafeAreaInsets();
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const [modalTab, setModalTab] = useState<ModalTab>('core');
   const [f, setF] = useState<FormState>(BLANK());
   const recommendedProductSort = useMemo(
     () => getRecommendedProductSort(f.category, f.name),
     [f.category, f.name],
   );
-  // Reset to first tab whenever modal opens
-  React.useEffect(() => {
-    if (visible) setModalTab('core');
-  }, [visible]);
-  // Populate when editing
   React.useEffect(() => {
     if (visible && initial) {
       setF({
@@ -313,6 +284,7 @@ function ProductModal({
       setF(BLANK());
     }
   }, [visible, initial]);
+
   const upd = <K extends keyof FormState>(k: K, v: FormState[K]) => setF(p => ({ ...p, [k]: v }));
   const toggleArr = (k: 'allergens' | 'dietaryTags' | 'tags' | 'availableDays', val: string) => {
     setF(p => {
@@ -320,33 +292,24 @@ function ProductModal({
       return { ...p, [k]: arr.includes(val) ? arr.filter(x => x !== val) : [...arr, val] };
     });
   };
-  // ── Product image upload ──────────────────────────────────────────────────
+
+  // ── Product image upload ────────────────────────────────────────────────────
   const handlePickProductImage = async (isReplace: boolean) => {
     try {
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (status !== 'granted') {
-        Alert.alert('Permission required', 'Please allow photo library access in Settings.');
-        return;
-      }
+      if (status !== 'granted') { Alert.alert('Permission required', 'Please allow photo library access in Settings.'); return; }
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: false,
-        quality: 0.88,
-        selectionLimit: 1,
+        allowsEditing: false, quality: 0.88, selectionLimit: 1,
       });
       if (result.canceled || !result.assets?.length) return;
       const asset = result.assets[0];
-      if (asset.fileSize && asset.fileSize > 8 * 1024 * 1024) {
-        Alert.alert('File too large', 'Please choose an image under 8 MB.');
-        return;
-      }
+      if (asset.fileSize && asset.fileSize > 8 * 1024 * 1024) { Alert.alert('File too large', 'Please choose an image under 8 MB.'); return; }
       const filename = asset.fileName ?? asset.uri.split('/').pop() ?? 'product.jpg';
       const contentType = asset.mimeType ?? 'image/jpeg';
       const oldUrl = f.imageUrl.trim();
       setUploading(true);
-      const { objectPath } = await api.storage.uploadProductImage(
-        asset.uri, filename, contentType, f.category, f.name.trim() || 'product'
-      );
+      const { objectPath } = await api.storage.uploadProductImage(asset.uri, filename, contentType, f.category, f.name.trim() || 'product');
       const storagePath = `/api/storage${objectPath}`;
       if (isReplace && oldUrl) {
         const oldPath = getObjectPath(oldUrl);
@@ -359,16 +322,11 @@ function ProductModal({
   };
   const handleRemoveProductImage = () => {
     Alert.alert('Remove Photo', 'Remove this product photo?', [
-      {
-        text: 'Remove', style: 'destructive', onPress: () => {
-          const url = f.imageUrl.trim();
-          if (url) {
-            const path = getObjectPath(url);
-            if (path) api.storage.deleteProductImage(path).catch(() => {});
-          }
-          upd('imageUrl', '');
-        },
-      },
+      { text: 'Remove', style: 'destructive', onPress: () => {
+        const url = f.imageUrl.trim();
+        if (url) { const path = getObjectPath(url); if (path) api.storage.deleteProductImage(path).catch(() => {}); }
+        upd('imageUrl', '');
+      }},
       { text: 'Cancel', style: 'cancel' },
     ]);
   };
@@ -377,10 +335,7 @@ function ProductModal({
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (status !== 'granted') { Alert.alert('Permission required', 'Please allow photo library access in Settings.'); return; }
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: false,
-        quality: 0.85,
-        selectionLimit: 1,
+        mediaTypes: ImagePicker.MediaTypeOptions.Images, allowsEditing: false, quality: 0.85, selectionLimit: 1,
       });
       if (result.canceled || !result.assets?.length) return;
       const asset = result.assets[0];
@@ -388,9 +343,7 @@ function ProductModal({
       const filename = asset.fileName ?? asset.uri.split('/').pop() ?? 'gallery.jpg';
       const contentType = asset.mimeType ?? 'image/jpeg';
       setUploading(true);
-      const { objectPath } = await api.storage.uploadProductImage(
-        asset.uri, filename, contentType, f.category, (f.name.trim() || 'product') + '-gallery'
-      );
+      const { objectPath } = await api.storage.uploadProductImage(asset.uri, filename, contentType, f.category, (f.name.trim() || 'product') + '-gallery');
       const storagePath = `/api/storage${objectPath}`;
       Haptics.selectionAsync();
       upd('galleryUrls', [...f.galleryUrls, storagePath]);
@@ -398,6 +351,7 @@ function ProductModal({
       Alert.alert('Upload failed', e.message ?? 'Could not upload image.');
     } finally { setUploading(false); }
   };
+
   const handleSave = async () => {
     if (!f.name.trim()) { Alert.alert('Required', 'Product name is required.'); return; }
     if (!f.price.trim()) { Alert.alert('Required', 'Price is required.'); return; }
@@ -410,378 +364,345 @@ function ProductModal({
         name: f.name.trim(),
         shortDescription: f.shortDescription.trim() || null,
         description: f.description.trim(),
-        category: f.category,
-        categoryId: f.categoryId,
-        productType: f.productType,
-        priceCents:         displayToCents(f.price),
-        salePriceCents:     f.salePrice    ? displayToCents(f.salePrice)    : null,
-        costPriceCents:     f.costPrice    ? displayToCents(f.costPrice)    : null,
-        wholesalePriceCents:f.wholesalePrice ? displayToCents(f.wholesalePrice) : null,
+        category: f.category, categoryId: f.categoryId, productType: f.productType,
+        priceCents:          displayToCents(f.price),
+        salePriceCents:      f.salePrice      ? displayToCents(f.salePrice)      : null,
+        costPriceCents:      f.costPrice      ? displayToCents(f.costPrice)      : null,
+        wholesalePriceCents: f.wholesalePrice ? displayToCents(f.wholesalePrice) : null,
         gstIncluded: f.gstIncluded,
-        sku:    f.sku.trim()    || null,
-        barcode:f.barcode.trim()|| null,
+        sku: f.sku.trim() || null, barcode: f.barcode.trim() || null,
         imageUrl: f.imageUrl.trim() || null,
         galleryUrls: f.galleryUrls.filter(u => u.trim()).length
-          ? JSON.stringify(f.galleryUrls.filter(u => u.trim()))
-          : null,
+          ? JSON.stringify(f.galleryUrls.filter(u => u.trim())) : null,
         productUrl: f.productUrl.trim() || null,
         isAvailable: f.isAvailable, isFeatured: f.isFeatured, isNew: f.isNew,
         isWholesaleAvailable: f.isWholesaleAvailable, isStaffOnly: f.isStaffOnly,
-        isAppOnly: f.isAppOnly, isPosOnly: f.isPosOnly, isLimitedDrop: f.isLimitedDrop, isSoldOut: f.isSoldOut,
-        isComingSoon: f.isComingSoon, isPickupOnly: f.isPickupOnly,
-        allergens:   f.allergens.length  ? f.allergens  : null,
-        dietaryTags: f.dietaryTags.length? f.dietaryTags: null,
-        tags:        f.tags.length       ? f.tags       : null,
+        isAppOnly: f.isAppOnly, isPosOnly: f.isPosOnly, isLimitedDrop: f.isLimitedDrop,
+        isSoldOut: f.isSoldOut, isComingSoon: f.isComingSoon, isPickupOnly: f.isPickupOnly,
+        allergens:   f.allergens.length   ? f.allergens   : null,
+        dietaryTags: f.dietaryTags.length ? f.dietaryTags : null,
+        tags:        f.tags.length        ? f.tags        : null,
         ingredients:         f.ingredients.trim()         || null,
         nutritionInfo:       f.nutritionInfo.trim()       || null,
         storageInstructions: f.storageInstructions.trim() || null,
         servingInstructions: f.servingInstructions.trim() || null,
-        minOrderQty:     parseInt(f.minOrderQty)    || 1,
-        maxOrderQty:     f.maxOrderQty     ? parseInt(f.maxOrderQty) : null,
-        leadTimeMins:    f.leadTimeMins    ? parseInt(f.leadTimeMins): null,
-        availableTimes:  f.availableTimes.trim() || null,
-        availableDays:   f.availableDays.length ? f.availableDays : null,
-        stockCount:      f.stockCount      ? parseInt(f.stockCount) : null,
+        minOrderQty:       parseInt(f.minOrderQty)    || 1,
+        maxOrderQty:       f.maxOrderQty    ? parseInt(f.maxOrderQty)  : null,
+        leadTimeMins:      f.leadTimeMins   ? parseInt(f.leadTimeMins) : null,
+        availableTimes:    f.availableTimes.trim() || null,
+        availableDays:     f.availableDays.length ? f.availableDays : null,
+        stockCount:        f.stockCount     ? parseInt(f.stockCount) : null,
         lowStockThreshold: parseInt(f.lowStockThreshold) || 10,
-        sortOrder:       parseInt(f.sortOrder) || 0,
+        sortOrder:         parseInt(f.sortOrder) || 0,
       });
     } catch (e: any) {
       Alert.alert('Save failed', (e as Error).message ?? 'Could not save product.');
     } finally { setSaving(false); }
   };
+
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
-          {/* Modal header */}
-          <View style={[modal.header, { paddingTop: insets.top + 12 }]}>
-            <Pressable onPress={onClose} style={modal.closeBtn}>
-              <Feather name="x" size={20} color={TEXT} />
-            </Pressable>
-            <Text style={[modal.title, { fontWeight: '700', color: TEXT }]}>
-              {editing ? 'Edit Product' : 'Add New Product'}
-            </Text>
-            <Pressable onPress={handleSave} disabled={saving} style={[modal.saveBtn, { backgroundColor: BLUE }]}>
-              {saving ? <ActivityIndicator size="small" color="#fff" /> : <Text style={[modal.saveBtnText, { fontWeight: '700' }]}>Save</Text>}
-            </Pressable>
-          </View>
-          {/* ── Tab bar ──────────────────────────────────────────── */}
-          <View style={{ flexDirection: 'row', backgroundColor: CARD, borderBottomWidth: 1, borderBottomColor: BORDER }}>
-            {MODAL_TABS.map(t => {
-              const active = modalTab === t.id;
-              return (
-                <Pressable key={t.id} onPress={() => { setModalTab(t.id); Haptics.selectionAsync(); }}
-                  style={{ flex: 1, alignItems: 'center', paddingVertical: 10, gap: 3, borderBottomWidth: 2.5, borderBottomColor: active ? BLUE : 'transparent' }}>
-                  <Feather name={t.icon as any} size={15} color={active ? BLUE : MUTED} />
-                  <Text style={{ fontSize: 10, fontWeight: active ? '700' : '500', color: active ? BLUE : MUTED }}>{t.label}</Text>
-                </Pressable>
-              );
-            })}
-          </View>
-          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: 16, gap: 16, paddingBottom: 60 }}>
-            {/* ════════════════════════════════════════════════════════
-                TAB 1 — CORE: Basic info, category, pricing, photos
-               ════════════════════════════════════════════════════════ */}
-            {modalTab === 'core' && <>
-            {/* ── Basic Info ─────────────────────────────────────── */}
-              <SectionHeader title="Basic Information" icon="info" color={BLUE} />
-              <Field label="Product Name" required>
-                <TextF value={f.name} onChange={v => upd('name', v)} placeholder="e.g. Classic Choc Chip Cookie" />
-              </Field>
-              <Field label="Short Description (card preview)">
-                <TextF value={f.shortDescription} onChange={v => upd('shortDescription', v)} placeholder="One-liner shown on product cards" />
-              </Field>
-              <Field label="Full Description">
-                <TextF value={f.description} onChange={v => upd('description', v)} placeholder="Detailed product description…" multiline lines={4} />
-              </Field>
-              <Field label="Category" required>
-                {categories.length === 0 ? (
-                  <View style={{ paddingVertical: 10, alignItems: 'center' }}>
-                    <Text style={{ color: MUTED, fontSize: 13, fontWeight: '400' }}>No categories yet — add one in the Categories tab first.</Text>
-                  </View>
-                ) : (
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 4 }}>
-                    <View style={{ flexDirection: 'row', gap: 8 }}>
-                      {categories.map((c: any) => (
-                        <TagChip
-                          key={c.id}
-                          label={c.name}
-                          active={f.category === c.slug}
-                          color={CAT_COLORS[c.slug] ?? BLUE}
-                          onPress={() => setF(p => ({ ...p, category: c.slug, categoryId: c.id }))}
-                        />
-                      ))}
-                    </View>
-                  </ScrollView>
-                )}
-              </Field>
-              <Field label="Product Type">
-                <Segment options={PRODUCT_TYPES} value={f.productType} onChange={v => upd('productType', v)} />
-              </Field>
-            {/* ── 2. Pricing ─────────────────────────────────────── */}
-              <SectionHeader title="Pricing" icon="dollar-sign" color={GREEN} />
-              <View style={form.row2}>
-                <View style={{ flex: 1 }}>
-                  <Field label="Retail Price (AUD)" required>
-                    <TextF value={f.price} onChange={v => upd('price', v)} placeholder="0.00" numeric />
-                  </Field>
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Field label="Sale Price">
-                    <TextF value={f.salePrice} onChange={v => upd('salePrice', v)} placeholder="0.00" numeric />
-                  </Field>
-                </View>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1, backgroundColor: CARD }}>
+        {/* Drag handle */}
+        <DragHandle />
+        {/* Modal header */}
+        <View style={[modal.header, { paddingTop: 8 }]}>
+          <Pressable onPress={onClose} style={modal.closeBtn}>
+            <Feather name="x" size={20} color={TEXT} />
+          </Pressable>
+          <Text style={[modal.title, { fontWeight: '700', color: TEXT }]}>
+            {editing ? 'Edit Product' : 'Add New Product'}
+          </Text>
+          <View style={{ width: 36 }} />
+        </View>
+        {/* Single-scroll content */}
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          contentContainerStyle={{ padding: 16, gap: 16, paddingBottom: 100 }}
+        >
+          {/* ── Section 1: Basic Information ─────────────────────────── */}
+          <SectionHeader title="Basic Information" icon="info" color={BLUE} />
+          <Field label="Product Name" required>
+            <TextF value={f.name} onChange={v => upd('name', v)} placeholder="e.g. Classic Choc Chip Cookie" />
+          </Field>
+          <Field label="Short Description (card preview)">
+            <TextF value={f.shortDescription} onChange={v => upd('shortDescription', v)} placeholder="One-liner shown on product cards" />
+          </Field>
+          <Field label="Full Description">
+            <TextF value={f.description} onChange={v => upd('description', v)} placeholder="Detailed product description…" multiline lines={4} />
+          </Field>
+          <Field label="Category" required>
+            {categories.length === 0 ? (
+              <View style={{ paddingVertical: 10, alignItems: 'center' }}>
+                <Text style={{ color: MUTED, fontSize: 13, fontWeight: '400' }}>No categories yet — add one in the Categories tab first.</Text>
               </View>
-              <View style={form.row2}>
-                <View style={{ flex: 1 }}>
-                  <Field label="Cost Price">
-                    <TextF value={f.costPrice} onChange={v => upd('costPrice', v)} placeholder="0.00" numeric />
-                  </Field>
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Field label="Wholesale Price">
-                    <TextF value={f.wholesalePrice} onChange={v => upd('wholesalePrice', v)} placeholder="0.00" numeric />
-                  </Field>
-                </View>
-              </View>
-              <Toggle label="GST Included" value={f.gstIncluded} onChange={v => upd('gstIncluded', v)} color={GREEN} desc="Price displayed is GST-inclusive" />
-            {/* ── 3. Photos ──────────────────────────────────────── */}
-              <SectionHeader title="Photos" icon="image" color={BLUE} />
-              {/* Hero image — upload only, no URL input */}
-              <Text style={[form.label, { fontWeight: '500', color: MUTED, marginBottom: 8 }]}>
-                Hero Image
-              </Text>
-              {f.imageUrl.trim() ? (
-                <View style={{ gap: 10 }}>
-                  <Image
-                    source={{ uri: toDisplayUrl(f.imageUrl.trim()) }}
-                    style={{ width: '100%', height: 200, borderRadius: 12, backgroundColor: '#F3F4F6' }}
-                    resizeMode="cover"
-                  />
-                  <View style={{ flexDirection: 'row', gap: 8 }}>
-                    <Pressable
-                      onPress={() => handlePickProductImage(true)}
-                      disabled={uploading}
-                      style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 11, borderRadius: 10, backgroundColor: BLUE + '15', borderWidth: 1, borderColor: BLUE }}
-                    >
-                      {uploading
-                        ? <ActivityIndicator size="small" color={BLUE} />
-                        : <Feather name="refresh-cw" size={14} color={BLUE} />}
-                      <Text style={{ fontSize: 13, fontWeight: '600', color: BLUE }}>
-                        {uploading ? 'Uploading…' : 'Replace Photo'}
-                      </Text>
-                    </Pressable>
-                    <Pressable
-                      onPress={handleRemoveProductImage}
-                      style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 11, paddingHorizontal: 16, borderRadius: 10, backgroundColor: RED + '12', borderWidth: 1, borderColor: RED + '60' }}
-                    >
-                      <Feather name="trash-2" size={14} color={RED} />
-                      <Text style={{ fontSize: 13, fontWeight: '600', color: RED }}>Remove</Text>
-                    </Pressable>
-                  </View>
-                </View>
-              ) : (
-                <Pressable
-                  onPress={() => handlePickProductImage(false)}
-                  disabled={uploading}
-                  style={form.uploadArea}
-                >
-                  {uploading ? (
-                    <ActivityIndicator size="large" color={BLUE} />
-                  ) : (
-                    <>
-                      <View style={{ width: 56, height: 56, borderRadius: 28, backgroundColor: BLUE + '33', alignItems: 'center', justifyContent: 'center', marginBottom: 10, borderWidth: 1.5, borderColor: BLUE + '55' }}>
-                        <Feather name="upload-cloud" size={26} color={BLUE} />
-                      </View>
-                      <Text style={{ fontSize: 15, fontWeight: '600', color: TEXT, marginBottom: 4 }}>
-                        Upload Product Photo
-                      </Text>
-                      <Text style={{ fontSize: 12, fontWeight: '400', color: MUTED }}>
-                        JPG · PNG · WebP · HEIC  ·  Max 8 MB
-                      </Text>
-                    </>
-                  )}
-              </Pressable>
-              )}
-              <View style={{ height: 1, backgroundColor: BORDER, marginVertical: 4 }} />
-              {/* Gallery */}
-              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
-                <Text style={[form.label, { fontWeight: '500', color: MUTED }]}>Gallery Images</Text>
-                <Pressable
-                  onPress={handlePickGalleryImage}
-                  style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}
-                >
-                  <Feather name="upload" size={13} color={BLUE} />
-                  <Text style={{ fontSize: 12, color: BLUE, fontWeight: '600' }}>Upload</Text>
-                </Pressable>
-              </View>
-              {f.galleryUrls.length === 0 ? (
-                <Text style={{ fontSize: 12, color: MUTED, fontWeight: '400' }}>
-                  No gallery images — tap Upload to add more photos
-                </Text>
-              ) : (
-                f.galleryUrls.map((url, idx) => (
-                  <View key={idx} style={{ gap: 6 }}>
-                    {url.trim() ? (
-                      <View style={{ position: 'relative' }}>
-                        <Image
-                          source={{ uri: toDisplayUrl(url.trim()) }}
-                          style={{ width: '100%', height: 120, borderRadius: 10, backgroundColor: '#F3F4F6' }}
-                          resizeMode="cover"
-                        />
-                        <Pressable
-                          onPress={() => {
-                            const path = getObjectPath(url);
-                            if (path) api.storage.deleteProductImage(path).catch(() => {});
-                            Haptics.selectionAsync();
-                            upd('galleryUrls', f.galleryUrls.filter((_, i) => i !== idx));
-                          }}
-                          style={{ position: 'absolute', top: 8, right: 8, backgroundColor: 'rgba(0,0,0,0.55)', borderRadius: 14, padding: 5 }}
-                        >
-                          <Feather name="x" size={14} color="#fff" />
-                        </Pressable>
-                      </View>
-                    ) : null}
-                  </View>
-                ))
-              )}
-            </>}
-            {/* TAB 2 — STATUS: All visibility / sale toggles */}
-            {modalTab === 'status' && <>
-              <SectionHeader title="Sale & Visibility" icon="eye" color={GREEN} />
-              <Toggle label="Available for sale"    value={f.isAvailable}          onChange={v => upd('isAvailable', v)}          color={GREEN}  desc="Show this product to customers" />
-              <Toggle label="Featured"              value={f.isFeatured}           onChange={v => upd('isFeatured', v)}           color={BLUE}   desc="Show in featured sections on home" />
-              <Toggle label="New product badge"     value={f.isNew}                onChange={v => upd('isNew', v)}                color={PINK}   desc="Shows a 'NEW' label on the tile" />
-              <Toggle label="Wholesale available"   value={f.isWholesaleAvailable} onChange={v => upd('isWholesaleAvailable', v)} color={PURPLE} desc="Visible to wholesale accounts" />
-              <SectionHeader title="Stock Status" icon="alert-circle" color={RED} />
-              <Toggle label="Limited drop"          value={f.isLimitedDrop}        onChange={v => upd('isLimitedDrop', v)}        color={RED}    desc="Shows 'LIMITED' badge on tile" />
-              <Toggle label="Sold out"              value={f.isSoldOut}            onChange={v => upd('isSoldOut', v)}            color={RED}    desc="Displays as sold out, blocks ordering" />
-              <Toggle label="Coming soon"           value={f.isComingSoon}         onChange={v => upd('isComingSoon', v)}         color={AMBER}  desc="Teaser before launch" />
-              <SectionHeader title="Access Restrictions" icon="lock" color={MUTED} />
-              <Toggle label="Pickup only"           value={f.isPickupOnly}         onChange={v => upd('isPickupOnly', v)}         color={MUTED}  desc="Cannot be delivered" />
-              <Toggle label="Staff only visibility" value={f.isStaffOnly}          onChange={v => upd('isStaffOnly', v)}          color={MUTED}  desc="Hidden from public menu" />
-              <Toggle label="App only (not in-store)" value={f.isAppOnly}            onChange={v => upd('isAppOnly', v)}            color={MUTED}  desc="Hidden from Shop Display and POS — app orders only" />
-              <Toggle label="POS only"              value={f.isPosOnly}            onChange={v => upd('isPosOnly', v)}            color={MUTED}  desc="Hidden from customer app & wholesale" />
-            </>}
-            {/* TAB 3 — DETAILS: Allergens, dietary, ingredients, IDs */}
-            {modalTab === 'details' && <>
-              <SectionHeader title="Identifiers" icon="hash" color={PURPLE} />
-              <View style={form.row2}>
-                  <Field label="SKU">
-                    <TextF value={f.sku} onChange={v => upd('sku', v)} placeholder="BC-001" />
-                  </Field>
-                  <Field label="Barcode">
-                    <TextF value={f.barcode} onChange={v => upd('barcode', v)} placeholder="1234567890" />
-                  </Field>
-              </View>
-              <Field label="Product URL">
-                <TextInput
-                  value={f.productUrl}
-                  onChangeText={v => upd('productUrl', v)}
-                  placeholder="https://butterfieldcookies.com.au/products/…"
-                  placeholderTextColor={MUTED}
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  keyboardType="url"
-                  style={[form.input, { fontWeight: '400', color: TEXT, height: 46 }]}
-                />
-                <Text style={[form.label, { fontWeight: '400', color: MUTED, marginTop: 4, fontSize: 11 }]}>
-                  Shown as a "View on Website" link in the product sheet. Leave blank to hide.
-                </Text>
-              </Field>
-              <SectionHeader title="Allergens" icon="alert-triangle" color={RED} />
-              <View style={form.tagGrid}>
-                {ALLERGEN_LIST.map(a => (
-                  <TagChip key={a} label={a} active={f.allergens.includes(a)} color={RED} onPress={() => toggleArr('allergens', a)} />
-                ))}
-              </View>
-              <View style={{ height: 1, backgroundColor: BORDER, marginVertical: 12 }} />
-              <SectionHeader title="Dietary Tags" icon="heart" color={GREEN} />
-              <View style={form.tagGrid}>
-                {DIETARY_LIST.map(d => (
-                  <TagChip key={d} label={d} active={f.dietaryTags.includes(d)} color={GREEN} onPress={() => toggleArr('dietaryTags', d)} />
-                ))}
-              </View>
-              <SectionHeader title="Product Info" icon="file-text" color={PURPLE} />
-              <Field label="Ingredients">
-                <TextF value={f.ingredients} onChange={v => upd('ingredients', v)} placeholder="Flour, Butter, Sugar, Chocolate chips…" multiline lines={3} />
-              </Field>
-              <Field label="Nutrition Info">
-                <TextF value={f.nutritionInfo} onChange={v => upd('nutritionInfo', v)} placeholder="Energy, Protein, Fat, Carbs…" multiline lines={3} />
-              </Field>
-              <Field label="Storage Instructions">
-                <TextF value={f.storageInstructions} onChange={v => upd('storageInstructions', v)} placeholder="Store in airtight container…" multiline lines={2} />
-              </Field>
-              <Field label="Serving Instructions">
-                <TextF value={f.servingInstructions} onChange={v => upd('servingInstructions', v)} placeholder="Best served at room temperature…" multiline lines={2} />
-              </Field>
-            </>}
-            {/* TAB 4 — INVENTORY: Stock, order rules, variants */}
-            {modalTab === 'inventory' && <>
-              <SectionHeader title="Stock Management" icon="box" color={PURPLE} />
-              <View style={form.row2}>
-                  <Field label="Current Stock">
-                    <TextF value={f.stockCount} onChange={v => upd('stockCount', v)} placeholder="Empty = unlimited" numeric />
-                  </Field>
-                  <Field label="Low Stock Alert At">
-                    <TextF value={f.lowStockThreshold} onChange={v => upd('lowStockThreshold', v)} placeholder="10" numeric />
-                  </Field>
-              </View>
-              <Field label="Sort Order">
-                <TextF value={f.sortOrder} onChange={v => upd('sortOrder', v)} placeholder="0 = default" numeric />
-                {recommendedProductSort != null && (
-                  <Pressable
-                    onPress={() => {
-                      upd('sortOrder', String(recommendedProductSort));
-                      Haptics.selectionAsync();
-                    }}
-                    style={{ alignSelf: 'flex-start', marginTop: 8, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 999, backgroundColor: BLUE + '12', borderWidth: 1, borderColor: BLUE + '25' }}
-                  >
-                    <Text style={{ color: BLUE, fontSize: 12, fontWeight: '600' }}>
-                      Use Butterfield recommended order ({recommendedProductSort})
-                    </Text>
-                  </Pressable>
-                )}
-                <Text style={[form.label, { fontWeight: '400', color: MUTED, marginTop: 6, fontSize: 11 }]}>
-                  Best practice: leave gaps of 10 like 10, 20, 30 so you can slot new products in later.
-                </Text>
-              </Field>
-              <SectionHeader title="Order Rules" icon="sliders" color={AMBER} />
-              <View style={form.row2}>
-                  <Field label="Min Order Qty">
-                    <TextF value={f.minOrderQty} onChange={v => upd('minOrderQty', v)} placeholder="1" numeric />
-                  </Field>
-                  <Field label="Max Order Qty">
-                    <TextF value={f.maxOrderQty} onChange={v => upd('maxOrderQty', v)} placeholder="No limit" numeric />
-                  </Field>
-              </View>
-              <Field label="Lead Time (mins)">
-                <TextF value={f.leadTimeMins} onChange={v => upd('leadTimeMins', v)} placeholder="e.g. 30" numeric />
-              </Field>
-              <Field label="Available Days">
-                <View style={form.tagGrid}>
-                  {DAYS_LIST.map(d => (
-                    <TagChip key={d} label={d} active={f.availableDays.includes(d)} color={BLUE} onPress={() => toggleArr('availableDays', d)} />
+            ) : (
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 4 }}>
+                <View style={{ flexDirection: 'row', gap: 8 }}>
+                  {categories.map((c: any) => (
+                    <TagChip key={c.id} label={c.name} active={f.category === c.slug}
+                      color={CAT_COLORS[c.slug] ?? BLUE}
+                      onPress={() => setF(p => ({ ...p, category: c.slug, categoryId: c.id }))} />
                   ))}
                 </View>
-                <Text style={[form.label, { fontWeight: '400', color: MUTED, marginTop: 6, fontSize: 11 }]}>
-                  Leave blank for everyday items. Use this only for specials, seasonal drops, or weekend-only products.
-                </Text>
+              </ScrollView>
+            )}
+          </Field>
+          <Field label="Product Type">
+            <Segment options={PRODUCT_TYPES} value={f.productType} onChange={v => upd('productType', v)} />
+          </Field>
+
+          {/* ── Section 2: Pricing ───────────────────────────────────── */}
+          <View style={{ height: 1, backgroundColor: BORDER }} />
+          <SectionHeader title="Pricing" icon="dollar-sign" color={GREEN} />
+          <View style={form.row2}>
+            <View style={{ flex: 1 }}>
+              <Field label="Retail Price (AUD)" required>
+                <TextF value={f.price} onChange={v => upd('price', v)} placeholder="0.00" numeric />
               </Field>
-              <Field label="Available Times">
-                <TextF value={f.availableTimes} onChange={v => upd('availableTimes', v)} placeholder="e.g. 07:00-15:00" />
-                <Text style={[form.label, { fontWeight: '400', color: MUTED, marginTop: 6, fontSize: 11 }]}>
-                  Example: 06:30-22:00 for all-day availability, or 17:00-22:00 for evening-only specials.
-                </Text>
+            </View>
+            <View style={{ flex: 1 }}>
+              <Field label="Sale Price">
+                <TextF value={f.salePrice} onChange={v => upd('salePrice', v)} placeholder="0.00" numeric />
               </Field>
-            </>}
-          </ScrollView>
+            </View>
+          </View>
+          <View style={form.row2}>
+            <View style={{ flex: 1 }}>
+              <Field label="Cost Price">
+                <TextF value={f.costPrice} onChange={v => upd('costPrice', v)} placeholder="0.00" numeric />
+              </Field>
+            </View>
+            <View style={{ flex: 1 }}>
+              <Field label="Wholesale Price">
+                <TextF value={f.wholesalePrice} onChange={v => upd('wholesalePrice', v)} placeholder="0.00" numeric />
+              </Field>
+            </View>
+          </View>
+          <Toggle label="GST Included" value={f.gstIncluded} onChange={v => upd('gstIncluded', v)} color={GREEN} desc="Price displayed is GST-inclusive" />
+
+          {/* ── Section 3: Photos ────────────────────────────────────── */}
+          <View style={{ height: 1, backgroundColor: BORDER }} />
+          <SectionHeader title="Photos" icon="image" color={BLUE} />
+          <Text style={[form.label, { fontWeight: '500', color: MUTED, marginBottom: 4 }]}>Hero Image</Text>
+          {f.imageUrl.trim() ? (
+            <View style={{ gap: 10 }}>
+              <Image source={{ uri: toDisplayUrl(f.imageUrl.trim()) }}
+                style={{ width: '100%', height: 200, borderRadius: 12, backgroundColor: '#F3F4F6' }} resizeMode="cover" />
+              <View style={{ flexDirection: 'row', gap: 8 }}>
+                <Pressable onPress={() => handlePickProductImage(true)} disabled={uploading}
+                  style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 11, borderRadius: 10, backgroundColor: BLUE + '15', borderWidth: 1, borderColor: BLUE }}>
+                  {uploading ? <ActivityIndicator size="small" color={BLUE} /> : <Feather name="refresh-cw" size={14} color={BLUE} />}
+                  <Text style={{ fontSize: 13, fontWeight: '600', color: BLUE }}>{uploading ? 'Uploading…' : 'Replace Photo'}</Text>
+                </Pressable>
+                <Pressable onPress={handleRemoveProductImage}
+                  style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 11, paddingHorizontal: 16, borderRadius: 10, backgroundColor: RED + '12', borderWidth: 1, borderColor: RED + '60' }}>
+                  <Feather name="trash-2" size={14} color={RED} />
+                  <Text style={{ fontSize: 13, fontWeight: '600', color: RED }}>Remove</Text>
+                </Pressable>
+              </View>
+            </View>
+          ) : (
+            <Pressable onPress={() => handlePickProductImage(false)} disabled={uploading} style={form.uploadArea}>
+              {uploading ? <ActivityIndicator size="large" color={BLUE} /> : (
+                <>
+                  <View style={{ width: 56, height: 56, borderRadius: 28, backgroundColor: BLUE + '33', alignItems: 'center', justifyContent: 'center', marginBottom: 10, borderWidth: 1.5, borderColor: BLUE + '55' }}>
+                    <Feather name="upload-cloud" size={26} color={BLUE} />
+                  </View>
+                  <Text style={{ fontSize: 15, fontWeight: '600', color: TEXT, marginBottom: 4 }}>Upload Product Photo</Text>
+                  <Text style={{ fontSize: 12, fontWeight: '400', color: MUTED }}>JPG · PNG · WebP · HEIC  ·  Max 8 MB</Text>
+                </>
+              )}
+            </Pressable>
+          )}
+          <View style={{ height: 1, backgroundColor: BORDER, marginVertical: 4 }} />
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
+            <Text style={[form.label, { fontWeight: '500', color: MUTED }]}>Gallery Images</Text>
+            <Pressable onPress={handlePickGalleryImage} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+              <Feather name="upload" size={13} color={BLUE} />
+              <Text style={{ fontSize: 12, color: BLUE, fontWeight: '600' }}>Upload</Text>
+            </Pressable>
+          </View>
+          {f.galleryUrls.length === 0 ? (
+            <Text style={{ fontSize: 12, color: MUTED, fontWeight: '400' }}>No gallery images — tap Upload to add more photos</Text>
+          ) : (
+            f.galleryUrls.map((url, idx) => (
+              <View key={idx} style={{ gap: 6 }}>
+                {url.trim() ? (
+                  <View style={{ position: 'relative' }}>
+                    <Image source={{ uri: toDisplayUrl(url.trim()) }}
+                      style={{ width: '100%', height: 120, borderRadius: 10, backgroundColor: '#F3F4F6' }} resizeMode="cover" />
+                    <Pressable
+                      onPress={() => {
+                        const path = getObjectPath(url);
+                        if (path) api.storage.deleteProductImage(path).catch(() => {});
+                        Haptics.selectionAsync();
+                        upd('galleryUrls', f.galleryUrls.filter((_, i) => i !== idx));
+                      }}
+                      style={{ position: 'absolute', top: 8, right: 8, backgroundColor: 'rgba(0,0,0,0.55)', borderRadius: 14, padding: 5 }}>
+                      <Feather name="x" size={14} color="#fff" />
+                    </Pressable>
+                  </View>
+                ) : null}
+              </View>
+            ))
+          )}
+
+          {/* ── Section 4: Sale & Visibility ─────────────────────────── */}
+          <View style={{ height: 1, backgroundColor: BORDER }} />
+          <SectionHeader title="Sale & Visibility" icon="eye" color={GREEN} />
+          <Toggle label="Available for sale"    value={f.isAvailable}          onChange={v => upd('isAvailable', v)}          color={GREEN}  desc="Show this product to customers" />
+          <Toggle label="Featured"              value={f.isFeatured}           onChange={v => upd('isFeatured', v)}           color={BLUE}   desc="Show in featured sections on home" />
+          <Toggle label="New product badge"     value={f.isNew}                onChange={v => upd('isNew', v)}                color={PINK}   desc="Shows a 'NEW' label on the tile" />
+          <Toggle label="Wholesale available"   value={f.isWholesaleAvailable} onChange={v => upd('isWholesaleAvailable', v)} color={PURPLE} desc="Visible to wholesale accounts" />
+
+          {/* ── Section 5: Stock Status ──────────────────────────────── */}
+          <View style={{ height: 1, backgroundColor: BORDER }} />
+          <SectionHeader title="Stock Status" icon="alert-circle" color={RED} />
+          <Toggle label="Limited drop"  value={f.isLimitedDrop} onChange={v => upd('isLimitedDrop', v)} color={RED}   desc="Shows 'LIMITED' badge on tile" />
+          <Toggle label="Sold out"      value={f.isSoldOut}     onChange={v => upd('isSoldOut', v)}     color={RED}   desc="Displays as sold out, blocks ordering" />
+          <Toggle label="Coming soon"   value={f.isComingSoon}  onChange={v => upd('isComingSoon', v)}  color={AMBER} desc="Teaser before launch" />
+
+          {/* ── Section 6: Access Restrictions ──────────────────────── */}
+          <View style={{ height: 1, backgroundColor: BORDER }} />
+          <SectionHeader title="Access Restrictions" icon="lock" color={MUTED} />
+          <Toggle label="Pickup only"             value={f.isPickupOnly} onChange={v => upd('isPickupOnly', v)} color={MUTED} desc="Cannot be delivered" />
+          <Toggle label="Staff only visibility"   value={f.isStaffOnly}  onChange={v => upd('isStaffOnly', v)}  color={MUTED} desc="Hidden from public menu" />
+          <Toggle label="App only (not in-store)" value={f.isAppOnly}    onChange={v => upd('isAppOnly', v)}    color={MUTED} desc="Hidden from Shop Display and POS — app orders only" />
+          <Toggle label="POS only"                value={f.isPosOnly}    onChange={v => upd('isPosOnly', v)}    color={MUTED} desc="Hidden from customer app & wholesale" />
+
+          {/* ── Section 7: Identifiers ───────────────────────────────── */}
+          <View style={{ height: 1, backgroundColor: BORDER }} />
+          <SectionHeader title="Identifiers" icon="hash" color={PURPLE} />
+          <View style={form.row2}>
+            <Field label="SKU">
+              <TextF value={f.sku} onChange={v => upd('sku', v)} placeholder="BC-001" />
+            </Field>
+            <Field label="Barcode">
+              <TextF value={f.barcode} onChange={v => upd('barcode', v)} placeholder="1234567890" />
+            </Field>
+          </View>
+          <Field label="Product URL">
+            <TextInput value={f.productUrl} onChangeText={v => upd('productUrl', v)}
+              placeholder="https://butterfieldcookies.com.au/products/…"
+              placeholderTextColor={MUTED} autoCapitalize="none" autoCorrect={false} keyboardType="url"
+              style={[form.input, { fontWeight: '400', color: TEXT, height: 46 }]} />
+            <Text style={[form.label, { fontWeight: '400', color: MUTED, marginTop: 4, fontSize: 11 }]}>
+              Shown as a "View on Website" link in the product sheet. Leave blank to hide.
+            </Text>
+          </Field>
+
+          {/* ── Section 8: Allergens ─────────────────────────────────── */}
+          <View style={{ height: 1, backgroundColor: BORDER }} />
+          <SectionHeader title="Allergens" icon="alert-triangle" color={RED} />
+          <View style={form.tagGrid}>
+            {ALLERGEN_LIST.map(a => (
+              <TagChip key={a} label={a} active={f.allergens.includes(a)} color={RED} onPress={() => toggleArr('allergens', a)} />
+            ))}
+          </View>
+
+          {/* ── Section 9: Dietary Tags ──────────────────────────────── */}
+          <View style={{ height: 1, backgroundColor: BORDER }} />
+          <SectionHeader title="Dietary Tags" icon="heart" color={GREEN} />
+          <View style={form.tagGrid}>
+            {DIETARY_LIST.map(d => (
+              <TagChip key={d} label={d} active={f.dietaryTags.includes(d)} color={GREEN} onPress={() => toggleArr('dietaryTags', d)} />
+            ))}
+          </View>
+
+          {/* ── Section 10: Product Info ─────────────────────────────── */}
+          <View style={{ height: 1, backgroundColor: BORDER }} />
+          <SectionHeader title="Product Info" icon="file-text" color={PURPLE} />
+          <Field label="Ingredients">
+            <TextF value={f.ingredients} onChange={v => upd('ingredients', v)} placeholder="Flour, Butter, Sugar, Chocolate chips…" multiline lines={3} />
+          </Field>
+          <Field label="Nutrition Info">
+            <TextF value={f.nutritionInfo} onChange={v => upd('nutritionInfo', v)} placeholder="Energy, Protein, Fat, Carbs…" multiline lines={3} />
+          </Field>
+          <Field label="Storage Instructions">
+            <TextF value={f.storageInstructions} onChange={v => upd('storageInstructions', v)} placeholder="Store in airtight container…" multiline lines={2} />
+          </Field>
+          <Field label="Serving Instructions">
+            <TextF value={f.servingInstructions} onChange={v => upd('servingInstructions', v)} placeholder="Best served at room temperature…" multiline lines={2} />
+          </Field>
+
+          {/* ── Section 11: Stock Management ─────────────────────────── */}
+          <View style={{ height: 1, backgroundColor: BORDER }} />
+          <SectionHeader title="Stock Management" icon="box" color={PURPLE} />
+          <View style={form.row2}>
+            <Field label="Current Stock">
+              <TextF value={f.stockCount} onChange={v => upd('stockCount', v)} placeholder="Empty = unlimited" numeric />
+            </Field>
+            <Field label="Low Stock Alert At">
+              <TextF value={f.lowStockThreshold} onChange={v => upd('lowStockThreshold', v)} placeholder="10" numeric />
+            </Field>
+          </View>
+          <Field label="Sort Order">
+            <TextF value={f.sortOrder} onChange={v => upd('sortOrder', v)} placeholder="0 = default" numeric />
+            {recommendedProductSort != null && (
+              <Pressable
+                onPress={() => { upd('sortOrder', String(recommendedProductSort)); Haptics.selectionAsync(); }}
+                style={{ alignSelf: 'flex-start', marginTop: 8, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 999, backgroundColor: BLUE + '12', borderWidth: 1, borderColor: BLUE + '25' }}>
+                <Text style={{ color: BLUE, fontSize: 12, fontWeight: '600' }}>
+                  Use Butterfield recommended order ({recommendedProductSort})
+                </Text>
+              </Pressable>
+            )}
+            <Text style={[form.label, { fontWeight: '400', color: MUTED, marginTop: 6, fontSize: 11 }]}>
+              Best practice: leave gaps of 10 like 10, 20, 30 so you can slot new products in later.
+            </Text>
+          </Field>
+
+          {/* ── Section 12: Order Rules ──────────────────────────────── */}
+          <View style={{ height: 1, backgroundColor: BORDER }} />
+          <SectionHeader title="Order Rules" icon="sliders" color={AMBER} />
+          <View style={form.row2}>
+            <Field label="Min Order Qty">
+              <TextF value={f.minOrderQty} onChange={v => upd('minOrderQty', v)} placeholder="1" numeric />
+            </Field>
+            <Field label="Max Order Qty">
+              <TextF value={f.maxOrderQty} onChange={v => upd('maxOrderQty', v)} placeholder="No limit" numeric />
+            </Field>
+          </View>
+          <Field label="Lead Time (mins)">
+            <TextF value={f.leadTimeMins} onChange={v => upd('leadTimeMins', v)} placeholder="e.g. 30" numeric />
+          </Field>
+          <Field label="Available Days">
+            <View style={form.tagGrid}>
+              {DAYS_LIST.map(d => (
+                <TagChip key={d} label={d} active={f.availableDays.includes(d)} color={BLUE} onPress={() => toggleArr('availableDays', d)} />
+              ))}
+            </View>
+            <Text style={[form.label, { fontWeight: '400', color: MUTED, marginTop: 6, fontSize: 11 }]}>
+              Leave blank for everyday items. Use this only for specials, seasonal drops, or weekend-only products.
+            </Text>
+          </Field>
+          <Field label="Available Times">
+            <TextF value={f.availableTimes} onChange={v => upd('availableTimes', v)} placeholder="e.g. 07:00-15:00" />
+            <Text style={[form.label, { fontWeight: '400', color: MUTED, marginTop: 6, fontSize: 11 }]}>
+              Example: 06:30-22:00 for all-day availability, or 17:00-22:00 for evening-only specials.
+            </Text>
+          </Field>
+        </ScrollView>
+        {/* Sticky footer */}
+        <View style={{ flexDirection: 'row', gap: 10, padding: 16, paddingBottom: 24, borderTopWidth: 1, borderTopColor: BORDER, backgroundColor: CARD }}>
+          <Pressable onPress={onClose} style={{ flex: 1, height: 50, borderRadius: 14, borderWidth: 1, borderColor: BORDER, alignItems: 'center', justifyContent: 'center' }}>
+            <Text style={{ fontSize: 15, fontWeight: '600', color: TEXT }}>Cancel</Text>
+          </Pressable>
+          <Pressable onPress={handleSave} disabled={saving} style={{ flex: 2, height: 50, borderRadius: 14, backgroundColor: BLUE, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 8 }}>
+            {saving ? <ActivityIndicator size="small" color="#fff" /> : <Text style={{ fontSize: 15, fontWeight: '700', color: '#fff' }}>Save Product</Text>}
+          </Pressable>
+        </View>
       </KeyboardAvoidingView>
     </Modal>
   );
 }
+
 // ─── Category list sub-screen ──────────────────────────────────────────────────
 function CatalogTab() {
   const qc = useQueryClient();
+  const insets = useSafeAreaInsets();
   const [catModal, setCatModal] = useState(false);
   const [editCat, setEditCat] = useState<any>(null);
   const editCatRef = useRef<any>(null);
@@ -809,6 +730,7 @@ function CatalogTab() {
   });
   const { refreshing, onRefresh } = useRefreshControl(refetch);
   const cats: any[] = data?.data ?? [];
+
   const openAddCat = () => {
     editCatRef.current = null;
     setEditCat(null); setCatName(''); setCatSlug(''); setCatDesc('');
@@ -820,10 +742,10 @@ function CatalogTab() {
   const openEditCat = (c: any) => {
     editCatRef.current = c;
     setEditCat(c); setCatName(c.name); setCatSlug(c.slug); setCatDesc(c.description ?? '');
-    setCatSortOrder(String(c.sortOrder ?? 0)); setCatShowPublic(c.showPublic ?? true); setCatShowWholesale(c.showWholesale ?? false);
-    setCatShowOnHome(c.showOnHome ?? false); setCatHomeOrder(String(c.homeOrder ?? 0));
-    setCatImageUrl(c.imageUrl ?? ''); setCatColor(c.color ?? null);
-    setCatShowPos(c.showPos ?? true); setCatIsActive(c.isActive ?? true);
+    setCatSortOrder(String(c.sortOrder ?? 0)); setCatShowPublic(c.showPublic ?? true);
+    setCatShowWholesale(c.showWholesale ?? false); setCatShowOnHome(c.showOnHome ?? false);
+    setCatHomeOrder(String(c.homeOrder ?? 0)); setCatImageUrl(c.imageUrl ?? '');
+    setCatColor(c.color ?? null); setCatShowPos(c.showPos ?? true); setCatIsActive(c.isActive ?? true);
     setCatModal(true);
   };
   const saveCat = async () => {
@@ -832,24 +754,15 @@ function CatalogTab() {
     try {
       const slug = catSlug.trim() || catName.toLowerCase().replace(/[^a-z0-9]/g, '-');
       const payload = {
-        name: catName.trim(), slug,
-        description: catDesc.trim() || undefined,
-        sortOrder: parseInt(catSortOrder) || 0,
-        isActive: catIsActive,
-        showPublic: catShowPublic,
-        showWholesale: catShowWholesale,
-        showOnHome: catShowOnHome,
-        homeOrder: parseInt(catHomeOrder) || 0,
-        imageUrl: catImageUrl.trim() || null,
-        color: catColor || null,
-        showPos: catShowPos,
+        name: catName.trim(), slug, description: catDesc.trim() || undefined,
+        sortOrder: parseInt(catSortOrder) || 0, isActive: catIsActive,
+        showPublic: catShowPublic, showWholesale: catShowWholesale,
+        showOnHome: catShowOnHome, homeOrder: parseInt(catHomeOrder) || 0,
+        imageUrl: catImageUrl.trim() || null, color: catColor || null, showPos: catShowPos,
       };
       const current = editCatRef.current;
-      if (current) {
-        await api.director.updateCategory(current.id, payload);
-      } else {
-        await api.director.createCategory(payload);
-      }
+      if (current) { await api.director.updateCategory(current.id, payload); }
+      else { await api.director.createCategory(payload); }
       await qc.invalidateQueries({ queryKey: ['director-categories'] });
       await qc.invalidateQueries({ queryKey: ['categories'] });
       setCatModal(false);
@@ -867,11 +780,7 @@ function CatalogTab() {
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (status !== 'granted') { Alert.alert('Permission required', 'Please allow photo library access in Settings.'); return; }
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true,
-        aspect: [4, 3],
-        quality: 0.88,
-        selectionLimit: 1,
+        mediaTypes: ImagePicker.MediaTypeOptions.Images, allowsEditing: true, aspect: [4, 3], quality: 0.88, selectionLimit: 1,
       });
       if (result.canceled || !result.assets?.length) return;
       const asset = result.assets[0];
@@ -903,6 +812,7 @@ function CatalogTab() {
       }},
     ]);
   };
+
   return (
     <View style={{ flex: 1 }}>
       <FlatList
@@ -911,92 +821,125 @@ function CatalogTab() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={BLUE} />}
         contentContainerStyle={{ padding: 16, gap: 10, paddingBottom: 120 }}
         ListHeaderComponent={
-          <View style={[form.card, { marginBottom: 6 }]}>
+          <View style={{ backgroundColor: CARD, borderRadius: 18, borderWidth: StyleSheet.hairlineWidth, borderColor: BORDER, padding: 16, marginBottom: 6, gap: 10 }}>
             <SectionHeader title="Butterfield Category Order" icon="list" color={BLUE} />
-            <Text style={[form.label, { fontWeight: '400', color: MUTED, marginTop: -6 }]}>
+            <Text style={[form.label, { fontWeight: '400', color: MUTED }]}>
               Recommended order for the customer menu. Use sort values in gaps so it stays flexible.
             </Text>
-            <View style={[form.tagGrid, { marginTop: 0 }]}>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
               {CATEGORY_SORT_RECOMMENDATIONS.map((item) => (
                 <View key={`${item.key}-${item.sortOrder}`} style={{ paddingHorizontal: 10, paddingVertical: 7, borderRadius: 999, backgroundColor: BG, borderWidth: 1, borderColor: BORDER }}>
-                  <Text style={{ color: TEXT, fontSize: 12, fontWeight: '600' }}>
-                    {item.sortOrder} · {item.label}
-                  </Text>
+                  <Text style={{ color: TEXT, fontSize: 12, fontWeight: '600' }}>{item.sortOrder} · {item.label}</Text>
                 </View>
               ))}
             </View>
           </View>
         }
         ListEmptyComponent={<Text style={{ color: MUTED, textAlign: 'center', marginTop: 60, fontWeight: '400' }}>No categories yet</Text>}
+        ListFooterComponent={
+          <Pressable
+            onPress={() => { Haptics.selectionAsync(); openAddCat(); }}
+            style={({ pressed }) => ({
+              flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10,
+              borderRadius: 18, borderWidth: 1.5, borderColor: BLUE + '66', borderStyle: 'dashed',
+              paddingVertical: 18, paddingHorizontal: 16, marginTop: 4,
+              backgroundColor: BLUE + '08', opacity: pressed ? 0.75 : 1,
+            })}
+          >
+            <View style={{ width: 32, height: 32, borderRadius: 10, backgroundColor: BLUE + '18', alignItems: 'center', justifyContent: 'center' }}>
+              <Feather name="plus" size={18} color={BLUE} />
+            </View>
+            <Text style={{ fontSize: 15, fontWeight: '700', color: BLUE }}>Add Category</Text>
+          </Pressable>
+        }
         renderItem={({ item: c }) => {
+          const catCol = (c.color ?? CAT_COLORS[c.slug]) ?? BLUE;
           const thumbUrl = c.imageUrl ? toDisplayUrl(c.imageUrl) : null;
+          const productCount = c.productCount ?? 0;
           return (
-            <View style={{ backgroundColor: GLASS_BG, borderRadius: 14, borderWidth: 1, borderColor: GLASS_BORDER, padding: 14, flexDirection: 'row', alignItems: 'center', gap: 12, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 14, elevation: 3 }}>
-              {/* Thumbnail */}
-              <View style={{ width: 44, height: 44, borderRadius: 10, backgroundColor: BG, overflow: 'hidden', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <Pressable
+              onPress={() => { Haptics.selectionAsync(); openEditCat(c); }}
+              onLongPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                Alert.alert(c.name, 'Choose an action', [
+                  { text: 'Edit', onPress: () => openEditCat(c) },
+                  { text: 'Delete', style: 'destructive', onPress: () => deleteCat(c) },
+                  { text: 'Cancel', style: 'cancel' },
+                ]);
+              }}
+              style={({ pressed }) => ({
+                flexDirection: 'row', alignItems: 'center', gap: 14,
+                backgroundColor: CARD, borderRadius: 18,
+                paddingVertical: 16, paddingHorizontal: 16,
+                borderWidth: StyleSheet.hairlineWidth, borderColor: BORDER,
+                opacity: pressed ? 0.8 : 1,
+              })}
+            >
+              {/* Icon circle */}
+              <View style={{ width: 48, height: 48, borderRadius: 14, alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, backgroundColor: catCol + '33', borderColor: catCol + '55', overflow: 'hidden', flexShrink: 0 }}>
                 {thumbUrl
-                  ? <Image source={{ uri: thumbUrl }} style={{ width: 44, height: 44 }} resizeMode="cover" />
-                  : <Feather name="image" size={18} color={MUTED} />}
+                  ? <Image source={{ uri: thumbUrl }} style={{ width: 48, height: 48 }} resizeMode="cover" />
+                  : <Feather name="grid" size={22} color={catCol} />}
               </View>
-              <View style={{ flex: 1 }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                  {c.color && (
-                    <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: c.color }} />
-                  )}
-                  <Text style={{ fontWeight: '700', color: TEXT, fontSize: 14 }}>{c.name}</Text>
-                  <View style={{ backgroundColor: BLUE + '18', paddingHorizontal: 7, paddingVertical: 2, borderRadius: 10 }}>
-                    <Text style={{ fontSize: 11, fontWeight: '600', color: BLUE }}>{c.productCount ?? 0}</Text>
+              {/* Content */}
+              <View style={{ flex: 1, gap: 3 }}>
+                <Text style={{ fontSize: 16, fontWeight: '700', color: TEXT }}>{c.name}</Text>
+                {c.description ? (
+                  <Text style={{ fontSize: 12, color: MUTED }} numberOfLines={1}>{c.description}</Text>
+                ) : (
+                  <Text style={{ fontSize: 12, color: MUTED }}>/{c.slug}</Text>
+                )}
+                <View style={{ flexDirection: 'row', gap: 6, marginTop: 2, flexWrap: 'wrap' }}>
+                  <View style={{ paddingHorizontal: 8, paddingVertical: 2, borderRadius: 20, backgroundColor: catCol + '18' }}>
+                    <Text style={{ fontSize: 11, fontWeight: '600', color: catCol }}>{productCount} product{productCount !== 1 ? 's' : ''}</Text>
                   </View>
-                  {c.showOnHome && (
-                    <View style={{ backgroundColor: AMBER + '22', paddingHorizontal: 7, paddingVertical: 2, borderRadius: 10, borderWidth: 1, borderColor: AMBER + '44' }}>
-                      <Text style={{ fontSize: 10, fontWeight: '700', color: AMBER }}>HOME</Text>
+                  {!(c.isActive ?? true) && (
+                    <View style={{ paddingHorizontal: 8, paddingVertical: 2, borderRadius: 20, backgroundColor: MUTED + '18' }}>
+                      <Text style={{ fontSize: 11, fontWeight: '600', color: MUTED }}>Hidden</Text>
                     </View>
                   )}
-                  {(c.showPos ?? true) === false && (
-                    <View style={{ backgroundColor: PURPLE + '22', paddingHorizontal: 7, paddingVertical: 2, borderRadius: 10, borderWidth: 1, borderColor: PURPLE + '44' }}>
-                      <Text style={{ fontSize: 10, fontWeight: '700', color: PURPLE }}>POS ONLY</Text>
+                  {c.showOnHome && (
+                    <View style={{ paddingHorizontal: 8, paddingVertical: 2, borderRadius: 20, backgroundColor: AMBER + '22' }}>
+                      <Text style={{ fontSize: 11, fontWeight: '600', color: AMBER }}>Home</Text>
                     </View>
                   )}
                 </View>
-                <Text style={{ fontWeight: '400', color: MUTED, fontSize: 12 }}>/{c.slug}{c.showPublic ? ' · public' : ''}{c.showWholesale ? ' · wholesale' : ''}</Text>
-                {c.description ? <Text style={{ fontWeight: '400', color: MUTED, fontSize: 11, marginTop: 2 }} numberOfLines={1}>{c.description}</Text> : null}
               </View>
-              <Switch value={c.isActive ?? true} onValueChange={() => toggleCatActive(c)} trackColor={{ false: BORDER, true: GREEN }} thumbColor="#fff" />
-              <Pressable onPress={() => openEditCat(c)} style={{ padding: 8 }} hitSlop={4}>
-                <Feather name="edit-2" size={16} color={BLUE} />
-              </Pressable>
-              <Pressable onPress={() => deleteCat(c)} style={{ padding: 8 }} hitSlop={4}>
+              <Pressable onPress={() => deleteCat(c)} style={{ padding: 8 }} hitSlop={6}>
                 <Feather name="trash-2" size={16} color={RED} />
               </Pressable>
-            </View>
+              <Feather name="chevron-right" size={18} color={MUTED} />
+            </Pressable>
           );
         }}
       />
-      {/* FAB */}
-      <Pressable onPress={openAddCat} style={[styles.fab, { backgroundColor: NAVY, bottom: 100 }]}>
-        <Feather name="plus" size={24} color="#fff" />
-      </Pressable>
+
       {/* Category modal */}
       <Modal visible={catModal} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setCatModal(false)}>
-        <View style={{ flex: 1 }}>
-          <View style={modal.header}>
+        <View style={{ flex: 1, backgroundColor: CARD }}>
+          <DragHandle />
+          <View style={[modal.header, { paddingTop: 8 }]}>
             <Pressable onPress={() => setCatModal(false)} style={modal.closeBtn}><Feather name="x" size={18} color={TEXT} /></Pressable>
             <Text style={[modal.title, { fontWeight: '700' }]}>{editCat ? 'Edit Category' : 'New Category'}</Text>
-            <Pressable onPress={saveCat} style={[modal.saveBtn, { backgroundColor: catSaving ? MUTED : NAVY }]} disabled={catSaving}>
-              <Text style={[modal.saveBtnText, { fontWeight: '600' }]}>{catSaving ? 'Saving…' : 'Save'}</Text>
+            <Pressable onPress={saveCat} style={[modal.saveBtn, { backgroundColor: catSaving ? MUTED : BLUE }]} disabled={catSaving}>
+              <Text style={[modal.saveBtnText, { fontWeight: '700' }]}>{catSaving ? 'Saving…' : 'Save'}</Text>
             </Pressable>
           </View>
           <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: 16, gap: 16, paddingBottom: 60 }}>
             <Field label="Name" required>
-              <TextInput value={catName} onChangeText={setCatName} placeholder="Coffee" placeholderTextColor={MUTED} style={[form.input, { fontWeight: '400', color: TEXT, height: 46 }]} />
+              <TextInput value={catName} onChangeText={setCatName} placeholder="Coffee" placeholderTextColor={MUTED}
+                style={[form.input, { fontWeight: '400', color: TEXT, height: 46 }]} />
             </Field>
             <Field label="Slug (URL key)">
-              <TextInput value={catSlug} onChangeText={setCatSlug} placeholder="coffee" placeholderTextColor={MUTED} style={[form.input, { fontWeight: '400', color: TEXT, height: 46 }]} autoCapitalize="none" />
+              <TextInput value={catSlug} onChangeText={setCatSlug} placeholder="coffee" placeholderTextColor={MUTED}
+                style={[form.input, { fontWeight: '400', color: TEXT, height: 46 }]} autoCapitalize="none" />
             </Field>
             <Field label="Description">
-              <TextInput value={catDesc} onChangeText={setCatDesc} placeholder="Short description…" placeholderTextColor={MUTED} style={[form.input, { fontWeight: '400', color: TEXT, height: 80, textAlignVertical: 'top', paddingTop: 12 }]} multiline />
+              <TextInput value={catDesc} onChangeText={setCatDesc} placeholder="Short description…" placeholderTextColor={MUTED}
+                style={[form.input, { fontWeight: '400', color: TEXT, height: 80, textAlignVertical: 'top', paddingTop: 12 }]} multiline />
             </Field>
-            {/* Category Icon / Photo */}
+
+            <View style={{ height: 1, backgroundColor: BORDER }} />
             <SectionHeader title="Category Icon" icon="image" color={PINK} />
             <View style={{ gap: 10 }}>
               {catImageUrl ? (
@@ -1012,11 +955,8 @@ function CatalogTab() {
                   </View>
                 </View>
               ) : (
-                <Pressable
-                  onPress={handlePickCategoryImage}
-                  disabled={catUploading}
-                  style={{ height: 110, borderRadius: 14, borderWidth: 1.5, borderColor: BORDER, borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: BG }}
-                >
+                <Pressable onPress={handlePickCategoryImage} disabled={catUploading}
+                  style={{ height: 110, borderRadius: 14, borderWidth: 1.5, borderColor: BORDER, borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: BG }}>
                   {catUploading
                     ? <ActivityIndicator color={BLUE} />
                     : <>
@@ -1028,7 +968,8 @@ function CatalogTab() {
                 </Pressable>
               )}
             </View>
-            {/* POS Colour */}
+
+            <View style={{ height: 1, backgroundColor: BORDER }} />
             <SectionHeader title="POS Colour" icon="droplet" color={PURPLE} />
             <View style={{ gap: 10 }}>
               <Text style={{ color: MUTED, fontSize: 12, fontWeight: '400' }}>
@@ -1038,67 +979,53 @@ function CatalogTab() {
                 {PRESET_COLORS.map(c => {
                   const selected = catColor === c;
                   return (
-                    <Pressable
-                      key={c}
-                      onPress={() => { setCatColor(selected ? null : c); Haptics.selectionAsync(); }}
-                      style={{
-                        width: 38, height: 38, borderRadius: 19,
-                        backgroundColor: c,
-                        borderWidth: selected ? 3 : 1.5,
-                        borderColor: selected ? NAVY : 'rgba(0,0,0,0.12)',
-                        alignItems: 'center', justifyContent: 'center',
-                      }}
-                    >
+                    <Pressable key={c} onPress={() => { setCatColor(selected ? null : c); Haptics.selectionAsync(); }}
+                      style={{ width: 38, height: 38, borderRadius: 19, backgroundColor: c, borderWidth: selected ? 3 : 1.5, borderColor: selected ? NAVY : 'rgba(0,0,0,0.12)', alignItems: 'center', justifyContent: 'center' }}>
                       {selected && <Feather name="check" size={16} color="#fff" />}
                     </Pressable>
                   );
                 })}
               </View>
               {catColor && (
-                <Pressable
-                  onPress={() => { setCatColor(null); Haptics.selectionAsync(); }}
-                  style={{ alignSelf: 'flex-start', paddingHorizontal: 12, paddingVertical: 7, borderRadius: 999, backgroundColor: RED + '12', borderWidth: 1, borderColor: RED + '25' }}
-                >
+                <Pressable onPress={() => { setCatColor(null); Haptics.selectionAsync(); }}
+                  style={{ alignSelf: 'flex-start', paddingHorizontal: 12, paddingVertical: 7, borderRadius: 999, backgroundColor: RED + '12', borderWidth: 1, borderColor: RED + '25' }}>
                   <Text style={{ color: RED, fontSize: 12, fontWeight: '600' }}>Clear colour</Text>
                 </Pressable>
               )}
             </View>
-            {/* Home Screen */}
+
+            <View style={{ height: 1, backgroundColor: BORDER }} />
             <SectionHeader title="Home Screen" icon="home" color={AMBER} />
             <Toggle label="Show on Home Screen" value={catShowOnHome} onChange={setCatShowOnHome} color={AMBER} desc="Feature this category in the home screen category strip" />
             {catShowOnHome && (
               <Field label="Home Display Order">
-                <TextInput value={catHomeOrder} onChangeText={setCatHomeOrder} placeholder="0" placeholderTextColor={MUTED} keyboardType="number-pad" style={[form.input, { fontWeight: '400', color: TEXT, height: 46 }]} />
+                <TextInput value={catHomeOrder} onChangeText={setCatHomeOrder} placeholder="0" placeholderTextColor={MUTED}
+                  keyboardType="number-pad" style={[form.input, { fontWeight: '400', color: TEXT, height: 46 }]} />
                 <Text style={{ color: MUTED, fontSize: 11, fontWeight: '400', marginTop: 4 }}>Lower numbers appear first. Also controls the order of product rows on the home screen.</Text>
               </Field>
             )}
-            {/* Visibility */}
+
+            <View style={{ height: 1, backgroundColor: BORDER }} />
             <SectionHeader title="Visibility" icon="eye" color={GREEN} />
             <Field label="Sort Order">
-              <TextInput value={catSortOrder} onChangeText={setCatSortOrder} placeholder="0" placeholderTextColor={MUTED} keyboardType="number-pad" style={[form.input, { fontWeight: '400', color: TEXT, height: 46 }]} />
+              <TextInput value={catSortOrder} onChangeText={setCatSortOrder} placeholder="0" placeholderTextColor={MUTED}
+                keyboardType="number-pad" style={[form.input, { fontWeight: '400', color: TEXT, height: 46 }]} />
               {recommendedCategorySort != null && (
-                <Pressable
-                  onPress={() => {
-                    setCatSortOrder(String(recommendedCategorySort));
-                    Haptics.selectionAsync();
-                  }}
-                  style={{ alignSelf: 'flex-start', marginTop: 8, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 999, backgroundColor: BLUE + '12', borderWidth: 1, borderColor: BLUE + '25' }}
-                >
+                <Pressable onPress={() => { setCatSortOrder(String(recommendedCategorySort)); Haptics.selectionAsync(); }}
+                  style={{ alignSelf: 'flex-start', marginTop: 8, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 999, backgroundColor: BLUE + '12', borderWidth: 1, borderColor: BLUE + '25' }}>
                   <Text style={{ color: BLUE, fontSize: 12, fontWeight: '600' }}>
                     Use Butterfield recommended order ({recommendedCategorySort})
                   </Text>
                 </Pressable>
               )}
             </Field>
+            <Toggle label="Active" value={catIsActive} onChange={setCatIsActive} color={GREEN} desc="Inactive categories are hidden everywhere" />
             <Toggle label="Visible to customers" value={catShowPublic} onChange={setCatShowPublic} color={GREEN} desc="Show in the customer ordering portal and menu" />
             <Toggle label="Visible to wholesale" value={catShowWholesale} onChange={setCatShowWholesale} color={BLUE} desc="Show in the wholesale product catalog" />
             <Toggle
               label="POS only"
               value={!catShowPos}
-              onChange={(v) => {
-                setCatShowPos(!v);
-                if (v) { setCatShowPublic(false); setCatShowWholesale(false); }
-              }}
+              onChange={(v) => { setCatShowPos(!v); if (v) { setCatShowPublic(false); setCatShowWholesale(false); } }}
               color={PURPLE}
               desc="Hide from customer app and wholesale catalog — visible only in the POS screen"
             />
@@ -1108,12 +1035,15 @@ function CatalogTab() {
     </View>
   );
 }
+
 // ─── Option Groups sub-screen ──────────────────────────────────────────────────
 function OptionsTab() {
   const insets = useSafeAreaInsets();
   const qc = useQueryClient();
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
-  const SEL_COLORS: Record<string, string> = { single: BLUE, multi: PURPLE, text: AMBER };
+  const SEL_COLORS: Record<string, string> = { single: BLUE, multi: PURPLE, text: GREEN };
+  const SEL_ICONS: Record<string, string>  = { single: 'check-circle', multi: 'list', text: 'message-square' };
+
   // ── Group CRUD state ────────────────────────────────────────────────────────
   const [groupModal, setGroupModal] = useState(false);
   const [editGroup, setEditGroup]   = useState<any>(null);
@@ -1126,6 +1056,7 @@ function OptionsTab() {
   const [gExcludeProductIds, setGExcludeProductIds] = useState<string[]>([]);
   const [gExcludeProductSearch, setGExcludeProductSearch] = useState('');
   const [gSaving, setGSaving]       = useState(false);
+
   // ── Option CRUD state ───────────────────────────────────────────────────────
   const [optModal, setOptModal]     = useState(false);
   const [editOpt, setEditOpt]       = useState<any>(null);
@@ -1134,6 +1065,7 @@ function OptionsTab() {
   const [oPrice, setOPrice]         = useState('');
   const [oDefault, setODefault]     = useState(false);
   const [oSaving, setOSaving]       = useState(false);
+
   const { data } = useQuery({
     queryKey: ['director-option-groups'],
     queryFn: () => api.director.optionGroups(),
@@ -1152,7 +1084,9 @@ function OptionsTab() {
     () => ((prodData as any)?.data ?? []).filter((p: any) => p.isActive !== false),
     [prodData],
   );
+
   const toggleExpand = (id: string) => setExpanded(prev => ({ ...prev, [id]: !prev[id] }));
+
   // ── Group actions ───────────────────────────────────────────────────────────
   const openAddGroup = () => {
     setEditGroup(null); setGName(''); setGType('single'); setGRequired(false);
@@ -1200,6 +1134,7 @@ function OptionsTab() {
     try { await api.director.updateOptionGroup(g.id, { isActive: !g.isActive }); await qc.invalidateQueries({ queryKey: ['director-option-groups'] }); }
     catch (e: any) { Alert.alert('Error', e.message); }
   };
+
   // ── Option actions ──────────────────────────────────────────────────────────
   const openAddOpt = (groupId: string) => {
     setOptGroupId(groupId); setEditOpt(null); setOName(''); setOPrice(''); setODefault(false);
@@ -1232,16 +1167,50 @@ function OptionsTab() {
       }},
     ]);
   };
+
+  const filteredProducts = useMemo(
+    () => gProductSearch.trim()
+      ? allProducts.filter(p => p.name.toLowerCase().includes(gProductSearch.toLowerCase()))
+      : allProducts,
+    [allProducts, gProductSearch],
+  );
+  const filteredExcludeProducts = useMemo(
+    () => gExcludeProductSearch.trim()
+      ? allProducts.filter(p => p.name.toLowerCase().includes(gExcludeProductSearch.toLowerCase()))
+      : allProducts,
+    [allProducts, gExcludeProductSearch],
+  );
+
   return (
     <View style={{ flex: 1 }}>
       <FlatList
         data={groups}
         keyExtractor={g => g.id}
-        ListEmptyComponent={<Text style={{ color: MUTED, textAlign: 'center', marginTop: 60, fontWeight: '400' }}>No option groups yet. Tap + to add one.</Text>}
+        ListEmptyComponent={<Text style={{ color: MUTED, textAlign: 'center', marginTop: 60, fontWeight: '400' }}>No option groups yet. Tap Add Group below.</Text>}
+        contentContainerStyle={{ padding: 16, gap: 10, paddingBottom: 120 }}
+        ListFooterComponent={
+          <Pressable
+            onPress={() => { Haptics.selectionAsync(); openAddGroup(); }}
+            style={({ pressed }) => ({
+              flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10,
+              borderRadius: 18, borderWidth: 1.5, borderColor: BLUE + '66', borderStyle: 'dashed',
+              paddingVertical: 18, paddingHorizontal: 16, marginTop: 4,
+              backgroundColor: BLUE + '08', opacity: pressed ? 0.75 : 1,
+            })}
+          >
+            <View style={{ width: 32, height: 32, borderRadius: 10, backgroundColor: BLUE + '18', alignItems: 'center', justifyContent: 'center' }}>
+              <Feather name="plus" size={18} color={BLUE} />
+            </View>
+            <Text style={{ fontSize: 15, fontWeight: '700', color: BLUE }}>Add Group</Text>
+          </Pressable>
+        }
         renderItem={({ item: g }) => {
           const isExp      = expanded[g.id] ?? false;
           const selCol     = SEL_COLORS[g.selectionType] ?? BLUE;
-          const linkedCatNames = categories.filter(c => (g.appliesToCategoryIds ?? []).includes(c.id)).map(c => c.name);
+          const selIcon    = SEL_ICONS[g.selectionType] ?? 'check-circle';
+          const activeOpts = (g.options ?? []).filter((o: any) => o.isActive !== false);
+          const typeLabel  = g.selectionType === 'single' ? 'Single Select' : g.selectionType === 'multi' ? 'Multi Select' : 'Free Text';
+          const linkedCatNames  = categories.filter(c => (g.appliesToCategoryIds ?? []).includes(c.id)).map(c => c.name);
           const linkedProdNames = allProducts.filter(p => (g.appliesToProductIds ?? []).includes(p.id)).map(p => p.name);
           const scopeLabel = (() => {
             const parts: string[] = [];
@@ -1249,124 +1218,138 @@ function OptionsTab() {
             if (linkedProdNames.length) parts.push(`${linkedProdNames.length} product${linkedProdNames.length !== 1 ? 's' : ''}`);
             return parts.length ? parts.join(' + ') : 'All products';
           })();
-          const activeOpts  = (g.options ?? []).filter((o: any) => o.isActive !== false);
+
           return (
-            <View style={{ backgroundColor: GLASS_BG, borderRadius: 14, borderWidth: 1, borderColor: GLASS_BORDER, overflow: 'hidden', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 14, elevation: 3 }}>
-              {/* Group header */}
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, padding: 14 }}>
-                <Pressable style={{ flex: 1 }} onPress={() => toggleExpand(g.id)}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                    <Text style={{ fontWeight: '700', color: TEXT, fontSize: 14 }}>{g.name}</Text>
-                    {g.isRequired && <View style={{ backgroundColor: '#FEF3C7', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 1 }}><Text style={{ fontSize: 10, color: '#D97706', fontWeight: '600' }}>Required</Text></View>}
-                    <View style={{ backgroundColor: selCol + '18', borderRadius: 8, paddingHorizontal: 7, paddingVertical: 2 }}>
-                      <Text style={{ fontSize: 11, color: selCol, fontWeight: '600' }}>{g.selectionType}</Text>
+            <View style={{ backgroundColor: CARD, borderRadius: 18, borderWidth: StyleSheet.hairlineWidth, borderColor: BORDER, overflow: 'hidden' }}>
+              {/* Card header — tap to edit, chevron to expand options */}
+              <Pressable
+                onPress={() => { Haptics.selectionAsync(); openEditGroup(g); }}
+                style={({ pressed }) => ({
+                  flexDirection: 'row', alignItems: 'center', gap: 14,
+                  paddingVertical: 16, paddingHorizontal: 16, opacity: pressed ? 0.8 : 1,
+                })}
+              >
+                {/* Tinted icon */}
+                <View style={{ width: 48, height: 48, borderRadius: 14, alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, backgroundColor: selCol + '33', borderColor: selCol + '55', flexShrink: 0 }}>
+                  <Feather name={selIcon as any} size={22} color={selCol} />
+                </View>
+                {/* Content */}
+                <View style={{ flex: 1, gap: 3 }}>
+                  <Text style={{ fontSize: 16, fontWeight: '700', color: TEXT }}>{g.name}</Text>
+                  <Text style={{ fontSize: 12, color: MUTED }} numberOfLines={1}>{scopeLabel}</Text>
+                  <View style={{ flexDirection: 'row', gap: 6, marginTop: 2, flexWrap: 'wrap' }}>
+                    <View style={{ paddingHorizontal: 8, paddingVertical: 2, borderRadius: 20, backgroundColor: selCol + '18' }}>
+                      <Text style={{ fontSize: 11, fontWeight: '600', color: selCol }}>{typeLabel}</Text>
                     </View>
+                    {g.selectionType !== 'text' && (
+                      <View style={{ paddingHorizontal: 8, paddingVertical: 2, borderRadius: 20, backgroundColor: MUTED + '18' }}>
+                        <Text style={{ fontSize: 11, fontWeight: '600', color: MUTED }}>{activeOpts.length} option{activeOpts.length !== 1 ? 's' : ''}</Text>
+                      </View>
+                    )}
+                    {g.isRequired && (
+                      <View style={{ paddingHorizontal: 8, paddingVertical: 2, borderRadius: 20, backgroundColor: AMBER + '22' }}>
+                        <Text style={{ fontSize: 11, fontWeight: '600', color: AMBER }}>Required</Text>
+                      </View>
+                    )}
                   </View>
-                  <Text style={{ fontWeight: '400', color: MUTED, fontSize: 11, marginTop: 3 }}>
-                    {activeOpts.length} option{activeOpts.length !== 1 ? 's' : ''} · {scopeLabel}
-                  </Text>
-                </Pressable>
-                <Switch value={g.isActive ?? true} onValueChange={() => toggleGroupActive(g)} trackColor={{ false: BORDER, true: GREEN }} thumbColor="#fff" ios_backgroundColor={BORDER} />
-                <Pressable onPress={() => openEditGroup(g)} style={{ padding: 6 }} hitSlop={4}>
-                  <Feather name="edit-2" size={15} color={BLUE} />
-                </Pressable>
-                <Pressable onPress={() => deleteGroup(g)} style={{ padding: 6 }} hitSlop={4}>
-                  <Feather name="trash-2" size={15} color={RED} />
-                </Pressable>
-                <Pressable onPress={() => toggleExpand(g.id)} style={{ padding: 4 }} hitSlop={4}>
-                  <Feather name={isExp ? 'chevron-up' : 'chevron-down'} size={16} color={MUTED} />
-                </Pressable>
-              </View>
-              {/* Expanded options list */}
-              {isExp && (
-                <View style={{ borderTopWidth: 1, borderTopColor: BORDER, padding: 12, gap: 8 }}>
-                  {g.selectionType === 'text' ? (
-                    <Text style={{ color: MUTED, fontWeight: '400', fontSize: 13, fontStyle: 'italic', paddingVertical: 4 }}>
-                      Free text input — customers type a note. No individual options needed.
-                    </Text>
-                  ) : (
-                    <>
-                      {(g.options ?? []).map((opt: any) => (
-                        <View key={opt.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 8, paddingHorizontal: 12, backgroundColor: opt.isDefault ? '#F0FFF4' : BG, borderRadius: 10, borderWidth: 1, borderColor: opt.isDefault ? '#86EFAC' : BORDER }}>
-                          {opt.isDefault && <Feather name="check-circle" size={13} color={GREEN} />}
-                          <Text style={{ flex: 1, fontWeight: '500', color: TEXT, fontSize: 13 }}>{opt.name}</Text>
-                          {opt.priceAdjustmentCents !== 0 ? (
-                            <Text style={{ fontWeight: '700', color: opt.priceAdjustmentCents > 0 ? GREEN : RED, fontSize: 13 }}>
-                              {opt.priceAdjustmentCents > 0 ? '+' : '-'}${(Math.abs(opt.priceAdjustmentCents) / 100).toFixed(2)}
-                            </Text>
-                          ) : (
-                            <Text style={{ fontWeight: '400', color: MUTED, fontSize: 12 }}>Free</Text>
-                          )}
-                          <Pressable onPress={() => openEditOpt(g.id, opt)} style={{ padding: 5 }} hitSlop={4}>
-                            <Feather name="edit-2" size={13} color={BLUE} />
-                          </Pressable>
-                          <Pressable onPress={() => deleteOpt(g.id, opt)} style={{ padding: 5 }} hitSlop={4}>
-                            <Feather name="trash-2" size={13} color={RED} />
-                          </Pressable>
-                        </View>
-                      ))}
-                      {(g.options ?? []).length === 0 && (
-                        <Text style={{ color: MUTED, fontWeight: '400', fontSize: 13, fontStyle: 'italic' }}>No options yet — tap Add Option below.</Text>
-                      )}
-                      <Pressable
-                        onPress={() => openAddOpt(g.id)}
-                        style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 10, paddingHorizontal: 14, borderRadius: 10, borderWidth: 1.5, borderColor: BLUE, borderStyle: 'dashed', backgroundColor: BLUE + '08', marginTop: 2 }}
-                      >
-                        <Feather name="plus" size={14} color={BLUE} />
-                        <Text style={{ fontSize: 13, fontWeight: '600', color: BLUE }}>Add Option</Text>
-                      </Pressable>
-                    </>
+                </View>
+                {/* Actions */}
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
+                  <Switch value={g.isActive ?? true} onValueChange={() => toggleGroupActive(g)}
+                    trackColor={{ false: BORDER, true: GREEN }} thumbColor="#fff" ios_backgroundColor={BORDER} />
+                  <Pressable onPress={() => deleteGroup(g)} style={{ padding: 8 }} hitSlop={4}>
+                    <Feather name="trash-2" size={15} color={RED} />
+                  </Pressable>
+                  {g.selectionType !== 'text' && (
+                    <Pressable onPress={() => { Haptics.selectionAsync(); toggleExpand(g.id); }} style={{ padding: 8 }} hitSlop={4}>
+                      <Feather name={isExp ? 'chevron-up' : 'chevron-down'} size={18} color={MUTED} />
+                    </Pressable>
                   )}
+                  {g.selectionType === 'text' && (
+                    <Feather name="chevron-right" size={18} color={MUTED} style={{ marginLeft: 4 }} />
+                  )}
+                </View>
+              </Pressable>
+
+              {/* Expanded options list */}
+              {isExp && g.selectionType !== 'text' && (
+                <View style={{ borderTopWidth: 1, borderTopColor: BORDER, padding: 12, gap: 8 }}>
+                  {(g.options ?? []).map((opt: any) => (
+                    <View key={opt.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 8, paddingHorizontal: 12, backgroundColor: opt.isDefault ? '#F0FFF4' : BG, borderRadius: 10, borderWidth: 1, borderColor: opt.isDefault ? '#86EFAC' : BORDER }}>
+                      {opt.isDefault && <Feather name="check-circle" size={13} color={GREEN} />}
+                      <Text style={{ flex: 1, fontWeight: '500', color: TEXT, fontSize: 13 }}>{opt.name}</Text>
+                      {opt.priceAdjustmentCents !== 0 ? (
+                        <Text style={{ fontWeight: '700', color: opt.priceAdjustmentCents > 0 ? GREEN : RED, fontSize: 13 }}>
+                          {opt.priceAdjustmentCents > 0 ? '+' : '-'}${(Math.abs(opt.priceAdjustmentCents) / 100).toFixed(2)}
+                        </Text>
+                      ) : (
+                        <Text style={{ fontWeight: '400', color: MUTED, fontSize: 12 }}>Free</Text>
+                      )}
+                      <Pressable onPress={() => openEditOpt(g.id, opt)} style={{ padding: 5 }} hitSlop={4}>
+                        <Feather name="edit-2" size={13} color={BLUE} />
+                      </Pressable>
+                      <Pressable onPress={() => deleteOpt(g.id, opt)} style={{ padding: 5 }} hitSlop={4}>
+                        <Feather name="trash-2" size={13} color={RED} />
+                      </Pressable>
+                    </View>
+                  ))}
+                  {(g.options ?? []).length === 0 && (
+                    <Text style={{ color: MUTED, fontWeight: '400', fontSize: 13, fontStyle: 'italic' }}>No options yet — tap Add Option below.</Text>
+                  )}
+                  <Pressable onPress={() => openAddOpt(g.id)}
+                    style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 10, paddingHorizontal: 14, borderRadius: 10, borderWidth: 1.5, borderColor: BLUE, borderStyle: 'dashed', backgroundColor: BLUE + '08', marginTop: 2 }}>
+                    <Feather name="plus" size={14} color={BLUE} />
+                    <Text style={{ fontSize: 13, fontWeight: '600', color: BLUE }}>Add Option</Text>
+                  </Pressable>
                 </View>
               )}
             </View>
           );
         }}
-        contentContainerStyle={{ padding: 16, gap: 10, paddingBottom: 120 }}
       />
-      <Pressable onPress={openAddGroup} style={[styles.fab, { backgroundColor: NAVY, bottom: 100 }]}>
-        <Feather name="plus" size={24} color="#fff" />
-      </Pressable>
-      {/* ── Group Modal ─────────────────────────────────────────────────────── */}
-      <Modal visible={groupModal} animationType="slide" presentationStyle="fullScreen" onRequestClose={() => setGroupModal(false)}>
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1, backgroundColor: BG }}>
-          <View style={[modal.header, { paddingTop: insets.top + 12 }]}>
+
+      {/* ── Group Modal ──────────────────────────────────────────────────────── */}
+      <Modal visible={groupModal} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setGroupModal(false)}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1, backgroundColor: CARD }}>
+          <DragHandle />
+          <View style={[modal.header, { paddingTop: 8 }]}>
             <Pressable onPress={() => setGroupModal(false)} style={modal.closeBtn}><Feather name="x" size={18} color={TEXT} /></Pressable>
             <Text style={[modal.title, { fontWeight: '700' }]}>{editGroup ? 'Edit Option Group' : 'New Option Group'}</Text>
-            <Pressable onPress={saveGroup} style={[modal.saveBtn, { backgroundColor: gSaving ? MUTED : NAVY }]} disabled={gSaving}>
-              <Text style={[modal.saveBtnText, { fontWeight: '600' }]}>{gSaving ? 'Saving…' : 'Save'}</Text>
+            <Pressable onPress={saveGroup} style={[modal.saveBtn, { backgroundColor: gSaving ? MUTED : BLUE }]} disabled={gSaving}>
+              <Text style={[modal.saveBtnText, { fontWeight: '700' }]}>{gSaving ? 'Saving…' : 'Save'}</Text>
             </Pressable>
           </View>
           <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: 16, gap: 16, paddingBottom: 60 }}>
-            <View style={form.card}>
-              <Field label="Group Name" required>
-                <TextInput value={gName} onChangeText={setGName} placeholder="e.g. Milk Type, Size, Extras"
-                  placeholderTextColor={MUTED} style={[form.input, { fontWeight: '400', color: TEXT, height: 46 }]} />
-              </Field>
-              <Field label="Selection Type">
-                <View style={{ flexDirection: 'row', gap: 8, marginTop: 4 }}>
-                  {(['single', 'multi', 'text'] as const).map(t => (
-                    <Pressable key={t} onPress={() => setGType(t)}
-                      style={{ flex: 1, paddingVertical: 10, borderRadius: 10, borderWidth: 1.5, borderColor: gType === t ? SEL_COLORS[t] : BORDER, backgroundColor: gType === t ? SEL_COLORS[t] + '12' : CARD, alignItems: 'center' }}>
-                      <Text style={{ fontSize: 12, fontWeight: '600', color: gType === t ? SEL_COLORS[t] : MUTED }}>
-                        {t === 'single' ? 'Single' : t === 'multi' ? 'Multiple' : 'Text Note'}
-                      </Text>
-                    </Pressable>
-                  ))}
-                </View>
-              </Field>
-              <View style={form.toggleRow}>
-                <View style={{ flex: 1 }}>
-                  <Text style={[form.toggleLabel, { fontWeight: '500', color: TEXT }]}>Required</Text>
-                  <Text style={[form.toggleDesc, { fontWeight: '400', color: MUTED }]}>Customer must select before adding to cart</Text>
-                </View>
-                <Switch value={gRequired} onValueChange={setGRequired} trackColor={{ false: BORDER, true: AMBER }} thumbColor="#fff" />
+            <SectionHeader title="Group Settings" icon="sliders" color={BLUE} />
+            <Field label="Group Name" required>
+              <TextInput value={gName} onChangeText={setGName} placeholder="e.g. Milk Type, Size, Extras"
+                placeholderTextColor={MUTED} style={[form.input, { fontWeight: '400', color: TEXT, height: 46 }]} />
+            </Field>
+            <Field label="Selection Type">
+              <View style={{ flexDirection: 'row', gap: 8, marginTop: 4 }}>
+                {(['single', 'multi', 'text'] as const).map(t => (
+                  <Pressable key={t} onPress={() => setGType(t)}
+                    style={{ flex: 1, paddingVertical: 10, borderRadius: 10, borderWidth: 1.5, borderColor: gType === t ? SEL_COLORS[t] : BORDER, backgroundColor: gType === t ? SEL_COLORS[t] + '12' : CARD, alignItems: 'center' }}>
+                    <Text style={{ fontSize: 12, fontWeight: '600', color: gType === t ? SEL_COLORS[t] : MUTED }}>
+                      {t === 'single' ? 'Single' : t === 'multi' ? 'Multiple' : 'Text Note'}
+                    </Text>
+                  </Pressable>
+                ))}
               </View>
+            </Field>
+            <View style={form.toggleRow}>
+              <View style={{ flex: 1 }}>
+                <Text style={[form.toggleLabel, { fontWeight: '500', color: TEXT }]}>Required</Text>
+                <Text style={[form.toggleDesc, { fontWeight: '400', color: MUTED }]}>Customer must select before adding to cart</Text>
+              </View>
+              <Switch value={gRequired} onValueChange={setGRequired} trackColor={{ false: BORDER, true: AMBER }} thumbColor="#fff" />
             </View>
+
             {categories.length > 0 && (
-              <View style={form.card}>
+              <>
+                <View style={{ height: 1, backgroundColor: BORDER }} />
                 <SectionHeader title="Applies To Categories" icon="grid" color={BLUE} />
-                <Text style={[form.label, { fontWeight: '400', color: MUTED, marginBottom: 8 }]}>
+                <Text style={[form.label, { fontWeight: '400', color: MUTED }]}>
                   Option appears for every product in these categories.
                 </Text>
                 <View style={form.tagGrid}>
@@ -1376,207 +1359,125 @@ function OptionsTab() {
                       onPress={() => setGCatIds(prev => prev.includes(c.id) ? prev.filter(id => id !== c.id) : [...prev, c.id])} />
                   ))}
                 </View>
-              </View>
+              </>
             )}
+
             {allProducts.length > 0 && (
-              <View style={form.card}>
+              <>
+                <View style={{ height: 1, backgroundColor: BORDER }} />
                 <SectionHeader title="Applies To Specific Products" icon="package" color={PURPLE} />
-                <Text style={[form.label, { fontWeight: '400', color: MUTED, marginBottom: 8 }]}>
-                  Option only appears on these individual products, regardless of category. Perfect for add-ons that only make sense for certain items (e.g. Extra Chocolate on Hot Chocolate only).
+                <Text style={[form.label, { fontWeight: '400', color: MUTED }]}>
+                  Option only appears on these individual products, regardless of category.
                 </Text>
-                {/* Selected product pills */}
                 {gProductIds.length > 0 && (
                   <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
                     {gProductIds.map(pid => {
                       const prod = allProducts.find(p => p.id === pid);
-                      if (!prod) return null;
-                      const col = CAT_COLORS[prod.category] ?? PURPLE;
                       return (
-                        <Pressable
-                          key={pid}
-                          onPress={() => setGProductIds(prev => prev.filter(id => id !== pid))}
-                          style={{ flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20, backgroundColor: col + '18', borderWidth: 1, borderColor: col + '50' }}
-                        >
-                          <Text style={{ fontSize: 12, fontWeight: '600', color: col }}>{prod.name}</Text>
-                          <Feather name="x" size={11} color={col} />
+                        <Pressable key={pid} onPress={() => setGProductIds(prev => prev.filter(id => id !== pid))}
+                          style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20, backgroundColor: PURPLE + '18', borderWidth: 1, borderColor: PURPLE + '33' }}>
+                          <Text style={{ fontSize: 12, fontWeight: '600', color: PURPLE }}>{prod?.name ?? pid}</Text>
+                          <Feather name="x" size={12} color={PURPLE} />
                         </Pressable>
                       );
                     })}
                   </View>
                 )}
-                {/* Search box */}
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: BG, borderRadius: 10, borderWidth: 1, borderColor: BORDER, paddingHorizontal: 12, height: 40, marginBottom: 8 }}>
-                  <Feather name="search" size={14} color={MUTED} />
-                  <TextInput
-                    value={gProductSearch}
-                    onChangeText={setGProductSearch}
-                    placeholder="Search products…"
-                    placeholderTextColor={MUTED}
-                    style={{ flex: 1, fontSize: 13, fontWeight: '400', color: TEXT }}
-                  />
-                  {gProductSearch ? <Pressable onPress={() => setGProductSearch('')}><Feather name="x" size={13} color={MUTED} /></Pressable> : null}
+                <View style={[form.input, { padding: 0, overflow: 'hidden', height: 46 }]}>
+                  <TextInput value={gProductSearch} onChangeText={setGProductSearch}
+                    placeholder="Search products to include…" placeholderTextColor={MUTED}
+                    style={{ flex: 1, paddingHorizontal: 14, height: 46, fontWeight: '400', color: TEXT, fontSize: 14 }} />
                 </View>
-                {/* Filtered product list */}
-                <View style={{ gap: 4, maxHeight: 260 }}>
-                  <ScrollView nestedScrollEnabled showsVerticalScrollIndicator={false}>
-                    {allProducts
-                      .filter(p => {
-                        if (gProductSearch.trim()) {
-                          const q = gProductSearch.toLowerCase();
-                          return p.name.toLowerCase().includes(q) || (p.category ?? '').toLowerCase().includes(q);
-                        }
-                        return true;
-                      })
-                      .map(p => {
-                        const selected = gProductIds.includes(p.id);
-                        const disabledByExclude = gExcludeProductIds.includes(p.id);
-                        const col = CAT_COLORS[p.category] ?? MUTED;
-                        return (
-                          <Pressable
-                            key={p.id}
-                            onPress={() => {
-                              if (disabledByExclude) return;
-                              Haptics.selectionAsync();
-                              setGProductIds(prev =>
-                                prev.includes(p.id) ? prev.filter(id => id !== p.id) : [...prev, p.id]
-                              );
-                            }}
-                            style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10, paddingHorizontal: 12, borderRadius: 10, backgroundColor: disabledByExclude ? BORDER + '40' : selected ? PURPLE + '0C' : BG, borderWidth: 1, borderColor: disabledByExclude ? BORDER : selected ? PURPLE : BORDER, opacity: disabledByExclude ? 0.45 : 1 }}
-                          >
-                            <View style={{ width: 20, height: 20, borderRadius: 6, borderWidth: 1.5, borderColor: disabledByExclude ? MUTED : selected ? PURPLE : BORDER, backgroundColor: disabledByExclude ? MUTED + '30' : selected ? PURPLE : 'transparent', alignItems: 'center', justifyContent: 'center' }}>
-                              {selected && !disabledByExclude && <Feather name="check" size={11} color="#fff" />}
-                              {disabledByExclude && <Feather name="slash" size={10} color={MUTED} />}
-                            </View>
-                            <View style={{ flex: 1 }}>
-                              <Text style={{ fontSize: 13, fontWeight: selected && !disabledByExclude ? '600' : '400', color: disabledByExclude ? MUTED : TEXT }}>{p.name}</Text>
-                              {disabledByExclude && <Text style={{ fontSize: 10, color: MUTED, marginTop: 1 }}>Already in exclude list</Text>}
-                            </View>
-                            <View style={{ paddingHorizontal: 7, paddingVertical: 2, borderRadius: 8, backgroundColor: col + '18' }}>
-                              <Text style={{ fontSize: 10, fontWeight: '600', color: col }}>{p.category}</Text>
-                            </View>
-                          </Pressable>
-                        );
-                      })
-                    }
-                  </ScrollView>
-                </View>
-              </View>
+                {gProductSearch.trim().length > 0 && (
+                  <View style={{ borderRadius: 12, borderWidth: 1, borderColor: BORDER, overflow: 'hidden', backgroundColor: CARD }}>
+                    {filteredProducts.slice(0, 8).map(p => (
+                      <Pressable key={p.id}
+                        onPress={() => { setGProductIds(prev => prev.includes(p.id) ? prev.filter(id => id !== p.id) : [...prev, p.id]); setGProductSearch(''); Haptics.selectionAsync(); }}
+                        style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 14, paddingVertical: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: BORDER, backgroundColor: gProductIds.includes(p.id) ? PURPLE + '08' : CARD }}>
+                        {gProductIds.includes(p.id) && <Feather name="check" size={13} color={PURPLE} />}
+                        <Text style={{ flex: 1, fontSize: 13, fontWeight: '500', color: TEXT }}>{p.name}</Text>
+                        <Text style={{ fontSize: 12, color: MUTED }}>{p.category}</Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                )}
+              </>
             )}
+
             {allProducts.length > 0 && (
-              <View style={[form.card, { borderColor: '#D2000130', borderWidth: 1.5 }]}>
-                <SectionHeader title="Excluded from Specific Products" icon="slash" color={RED} />
-                <Text style={[form.label, { fontWeight: '400', color: MUTED, marginBottom: 8 }]}>
-                  Option will NOT appear on these products, even if their category is selected above.
+              <>
+                <View style={{ height: 1, backgroundColor: BORDER }} />
+                <SectionHeader title="Exclude Specific Products" icon="minus-circle" color={RED} />
+                <Text style={[form.label, { fontWeight: '400', color: MUTED }]}>
+                  Option will NOT appear on these products, even if their category is included above.
                 </Text>
-                {/* Selected exclude product pills */}
                 {gExcludeProductIds.length > 0 && (
                   <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
                     {gExcludeProductIds.map(pid => {
                       const prod = allProducts.find(p => p.id === pid);
-                      if (!prod) return null;
                       return (
-                        <Pressable
-                          key={pid}
-                          onPress={() => setGExcludeProductIds(prev => prev.filter(id => id !== pid))}
-                          style={{ flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20, backgroundColor: RED + '18', borderWidth: 1, borderColor: RED + '50' }}
-                        >
-                          <Text style={{ fontSize: 12, fontWeight: '600', color: RED }}>{prod.name}</Text>
-                          <Feather name="x" size={11} color={RED} />
+                        <Pressable key={pid} onPress={() => setGExcludeProductIds(prev => prev.filter(id => id !== pid))}
+                          style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20, backgroundColor: RED + '12', borderWidth: 1, borderColor: RED + '25' }}>
+                          <Text style={{ fontSize: 12, fontWeight: '600', color: RED }}>{prod?.name ?? pid}</Text>
+                          <Feather name="x" size={12} color={RED} />
                         </Pressable>
                       );
                     })}
                   </View>
                 )}
-                {/* Search box */}
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: BG, borderRadius: 10, borderWidth: 1, borderColor: BORDER, paddingHorizontal: 12, height: 40, marginBottom: 8 }}>
-                  <Feather name="search" size={14} color={MUTED} />
-                  <TextInput
-                    value={gExcludeProductSearch}
-                    onChangeText={setGExcludeProductSearch}
-                    placeholder="Search products to exclude…"
-                    placeholderTextColor={MUTED}
-                    style={{ flex: 1, fontSize: 13, fontWeight: '400', color: TEXT }}
-                  />
-                  {gExcludeProductSearch ? <Pressable onPress={() => setGExcludeProductSearch('')}><Feather name="x" size={13} color={MUTED} /></Pressable> : null}
+                <View style={[form.input, { padding: 0, overflow: 'hidden', height: 46 }]}>
+                  <TextInput value={gExcludeProductSearch} onChangeText={setGExcludeProductSearch}
+                    placeholder="Search products to exclude…" placeholderTextColor={MUTED}
+                    style={{ flex: 1, paddingHorizontal: 14, height: 46, fontWeight: '400', color: TEXT, fontSize: 14 }} />
                 </View>
-                {/* Filtered product list */}
-                <View style={{ gap: 4, maxHeight: 260 }}>
-                  <ScrollView nestedScrollEnabled showsVerticalScrollIndicator={false}>
-                    {allProducts
-                      .filter(p => {
-                        if (gExcludeProductSearch.trim()) {
-                          const q = gExcludeProductSearch.toLowerCase();
-                          return p.name.toLowerCase().includes(q) || (p.category ?? '').toLowerCase().includes(q);
-                        }
-                        return true;
-                      })
-                      .map(p => {
-                        const selected = gExcludeProductIds.includes(p.id);
-                        const disabledByInclude = gProductIds.includes(p.id);
-                        const col = CAT_COLORS[p.category] ?? MUTED;
-                        return (
-                          <Pressable
-                            key={p.id}
-                            onPress={() => {
-                              if (disabledByInclude) return;
-                              Haptics.selectionAsync();
-                              setGExcludeProductIds(prev =>
-                                prev.includes(p.id) ? prev.filter(id => id !== p.id) : [...prev, p.id]
-                              );
-                            }}
-                            style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10, paddingHorizontal: 12, borderRadius: 10, backgroundColor: disabledByInclude ? BORDER + '40' : selected ? RED + '0C' : BG, borderWidth: 1, borderColor: disabledByInclude ? BORDER : selected ? RED : BORDER, opacity: disabledByInclude ? 0.45 : 1 }}
-                          >
-                            <View style={{ width: 20, height: 20, borderRadius: 6, borderWidth: 1.5, borderColor: disabledByInclude ? MUTED : selected ? RED : BORDER, backgroundColor: disabledByInclude ? MUTED + '30' : selected ? RED : 'transparent', alignItems: 'center', justifyContent: 'center' }}>
-                              {selected && !disabledByInclude && <Feather name="check" size={11} color="#fff" />}
-                              {disabledByInclude && <Feather name="slash" size={10} color={MUTED} />}
-                            </View>
-                            <View style={{ flex: 1 }}>
-                              <Text style={{ fontSize: 13, fontWeight: selected && !disabledByInclude ? '600' : '400', color: disabledByInclude ? MUTED : TEXT }}>{p.name}</Text>
-                              {disabledByInclude && <Text style={{ fontSize: 10, color: MUTED, marginTop: 1 }}>Already in include list</Text>}
-                            </View>
-                            <View style={{ paddingHorizontal: 7, paddingVertical: 2, borderRadius: 8, backgroundColor: col + '18' }}>
-                              <Text style={{ fontSize: 10, fontWeight: '600', color: col }}>{p.category}</Text>
-                            </View>
-                          </Pressable>
-                        );
-                      })
-                    }
-                  </ScrollView>
-                </View>
-              </View>
+                {gExcludeProductSearch.trim().length > 0 && (
+                  <View style={{ borderRadius: 12, borderWidth: 1, borderColor: BORDER, overflow: 'hidden', backgroundColor: CARD }}>
+                    {filteredExcludeProducts.slice(0, 8).map(p => (
+                      <Pressable key={p.id}
+                        onPress={() => { setGExcludeProductIds(prev => prev.includes(p.id) ? prev.filter(id => id !== p.id) : [...prev, p.id]); setGExcludeProductSearch(''); Haptics.selectionAsync(); }}
+                        style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 14, paddingVertical: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: BORDER, backgroundColor: gExcludeProductIds.includes(p.id) ? RED + '08' : CARD }}>
+                        {gExcludeProductIds.includes(p.id) && <Feather name="check" size={13} color={RED} />}
+                        <Text style={{ flex: 1, fontSize: 13, fontWeight: '500', color: TEXT }}>{p.name}</Text>
+                        <Text style={{ fontSize: 12, color: MUTED }}>{p.category}</Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                )}
+              </>
             )}
           </ScrollView>
         </KeyboardAvoidingView>
       </Modal>
+
       {/* ── Option Modal ─────────────────────────────────────────────────────── */}
-      <Modal visible={optModal} animationType="slide" presentationStyle="fullScreen" onRequestClose={() => setOptModal(false)}>
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1, backgroundColor: BG }}>
-          <View style={[modal.header, { paddingTop: insets.top + 12 }]}>
+      <Modal visible={optModal} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setOptModal(false)}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1, backgroundColor: CARD }}>
+          <DragHandle />
+          <View style={[modal.header, { paddingTop: 8 }]}>
             <Pressable onPress={() => setOptModal(false)} style={modal.closeBtn}><Feather name="x" size={18} color={TEXT} /></Pressable>
             <Text style={[modal.title, { fontWeight: '700' }]}>{editOpt ? 'Edit Option' : 'New Option'}</Text>
-            <Pressable onPress={saveOpt} style={[modal.saveBtn, { backgroundColor: oSaving ? MUTED : NAVY }]} disabled={oSaving}>
-              <Text style={[modal.saveBtnText, { fontWeight: '600' }]}>{oSaving ? 'Saving…' : 'Save'}</Text>
+            <Pressable onPress={saveOpt} style={[modal.saveBtn, { backgroundColor: oSaving ? MUTED : BLUE }]} disabled={oSaving}>
+              <Text style={[modal.saveBtnText, { fontWeight: '700' }]}>{oSaving ? 'Saving…' : 'Save'}</Text>
             </Pressable>
           </View>
           <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: 16, gap: 16, paddingBottom: 60 }}>
-            <View style={form.card}>
-              <Field label="Option Name" required>
-                <TextInput value={oName} onChangeText={setOName} placeholder="e.g. Oat Milk, Extra Shot, Large"
-                  placeholderTextColor={MUTED} style={[form.input, { fontWeight: '400', color: TEXT, height: 46 }]} />
-              </Field>
-              <Field label="Price Adjustment (AUD)">
-                <TextInput value={oPrice} onChangeText={setOPrice}
-                  placeholder="e.g. 0.80 for +$0.80  ·  leave empty for free"
-                  placeholderTextColor={MUTED} keyboardType="decimal-pad"
-                  style={[form.input, { fontWeight: '400', color: TEXT, height: 46 }]} />
-              </Field>
-              <View style={form.toggleRow}>
-                <View style={{ flex: 1 }}>
-                  <Text style={[form.toggleLabel, { fontWeight: '500', color: TEXT }]}>Default Selection</Text>
-                  <Text style={[form.toggleDesc, { fontWeight: '400', color: MUTED }]}>Pre-selected when the product sheet opens</Text>
-                </View>
-                <Switch value={oDefault} onValueChange={setODefault} trackColor={{ false: BORDER, true: GREEN }} thumbColor="#fff" />
+            <SectionHeader title="Option Details" icon="list" color={BLUE} />
+            <Field label="Option Name" required>
+              <TextInput value={oName} onChangeText={setOName} placeholder="e.g. Oat Milk, Extra Shot, Large"
+                placeholderTextColor={MUTED} style={[form.input, { fontWeight: '400', color: TEXT, height: 46 }]} />
+            </Field>
+            <Field label="Price Adjustment (AUD)">
+              <TextInput value={oPrice} onChangeText={setOPrice}
+                placeholder="e.g. 0.80 for +$0.80  ·  leave empty for free"
+                placeholderTextColor={MUTED} keyboardType="decimal-pad"
+                style={[form.input, { fontWeight: '400', color: TEXT, height: 46 }]} />
+            </Field>
+            <View style={form.toggleRow}>
+              <View style={{ flex: 1 }}>
+                <Text style={[form.toggleLabel, { fontWeight: '500', color: TEXT }]}>Default Selection</Text>
+                <Text style={[form.toggleDesc, { fontWeight: '400', color: MUTED }]}>Pre-selected when the product sheet opens</Text>
               </View>
+              <Switch value={oDefault} onValueChange={setODefault} trackColor={{ false: BORDER, true: GREEN }} thumbColor="#fff" />
             </View>
           </ScrollView>
         </KeyboardAvoidingView>
@@ -1584,6 +1485,7 @@ function OptionsTab() {
     </View>
   );
 }
+
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 export default function DirectorProductsScreen() {
   const insets = useSafeAreaInsets();
@@ -1599,6 +1501,7 @@ export default function DirectorProductsScreen() {
   const [searchOpen, setSearchOpen] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<any>(null);
+
   const { data, isLoading, refetch } = useQuery({
     queryKey: ['director-products'],
     queryFn: () => api.director.products(),
@@ -1611,10 +1514,11 @@ export default function DirectorProductsScreen() {
   });
   const dbCategories: any[] = catsData?.data ?? [];
   const all: any[] = data?.data ?? [];
+
   const products = useMemo(() => {
     let list = [...all];
-    if (statusFilter === 'Active') list = list.filter(p => p.isActive && (p.isAvailable ?? true));
-    else if (statusFilter === 'Draft') list = list.filter(p => p.isActive && !(p.isAvailable ?? true));
+    if (statusFilter === 'Active')   list = list.filter(p => p.isActive && (p.isAvailable ?? true));
+    else if (statusFilter === 'Draft')    list = list.filter(p => p.isActive && !(p.isAvailable ?? true));
     else if (statusFilter === 'Archived') list = list.filter(p => !p.isActive);
     if (catFilter !== 'all') list = list.filter(p => (p.category ?? '') === catFilter);
     if (search.trim()) {
@@ -1623,27 +1527,24 @@ export default function DirectorProductsScreen() {
     }
     if (sortBy === 'Name A → Z')         list.sort((a, b) => a.name.localeCompare(b.name));
     else if (sortBy === 'Name Z → A')    list.sort((a, b) => b.name.localeCompare(a.name));
-    else if (sortBy === 'Price: Low → High') list.sort((a, b) => (a.priceCents ?? 0) - (b.priceCents ?? 0));
-    else if (sortBy === 'Price: High → Low') list.sort((a, b) => (b.priceCents ?? 0) - (a.priceCents ?? 0));
+    else if (sortBy === 'Price: Low → High')  list.sort((a, b) => (a.priceCents ?? 0) - (b.priceCents ?? 0));
+    else if (sortBy === 'Price: High → Low')  list.sort((a, b) => (b.priceCents ?? 0) - (a.priceCents ?? 0));
     else if (sortBy === 'Newest First')  list.sort((a, b) => new Date(b.createdAt ?? 0).getTime() - new Date(a.createdAt ?? 0).getTime());
     return list;
   }, [all, statusFilter, catFilter, sortBy, search]);
 
-  const [openDropdown, setOpenDropdown] = useState<'category' | 'sort' | null>(null);
-  const toggleDropdown = (which: 'category' | 'sort') => {
+  const [openDropdown, setOpenDropdown] = useState<'sort' | null>(null);
+  const toggleDropdown = (which: 'sort') => {
     Haptics.selectionAsync();
     setOpenDropdown(prev => (prev === which ? null : which));
   };
   const counts = useMemo(() => ({
-    all: all.length,
-    active: all.filter(p => p.isActive && (p.isAvailable ?? true)).length,
-    draft: all.filter(p => p.isActive && !(p.isAvailable ?? true)).length,
+    all:      all.length,
+    active:   all.filter(p => p.isActive && (p.isAvailable ?? true)).length,
+    draft:    all.filter(p => p.isActive && !(p.isAvailable ?? true)).length,
     archived: all.filter(p => !p.isActive).length,
   }), [all]);
 
-  const activeCatLabel = catFilter === 'all' ? 'Category' : (dbCategories.find((c: any) => c.slug === catFilter)?.name ?? catFilter);
-  const activeSortLabel = sortBy === 'Name A → Z' ? 'Sort' : sortBy;
-  const sortActive = sortBy !== 'Name A → Z';
   const toggle = async (product: any, field: string, value: boolean) => {
     Haptics.selectionAsync();
     try {
@@ -1655,7 +1556,8 @@ export default function DirectorProductsScreen() {
     Alert.alert('Archive Product', `Archive "${product.name}"? It will be hidden from all views.`, [
       { text: 'Cancel', style: 'cancel' },
       { text: 'Archive', style: 'destructive', onPress: async () => {
-        try { await api.director.archiveProduct(product.id); await qc.invalidateQueries({ queryKey: ['director-products'] }); } catch (e: any) { Alert.alert('Error', e.message); }
+        try { await api.director.archiveProduct(product.id); await qc.invalidateQueries({ queryKey: ['director-products'] }); }
+        catch (e: any) { Alert.alert('Error', e.message); }
       }},
     ]);
   };
@@ -1665,32 +1567,18 @@ export default function DirectorProductsScreen() {
       `This will completely remove "${product.name}" from the system. This cannot be undone.\n\nIf the product appears in any past orders it cannot be deleted — archive it instead.`,
       [
         { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Yes, delete permanently',
-          style: 'destructive',
-          onPress: () => {
-            Alert.alert(
-              'Are you sure?',
-              `"${product.name}" will be permanently deleted.`,
-              [
-                { text: 'Cancel', style: 'cancel' },
-                {
-                  text: 'Delete',
-                  style: 'destructive',
-                  onPress: async () => {
-                    try {
-                      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-                      await api.director.deleteProductPermanent(product.id);
-                      await qc.invalidateQueries({ queryKey: ['director-products'] });
-                    } catch (e: any) {
-                      Alert.alert('Cannot delete', e.message ?? 'Delete failed. Please try again.');
-                    }
-                  },
-                },
-              ],
-            );
-          },
-        },
+        { text: 'Yes, delete permanently', style: 'destructive', onPress: () => {
+          Alert.alert('Are you sure?', `"${product.name}" will be permanently deleted.`, [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Delete', style: 'destructive', onPress: async () => {
+              try {
+                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+                await api.director.deleteProductPermanent(product.id);
+                await qc.invalidateQueries({ queryKey: ['director-products'] });
+              } catch (e: any) { Alert.alert('Cannot delete', e.message ?? 'Delete failed. Please try again.'); }
+            }},
+          ]);
+        }},
       ],
     );
   };
@@ -1703,11 +1591,8 @@ export default function DirectorProductsScreen() {
   };
   const handleSave = async (data: any) => {
     try {
-      if (editTarget) {
-        await api.director.updateProduct(editTarget.id, data);
-      } else {
-        await api.director.createProduct(data);
-      }
+      if (editTarget) { await api.director.updateProduct(editTarget.id, data); }
+      else            { await api.director.createProduct(data); }
       await Promise.all([
         qc.invalidateQueries({ queryKey: ['director-products'] }),
         qc.invalidateQueries({ queryKey: ['director-categories'] }),
@@ -1718,59 +1603,46 @@ export default function DirectorProductsScreen() {
   };
   const openEdit = (product: any) => { setEditTarget(product); setModalOpen(true); };
   const openAdd  = () => { setEditTarget(null); setModalOpen(true); };
+
   useEffect(() => {
     setActiveTab((prev) => (prev === requestedTab ? prev : requestedTab));
   }, [requestedTab]);
   useEffect(() => {
     if (search.trim()) setSearchOpen(true);
   }, [search]);
+
   const openProductActions = (product: any) => {
     const actions = [
       { text: 'Edit product', onPress: () => openEdit(product) },
-      {
-        text: product.isFeatured ? 'Remove featured' : 'Mark as featured',
-        onPress: () => toggle(product, 'isFeatured', !product.isFeatured),
-      },
-      {
-        text: product.isSoldOut ? 'Mark back in stock' : 'Mark sold out',
-        onPress: () => toggle(product, 'isSoldOut', !product.isSoldOut),
-      },
-      {
-        text: product.isAvailable ? 'Move to draft' : 'Make active',
-        onPress: () => toggle(product, 'isAvailable', !product.isAvailable),
-      },
-      {
-        text: product.isActive ? 'Archive' : 'Restore',
-        style: (product.isActive ? 'destructive' : 'default') as 'destructive' | 'default',
-        onPress: () => product.isActive ? handleArchive(product) : handleRestore(product),
-      },
-      {
-        text: 'Delete permanently',
-        style: 'destructive' as const,
-        onPress: () => handleDeletePermanent(product),
-      },
+      { text: product.isFeatured ? 'Remove featured' : 'Mark as featured', onPress: () => toggle(product, 'isFeatured', !product.isFeatured) },
+      { text: product.isSoldOut ? 'Mark back in stock' : 'Mark sold out', onPress: () => toggle(product, 'isSoldOut', !product.isSoldOut) },
+      { text: product.isAvailable ? 'Move to draft' : 'Make active', onPress: () => toggle(product, 'isAvailable', !product.isAvailable) },
+      { text: product.isActive ? 'Archive' : 'Restore', style: (product.isActive ? 'destructive' : 'default') as any, onPress: () => product.isActive ? handleArchive(product) : handleRestore(product) },
+      { text: 'Delete permanently', style: 'destructive' as const, onPress: () => handleDeletePermanent(product) },
       { text: 'Cancel', style: 'cancel' as const },
     ];
     Alert.alert(product.name, 'Choose an action', actions);
   };
+
   const TAB_ITEMS = [
-    { id: 'products' as const, label: 'Products', icon: 'package' },
-    { id: 'catalog'  as const, label: 'Categories', icon: 'grid' },
-    { id: 'options'  as const, label: 'Options', icon: 'sliders' },
+    { id: 'products' as const, label: 'Products',   icon: 'package' },
+    { id: 'catalog'  as const, label: 'Categories', icon: 'grid'    },
+    { id: 'options'  as const, label: 'Options',    icon: 'sliders' },
   ] as const;
+
   return (
     <DirectorTabScreen
       title="Products"
       headerRight={
         <Pressable
-          onPress={() => { setSearchOpen((prev) => !prev); Haptics.selectionAsync(); }}
+          onPress={() => { setSearchOpen(prev => !prev); Haptics.selectionAsync(); }}
           style={[styles.headerSearchBtn, searchOpen && styles.headerSearchBtnActive]}
         >
           <Feather name="search" size={18} color={searchOpen ? BLUE : NAVY} />
         </Pressable>
       }
     >
-      {/* Top tab bar */}
+      {/* ── Top tab bar ───────────────────────────────────────────────────── */}
       <View style={styles.tileTabRow}>
         {TAB_ITEMS.map(t => {
           const active = activeTab === t.id;
@@ -1786,340 +1658,279 @@ export default function DirectorProductsScreen() {
           );
         })}
       </View>
-      {/* Catalog tab */}
-      {activeTab === 'catalog' && <CatalogTab />}
-      {activeTab === 'options' && <OptionsTab />}
-      {/* Products tab */}
-      {activeTab !== 'catalog' && activeTab !== 'options' && (
-      <>
-      <View style={styles.productsShell}>
-        {(searchOpen || search.trim()) && (
-          <View style={[styles.searchBar, { borderColor: BORDER, margin: 0 }]}>
-            <Feather name="search" size={16} color={MUTED} />
-            <TextInput
-              value={search} onChangeText={setSearch}
-              placeholder="Search products, SKU, category…"
-              placeholderTextColor={MUTED}
-              style={[styles.searchInput, { fontWeight: '400', color: TEXT }]}
-              clearButtonMode="while-editing"
-            />
-            <Pressable
-              onPress={() => {
-                setSearch('');
-                setSearchOpen(false);
-              }}
-              hitSlop={8}
-            >
-              <Feather name="x" size={16} color={MUTED} />
-            </Pressable>
-          </View>
-        )}
-        <View style={styles.productsFilterHeader}>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.statusChipRow}>
-            {STATUS_OPTIONS.map(opt => {
-              const isActive = statusFilter === opt;
-              const count = opt === 'All' ? counts.all : opt === 'Active' ? counts.active : opt === 'Draft' ? counts.draft : counts.archived;
-              return (
-                <Pressable
-                  key={opt}
-                  onPress={() => { setStatusFilter(opt); Haptics.selectionAsync(); }}
-                  style={[styles.statusChip, isActive && styles.statusChipActive]}
-                >
-                  <Text style={[styles.statusChipText, isActive && styles.statusChipTextActive]}>{opt}</Text>
-                  <Text style={[styles.statusChipCount, isActive && styles.statusChipCountActive]}>{count}</Text>
-                </Pressable>
-              );
-            })}
-          </ScrollView>
-          <View style={styles.compactTools}>
-            <Pressable
-              onPress={() => toggleDropdown('sort')}
-              style={[styles.roundToolBtn, sortActive && styles.roundToolBtnActive,
-                openDropdown === 'sort' && { borderBottomLeftRadius: 10, borderBottomRightRadius: 10 }]}
-            >
-              <Feather name="sliders" size={16} color={sortActive ? NAVY : MUTED} />
-            </Pressable>
-            <Pressable
-              onPress={() => toggleDropdown('category')}
-              style={[styles.roundToolBtn, catFilter !== 'all' && { borderColor: BLUE, backgroundColor: BLUE + '10' },
-                openDropdown === 'category' && { borderBottomLeftRadius: 10, borderBottomRightRadius: 10 }]}
-            >
-              <Feather name="filter" size={16} color={catFilter !== 'all' ? BLUE : MUTED} />
-            </Pressable>
-          </View>
-        </View>
-      </View>
-      {/* Filter row + inline dropdowns */}
-      <View style={{ zIndex: 20 }}>
-        {/* Backdrop — catches taps outside the open dropdown */}
-        {openDropdown !== null && (
-          <Pressable
-            onPress={() => setOpenDropdown(null)}
-            style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: -4000, zIndex: 19 }}
-          />
-        )}
-        {/* Category dropdown panel */}
-        {openDropdown === 'category' && (
-          <View style={[styles.dropPanel, { zIndex: 21 }]}>
-            <ScrollView nestedScrollEnabled showsVerticalScrollIndicator={false} style={{ maxHeight: 280 }}>
-              {/* All Categories option */}
-              <Pressable
-                onPress={() => { setCatFilter('all'); setOpenDropdown(null); Haptics.selectionAsync(); }}
-                style={[styles.dropOption, catFilter === 'all' && styles.dropOptionActive]}
-              >
-                <Text style={[styles.dropOptionText, catFilter === 'all' && { color: BLUE, fontWeight: '600' }]}>All Categories</Text>
-                {catFilter === 'all' && <Feather name="check" size={14} color={BLUE} />}
+
+      {/* ── Catalog / Options tabs ─────────────────────────────────────────── */}
+      {activeTab === 'catalog'  && <CatalogTab />}
+      {activeTab === 'options'  && <OptionsTab />}
+
+      {/* ── Products tab ──────────────────────────────────────────────────── */}
+      {activeTab === 'products' && (
+        <>
+          {/* Search bar */}
+          {(searchOpen || search.trim()) && (
+            <View style={styles.searchBar}>
+              <Feather name="search" size={16} color={MUTED} />
+              <TextInput
+                value={search} onChangeText={setSearch}
+                placeholder="Search products, SKU, category…"
+                placeholderTextColor={MUTED}
+                style={[styles.searchInput, { fontWeight: '400', color: TEXT }]}
+                clearButtonMode="while-editing"
+              />
+              <Pressable onPress={() => { setSearch(''); setSearchOpen(false); }} hitSlop={8}>
+                <Feather name="x" size={16} color={MUTED} />
               </Pressable>
+            </View>
+          )}
+
+          {/* Stats strip */}
+          <View style={styles.statsStrip}>
+            {[
+              { label: 'Total',  count: counts.all,    color: BLUE  },
+              { label: 'Active', count: counts.active, color: GREEN },
+              { label: 'Drafts', count: counts.draft,  color: AMBER },
+            ].map(s => (
+              <View key={s.label} style={[styles.statBadge, { backgroundColor: s.color + '18' }]}>
+                <Text style={[styles.statBadgeText, { color: s.color }]}>{s.label} {s.count}</Text>
+              </View>
+            ))}
+          </View>
+
+          {/* Filter pill row */}
+          <View style={styles.filterRow}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterPillRow}>
+              {/* Status pills */}
+              {STATUS_OPTIONS.map(opt => {
+                const isActive = statusFilter === opt && catFilter === 'all';
+                const isStat   = statusFilter === opt;
+                const active   = isStat && catFilter === 'all';
+                const count    = opt === 'All' ? counts.all : opt === 'Active' ? counts.active : opt === 'Draft' ? counts.draft : counts.archived;
+                const col      = opt === 'All' ? NAVY : opt === 'Active' ? GREEN : opt === 'Draft' ? AMBER : MUTED;
+                return (
+                  <Pressable
+                    key={opt}
+                    onPress={() => { setStatusFilter(opt); setCatFilter('all'); Haptics.selectionAsync(); }}
+                    style={[styles.filterPill, { backgroundColor: isStat && catFilter === 'all' ? col : CARD, borderColor: isStat && catFilter === 'all' ? col : BORDER }]}
+                  >
+                    <Text style={[styles.filterPillText, { color: active ? '#fff' : MUTED }]}>{opt}</Text>
+                    <Text style={[styles.filterPillCount, { color: active ? '#fff' : MUTED }]}>{count}</Text>
+                  </Pressable>
+                );
+              })}
+              {/* Separator dot */}
+              <View style={{ width: 4, height: 4, borderRadius: 2, backgroundColor: BORDER, alignSelf: 'center', marginHorizontal: 4 }} />
+              {/* Category pills */}
               {dbCategories.map((c: any) => {
-                const col = CAT_COLORS[c.slug] ?? MUTED;
+                const col    = CAT_COLORS[c.slug] ?? MUTED;
                 const active = catFilter === c.slug;
                 return (
                   <Pressable
                     key={c.slug}
-                    onPress={() => { setCatFilter(c.slug); setOpenDropdown(null); Haptics.selectionAsync(); }}
-                    style={[styles.dropOption, active && { backgroundColor: col + '0A' }]}
+                    onPress={() => { setCatFilter(active ? 'all' : c.slug); setStatusFilter('All'); Haptics.selectionAsync(); }}
+                    style={[styles.filterPill, { backgroundColor: active ? col : CARD, borderColor: active ? col : BORDER }]}
                   >
-                    <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: col, marginRight: 4 }} />
-                    <Text style={[styles.dropOptionText, active && { color: col, fontWeight: '600' }]}>{c.name}</Text>
-                    {active && <Feather name="check" size={14} color={col} />}
+                    <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: active ? '#fff' : col }} />
+                    <Text style={[styles.filterPillText, { color: active ? '#fff' : MUTED }]}>{c.name}</Text>
                   </Pressable>
                 );
               })}
             </ScrollView>
+            {/* Sort button */}
+            <Pressable
+              onPress={() => toggleDropdown('sort')}
+              style={[styles.sortBtn, sortBy !== 'Name A → Z' && styles.sortBtnActive]}
+            >
+              <Feather name="sliders" size={16} color={sortBy !== 'Name A → Z' ? NAVY : MUTED} />
+            </Pressable>
           </View>
-        )}
 
-        {/* Sort & Status dropdown panel */}
-        {openDropdown === 'sort' && (
-          <View style={[styles.dropPanel, { zIndex: 21 }]}>
-            <ScrollView nestedScrollEnabled showsVerticalScrollIndicator={false} style={{ maxHeight: 340 }}>
-              <Text style={styles.dropSectionLabel}>SORT ORDER</Text>
-              {SORT_OPTIONS.map(opt => {
-                const active = sortBy === opt;
+          {/* Sort dropdown */}
+          <View style={{ zIndex: 20 }}>
+            {openDropdown !== null && (
+              <Pressable onPress={() => setOpenDropdown(null)}
+                style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: -4000, zIndex: 19 }} />
+            )}
+            {openDropdown === 'sort' && (
+              <View style={[styles.dropPanel, { zIndex: 21 }]}>
+                <ScrollView nestedScrollEnabled showsVerticalScrollIndicator={false} style={{ maxHeight: 300 }}>
+                  <Text style={styles.dropSectionLabel}>SORT ORDER</Text>
+                  {SORT_OPTIONS.map(opt => {
+                    const active = sortBy === opt;
+                    return (
+                      <Pressable key={opt} onPress={() => { setSortBy(opt); setOpenDropdown(null); Haptics.selectionAsync(); }}
+                        style={[styles.dropOption, active && styles.dropOptionActive]}>
+                        <Text style={[styles.dropOptionText, active && { color: NAVY, fontWeight: '600' }]}>{opt}</Text>
+                        {active && <Feather name="check" size={14} color={NAVY} />}
+                      </Pressable>
+                    );
+                  })}
+                </ScrollView>
+              </View>
+            )}
+          </View>
+
+          {/* Product list */}
+          {isLoading ? (
+            <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+              <ActivityIndicator color={BLUE} />
+            </View>
+          ) : (
+            <FlatList
+              data={products}
+              keyExtractor={p => p.id}
+              refreshControl={<RefreshControl refreshing={productsRefreshing} onRefresh={onRefreshProducts} tintColor={BLUE} />}
+              contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 8, paddingBottom: 170 }}
+              showsVerticalScrollIndicator={false}
+              ListHeaderComponent={
+                <Text style={[styles.resultCount, { fontWeight: '400', color: MUTED }]}>
+                  {products.length} product{products.length !== 1 ? 's' : ''}
+                  {sortBy !== 'Name A → Z' ? ` · ${sortBy}` : ''}
+                </Text>
+              }
+              ListEmptyComponent={
+                <View style={{ alignItems: 'center', marginTop: 60, gap: 14 }}>
+                  <View style={{ backgroundColor: BORDER, width: 64, height: 64, borderRadius: 20, alignItems: 'center', justifyContent: 'center' }}>
+                    <Feather name="package" size={28} color={MUTED} />
+                  </View>
+                  <Text style={{ color: MUTED, fontWeight: '500', fontSize: 15 }}>
+                    No products {statusFilter !== 'All' ? `in "${statusFilter}"` : catFilter !== 'all' ? `in "${dbCategories.find(c => c.slug === catFilter)?.name ?? catFilter}"` : ''}
+                  </Text>
+                  <Pressable onPress={openAdd} style={styles.emptyAddBtn}>
+                    <Feather name="plus" size={16} color="#fff" />
+                    <Text style={{ color: '#fff', fontWeight: '700', fontSize: 14 }}>Add first product</Text>
+                  </Pressable>
+                </View>
+              }
+              renderItem={({ item: p }) => {
+                const catColor  = CAT_COLORS[p.category] ?? MUTED;
+                const priceFmt  = `$${((p.priceCents ?? 0) / 100).toFixed(2)}`;
+                const statusDot = !p.isActive
+                  ? RED
+                  : !(p.isAvailable ?? true)
+                  ? AMBER
+                  : p.isSoldOut
+                  ? RED
+                  : GREEN;
+                const statusLabel = !p.isActive ? 'Archived' : !(p.isAvailable ?? true) ? 'Draft' : p.isSoldOut ? 'Sold out' : 'Active';
+                const catLabel = dbCategories.find(c => c.slug === p.category)?.name ?? p.category ?? 'Uncategorised';
+
                 return (
                   <Pressable
-                    key={opt}
-                    onPress={() => { setSortBy(opt); setOpenDropdown(null); Haptics.selectionAsync(); }}
-                    style={[styles.dropOption, active && styles.dropOptionActive]}
+                    onPress={() => { Haptics.selectionAsync(); openEdit(p); }}
+                    onLongPress={() => openProductActions(p)}
+                    style={({ pressed }) => [styles.shelfCard, { opacity: pressed ? 0.8 : 1 }]}
                   >
-                    <Text style={[styles.dropOptionText, active && { color: NAVY, fontWeight: '600' }]}>{opt}</Text>
-                    {active && <Feather name="check" size={14} color={NAVY} />}
-                  </Pressable>
-                );
-              })}
-            </ScrollView>
-          </View>
-        )}
-      </View>
-      {isLoading ? (
-        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-          <ActivityIndicator color={BLUE} />
-        </View>
-      ) : (
-        <FlatList
-          data={products}
-          keyExtractor={p => p.id}
-          refreshControl={<RefreshControl refreshing={productsRefreshing} onRefresh={onRefreshProducts} tintColor={BLUE} />}
-          contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 170 }}
-          showsVerticalScrollIndicator={false}
-          ListHeaderComponent={
-            <View style={styles.listSummaryRow}>
-              <Text style={[styles.count, { fontWeight: '400', color: MUTED }]}>
-                {products.length} product{products.length !== 1 ? 's' : ''}
-              </Text>
-              <Text style={styles.listSummaryMeta}>
-                {catFilter !== 'all' ? activeCatLabel : 'All categories'}
-                {sortBy !== 'Name A → Z' ? ` · ${activeSortLabel}` : ''}
-              </Text>
-            </View>
-          }
-          ListEmptyComponent={
-            <View style={{ alignItems: 'center', marginTop: 60, gap: 14 }}>
-              <View style={{ backgroundColor: BORDER, width: 64, height: 64, borderRadius: 20, alignItems: 'center', justifyContent: 'center' }}>
-                <Feather name="package" size={28} color={MUTED} />
-              </View>
-              <Text style={{ color: MUTED, fontWeight: '500', fontSize: 15 }}>No products {statusFilter !== 'All' ? `in "${statusFilter}"` : catFilter !== 'all' ? `in "${activeCatLabel}"` : ''}</Text>
-              <Pressable onPress={openAdd} style={[styles.emptyAddBtn, { backgroundColor: BLUE }]}>
-                <Feather name="plus" size={16} color="#fff" />
-                <Text style={{ color: '#fff', fontWeight: '700', fontSize: 14 }}>Add first product</Text>
-              </Pressable>
-            </View>
-          }
-          renderItem={({ item: p }) => {
-            const catColor = CAT_COLORS[p.category] ?? MUTED;
-            const priceFmt = `$${((p.priceCents ?? 0) / 100).toFixed(2)}`;
-            const wsFmt    = p.wholesalePriceCents ? `$${(p.wholesalePriceCents / 100).toFixed(2)}` : null;
-            const statusTone = !p.isActive
-              ? { bg: '#DBEAFE', text: '#2563EB', label: 'Archived' }
-              : !(p.isAvailable ?? true)
-              ? { bg: '#E5E7EB', text: '#6B7280', label: 'Draft' }
-              : p.isSoldOut
-              ? { bg: '#FEE2E2', text: RED, label: 'Sold out' }
-              : { bg: '#DCFCE7', text: '#15803D', label: 'Active' };
-            const supportBits = [
-              p.category ? p.category : null,
-              p.sku ? `SKU ${p.sku}` : null,
-              p.isFeatured ? 'Featured' : null,
-            ].filter(Boolean);
-            const inventoryBits = [
-              priceFmt,
-              wsFmt ? `WS ${wsFmt}` : null,
-              p.stockCount != null ? `${p.stockCount} in stock` : null,
-            ].filter(Boolean);
-            return (
-              <Pressable onPress={() => openEdit(p)} style={styles.productRow}>
-                <View style={styles.productRowMain}>
-                  {p.imageUrl ? (
-                    <Image
-                      source={{ uri: toDisplayUrl(p.imageUrl) }}
-                      style={{ width: 52, height: 52, borderRadius: 14, backgroundColor: '#F3F4F6' }}
-                      resizeMode="cover"
-                    />
-                  ) : (
-                    <View style={[styles.productThumbFallback, { backgroundColor: catColor + '12', borderColor: catColor + '30' }]}>
-                      <Feather name="package" size={16} color={catColor} />
-                    </View>
-                  )}
-                  <View style={styles.productCopy}>
-                    <View style={styles.productTitleRow}>
-                      <Text style={[styles.productName, { fontWeight: '700', color: TEXT }]} numberOfLines={1}>{p.name}</Text>
-                      <View style={[styles.statePill, { backgroundColor: statusTone.bg }]}>
-                        <Text style={[styles.statePillText, { color: statusTone.text }]}>{statusTone.label}</Text>
-                      </View>
-                    </View>
-                    <Text style={styles.productMetaLine} numberOfLines={1}>
-                      {supportBits.join(' · ') || 'No category assigned'}
-                    </Text>
-                    <Text style={styles.productMetaLine} numberOfLines={1}>
-                      {inventoryBits.join(' · ')}
-                    </Text>
-                    {(p.isLimitedDrop || p.isNew || p.isComingSoon || (p.stockCount != null && p.stockCount <= p.lowStockThreshold && !p.isSoldOut)) && (
-                      <View style={styles.inlineBadgeRow}>
-                        {p.isNew && <View style={[styles.badge, { backgroundColor: PINK + '16' }]}><Text style={[styles.badgeText, { color: PINK }]}>New</Text></View>}
-                        {p.isLimitedDrop && <View style={[styles.badge, { backgroundColor: RED + '16' }]}><Text style={[styles.badgeText, { color: RED }]}>Limited</Text></View>}
-                        {p.isComingSoon && <View style={[styles.badge, { backgroundColor: AMBER + '16' }]}><Text style={[styles.badgeText, { color: AMBER }]}>Coming soon</Text></View>}
-                        {p.stockCount != null && p.stockCount <= p.lowStockThreshold && !p.isSoldOut && (
-                          <View style={[styles.badge, { backgroundColor: '#FEF3C7' }]}><Text style={[styles.badgeText, { color: AMBER }]}>Low stock</Text></View>
-                        )}
+                    {/* Left: Thumbnail */}
+                    {p.imageUrl ? (
+                      <Image source={{ uri: toDisplayUrl(p.imageUrl) }}
+                        style={{ width: 64, height: 64, borderRadius: 14, backgroundColor: '#F3F4F6', flexShrink: 0 }}
+                        resizeMode="cover" />
+                    ) : (
+                      <View style={{ width: 64, height: 64, borderRadius: 14, backgroundColor: catColor + '18', borderWidth: 1.5, borderColor: catColor + '30', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        <Feather name="package" size={22} color={catColor} />
                       </View>
                     )}
-                  </View>
-                  <Pressable onPress={() => openProductActions(p)} style={styles.rowMenuBtn} hitSlop={6}>
-                    <Feather name="more-horizontal" size={18} color={MUTED} />
+                    {/* Middle: Name + Category */}
+                    <View style={{ flex: 1, gap: 4 }}>
+                      <Text style={{ fontSize: 15, fontWeight: '700', color: TEXT }} numberOfLines={1}>{p.name}</Text>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                        <View style={{ width: 7, height: 7, borderRadius: 3.5, backgroundColor: catColor }} />
+                        <Text style={{ fontSize: 12, color: MUTED, fontWeight: '400' }}>{catLabel}</Text>
+                      </View>
+                    </View>
+                    {/* Right: Price + status dot + chevron */}
+                    <View style={{ alignItems: 'flex-end', gap: 6, flexShrink: 0 }}>
+                      <Text style={{ fontSize: 15, fontWeight: '700', color: GREEN }}>{priceFmt}</Text>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                        <View style={{ width: 7, height: 7, borderRadius: 3.5, backgroundColor: statusDot }} />
+                        <Text style={{ fontSize: 11, fontWeight: '500', color: MUTED }}>{statusLabel}</Text>
+                      </View>
+                    </View>
+                    <Feather name="chevron-right" size={16} color={MUTED} style={{ flexShrink: 0 }} />
                   </Pressable>
-                </View>
-                <View style={styles.productRowFooter}>
-                  <View style={styles.footerFlagWrap}>
-                    <Text style={styles.footerFlag}>{p.isAvailable ? 'Live in menu' : 'Hidden from menu'}</Text>
-                    {p.wholesaleOnly && <Text style={styles.footerFlag}>Wholesale only</Text>}
-                  </View>
-                  <Text style={styles.footerHint}>Tap row to edit</Text>
-                </View>
-              </Pressable>
-            );
-          }}
-        />
-      )}
-      <ProductModal
-        visible={modalOpen}
-        onClose={() => { setModalOpen(false); setEditTarget(null); }}
-        onSave={handleSave}
-        initial={editTarget}
-        editing={!!editTarget}
-        categories={dbCategories}
-      />
-      {activeTab === 'products' && (
-        <Pressable
-          onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); openAdd(); }}
-          style={[styles.fab, { backgroundColor: NAVY, bottom: Math.max(insets.bottom + 88, 108) }]}
-        >
-          <Feather name="plus" size={24} color="#fff" />
-        </Pressable>
-      )}
-      </>
+                );
+              }}
+            />
+          )}
+
+          <ProductModal
+            visible={modalOpen}
+            onClose={() => { setModalOpen(false); setEditTarget(null); }}
+            onSave={handleSave}
+            initial={editTarget}
+            editing={!!editTarget}
+            categories={dbCategories}
+          />
+
+          {/* FAB — blue pill */}
+          <Pressable
+            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); openAdd(); }}
+            style={[styles.fab, { backgroundColor: BLUE, bottom: Math.max(insets.bottom + 88, 108) }]}
+          >
+            <Feather name="plus" size={24} color="#fff" />
+          </Pressable>
+        </>
       )}
     </DirectorTabScreen>
   );
 }
+
+// ─── Styles ───────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
-  pageHeader: { paddingHorizontal: 14, paddingTop: 12, paddingBottom: 10, backgroundColor: '#FFFFFF', flexDirection: 'row', alignItems: 'center', borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#E5E7EB' },
-  headerSearchBtn: { width: 42, height: 42, borderRadius: 14, borderWidth: 1, borderColor: BORDER, backgroundColor: CARD, alignItems: 'center', justifyContent: 'center' },
+  headerSearchBtn:       { width: 42, height: 42, borderRadius: 14, borderWidth: 1, borderColor: BORDER, backgroundColor: CARD, alignItems: 'center', justifyContent: 'center' },
   headerSearchBtnActive: { borderColor: BLUE, backgroundColor: BLUE + '10' },
-  tileTabRow: { flexDirection: 'row', gap: 10, paddingHorizontal: 16, paddingTop: 14, paddingBottom: 12, backgroundColor: BG },
-  tileTabBtn: { flex: 1, minHeight: 58, borderRadius: 16, backgroundColor: CARD, borderWidth: 1, borderColor: BORDER, alignItems: 'center', justifyContent: 'center', gap: 6, paddingHorizontal: 8 },
+
+  tileTabRow:     { flexDirection: 'row', gap: 10, paddingHorizontal: 16, paddingTop: 14, paddingBottom: 12, backgroundColor: BG },
+  tileTabBtn:     { flex: 1, minHeight: 58, borderRadius: 16, backgroundColor: CARD, borderWidth: 1, borderColor: BORDER, alignItems: 'center', justifyContent: 'center', gap: 6, paddingHorizontal: 8 },
   tileTabBtnActive: { borderColor: NAVY, backgroundColor: NAVY + '0D' },
-  tileTabText: { fontSize: 12, fontWeight: '600', color: MUTED },
+  tileTabText:    { fontSize: 12, fontWeight: '600', color: MUTED },
   tileTabTextActive: { color: NAVY },
-  productsShell: { paddingHorizontal: 16, paddingBottom: 10, gap: 14 },
-  searchBar:     { flexDirection: 'row', alignItems: 'center', gap: 10, margin: 16, marginBottom: 0, backgroundColor: CARD, borderRadius: 16, borderWidth: 1, paddingHorizontal: 14, height: 50 },
-  searchInput:   { flex: 1, fontSize: 14, height: 44 },
-  productsFilterHeader: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  statusChipRow: { gap: 10, paddingRight: 8 },
-  statusChip: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 999, backgroundColor: CARD, borderWidth: 1, borderColor: BORDER },
-  statusChipActive: { backgroundColor: NAVY, borderColor: NAVY },
-  statusChipText: { fontSize: 13, fontWeight: '600', color: TEXT },
-  statusChipTextActive: { color: '#fff' },
-  statusChipCount: { minWidth: 22, textAlign: 'center', fontSize: 12, fontWeight: '700', color: MUTED },
-  statusChipCountActive: { color: '#fff' },
-  compactTools: { flexDirection: 'row', gap: 10 },
-  roundToolBtn: { width: 44, height: 44, borderRadius: 14, borderWidth: 1, borderColor: BORDER, backgroundColor: CARD, alignItems: 'center', justifyContent: 'center' },
-  roundToolBtnActive: { borderColor: NAVY, backgroundColor: NAVY + '10' },
-  dropPanel:       { marginHorizontal: 16, backgroundColor: CARD, borderRadius: 14, borderWidth: 1, borderColor: BORDER, shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 8, shadowOffset: { width: 0, height: 4 }, elevation: 6, marginBottom: 8 },
-  dropOption:      { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, paddingVertical: 13, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: BORDER },
-  dropOptionActive:{ backgroundColor: BG },
-  dropOptionText:  { flex: 1, fontSize: 14, color: TEXT },
-  dropSectionLabel:{ fontSize: 11, fontWeight: '700', color: MUTED, letterSpacing: 0.6, paddingHorizontal: 16, paddingTop: 12, paddingBottom: 4 },
-  dropDivider:     { height: StyleSheet.hairlineWidth, backgroundColor: BORDER, marginTop: 4 },
-  listSummaryRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: 6, paddingBottom: 8 },
-  count:         { fontSize: 13 },
-  listSummaryMeta: { fontSize: 12, color: MUTED },
-  productRow:    { backgroundColor: CARD, borderRadius: 22, borderWidth: 1, borderColor: BORDER, paddingHorizontal: 14, paddingVertical: 14, marginBottom: 12 },
-  productRowMain: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
-  productThumbFallback: { width: 52, height: 52, borderRadius: 14, borderWidth: 1, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
-  productCopy: { flex: 1, gap: 5 },
-  productTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  statePill: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, alignSelf: 'flex-start' },
-  statePillText: { fontSize: 12, fontWeight: '700' },
-  productMetaLine: { fontSize: 12, color: MUTED },
-  inlineBadgeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 2 },
-  badgeRow:      { flexDirection: 'row', flexWrap: 'wrap', gap: 6, padding: 10, paddingBottom: 0 },
-  badge:         { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10 },
-  badgeText:     { fontSize: 11, fontWeight: '600' },
-  rowMenuBtn: { width: 34, height: 34, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: BG },
-  productRowFooter: { marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: BORDER, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
-  footerFlagWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  footerFlag: { fontSize: 12, color: MUTED, fontWeight: '500' },
-  footerHint: { fontSize: 12, color: BLUE, fontWeight: '600' },
-  productTop:    { flexDirection: 'row', gap: 12, padding: 14 },
-  catBox:        { width: 42, height: 42, borderRadius: 12, borderWidth: 1, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
-  productName:   { fontSize: 15 },
-  productSub:    { fontSize: 12, marginTop: 2 },
-  metaRow:       { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 5, flexWrap: 'wrap' },
-  catPill:       { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10 },
-  catPillText:   { fontSize: 11 },
-  skuText:       { fontSize: 11 },
-  priceStack:    { alignItems: 'flex-end', gap: 2, flexShrink: 0 },
-  price:         { fontSize: 16 },
-  wsPrice:       { fontSize: 12 },
-  profit:        { fontSize: 11 },
-  toggleGrid:     { flexDirection: 'row', flexWrap: 'wrap', borderTopWidth: 1 },
-  toggleGridItem: { width: '50%', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 14, paddingVertical: 12 },
-  toggleLabel:    { fontSize: 11 },
-  actionRow:     { flexDirection: 'row', borderTopWidth: 1 },
-  actionBtn:     { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, paddingVertical: 10 },
-  actionText:    { fontSize: 12 },
-  emptyAddBtn:   { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 20, paddingVertical: 12, borderRadius: 14 },
-  fab:           { position: 'absolute', right: 20, width: 58, height: 58, borderRadius: 29, alignItems: 'center', justifyContent: 'center', elevation: 6, shadowColor: NAVY, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8 },
+
+  searchBar:   { flexDirection: 'row', alignItems: 'center', gap: 10, marginHorizontal: 16, marginTop: 4, marginBottom: 0, backgroundColor: CARD, borderRadius: 16, borderWidth: 1, borderColor: BORDER, paddingHorizontal: 14, height: 50 },
+  searchInput: { flex: 1, fontSize: 14, height: 44 },
+
+  statsStrip:    { flexDirection: 'row', gap: 8, paddingHorizontal: 16, paddingTop: 12, paddingBottom: 4, flexWrap: 'wrap' },
+  statBadge:     { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 },
+  statBadgeText: { fontSize: 12, fontWeight: '600' },
+
+  filterRow:      { flexDirection: 'row', alignItems: 'center', gap: 8, paddingRight: 16, paddingBottom: 8 },
+  filterPillRow:  { flexDirection: 'row', gap: 8, paddingLeft: 16, paddingVertical: 4 },
+  filterPill:     { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 999, borderWidth: 1 },
+  filterPillText: { fontSize: 12, fontWeight: '600' },
+  filterPillCount:{ fontSize: 11, fontWeight: '700' },
+  sortBtn:        { width: 40, height: 40, borderRadius: 12, borderWidth: 1, borderColor: BORDER, backgroundColor: CARD, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+  sortBtnActive:  { borderColor: NAVY, backgroundColor: NAVY + '10' },
+
+  dropPanel:        { marginHorizontal: 16, backgroundColor: CARD, borderRadius: 14, borderWidth: 1, borderColor: BORDER, shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 8, shadowOffset: { width: 0, height: 4 }, elevation: 6, marginBottom: 8 },
+  dropOption:       { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, paddingVertical: 13, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: BORDER },
+  dropOptionActive: { backgroundColor: BG },
+  dropOptionText:   { flex: 1, fontSize: 14, color: TEXT },
+  dropSectionLabel: { fontSize: 11, fontWeight: '700', color: MUTED, letterSpacing: 0.6, paddingHorizontal: 16, paddingTop: 12, paddingBottom: 4 },
+
+  resultCount: { fontSize: 13, paddingBottom: 8 },
+
+  shelfCard: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    backgroundColor: CARD, borderRadius: 16,
+    borderWidth: 1, borderColor: BORDER,
+    paddingHorizontal: 14, paddingVertical: 14,
+    marginBottom: 10,
+  },
+
+  emptyAddBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 20, paddingVertical: 12, borderRadius: 14, backgroundColor: BLUE },
+
+  fab: { position: 'absolute', right: 20, width: 58, height: 58, borderRadius: 29, alignItems: 'center', justifyContent: 'center', elevation: 6, shadowColor: BLUE, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.35, shadowRadius: 8 },
 });
+
 const modal = StyleSheet.create({
-  header:      { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingTop: 16, paddingBottom: 14, backgroundColor: CARD, borderBottomWidth: 1, borderBottomColor: BORDER, gap: 12 },
+  header:      { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingBottom: 14, backgroundColor: CARD, borderBottomWidth: 1, borderBottomColor: BORDER, gap: 12 },
   closeBtn:    { width: 36, height: 36, borderRadius: 10, backgroundColor: BG, alignItems: 'center', justifyContent: 'center' },
   title:       { flex: 1, fontSize: 17, textAlign: 'center' },
   saveBtn:     { paddingHorizontal: 18, paddingVertical: 9, borderRadius: 12 },
   saveBtnText: { color: '#fff', fontSize: 14 },
 });
+
 const form = StyleSheet.create({
-  card:          { backgroundColor: GLASS_BG, borderRadius: 16, borderWidth: 1, borderColor: GLASS_BORDER, padding: 16, gap: 14, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 14, elevation: 3 },
   sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   sectionIcon:   { width: 30, height: 30, borderRadius: 8, alignItems: 'center', justifyContent: 'center', borderWidth: 1.5 },
   sectionTitle:  { fontSize: 15 },
@@ -2130,20 +1941,16 @@ const form = StyleSheet.create({
   toggleRow:     { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 10, borderTopWidth: 1, borderTopColor: BORDER },
   toggleLabel:   { fontSize: 14 },
   toggleDesc:    { fontSize: 12, marginTop: 2 },
-  tagGrid:            { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4 },
-  photoPlaceholder:   { height: 120, borderRadius: 12, backgroundColor: '#F3F4F6', alignItems: 'center', justifyContent: 'center', gap: 8, borderWidth: 1, borderColor: BORDER },
-  photoPlaceholderText:{ fontSize: 12 },
-  uploadArea: {
-    height: 160, borderRadius: 14, backgroundColor: BLUE + '08', borderWidth: 1.5,
-    borderColor: BLUE + '40', borderStyle: 'dashed',
-    alignItems: 'center', justifyContent: 'center', gap: 4,
-  },
+  tagGrid:       { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4 },
+  uploadArea:    { height: 160, borderRadius: 14, backgroundColor: BLUE + '08', borderWidth: 1.5, borderColor: BLUE + '40', borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center', gap: 4 },
 });
+
 const seg = StyleSheet.create({
   wrap: { flexDirection: 'row', backgroundColor: BG, borderRadius: 10, padding: 3, borderWidth: 1, borderColor: BORDER, flexWrap: 'wrap', gap: 3 },
   btn:  { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 },
   text: { fontSize: 12, color: MUTED },
 });
+
 const chip = StyleSheet.create({
   base: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, borderWidth: 1 },
   text: { fontSize: 12 },
