@@ -27,7 +27,19 @@
     "production": {
       "autoIncrement": true,
       "env": {
-        "EXPO_PUBLIC_DOMAIN": "app.butterfieldcookies.com.au"
+        "EXPO_PUBLIC_DOMAIN": "app.butterfieldcookies.com.au",
+        "IS_POS_BUILD": "0"
+      },
+      "ios": {
+        "distribution": "store",
+        "image": "latest"
+      }
+    },
+    "production-pos": {
+      "autoIncrement": true,
+      "env": {
+        "EXPO_PUBLIC_DOMAIN": "app.butterfieldcookies.com.au",
+        "IS_POS_BUILD": "1"
       },
       "ios": {
         "distribution": "store",
