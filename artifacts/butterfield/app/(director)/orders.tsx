@@ -5,9 +5,9 @@ import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ActivityIndicator, Alert, FlatList, Keyboard, KeyboardAvoidingView,
+  ActivityIndicator, Alert, FlatList, KeyboardAvoidingView,
   Linking, Modal, Platform, Pressable,
-  RefreshControl, ScrollView, StyleSheet, Text, TextInput, View,
+  RefreshControl, ScrollView, Text, TextInput, View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRefreshControl } from '@/hooks/useRefreshControl';
@@ -23,7 +23,11 @@ import {
   getCustomerNextStatuses, ORDER_STATUS_SECTIONS, getOrderSectionKey,
 } from '@/lib/orderStatus';
 import { OrderDetailModal, CalendarModal, PosTabContent, OrderCard, OrdersSectionHeader } from '@/components/director';
-import { sydneyDateStr } from '@/components/director/ordersHelpers';
+import {
+  sydneyDateStr, getErrorMessage, fmtHourLabel, sydDate, isSameDay,
+  isThisMonth, isThisWeek, getOrderTimelineDate, fmtDateChip,
+} from '@/components/director/ordersHelpers';
+import { styles } from '@/components/director/ordersStyles';
 
 const BG     = '#EFF6FF';
 const CARD   = '#FFFFFF';
@@ -50,69 +54,6 @@ const FILTER_TABS = [
   { key: 'cancelled',        label: 'Cancelled' },
 ];
 
-
-function getErrorMessage(error: unknown, fallback = 'Something went wrong.') {
-  return error instanceof Error ? error.message : fallback;
-}
-
-function fmtHourLabel(h: number) {
-  if (h === 0)  return '12:00 AM';
-  if (h === 12) return '12:00 PM';
-  return h > 12 ? `${h - 12}:00 PM` : `${h}:00 AM`;
-}
-
-// ── Map helper ────────────────────────────────────────────────────────────────
-function openMap(address: string) {
-  const q = encodeURIComponent(address);
-  const url = Platform.OS === 'ios'
-    ? `maps://maps.apple.com/?q=${q}`
-    : `https://maps.google.com/?q=${q}`;
-  Linking.openURL(url).catch(() => Linking.openURL(`https://maps.google.com/?q=${q}`));
-}
-// ── Date helpers (Sydney-timezone-aware) ──────────────────────────────────────
-// Before 10am AEST, UTC date is still "yesterday". Always compare using
-// Sydney wall-clock date to avoid miscounting orders placed between midnight
-// and 10am Sydney time.
-const SYD_TZ = 'Australia/Sydney';
-function sydDate(d: Date | string): string {
-  return new Date(d).toLocaleDateString('en-CA', { timeZone: SYD_TZ });
-}
-function isSameDay(a: Date | string, b: Date): boolean {
-  return sydDate(a) === sydDate(b);
-}
-function isThisMonth(d: Date | string): boolean {
-  return sydDate(d).slice(0, 7) === sydDate(new Date()).slice(0, 7);
-}
-function isThisWeek(d: Date | string): boolean {
-  const cutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-  return sydDate(d) >= sydDate(cutoff);
-}
-function fmtTime(d: Date | string) {
-  return new Date(d).toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit', timeZone: 'Australia/Sydney' });
-}
-
-function getOrderTimelineDate(order: ApiOrder) {
-  if (order.orderSource !== 'wholesale' && order.scheduledFor) {
-    return new Date(order.scheduledFor);
-  }
-  return new Date(order.createdAt);
-}
-
-function fmtDateChip(d: Date) {
-  const today     = new Date();
-  const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000);
-  if (isSameDay(d, today)) return 'Today';
-  if (isSameDay(d, yesterday)) return 'Yesterday';
-  return d.toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short', timeZone: SYD_TZ });
-}
-function getPastDays(n: number) {
-  const days: Date[] = [];
-  for (let i = 0; i < n; i++) {
-    const d = new Date(); d.setHours(0,0,0,0); d.setDate(d.getDate() - i);
-    days.push(d);
-  }
-  return days;
-}
 
 // ── Main screen ───────────────────────────────────────────────────────────────
 export default function DirectorOrdersScreen() {
@@ -602,33 +543,3 @@ export default function DirectorOrdersScreen() {
     </DirectorTabScreen>
   );
 }
-const styles = StyleSheet.create({
-  filterChip:     { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, borderWidth: 1 },
-  dateBar:        { flexDirection: 'row', borderBottomWidth: 1 },
-  dateTab:        { flex: 1, alignItems: 'center', paddingVertical: 12 },
-  dayChip:        { alignItems: 'center', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, borderWidth: 1, minWidth: 80 },
-  orderCard:      { marginBottom: 10 },
-  orderCardAccent:{ borderRadius: 16, padding: 14, borderWidth: 1, borderColor: GLASS_BORDER, backgroundColor: GLASS_BG,
-                    shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 14, elevation: 3 },
-  orderCardTop:   { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
-  orderId:        { fontSize: 14, fontWeight: '700', color: TEXT },
-  printMiniBtn:   { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 10 },
-  printMiniBtnTxt:{ color: '#fff', fontWeight: '600', fontSize: 10 },
-  sectionHeader:  { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10, marginTop: 4 },
-  sectionHeaderText: { fontSize: 16, fontWeight: '700', color: TEXT, flex: 1 },
-  emptySection:   { alignItems: 'center', paddingVertical: 28, gap: 8 },
-  emptyText:      { color: MUTED, fontWeight: '400', fontSize: 14 },
-  // Modal
-  modalHeader:    { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingBottom: 12, borderBottomWidth: 1 },
-  modalTitle:     { fontSize: 17, fontWeight: '700', color: TEXT },
-  closeBtn:       { width: 36, height: 36, borderRadius: 18, backgroundColor: BG, alignItems: 'center', justifyContent: 'center' },
-  section:        { backgroundColor: GLASS_BG, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: GLASS_BORDER, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 14, elevation: 3 },
-  sectionLabel:   { fontSize: 11, fontWeight: '600', color: MUTED, textTransform: 'uppercase', letterSpacing: 0.5 },
-  statusPill:     { paddingHorizontal: 12, paddingVertical: 5, borderRadius: 20, alignSelf: 'flex-start' },
-  statusPillText: { fontSize: 13, fontWeight: '600' },
-  updateStatusBtn:{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 9, borderRadius: 12 },
-  printBtn:       { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 10, borderRadius: 12, marginHorizontal: 16, marginTop: 2 },
-  detailRow:      { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
-  detailText:     { color: TEXT, fontWeight: '400', fontSize: 14, lineHeight: 20 },
-  itemRow:        { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', paddingVertical: 10, gap: 8 },
-});

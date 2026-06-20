@@ -1,27 +1,23 @@
 import type { ApiOrder } from '@/lib/api';
-import { Linking, Alert } from 'react-native';
+import { Linking, Alert, Platform } from 'react-native';
 
-export function sydDate(d: Date) {
-  return d.toLocaleDateString('en-CA', { timeZone: 'Australia/Sydney' });
+const SYD_TZ = 'Australia/Sydney';
+
+export function sydDate(d: Date | string): string {
+  return new Date(d).toLocaleDateString('en-CA', { timeZone: SYD_TZ });
 }
 
-export function isSameDay(a: Date, b: Date): boolean {
+export function isSameDay(a: Date | string, b: Date | string): boolean {
   return sydDate(a) === sydDate(b);
 }
 
-export function isThisMonth(d: Date): boolean {
-  const now = new Date();
-  const ds = sydDate(d).slice(0, 7);
-  const ns = sydDate(now).slice(0, 7);
-  return ds === ns;
+export function isThisMonth(d: Date | string): boolean {
+  return sydDate(d).slice(0, 7) === sydDate(new Date()).slice(0, 7);
 }
 
-export function isThisWeek(d: Date): boolean {
-  const now = new Date();
-  const msInDay = 86400000;
-  const today = new Date(sydDate(now) + 'T12:00:00');
-  const diff = Math.floor((today.getTime() - new Date(sydDate(d) + 'T12:00:00').getTime()) / msInDay);
-  return diff >= 0 && diff < 7;
+export function isThisWeek(d: Date | string): boolean {
+  const cutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+  return sydDate(d) >= sydDate(cutoff);
 }
 
 export function fmtTime(iso: string | Date) {
@@ -29,18 +25,22 @@ export function fmtTime(iso: string | Date) {
   return d.toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit', hour12: true });
 }
 
-export function fmtDateChip(d: Date) {
-  return d.toLocaleDateString('en-AU', { day: 'numeric', month: 'short' });
+export function fmtDateChip(d: Date): string {
+  const today     = new Date();
+  const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  if (isSameDay(d, today))     return 'Today';
+  if (isSameDay(d, yesterday)) return 'Yesterday';
+  return d.toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short', timeZone: SYD_TZ });
 }
 
 export function sydneyDateStr(): string {
-  return new Date().toLocaleDateString('en-CA', { timeZone: 'Australia/Sydney' });
+  return new Date().toLocaleDateString('en-CA', { timeZone: SYD_TZ });
 }
 
 export function shiftPosDate(dateStr: string, days: number): string {
   const d = new Date(dateStr + 'T12:00:00');
   d.setDate(d.getDate() + days);
-  return d.toLocaleDateString('en-CA', { timeZone: 'Australia/Sydney' });
+  return d.toLocaleDateString('en-CA', { timeZone: SYD_TZ });
 }
 
 export function fmtCents(cents: number) {
@@ -73,20 +73,24 @@ export function summarisePosItems(items: unknown): string {
 }
 
 export function openMap(address: string) {
-  const encoded = encodeURIComponent(address);
-  const url = `https://maps.apple.com/?q=${encoded}`;
-  Linking.openURL(url).catch(() => Alert.alert('Error', 'Could not open Maps.'));
+  const q = encodeURIComponent(address);
+  const url = Platform.OS === 'ios'
+    ? `maps://maps.apple.com/?q=${q}`
+    : `https://maps.google.com/?q=${q}`;
+  Linking.openURL(url).catch(() => Linking.openURL(`https://maps.google.com/?q=${q}`));
 }
 
 export function getOrderTimelineDate(order: ApiOrder): Date {
-  if (order.scheduledFor) return new Date(order.scheduledFor);
+  if (order.orderSource !== 'wholesale' && order.scheduledFor) {
+    return new Date(order.scheduledFor);
+  }
   return new Date(order.createdAt);
 }
 
 export function fmtHourLabel(h: number): string {
-  if (h === 0) return '12 AM';
-  if (h === 12) return '12 PM';
-  return h > 12 ? `${h - 12} PM` : `${h} AM`;
+  if (h === 0)  return '12:00 AM';
+  if (h === 12) return '12:00 PM';
+  return h > 12 ? `${h - 12}:00 PM` : `${h}:00 AM`;
 }
 
 export function getOrderSectionKey(o: ApiOrder): string {
@@ -111,4 +115,8 @@ export function getWholesaleInvoiceUrl(orderId: string): string {
     ? `https://${process.env.EXPO_PUBLIC_DOMAIN}/api`
     : 'http://localhost:80/api';
   return `${base}/wholesale/orders/${orderId}/invoice`;
+}
+
+export function getErrorMessage(error: unknown, fallback = 'Something went wrong.'): string {
+  return error instanceof Error ? error.message : fallback;
 }
