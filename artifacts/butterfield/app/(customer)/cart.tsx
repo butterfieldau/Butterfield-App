@@ -7,6 +7,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ActivityIndicator,
   Alert,
+  Animated as RNAnimated,
   KeyboardAvoidingView,
   PanResponder,
   Platform,
@@ -19,6 +20,7 @@ import {
   Switch,
   View,
 } from 'react-native';
+import { Swipeable } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { CardField, StripeProvider, useStripe, usePlatformPay, PlatformPay } from '@stripe/stripe-react-native';
@@ -1144,6 +1146,142 @@ function ConfettiPieceView({ piece }: { piece: ConfettiPiece }) {
   );
 }
 
+// ── Cart Item Row (swipe-to-delete) ──────────────────────────────────────────
+interface CartItemRowProps {
+  item: {
+    cartItemId: string;
+    productName: string;
+    variantName?: string;
+    category?: string;
+    imageUrl?: string | null;
+    unitPriceCents: number;
+    quantity: number;
+    selectedOptions: Array<{ optionName?: string; textValue?: string }>;
+  };
+  onRemove: () => void;
+  updateItemQuantity: (cartItemId: string, qty: number) => void;
+  openSwipeableRef: React.MutableRefObject<Swipeable | null>;
+}
+
+function CartItemRow({ item, onRemove, updateItemQuantity, openSwipeableRef }: CartItemRowProps) {
+  const swipeableRef = useRef<Swipeable>(null);
+  const rowHeightAnim = useRef(new RNAnimated.Value(0)).current;
+  const measuredHeight = useRef(0);
+  const isCollapsingRef = useRef(false);
+  const [collapsing, setCollapsing] = useState(false);
+
+  const palette  = getPalette(item.category ?? 'default');
+  const imageUrl = item.imageUrl ?? null;
+  const optionLines = (item.selectedOptions ?? [])
+    .filter(o => o.optionName && o.optionName !== 'No Sugar' && o.optionName !== 'No Honey' &&
+                 o.optionName !== 'No Syrup' && o.optionName !== 'Regular Coffee' &&
+                 o.optionName !== 'Regular' && o.optionName !== 'Normal' && o.optionName !== 'Full Cream')
+    .concat(item.selectedOptions.filter(o => o.textValue));
+
+  const handleLayout = (e: { nativeEvent: { layout: { height: number } } }) => {
+    const h = e.nativeEvent.layout.height;
+    if (h > 0 && !isCollapsingRef.current) {
+      measuredHeight.current = h;
+    }
+  };
+
+  const renderRightActions = (progress: RNAnimated.AnimatedInterpolation<number>) => {
+    const scale = progress.interpolate({
+      inputRange: [0, 1],
+      outputRange: [0.6, 1.0],
+      extrapolate: 'clamp',
+    });
+    const opacity = progress.interpolate({
+      inputRange: [0, 0.5, 1],
+      outputRange: [0, 0.7, 1],
+      extrapolate: 'clamp',
+    });
+    return (
+      <View style={styles.cartSwipeDelete}>
+        <RNAnimated.View style={{ alignItems: 'center', transform: [{ scale }], opacity }}>
+          <Feather name="trash-2" size={18} color="#FFFFFF" />
+          <Text style={styles.cartSwipeDeleteLabel}>Delete</Text>
+        </RNAnimated.View>
+      </View>
+    );
+  };
+
+  const handleSwipeOpen = () => {
+    if (isCollapsingRef.current) return;
+    isCollapsingRef.current = true;
+    const h = measuredHeight.current;
+    rowHeightAnim.setValue(h);
+    setCollapsing(true);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+    requestAnimationFrame(() => {
+      RNAnimated.timing(rowHeightAnim, {
+        toValue: 0,
+        duration: 220,
+        useNativeDriver: false,
+      }).start(() => onRemove());
+    });
+  };
+
+  return (
+    <Swipeable
+      ref={swipeableRef}
+      renderRightActions={renderRightActions}
+      rightThreshold={75}
+      overshootRight
+      overshootFriction={6}
+      friction={1.5}
+      onSwipeableWillOpen={() => {
+        if (openSwipeableRef.current && openSwipeableRef.current !== swipeableRef.current) {
+          openSwipeableRef.current.close();
+        }
+        openSwipeableRef.current = swipeableRef.current;
+      }}
+      onSwipeableOpen={handleSwipeOpen}
+    >
+      <RNAnimated.View
+        onLayout={handleLayout}
+        style={collapsing ? { height: rowHeightAnim, overflow: 'hidden' } : undefined}
+      >
+        <View style={[styles.itemCard, { backgroundColor: CARD, borderColor: BORDER }]}>
+          {imageUrl ? (
+            <Image source={{ uri: imageUrl }} style={styles.itemThumb} contentFit="cover" />
+          ) : (
+            <View style={[styles.itemThumb, { backgroundColor: palette.bg, alignItems: 'center', justifyContent: 'center' }]}>
+              <Text style={{ fontSize: 28 }}>{palette.emoji}</Text>
+            </View>
+          )}
+          <Pressable
+            onPress={() => { onRemove(); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }}
+            style={styles.removeBtn}
+          >
+            <Feather name="x" size={12} color={MUTED} />
+          </Pressable>
+          <View style={styles.itemBody}>
+            <Text style={styles.itemName}>
+              {item.productName}{item.variantName ? ` · ${item.variantName}` : ''}
+            </Text>
+            {optionLines.length > 0 && (
+              <Text style={[styles.itemOpts, { fontWeight: '400' }]} numberOfLines={2}>
+                {optionLines.map(o => o.textValue ?? o.optionName).join(', ')}
+              </Text>
+            )}
+            <Text style={styles.itemPrice}>AUD {((item.unitPriceCents * item.quantity) / 100).toFixed(2)}</Text>
+            <View style={styles.qtyRow}>
+              <Pressable onPress={() => { updateItemQuantity(item.cartItemId, item.quantity - 1); Haptics.selectionAsync(); }} style={styles.qtyBtn}>
+                <Text style={styles.qtyBtnText}>–</Text>
+              </Pressable>
+              <Text style={styles.qtyLabel}>QTY: {item.quantity}</Text>
+              <Pressable onPress={() => { updateItemQuantity(item.cartItemId, item.quantity + 1); Haptics.selectionAsync(); }} style={styles.qtyBtn}>
+                <Text style={styles.qtyBtnText}>+</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </RNAnimated.View>
+    </Swipeable>
+  );
+}
+
 export default function CartScreen() {
   const { user } = useAuth();
   if (!user) return <LoggedOutAccountPrompt redirectTo="/(customer)/cart" compact />;
@@ -1155,6 +1293,7 @@ function CartContent() {
   const { user } = useAuth();
   const { items, totalPriceCents, totalItems, addItemToCart, updateItemQuantity, removeCartItem, clearCart, cartRestoredFromSession, dismissCartRestoredBanner } = useCart();
   const qc = useQueryClient();
+  const openSwipeableRef = useRef<Swipeable | null>(null);
   const routeParams = useLocalSearchParams<{ success?: string }>();
 
   const { data: allProductsData } = useQuery({
@@ -1768,52 +1907,15 @@ function CartContent() {
           </Pressable>
         </View>
       )}
-      {items.map((item) => {
-        const palette  = getPalette(item.category ?? 'default');
-        const imageUrl = item.imageUrl ?? null;
-        const optionLines = (item.selectedOptions ?? [])
-          .filter(o => o.optionName && o.optionName !== 'No Sugar' && o.optionName !== 'No Honey' &&
-                       o.optionName !== 'No Syrup' && o.optionName !== 'Regular Coffee' &&
-                       o.optionName !== 'Regular' && o.optionName !== 'Normal' && o.optionName !== 'Full Cream')
-          .concat(item.selectedOptions.filter(o => o.textValue));
-        return (
-          <View key={item.cartItemId} style={[styles.itemCard, { backgroundColor: CARD, borderColor: BORDER }]}>
-            {imageUrl ? (
-              <Image source={{ uri: imageUrl }} style={styles.itemThumb} contentFit="cover" />
-            ) : (
-              <View style={[styles.itemThumb, { backgroundColor: palette.bg, alignItems: 'center', justifyContent: 'center' }]}>
-                <Text style={{ fontSize: 28 }}>{palette.emoji}</Text>
-              </View>
-            )}
-            <Pressable
-              onPress={() => { removeCartItem(item.cartItemId); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }}
-              style={styles.removeBtn}
-            >
-              <Feather name="x" size={12} color={MUTED} />
-            </Pressable>
-            <View style={styles.itemBody}>
-              <Text style={styles.itemName}>
-                {item.productName}{item.variantName ? ` · ${item.variantName}` : ''}
-              </Text>
-              {optionLines.length > 0 && (
-                <Text style={[styles.itemOpts, { fontWeight: '400' }]} numberOfLines={2}>
-                  {optionLines.map(o => o.textValue ?? o.optionName).join(', ')}
-                </Text>
-              )}
-              <Text style={styles.itemPrice}>AUD {((item.unitPriceCents * item.quantity) / 100).toFixed(2)}</Text>
-              <View style={styles.qtyRow}>
-                <Pressable onPress={() => { updateItemQuantity(item.cartItemId, item.quantity - 1); Haptics.selectionAsync(); }} style={styles.qtyBtn}>
-                  <Text style={styles.qtyBtnText}>–</Text>
-                </Pressable>
-                <Text style={styles.qtyLabel}>QTY: {item.quantity}</Text>
-                <Pressable onPress={() => { updateItemQuantity(item.cartItemId, item.quantity + 1); Haptics.selectionAsync(); }} style={styles.qtyBtn}>
-                  <Text style={styles.qtyBtnText}>+</Text>
-                </Pressable>
-              </View>
-            </View>
-          </View>
-        );
-      })}
+      {items.map((item) => (
+        <CartItemRow
+          key={item.cartItemId}
+          item={item}
+          onRemove={() => removeCartItem(item.cartItemId)}
+          updateItemQuantity={updateItemQuantity}
+          openSwipeableRef={openSwipeableRef}
+        />
+      ))}
 
       {/* ── You may also like ─────────────────────────────────────────── */}
       {cartSuggestedProducts.length > 0 && (
@@ -2455,6 +2557,9 @@ const styles = StyleSheet.create({
   restoredBanner: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#E0F2FE', borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10, borderWidth: 1, borderColor: '#BAE6FD' },
   restoredBannerText: { flex: 1, fontSize: 13, color: '#0369A1', fontWeight: '400', lineHeight: 18 },
   restoredBannerClear: { fontSize: 13, color: '#0369A1', fontWeight: '700' },
+  // Swipe-to-delete
+  cartSwipeDelete:      { backgroundColor: CHERRY, width: 80, justifyContent: 'center', alignItems: 'center', gap: 4, borderRadius: 14, marginLeft: 8 },
+  cartSwipeDeleteLabel: { color: '#FFFFFF', fontSize: 11, fontWeight: '600' },
   // Item cards
   itemCard:   { flexDirection: 'row', borderRadius: 14, borderWidth: 1, overflow: 'hidden', position: 'relative' },
   itemThumb:  { width: 90, alignSelf: 'stretch' },
