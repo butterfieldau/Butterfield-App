@@ -183,7 +183,7 @@ export default function FeedbackScreen() {
   return (
     <DirectorStandaloneScreen title="Customer Feedback" subtitle="Ratings, comments & order reviews">
       {allItems.length > 0 && (
-        <View style={{ paddingHorizontal: 20, paddingTop: 8, paddingBottom: 4 }}>
+        <View style={{ paddingHorizontal: 20, paddingTop: 4, paddingBottom: 2 }}>
           <View style={s.summaryRow}>
             <View style={s.summaryChip}>
               <Feather name="inbox" size={13} color={unreadCount > 0 ? RED : MUTED} />
@@ -240,7 +240,8 @@ export default function FeedbackScreen() {
         <FlatList
           data={filtered}
           keyExtractor={item => item.id}
-          contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: insets.bottom + 32, gap: 10 }}
+          style={{ flex: 1 }}
+          contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 8, paddingBottom: insets.bottom + 16, gap: 10 }}
           showsVerticalScrollIndicator={false}
           refreshControl={
             <RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={BLUE} />
@@ -274,7 +275,7 @@ const s = StyleSheet.create({
   title:    { fontSize: 28, fontWeight: '700', color: TEXT },
   subtitle: { fontSize: 13, color: MUTED, marginTop: 2 },
 
-  summaryRow: { flexDirection: 'row', gap: 8, marginTop: 12, flexWrap: 'wrap' },
+  summaryRow: { flexDirection: 'row', gap: 8, marginTop: 4, flexWrap: 'wrap' },
   summaryChip: {
     flexDirection: 'row', alignItems: 'center', gap: 5,
     backgroundColor: CARD, paddingHorizontal: 10, paddingVertical: 5,
@@ -282,7 +283,7 @@ const s = StyleSheet.create({
   },
   summaryChipText: { fontSize: 12, fontWeight: '600', color: MUTED },
 
-  filterBar: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingBottom: 12, gap: 8 },
+  filterBar: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingTop: 6, paddingBottom: 6, gap: 8 },
   filterChip: {
     paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20,
     backgroundColor: CARD, borderWidth: StyleSheet.hairlineWidth, borderColor: BORD,
