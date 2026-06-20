@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { db, storesTable, storeOpeningHoursTable } from '@workspace/db';
 import { inArray, eq, ne, isNull, and, isNotNull, lte } from 'drizzle-orm';
 import { ensureStoreConfigSchemaReady } from '../lib/ensureStoreConfigSchemaReady.js';
+import { getSydneyNow } from '../lib/sydneyTime.js';
 
 const router = Router();
 async function purgeExpiredDeletedStores() {
@@ -27,7 +28,7 @@ router.use(async (_req, _res, next) => {
 });
 
 function toSydneyDate(): Date {
-  return new Date(new Date().toLocaleString('en-US', { timeZone: 'Australia/Sydney' }));
+  return getSydneyNow();
 }
 
 function fmt12(time: string): string {

@@ -70,6 +70,7 @@ import { validateDiscountCode } from '../lib/discountUtils.js';
 import { countCoffeeItemsFromOrderItems, getOutstandingCoffeeStampsForOrder } from '../lib/orderLoyaltyUtils.js';
 import { generateOrderNumber } from '../lib/orderNumber.js';
 import { recordAuditLog } from '../lib/auditLog.js';
+import { sydneyStartOfDay } from '../lib/sydneyTime.js';
 import {
   addRegisterCashMovement,
   closeRegisterSession,
@@ -1482,12 +1483,7 @@ router.get('/orders', async (req, res) => {
   await ensurePosSchemaReady();
 
   // Sydney midnight in UTC = start of today's window
-  const now = new Date();
-  const sydNow = new Date(now.toLocaleString('en-US', { timeZone: 'Australia/Sydney' }));
-  const sydNowOffsetMs = sydNow.getTime() - now.getTime();
-  const startOfToday = new Date(
-    new Date(sydNow.getFullYear(), sydNow.getMonth(), sydNow.getDate()).getTime() - sydNowOffsetMs
-  );
+  const startOfToday = sydneyStartOfDay();
 
   // Parse pagination params
   const rawLimit = parseInt(String(req.query.limit ?? '50'), 10);
@@ -1595,10 +1591,7 @@ router.get('/orders', async (req, res) => {
 router.get('/summary', async (req, res) => {
   await ensurePosSchemaReady();
 
-  const now = new Date();
-  const sydNow = new Date(now.toLocaleString('en-US', { timeZone: 'Australia/Sydney' }));
-  const sydNowOffsetMs = sydNow.getTime() - now.getTime();
-  const startOfToday = new Date(new Date(sydNow.getFullYear(), sydNow.getMonth(), sydNow.getDate()).getTime() - sydNowOffsetMs);
+  const startOfToday = sydneyStartOfDay();
 
   try {
     const result = await db.execute(sql`

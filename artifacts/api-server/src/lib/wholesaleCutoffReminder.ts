@@ -2,6 +2,7 @@ import { db, wholesaleDeliverySettingsTable } from '@workspace/db';
 import { eq } from 'drizzle-orm';
 import { sendNotification } from './notificationService.js';
 import { logger } from './logger.js';
+import { getSydneyNow } from './sydneyTime.js';
 
 const HOURS_BEFORE = 3;
 const SINGLETON_ID = 'default';
@@ -75,8 +76,7 @@ export async function checkWholesaleCutoffReminders(): Promise<void> {
     if (!slots.length) return;
 
     // Resolve current Sydney time
-    const sydneyStr = new Date().toLocaleString('en-US', { timeZone: 'Australia/Sydney' });
-    const sydneyNow = new Date(sydneyStr);
+    const sydneyNow = getSydneyNow();
     const dayOfWeek = sydneyNow.getDay();
     const hour = sydneyNow.getHours();
     const minute = sydneyNow.getMinutes();

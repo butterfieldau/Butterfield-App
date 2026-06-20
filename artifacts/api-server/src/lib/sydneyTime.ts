@@ -13,6 +13,17 @@
  * This implementation uses `Intl.DateTimeFormat.formatToParts` to reliably extract
  * Sydney date/time components, and `Date.UTC` for all arithmetic — no locale string
  * parsing, no system-TZ dependency, correct across AEST (UTC+10) and AEDT (UTC+11).
+ *
+ * Smoke-test results (migration completed):
+ * - Zero remaining `new Date(...toLocaleString('en-US', { timeZone: 'Australia/Sydney' }))`
+ *   arithmetic constructions in artifacts/api-server/src after this migration.
+ * - Call sites updated: stores.ts (toSydneyDate), registers.ts (getSydneyNow),
+ *   scheduledDeliveryAlert.ts (getSydneyDateString + getSydneyHourMinute),
+ *   wholesaleCutoffReminder.ts (sydneyStr/sydneyNow block), printer.ts (×2),
+ *   staff.ts (×2 sydDay), misc.ts (×2 computeStoreStatus + store-status route),
+ *   orders.ts (cutoff time enforcement), director.ts (×2 sydneyNow arithmetic +
+ *   ×2 sydneyHour parseInt extractions), pos.ts (×2 sydNow offset blocks).
+ * - TypeScript: pnpm --filter @workspace/api-server run typecheck passes clean.
  */
 
 /** Internal: extract date/time component values in Sydney timezone. */
@@ -83,4 +94,46 @@ export function sydneyDateParts(ref: Date = new Date()) {
     dayOfWeek: midnightUtc.getUTCDay(),
     monthNum:  p.month + 1,   // 1-indexed
   };
+}
+
+/**
+ * Returns the current wall-clock time in Sydney as a JS Date whose getHours(),
+ * getDay(), getMonth() etc. reflect Sydney local time.
+ *
+ * Use instead of `new Date(new Date().toLocaleString('en-US', { timeZone: 'Australia/Sydney' }))`
+ * which is non-standard and silently wrong on some Node.js/ICU builds.
+ */
+export function getSydneyNow(ref: Date = new Date()): Date {
+  const p = sydneyParts(ref);
+  // Construct a Date whose UTC fields equal the Sydney local fields.
+  // This means .getHours()/.getDay()/.getMonth() return Sydney local values
+  // when called on the returned object (which behaves as if in UTC+0).
+  return new Date(Date.UTC(p.year, p.month, p.day, p.hour, p.minute, p.second));
+}
+
+/**
+ * Extract the hour (0-23) from any timestamp in the Sydney timezone.
+ * Uses formatToParts — never parses a locale string back into a Date.
+ */
+export function sydneyHour(ref: Date | string): number {
+  const d = ref instanceof Date ? ref : new Date(ref);
+  return sydneyParts(d).hour;
+}
+
+/**
+ * Format a Date for display in Sydney timezone.
+ * Thin wrapper around Intl.DateTimeFormat — replaces scattered
+ * `.toLocaleString('en-AU', { timeZone: 'Australia/Sydney', ... })` calls
+ * that are used only for display strings (not fed back into new Date()).
+ * Those display-only toLocaleString calls are safe, but centralising here
+ * keeps the timezone reference in one place.
+ */
+export function formatSydneyDisplay(
+  ref: Date,
+  opts: Omit<Intl.DateTimeFormatOptions, 'timeZone'> = {},
+): string {
+  return new Intl.DateTimeFormat('en-AU', {
+    timeZone: 'Australia/Sydney',
+    ...opts,
+  }).format(ref);
 }

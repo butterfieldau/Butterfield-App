@@ -2,16 +2,17 @@ import { db, ordersTable } from '@workspace/db';
 import { and, eq, sql } from 'drizzle-orm';
 import { sendNotification } from './notificationService.js';
 import { logger } from './logger.js';
+import { getSydneyNow } from './sydneyTime.js';
 
 let alertSentToday: string | null = null;
 
 function getSydneyDateString(): string {
-  const syd = new Date(new Date().toLocaleString('en-US', { timeZone: 'Australia/Sydney' }));
+  const syd = getSydneyNow();
   return `${syd.getFullYear()}-${String(syd.getMonth() + 1).padStart(2, '0')}-${String(syd.getDate()).padStart(2, '0')}`;
 }
 
 function getSydneyHourMinute(): { hour: number; minute: number } {
-  const syd = new Date(new Date().toLocaleString('en-US', { timeZone: 'Australia/Sydney' }));
+  const syd = getSydneyNow();
   return { hour: syd.getHours(), minute: syd.getMinutes() };
 }
 

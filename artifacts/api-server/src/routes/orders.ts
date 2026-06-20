@@ -13,6 +13,7 @@ import { ensureStoreConfigSchemaReady } from '../lib/ensureStoreConfigSchemaRead
 import { refundOrderStripePayment } from '../lib/stripeRefunds.js';
 import { generateOrderNumber } from '../lib/orderNumber.js';
 import { getAllowedNextStatuses, getStatusMessage } from '../lib/orderStatusTransitions.js';
+import { getSydneyNow } from '../lib/sydneyTime.js';
 
 const router = Router();
 
@@ -167,7 +168,7 @@ router.post('/', async (req, res) => {
   const settings = Object.fromEntries(settingsRows.map(r => [r.key, r.value]));
   const cutoffTime = selectedStore?.orderCutoffTime ?? settings['order_cutoff_time'] ?? '';
   if (cutoffTime) {
-    const syd  = new Date(new Date().toLocaleString('en-US', { timeZone: 'Australia/Sydney' }));
+    const syd  = getSydneyNow();
     const mins = syd.getHours() * 60 + syd.getMinutes();
     const [ch, cm] = cutoffTime.split(':').map(Number);
     if (!isNaN(ch) && !isNaN(cm) && mins >= ch * 60 + cm) {

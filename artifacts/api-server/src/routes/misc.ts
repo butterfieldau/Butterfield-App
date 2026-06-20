@@ -4,6 +4,7 @@ import { db, announcementsTable, favouritesTable, feedbackTable, waitlistsTable,
 import { eq, and } from 'drizzle-orm';
 import { requireAuth } from '../middlewares/auth.js';
 import { getRetailDeliverySettings } from '../lib/retailDelivery.js';
+import { getSydneyNow } from '../lib/sydneyTime.js';
 
 const router = Router();
 
@@ -136,7 +137,7 @@ function computeStoreStatus(manualOverride: boolean): {
 } {
   if (!manualOverride) return { isOpen: false, openUntil: null, opensAt: null };
 
-  const syd  = new Date(new Date().toLocaleString('en-US', { timeZone: 'Australia/Sydney' }));
+  const syd  = getSydneyNow();
   const day  = syd.getDay();   // 0=Sun
   const mins = syd.getHours() * 60 + syd.getMinutes();
 
@@ -200,7 +201,7 @@ router.get('/store-status', async (_req, res) => {
 
   let ordersCutoff = false;
   if (cutoffTime) {
-    const syd   = new Date(new Date().toLocaleString('en-US', { timeZone: 'Australia/Sydney' }));
+    const syd   = getSydneyNow();
     const mins  = syd.getHours() * 60 + syd.getMinutes();
     const [ch, cm] = cutoffTime.split(':').map(Number);
     if (!isNaN(ch) && !isNaN(cm)) ordersCutoff = mins >= (ch * 60 + cm);

@@ -10,6 +10,7 @@ import {
   storeSettingsTable,
 } from '@workspace/db';
 import { and, asc, desc, eq, isNotNull, isNull, sql } from 'drizzle-orm';
+import { getSydneyNow } from './sydneyTime.js';
 
 const REGISTER_AUTO_CLOSE_KEY = 'auto_close_register_enabled';
 const DEFAULT_REGISTER_AUTO_CLOSE_ENABLED = true;
@@ -71,10 +72,6 @@ type SupervisorIdentity = { userId: string; name: string | null; role: string | 
 
 let registerSchemaReady: Promise<void> | null = null;
 let autoCloseLoopStarted = false;
-
-function getSydneyNow(): Date {
-  return new Date(new Date().toLocaleString('en-US', { timeZone: 'Australia/Sydney' }));
-}
 
 function toTradingDate(value: Date): string {
   const year = value.getFullYear();

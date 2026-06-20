@@ -1,4 +1,5 @@
 import * as net from 'net';
+import { getSydneyNow } from './sydneyTime.js';
 
 // ── ESC/POS command constants ─────────────────────────────────────────────────
 const ESC = 0x1b;
@@ -119,13 +120,12 @@ export function buildReceiptBytes(job: PrintJob): Buffer {
   // Resolve brand early — needed both at the top (init) and at the bottom (cut).
   const isStar = job.printerBrand === 'star';
 
-  const sydney = new Date(new Date().toLocaleString('en-US', { timeZone: 'Australia/Sydney' }));
+  const sydney = getSydneyNow();
   const dateStr = sydney.toLocaleDateString('en-AU', {
     weekday: 'short', day: 'numeric', month: 'short', year: 'numeric',
-    timeZone: 'Australia/Sydney',
   });
   const timeStr = sydney.toLocaleTimeString('en-AU', {
-    hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'Australia/Sydney',
+    hour: 'numeric', minute: '2-digit', hour12: true,
   });
   const shortId = job.orderId.slice(0, 8).toUpperCase();
 
@@ -247,12 +247,12 @@ export function buildReceiptBytes(job: PrintJob): Buffer {
 // All prices are GST-inclusive; GST component = total / 11.
 export function buildTaxInvoiceBytes(job: PrintJob): Buffer {
   const isStar = job.printerBrand === 'star';
-  const sydney = new Date(new Date().toLocaleString('en-US', { timeZone: 'Australia/Sydney' }));
+  const sydney = getSydneyNow();
   const dateStr = sydney.toLocaleDateString('en-AU', {
-    day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Australia/Sydney',
+    day: 'numeric', month: 'long', year: 'numeric',
   });
   const timeStr = sydney.toLocaleTimeString('en-AU', {
-    hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'Australia/Sydney',
+    hour: 'numeric', minute: '2-digit', hour12: true,
   });
 
   const discountCents  = job.discountCents  ?? 0;

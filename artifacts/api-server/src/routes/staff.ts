@@ -3,7 +3,7 @@ import { randomUUID } from 'crypto';
 import { db, staffShiftsTable, staffTasksTable, staffTaskHistoryTable, staffWastageTable, staffIssuesTable, staffLeaveRequestsTable, staffProfilesTable, usersTable, ordersTable, wholesaleOrdersTable, wholesaleAccountsTable, storeSettingsTable, staffStoreAssignmentsTable, storesTable, staffRosterTable } from '@workspace/db';
 import { eq, desc, isNull, and, gte, lte, sql, inArray } from 'drizzle-orm';
 import { normalizeTaskListCompletion } from '../lib/taskReset.js';
-import { sydneyStartOfDay } from '../lib/sydneyTime.js';
+import { sydneyStartOfDay, sydneyDateParts } from '../lib/sydneyTime.js';
 
 function haversineMeters(lat1: number, lng1: number, lat2: number, lng2: number): number {
   const R = 6371000;
@@ -237,7 +237,7 @@ router.get('/shifts/stats', async (req, res) => {
   const now = new Date();
   const todayStart = sydneyStartOfDay(now);
 
-  const sydDay = new Date(todayStart.toLocaleString('en-US', { timeZone: 'Australia/Sydney' })).getDay();
+  const sydDay = sydneyDateParts(now).dayOfWeek;
   const daysBack = sydDay === 0 ? 6 : sydDay - 1;
   const weekStart = sydneyStartOfDay(new Date(now.getTime() - daysBack * 24 * 60 * 60 * 1000));
 
@@ -284,7 +284,7 @@ router.get('/timesheet', async (req, res) => {
 
   const now = new Date();
   const todaySydStart = sydneyStartOfDay(now);
-  const sydDay = new Date(todaySydStart.toLocaleString('en-US', { timeZone: 'Australia/Sydney' })).getDay();
+  const sydDay = sydneyDateParts(now).dayOfWeek;
   const daysBack = sydDay === 0 ? 6 : sydDay - 1;
   const weekStart = sydneyStartOfDay(new Date(now.getTime() - daysBack * 24 * 60 * 60 * 1000));
   const weekEnd = new Date(weekStart.getTime() + 7 * 24 * 60 * 60 * 1000 - 1);

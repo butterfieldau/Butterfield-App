@@ -27,7 +27,7 @@ import { recordLoyaltyPoints, reverseCoffeeStamps } from '../lib/loyaltyIdentity
 import { getOutstandingCoffeeStampsForOrder } from '../lib/orderLoyaltyUtils.js';
 import { refundOrderStripePayment, refundWholesaleOrderStripePayment } from '../lib/stripeRefunds.js';
 import { getAllowedNextStatuses, getStatusMessage, TERMINAL_STATUSES } from '../lib/orderStatusTransitions.js';
-import { sydneyStartOfDay, sydneyStartOfMonth } from '../lib/sydneyTime.js';
+import { sydneyStartOfDay, sydneyStartOfMonth, getSydneyNow, sydneyHour } from '../lib/sydneyTime.js';
 import { syncWholesaleInvoiceStatuses, markStripeInvoicePaidOutOfBand } from '../lib/stripeWholesaleInvoices.js';
 import { buildInvoiceHtml } from '../lib/invoiceTemplate.js';
 import { claimedRewardsTable } from '@workspace/db';
@@ -133,7 +133,7 @@ router.use(requireManagerRoutePermission(resolveDirectorPermission));
 // ── Enhanced Dashboard stats ─────────────────────────────────────────────────
 router.get('/stats', async (req, res) => {
   const now = new Date();
-  const sydneyNow = new Date(now.toLocaleString('en-US', { timeZone: 'Australia/Sydney' }));
+  const sydneyNow = getSydneyNow();
   const startOfToday = sydneyStartOfDay();
   const startOfWeekMonday = new Date(startOfToday);
   const dayOfWeek = sydneyNow.getDay();
@@ -498,9 +498,6 @@ router.get('/stats/insights', async (req, res) => {
     const totalRevenueCents = hourly.reduce((a, h) => a + h.revenueCents, 0);
 
     // Sessions by hour (orders + logins today)
-    const sydneyHour = (ts: Date | string): number =>
-      parseInt(new Date(ts).toLocaleString('en-US', { timeZone: 'Australia/Sydney', hour: 'numeric', hour12: false }), 10);
-
     const sessByHour = new Array(24).fill(0);
     for (const o of todayOrders) sessByHour[sydneyHour(o.createdAt)]++;
     for (const u of todayLogins) if (u.lastLogin) sessByHour[sydneyHour(u.lastLogin)]++;
@@ -2241,11 +2238,9 @@ router.delete('/announcements/:id', async (req, res) => {
 // ── Reports ───────────────────────────────────────────────────────────────────
 router.get('/reports', async (req, res) => {
   const now = new Date();
-  const sydneyNow = new Date(now.toLocaleString('en-US', { timeZone: 'Australia/Sydney' }));
-  const sydneyOffsetMs = sydneyNow.getTime() - now.getTime();
-  const startOfToday = new Date(new Date(sydneyNow.getFullYear(), sydneyNow.getMonth(), sydneyNow.getDate()).getTime() - sydneyOffsetMs);
+  const startOfToday = sydneyStartOfDay();
   const startOfWeek  = new Date(startOfToday); startOfWeek.setDate(startOfToday.getDate() - 7);
-  const startOfMonth = new Date(new Date(sydneyNow.getFullYear(), sydneyNow.getMonth(), 1).getTime() - sydneyOffsetMs);
+  const startOfMonth = sydneyStartOfMonth();
   const start30      = new Date(startOfToday); start30.setDate(startOfToday.getDate() - 29);
 
   const [
@@ -3530,9 +3525,6 @@ router.get('/sessions', async (req, res) => {
       db.select({ lastLogin: usersTable.lastLogin }).from(usersTable)
         .where(and(isNotNull(usersTable.lastLogin), gte(usersTable.lastLogin as any, lastWeekStart), lte(usersTable.lastLogin as any, lastWeekEnd))),
     ]);
-
-    const sydneyHour = (ts: Date | string): number =>
-      parseInt(new Date(ts).toLocaleString('en-US', { timeZone: 'Australia/Sydney', hour: 'numeric', hour12: false }), 10);
 
     const todayByHour    = new Array(24).fill(0);
     const lastWeekByHour = new Array(24).fill(0);
