@@ -418,10 +418,12 @@ router.post('/', async (req, res) => {
       if (user?.email) {
         const orderItems = Array.isArray(order.items) ? (order.items as any[]) : [];
         const appDomain = process.env.REPLIT_DOMAINS?.split(',')[0] ?? process.env.REPLIT_DEV_DOMAIN ?? null;
-        const emailItems = orderItems.map((i: any) => {
-          const priceEntry = computed.itemizedCents.find(
-            (ic: any) => ic.productId === i.productId && (ic.variantId ?? null) === (i.variantId ?? null),
-          );
+        // Use index-based mapping: order.items and computed.itemizedCents are derived from
+        // the same items array in the same order. Using .find() by productId+variantId fails
+        // when a cookie line is split into paid + free portions (both share the same ids) —
+        // .find() returns the first (paid) entry for both, giving the free item a non-zero price.
+        const emailItems = orderItems.map((i: any, idx: number) => {
+          const priceEntry = computed.itemizedCents[idx];
           return {
             name: i.name ?? 'Item',
             quantity: i.quantity ?? 1,
