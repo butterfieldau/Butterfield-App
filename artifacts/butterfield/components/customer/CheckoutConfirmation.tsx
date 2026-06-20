@@ -7,6 +7,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  useWindowDimensions,
   View,
 } from 'react-native';
 import Animated, {
@@ -104,6 +105,7 @@ export function CheckoutConfirmation({ confirmation, clearCart, insets }: Props)
   const earnedPoints  = Math.max(0, Math.floor(confirmation.totalCents / 100));
   const orderShortId  = confirmation.orderNumber ?? `#${confirmation.orderId.slice(0, 8).toUpperCase()}`;
   const placedLabel   = new Intl.DateTimeFormat('en-AU', { day: 'numeric', month: 'short', year: 'numeric' }).format(new Date());
+  const { width: screenWidth } = useWindowDimensions();
 
   const celebrationPieces = useMemo<ConfettiPiece[]>(() => {
     const colors = ['#FF7A59', '#FFD166', '#7DD3FC', '#A78BFA', '#34D399', '#FB7185'];
@@ -113,7 +115,7 @@ export function CheckoutConfirmation({ confirmation, clearCart, insets }: Props)
       const mix = seed + i * 37;
       pieces.push({
         id: i,
-        left: 16 + ((mix * 13) % 88),
+        left: (mix * 13) % (screenWidth - 12),
         top: 8 + ((mix * 17) % 42),
         dx: ((mix % 11) - 5) * 20 + (i % 2 === 0 ? 34 : -24),
         dy: 180 + ((mix % 7) * 10),
@@ -125,7 +127,7 @@ export function CheckoutConfirmation({ confirmation, clearCart, insets }: Props)
       });
     }
     return pieces;
-  }, [confirmation.orderId]);
+  }, [confirmation.orderId, screenWidth]);
 
   const goHome = () => { clearCart(); router.dismissAll(); router.replace('/(tabs)'); };
   const goTrack = () => {
