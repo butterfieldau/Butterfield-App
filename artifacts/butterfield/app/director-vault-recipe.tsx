@@ -114,7 +114,11 @@ export default function VaultRecipeScreen() {
     ]);
   }
 
-  if (!isUnlocked) { router.back(); return null; }
+  React.useEffect(() => {
+    if (!isUnlocked) router.back();
+  }, [isUnlocked]);
+
+  if (!isUnlocked) return null;
 
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>

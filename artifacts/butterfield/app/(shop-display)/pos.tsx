@@ -694,7 +694,6 @@ function PosScreenInner() {
   // ── Bluetooth HID scanner ─────────────────────────────────────────────────
   const scannerInputRef = useRef<TextInput>(null);
   const scannerBufRef = useRef('');
-  const scannerClearingRef = useRef(false);
   const scannerFlushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const scannerBannerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   type ScannerBanner = { kind: 'success' | 'error'; message: string } | null;
@@ -1221,9 +1220,7 @@ function PosScreenInner() {
     if (scannerFlushTimerRef.current) { clearTimeout(scannerFlushTimerRef.current); scannerFlushTimerRef.current = null; }
     const value = scannerBufRef.current;
     scannerBufRef.current = '';
-    scannerClearingRef.current = true;
     scannerInputRef.current?.clear();
-    setTimeout(() => { scannerClearingRef.current = false; }, 100);
     if (value.length >= 4) handleHidScan(value);
   }, [handleHidScan]);
 
@@ -1771,10 +1768,9 @@ function PosScreenInner() {
         ref={scannerInputRef}
         style={{ position: 'absolute', width: 0, height: 0, opacity: 0 }}
         onChangeText={(text) => {
-          if (scannerClearingRef.current) return;
           scannerBufRef.current = text;
           if (scannerFlushTimerRef.current) clearTimeout(scannerFlushTimerRef.current);
-          scannerFlushTimerRef.current = setTimeout(flushScannerBuf, 500);
+          if (text.length > 0) scannerFlushTimerRef.current = setTimeout(flushScannerBuf, 500);
         }}
         onSubmitEditing={flushScannerBuf}
         blurOnSubmit={false}
