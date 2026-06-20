@@ -2,6 +2,7 @@ import { Feather } from '@expo/vector-icons';
 import React from 'react';
 import { Text, View } from 'react-native';
 import type { PosTransaction } from '@/lib/api';
+import { fmtTime } from './ordersHelpers';
 
 const CARD   = '#FFFFFF';
 const TEXT   = '#1C1C1E';
@@ -26,9 +27,6 @@ const POS_METHOD_CONFIG: Record<string, { label: string; color: string }> = {
 
 function fmtCents(cents: number): string {
   return `$${(cents / 100).toFixed(2)}`;
-}
-function fmtTime(d: Date | string) {
-  return new Date(d).toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit', timeZone: 'Australia/Sydney' });
 }
 function summarisePosItems(items: any[]): string {
   if (!items || items.length === 0) return 'No items';

@@ -22,7 +22,7 @@ export function isThisWeek(d: Date | string): boolean {
 
 export function fmtTime(iso: string | Date) {
   const d = typeof iso === 'string' ? new Date(iso) : iso;
-  return d.toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit', hour12: true });
+  return d.toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'Australia/Sydney' });
 }
 
 export function fmtDateChip(d: Date): string {

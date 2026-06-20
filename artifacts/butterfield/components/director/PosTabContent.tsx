@@ -7,6 +7,7 @@ import {
 } from 'react-native';
 import type { PosTransaction } from '@/lib/api';
 import { styles } from './ordersStyles';
+import { fmtTime } from './ordersHelpers';
 
 const BG     = '#EFF6FF';
 const CARD   = '#FFFFFF';
@@ -18,10 +19,6 @@ const GREEN  = '#22C55E';
 const NAVY   = '#1A2B4A';
 const PURPLE = '#8B5CF6';
 const RED_CONST = '#DC2626';
-
-function fmtTime(d: Date | string) {
-  return new Date(d).toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit', timeZone: 'Australia/Sydney' });
-}
 
 function sydneyDateStr(d: Date = new Date()): string {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'Australia/Sydney' }).format(d);

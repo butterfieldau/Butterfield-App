@@ -1,26 +1,16 @@
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import React from 'react';
-import { Platform, Pressable, Text, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
 import { normalizeOrderItems, summarizeOrderItems } from '@/lib/orderItems';
 import { STATUS_COLORS, STATUS_LABEL } from '@/lib/orderStatus';
 import type { ApiOrder } from '@/lib/api';
 import { styles } from './ordersStyles';
+import { fmtTime, openMap } from './ordersHelpers';
 
 const BLUE   = '#1493FF';
 const TEXT   = '#1C1C1E';
 const MUTED  = '#8E8E93';
-
-function fmtTime(d: Date | string) {
-  return new Date(d).toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit', timeZone: 'Australia/Sydney' });
-}
-function openMap(address: string) {
-  const q = encodeURIComponent(address);
-  const url = Platform.OS === 'ios'
-    ? `maps://maps.apple.com/?q=${q}`
-    : `https://maps.google.com/?q=${q}`;
-  require('react-native').Linking.openURL(url).catch(() => require('react-native').Linking.openURL(`https://maps.google.com/?q=${q}`));
-}
 
 export default function OrderCard({ order, onPress, onPrint, printing }: { order: ApiOrder; onPress: () => void; onPrint: () => Promise<void> | void; printing: boolean }) {
   const isWholesale = order.orderSource === 'wholesale';

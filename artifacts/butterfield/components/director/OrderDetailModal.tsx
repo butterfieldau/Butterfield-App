@@ -13,6 +13,7 @@ import {
 } from '@/lib/orderStatus';
 import type { ApiOrder } from '@/lib/api';
 import { styles } from './ordersStyles';
+import { fmtTime, openMap } from './ordersHelpers';
 
 const BG     = '#EFF6FF';
 const CARD   = '#FFFFFF';
@@ -24,17 +25,6 @@ const GREEN  = '#22C55E';
 const NAVY   = '#1A2B4A';
 const RED    = '#DC2626';
 const TWO_WEEKS_MS = 14 * 24 * 60 * 60 * 1000;
-
-function fmtTime(d: Date | string) {
-  return new Date(d).toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit', timeZone: 'Australia/Sydney' });
-}
-function openMap(address: string) {
-  const q = encodeURIComponent(address);
-  const url = Platform.OS === 'ios'
-    ? `maps://maps.apple.com/?q=${q}`
-    : `https://maps.google.com/?q=${q}`;
-  require('react-native').Linking.openURL(url).catch(() => require('react-native').Linking.openURL(`https://maps.google.com/?q=${q}`));
-}
 
 export default function OrderDetailModal({ order, visible, onClose, onStatusChange, onAcceptOrder, onPrintReceipt, onViewInvoice, printing, canCancelRefund }: {
   order: ApiOrder | null; visible: boolean; onClose: () => void;
