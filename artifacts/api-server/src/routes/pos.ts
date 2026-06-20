@@ -1131,11 +1131,26 @@ const handleCreatePosOrder: import('express').RequestHandler = async (req, res) 
     if (cr.expiresAt && cr.expiresAt < new Date()) {
       return res.status(400).json({ error: 'This reward has expired.' });
     }
-    // Apply monetary value: voucher deducts face value (capped to subtotal); other rewards = full subtotal free
+    // Apply monetary value based on reward type
     const voucherCents = cr.claimVoucherCents ?? cr.rewardVoucherCents ?? null;
-    const rewardDiscountCents = voucherCents != null
-      ? Math.min(voucherCents, subtotalCents)
-      : subtotalCents;
+    let rewardDiscountCents: number;
+    if (voucherCents != null) {
+      // Money voucher — deduct face value, capped to subtotal
+      rewardDiscountCents = Math.min(voucherCents, subtotalCents);
+    } else if (cr.rewardType === 'birthday_cookie' || cr.rewardType === 'cookie_any') {
+      // Free cookie reward — discount only the cheapest cookie item, not the whole order
+      const cookieCategories = ['cookies', 'cookie-frappes'];
+      const cookieItems = items.filter((i: any) =>
+        cookieCategories.includes(String(i.category ?? '').toLowerCase()),
+      );
+      if (cookieItems.length === 0) {
+        return res.status(400).json({ error: 'No cookie items in the order to apply this reward.' });
+      }
+      rewardDiscountCents = Math.min(...cookieItems.map((i: any) => i.unitPriceCents));
+    } else {
+      // Other non-voucher rewards (item_reward without linkedProduct etc.) — full order free
+      rewardDiscountCents = subtotalCents;
+    }
     discountAmountCents += rewardDiscountCents;
     claimedRewardData = { id: cr.id };
   }

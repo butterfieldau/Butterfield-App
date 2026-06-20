@@ -2675,13 +2675,31 @@ function TicketPanel({
 
   const applyClaimedReward = (cr: AttachedCustomerClaimedReward) => {
     const subtotal = ticketSubtotal(ticket);
-    // Voucher rewards deduct their face value (capped to subtotal); other rewards are fully free
-    const amountCents = cr.voucherValueCents
-      ? Math.min(cr.voucherValueCents, subtotal)
-      : subtotal;
-    const label = cr.voucherValueCents
-      ? `🎁 ${cr.rewardName} (–${fmtCents(Math.min(cr.voucherValueCents, subtotal))})`
-      : `🎁 ${cr.rewardName} (free)`;
+    let amountCents: number;
+    let label: string;
+    if (cr.voucherValueCents) {
+      // Money voucher — deduct face value, capped to subtotal
+      amountCents = Math.min(cr.voucherValueCents, subtotal);
+      label = `🎁 ${cr.rewardName} (–${fmtCents(amountCents)})`;
+    } else if (cr.rewardType === 'birthday_cookie' || cr.rewardType === 'cookie_any') {
+      // Free cookie — only the cheapest cookie item is discounted
+      const cookieCategories = ['cookies', 'cookie-frappes'];
+      const cookieItems = ticket.items.filter(i =>
+        cookieCategories.includes(i.category.toLowerCase()),
+      );
+      if (cookieItems.length === 0) {
+        amountCents = 0;
+        label = `🍪 ${cr.rewardName} (add a cookie to cart)`;
+      } else {
+        const cheapestCookie = Math.min(...cookieItems.map(i => i.priceOverrideCents ?? i.unitPriceCents));
+        amountCents = cheapestCookie;
+        label = `🍪 ${cr.rewardName} (–${fmtCents(cheapestCookie)})`;
+      }
+    } else {
+      // Other non-voucher rewards — full order free
+      amountCents = subtotal;
+      label = `🎁 ${cr.rewardName} (free)`;
+    }
     onUpdateTicket({
       appliedDiscount: {
         type: 'claimed_reward',
