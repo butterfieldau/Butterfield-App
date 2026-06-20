@@ -1,7 +1,7 @@
 import { Feather } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { router } from 'expo-router';
-import React from 'react';
+import { router, useFocusEffect } from 'expo-router';
+import React, { useCallback } from 'react';
 import {
   ActivityIndicator, Alert, Linking, Pressable, RefreshControl,
   ScrollView, StatusBar, StyleSheet, Text, View,
@@ -176,6 +176,7 @@ export default function CustomerStoresScreen() {
   const qc = useQueryClient();
   const insets = useSafeAreaInsets();
   const colors = useColors();
+  useFocusEffect(useCallback(() => { StatusBar.setBarStyle('light-content', true); }, []));
   const { data, isLoading, refetch } = useQuery({
     queryKey: ['stores'],
     queryFn: () => api.stores.list(),

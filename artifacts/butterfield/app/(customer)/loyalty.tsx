@@ -3,8 +3,8 @@ import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
-import { router } from 'expo-router';
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { router, useFocusEffect } from 'expo-router';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useScrollToTopCompat as useScrollToTop } from '@/hooks/useScrollToTopCompat';
 import {
   ActivityIndicator,
@@ -66,6 +66,7 @@ function LoyaltyContent() {
   const qc = useQueryClient();
   const scrollRef = useRef<ScrollView>(null);
   useScrollToTop(scrollRef);
+  useFocusEffect(useCallback(() => { StatusBar.setBarStyle('light-content', true); }, []));
 
   const [showQR, setShowQR]                       = useState(false);
   const [redeeming, setRedeeming]                 = useState<string | null>(null);

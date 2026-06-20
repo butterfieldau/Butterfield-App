@@ -1,8 +1,8 @@
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
-import { router } from 'expo-router';
-import React, { useRef } from 'react';
+import { router, useFocusEffect } from 'expo-router';
+import React, { useCallback, useRef } from 'react';
 import { useScrollToTopCompat as useScrollToTop } from '@/hooks/useScrollToTopCompat';
 import {
   Alert, Pressable, ScrollView, StatusBar, StyleSheet, Text, View,
@@ -30,6 +30,7 @@ export default function AccountScreen() {
   const insets = useSafeAreaInsets();
   const scrollRef = useRef(null);
   useScrollToTop(scrollRef);
+  useFocusEffect(useCallback(() => { StatusBar.setBarStyle('light-content', true); }, []));
   const { user, logout } = useAuth();
   const qc = useQueryClient();
 

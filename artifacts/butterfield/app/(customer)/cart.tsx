@@ -151,6 +151,7 @@ function CartContent() {
 
   useFocusEffect(
     useCallback(() => {
+      StatusBar.setBarStyle('light-content', true);
       qc.invalidateQueries({ queryKey: ['delivery-config'] });
     }, [qc])
   );
