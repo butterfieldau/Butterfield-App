@@ -3,7 +3,6 @@ import { Redirect, Tabs, usePathname } from 'expo-router';
 import React, { useState } from 'react';
 import { Platform, StatusBar, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useCart } from '@/context/CartContext';
 import { useAuth } from '@/context/AuthContext';
 import { useColors } from '@/hooks/useColors';
 import { LoginRequiredModal } from '@/components/LoginRequiredModal';
@@ -16,15 +15,13 @@ const CUSTOMER_TABS = {
   index:   { icon: 'home',    title: 'Home'    },
   menu:    { icon: 'list',    title: 'Menu'    },
   loyalty: { icon: 'star',    title: 'Rewards' },
-  cart:    { icon: 'bag',     title: 'Order'   },
   profile: { icon: 'person',  title: 'Account' },
 } as const;
 
-const VISIBLE_ROUTES = ['index', 'menu', 'loyalty', 'cart', 'profile'] as const;
+const VISIBLE_ROUTES = ['index', 'menu', 'loyalty', 'profile'] as const;
 
 function FloatingCustomerTabBar({ state, navigation, hideTabs }: any) {
   const insets = useSafeAreaInsets();
-  const { totalItems } = useCart();
 
   if (hideTabs) return null;
 
@@ -45,7 +42,6 @@ function FloatingCustomerTabBar({ state, navigation, hideTabs }: any) {
       pointerEvents="box-none"
       style={[styles.wrap, { paddingBottom: Math.max(insets.bottom, 12) }]}
     >
-      {/* Single centered glass pill — no flex:1, hugs its content */}
       <GlassPill>
         {visibleRoutes.map((route: any) => {
           const routeIndex = state.routes.findIndex((r: any) => r.key === route.key);
@@ -59,7 +55,6 @@ function FloatingCustomerTabBar({ state, navigation, hideTabs }: any) {
               onPress={makeOnPress(route, focused)}
               cfg={cfg}
               activeColor={BLUE}
-              badgeCount={route.name === 'cart' ? totalItems : undefined}
             />
           );
         })}
@@ -69,11 +64,11 @@ function FloatingCustomerTabBar({ state, navigation, hideTabs }: any) {
 }
 
 function ClassicCustomerTabs() {
-  const colors  = useColors();
+  const colors   = useColors();
   const { user } = useAuth();
   const [loginTarget, setLoginTarget] = useState<string | null>(null);
-  const isIOS   = Platform.OS === 'ios';
-  const isWeb   = Platform.OS === 'web';
+  const isIOS  = Platform.OS === 'ios';
+  const isWeb  = Platform.OS === 'web';
   const pathname = usePathname() ?? '';
   const hideTabs = pathname.includes('/cart');
 
@@ -111,18 +106,15 @@ function ClassicCustomerTabs() {
           options={{ title: 'Rewards' }}
         />
         <Tabs.Screen
-          name="cart"
-          listeners={{ tabPress: (e) => { if (!user) { e.preventDefault(); setLoginTarget('/(customer)/cart'); } } }}
-          options={{ title: 'Order' }}
-        />
-        <Tabs.Screen
           name="profile"
           listeners={{ tabPress: (e) => { if (!user) { e.preventDefault(); setLoginTarget('/(customer)/profile'); } } }}
           options={{ title: 'Account' }}
         />
+        {/* Cart is navigable but not a persistent tab — accessed via basket icon in Menu or Order Now CTA */}
+        <Tabs.Screen name="cart"    options={{ href: null, title: 'Order'   }} />
         <Tabs.Screen name="track/[id]"       options={{ href: null, title: 'Track Order'       }} />
-        <Tabs.Screen name="stores"           options={{ href: null, title: 'Our Stores'       }} />
-        <Tabs.Screen name="payment-methods"  options={{ href: null, title: 'Payment Methods'  }} />
+        <Tabs.Screen name="stores"           options={{ href: null, title: 'Our Stores'        }} />
+        <Tabs.Screen name="payment-methods"  options={{ href: null, title: 'Payment Methods'   }} />
       </Tabs>
       <LoginRequiredModal
         visible={!!loginTarget}

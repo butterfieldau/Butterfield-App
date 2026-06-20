@@ -1,7 +1,5 @@
-import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
-import { CategorySvgIcon } from '@/components/CategoryIcons';
+import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
-import { Image } from 'expo-image';
 import { router, useLocalSearchParams } from 'expo-router';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useScrollToTopCompat as useScrollToTop } from '@/hooks/useScrollToTopCompat';
@@ -15,117 +13,47 @@ import {
   TextInput,
   useWindowDimensions,
   View,
-  type DimensionValue,
-  type StyleProp,
-  type ViewStyle,
 } from 'react-native';
 import Reanimated, {
   cancelAnimation,
   Easing,
-  interpolate,
   useAnimatedStyle,
   useSharedValue,
   withRepeat,
   withTiming,
-  type SharedValue,
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRefreshControl } from '@/hooks/useRefreshControl';
 import { useCart } from '@/context/CartContext';
 import { useAuth } from '@/context/AuthContext';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { getPalette } from '@/constants/categoryColors';
 import { api, type ApiProduct, type ProductCategory } from '@/lib/api';
 import SharedProductTile, { PRODUCT_IMAGES } from '@/components/ProductTile';
 import OfflineBanner from '@/components/OfflineBanner';
 import { setSelectedProduct } from '@/lib/selectedProduct';
 import { LoginRequiredModal } from '@/components/LoginRequiredModal';
+import { MenuShimmerGrid } from '@/components/customer/MenuShimmerGrid';
+import { DietaryTagFilter } from '@/components/customer/DietaryTagFilter';
+import { CategoryFilterBar } from '@/components/customer/CategoryFilterBar';
 
-const BLUE   = '#1493FF';
-const CHERRY = '#D0312D';
+const BLUE   = '#40C0F2';
+const CHERRY = '#D20001';
 
-// ── Shimmer primitives ────────────────────────────────────────────────────────
-interface ShimmerBoxProps {
-  width?: DimensionValue;
-  height?: number;
-  borderRadius?: number;
-  style?: StyleProp<ViewStyle>;
-  shimmerProgress: SharedValue<number>;
-}
-function ShimmerBox({ width = '100%', height = 16, borderRadius = 8, style, shimmerProgress }: ShimmerBoxProps) {
-  const animStyle = useAnimatedStyle(() => ({
-    opacity: interpolate(shimmerProgress.value, [0, 1], [0.35, 0.75]),
-  }));
-  return (
-    <Reanimated.View
-      style={[{ width, height, borderRadius, backgroundColor: '#D1D5DB' }, animStyle, style]}
-    />
-  );
-}
-function ShimmerProductCard({ shimmerProgress }: { shimmerProgress: SharedValue<number> }) {
-  return (
-    <View style={shimmerCard.tile}>
-      <ShimmerBox width="100%" height={165} borderRadius={0} shimmerProgress={shimmerProgress} />
-      <View style={shimmerCard.info}>
-        <ShimmerBox width="75%" height={13} borderRadius={5} shimmerProgress={shimmerProgress} />
-        <ShimmerBox width="50%" height={11} borderRadius={5} shimmerProgress={shimmerProgress} />
-        <View style={shimmerCard.priceRow}>
-          <ShimmerBox width={44} height={16} borderRadius={5} shimmerProgress={shimmerProgress} />
-          <ShimmerBox width={36} height={36} borderRadius={18} shimmerProgress={shimmerProgress} />
-        </View>
-      </View>
-    </View>
-  );
-}
-const SHIMMER_COUNT = 6;
-function MenuShimmer({ shimmerProgress, numColumns, hPad }: { shimmerProgress: SharedValue<number>; numColumns: number; hPad: number }) {
-  const pairs = Array.from({ length: Math.ceil(SHIMMER_COUNT / numColumns) });
-  return (
-    <View style={{ padding: hPad, gap: 14 }}>
-      {pairs.map((_, i) => (
-        <View key={i} style={{ flexDirection: 'row', gap: 12 }}>
-          {Array.from({ length: numColumns }).map((__, j) => (
-            <View key={j} style={{ flex: 1 }}><ShimmerProductCard shimmerProgress={shimmerProgress} /></View>
-          ))}
-        </View>
-      ))}
-    </View>
-  );
-}
-const shimmerCard = StyleSheet.create({
-  tile:     { backgroundColor: '#fff', borderRadius: 18, overflow: 'hidden', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.08, shadowRadius: 12, elevation: 4 },
-  info:     { padding: 12, gap: 6, backgroundColor: '#fff' },
-  priceRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 },
-});
 const CAT_ICON_MAP: Record<string, string> = {
-  coffee:           'coffee',
-  matcha:           'mc:leaf',
-  tea:              'mc:cup-water',
-  cookies:          'mc:cookie-outline',
-  'cold-drinks':    'mc:snowflake',
-  'soft-serve':     'mc:ice-cream',
-  specials:         'zap',
-  seasonal:         'sun',
-  merch:            'tag',
-  boxes:            'svg:box',
-  desserts:         'mc:cake-variant-outline',
-  sandwiches:       'layers',
-  pastries:         'mc:croissant',
-  drinks:           'droplet',
-  bundles:          'gift',
-  milkshakes:       'svg:milkshake',
-  fusions:          'svg:fusion',
-  'iced-drinks':    'svg:iced-drink',
-  'cookie-frappes': 'svg:frappe',
+  coffee: 'coffee', matcha: 'mc:leaf', tea: 'mc:cup-water', cookies: 'mc:cookie-outline',
+  'cold-drinks': 'mc:snowflake', 'soft-serve': 'mc:ice-cream', specials: 'zap', seasonal: 'sun',
+  merch: 'tag', boxes: 'svg:box', desserts: 'mc:cake-variant-outline', sandwiches: 'layers',
+  pastries: 'mc:croissant', drinks: 'droplet', bundles: 'gift', milkshakes: 'svg:milkshake',
+  fusions: 'svg:fusion', 'iced-drinks': 'svg:iced-drink', 'cookie-frappes': 'svg:frappe',
+};
+const DIETARY_ICONS: Record<string, string> = {
+  Vegan: '🌱', Vegetarian: '🥦', 'Gluten-Free': '🌾', 'Dairy-Free': '🥛', 'Nut-Free': '🥜',
 };
 function toCategoryImageUrl(url: string | null | undefined): string | null {
   if (!url) return null;
   if (url.startsWith('http')) return url;
   return process.env.EXPO_PUBLIC_DOMAIN ? `https://${process.env.EXPO_PUBLIC_DOMAIN}${url}` : null;
 }
-const DIETARY_ICONS: Record<string, string> = {
-  Vegan: '🌱', Vegetarian: '🥦', 'Gluten-Free': '🌾', 'Dairy-Free': '🥛', 'Nut-Free': '🥜',
-};
 function parseArr(val: any): string[] {
   if (Array.isArray(val)) return val;
   if (typeof val === 'string' && val) {
@@ -134,45 +62,20 @@ function parseArr(val: any): string[] {
   }
   return [];
 }
-function FrequentCoffeeTile({ product, onPress }: { product: ApiProduct; onPress: () => void }) {
-  const photoUrl = product.images?.[0] ?? null;
-  const palette  = getPalette('coffee');
-  const raw      = product as any;
-  const cents    = raw.priceCents ?? product.prices?.[0]?.unit_amount ?? 0;
-  return (
-    <Pressable
-      style={s.frequentTile}
-      onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); onPress(); }}
-    >
-      <View style={[s.frequentImg, { backgroundColor: photoUrl ? '#F0EDE8' : palette.bg }]}>
-        {photoUrl
-          ? <Image source={{ uri: photoUrl }} style={{ width: '100%', height: '100%' }} contentFit="cover" transition={200} />
-          : <Text style={{ fontSize: 32 }}>{palette.emoji}</Text>
-        }
-      </View>
-      <View style={{ flex: 1, paddingVertical: 2, gap: 2 }}>
-        <Text style={[s.frequentName, { fontWeight: '600' }]} numberOfLines={1}>{product.name}</Text>
-        <Text style={[s.frequentPrice, { fontWeight: '400' }]}>${(cents / 100).toFixed(2)}</Text>
-      </View>
-      <View style={s.frequentAdd}>
-        <Feather name="plus" size={16} color="#fff" />
-      </View>
-    </Pressable>
-  );
-}
+
+
+
 export default function MenuScreen() {
   const insets = useSafeAreaInsets();
-  const { addItemToCart } = useCart();
+  const { addItemToCart, items: cartItems } = useCart();
   const { user } = useAuth();
-  const params = useLocalSearchParams<{ category?: string; skipQueue?: string }>();
-  const [search, setSearch]           = useState('');
-  const [activeCategory, setActiveCategory] = useState(params.category ?? 'all');
+  const params = useLocalSearchParams<{ category?: string }>();
+  const [search, setSearch]                   = useState('');
+  const [activeCategory, setActiveCategory]   = useState(params.category ?? 'all');
   const [userChangedCategory, setUserChangedCategory] = useState(false);
-  const [showLoginRequired, setShowLoginRequired] = useState(false);
+  const [showLoginRequired, setShowLoginRequired]     = useState(false);
   const [selectedDietaryTags, setSelectedDietaryTags] = useState<string[]>([]);
-  const isSkipQueue = params.skipQueue === '1';
 
-  // ── Responsive values ──────────────────────────────────────────────────────
   const { width, height } = useWindowDimensions();
   const isTablet    = width >= 768;
   const isLandscape = isTablet && width > height;
@@ -181,28 +84,20 @@ export default function MenuScreen() {
   const tileGap     = isTablet ? 14 : 12;
   const qc          = useQueryClient();
 
+  const cartCount = cartItems.reduce((sum, i) => sum + i.quantity, 0);
+
   useEffect(() => {
     if (params.category) { setActiveCategory(params.category); setSelectedDietaryTags([]); }
   }, [params.category]);
-  const { data, isLoading, refetch } = useQuery({
-    queryKey: ['products'],
-    queryFn: () => api.products.list(),
-    staleTime: 0,
-    retry: 2,
-  });
 
-  const { refreshing, onRefresh } = useRefreshControl(refetch);
+  const { data, isLoading, refetch } = useQuery({ queryKey: ['products'], queryFn: () => api.products.list(), staleTime: 0, retry: 2 });
+  const { refreshing, onRefresh }    = useRefreshControl(refetch);
+  const { data: categoriesData }     = useQuery({ queryKey: ['categories'], queryFn: () => api.products.categories(), staleTime: 0 });
 
-  const { data: categoriesData } = useQuery({
-    queryKey: ['categories'],
-    queryFn: () => api.products.categories(),
-    staleTime: 0,
-  });
   const categories = useMemo(() => {
     const backendCats: ProductCategory[] = categoriesData?.data ?? [];
     const items = backendCats.map(c => ({
-      id: c.slug,
-      label: c.name,
+      id: c.slug, label: c.name,
       icon: (CAT_ICON_MAP[c.slug] ?? 'tag') as string,
       imageUrl: toCategoryImageUrl(c.imageUrl),
       color: c.color ?? null,
@@ -210,49 +105,37 @@ export default function MenuScreen() {
     return [...items, { id: 'all', label: 'All', icon: 'grid' as string, imageUrl: null, color: null }];
   }, [categoriesData]);
 
-  // Auto-select the first real category when categories load (unless the user
-  // already picked one or a category was passed via navigation params).
   useEffect(() => {
     if (!params.category && !userChangedCategory && categories.length > 1) {
       setActiveCategory(categories[0].id);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [categories]);
+
   const listRef = useRef(null);
   useScrollToTop(listRef);
+
   const shimmerProgress = useSharedValue(0);
   const contentOpacity  = useSharedValue(isLoading ? 0 : 1);
   useEffect(() => {
     if (isLoading) {
       contentOpacity.value = 0;
-      shimmerProgress.value = 0;
-      shimmerProgress.value = withRepeat(
-        withTiming(1, { duration: 900, easing: Easing.inOut(Easing.sin) }),
-        -1,
-        true,
-      );
+      shimmerProgress.value = withRepeat(withTiming(1, { duration: 900, easing: Easing.inOut(Easing.sin) }), -1, true);
     } else {
       cancelAnimation(shimmerProgress);
       contentOpacity.value = withTiming(1, { duration: 350, easing: Easing.out(Easing.quad) });
     }
   }, [isLoading]);
-  const contentAnimStyle = useAnimatedStyle(() => ({
-    opacity: contentOpacity.value,
-  }));
-  const products = data?.data ?? [];
-  const coffeeProducts = useMemo(
-    () => products.filter(p => p.metadata?.category === 'coffee').slice(0, 4),
-    [products],
-  );
+  const contentAnimStyle = useAnimatedStyle(() => ({ opacity: contentOpacity.value }));
 
-  // Step 1: filter by category + search only (used to derive available chips)
+  const products      = data?.data ?? [];
+
   const categoryFiltered = useMemo(() => products.filter(p => {
     const matchCat    = activeCategory === 'all' || p.metadata?.category === activeCategory;
     const matchSearch = !search || p.name.toLowerCase().includes(search.toLowerCase()) || (p.description ?? '').toLowerCase().includes(search.toLowerCase());
     return matchCat && matchSearch;
   }), [products, activeCategory, search]);
 
-  // Chips available for the current view (tags present on at least one visible product)
   const availableChips = useMemo(() => {
     const tagSet = new Set<string>();
     for (const p of categoryFiltered) {
@@ -262,7 +145,6 @@ export default function MenuScreen() {
     return Object.keys(DIETARY_ICONS).filter(k => tagSet.has(k));
   }, [categoryFiltered]);
 
-  // Step 2: apply dietary tag filter (AND logic — must match ALL selected tags)
   const filtered = useMemo(() => {
     if (selectedDietaryTags.length === 0) return categoryFiltered;
     return categoryFiltered.filter(p => {
@@ -271,17 +153,13 @@ export default function MenuScreen() {
     });
   }, [categoryFiltered, selectedDietaryTags]);
 
-  // Whether any products in the entire catalog have dietary tags (controls chip row visibility)
   const catalogHasDietaryTags = useMemo(
     () => products.some(p => (p.dietaryTags ?? parseArr(p.metadata?.dietaryTags)).length > 0),
     [products],
   );
 
   const toggleDietaryTag = (tag: string) => {
-    Haptics.selectionAsync();
-    setSelectedDietaryTags(prev =>
-      prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag],
-    );
+    setSelectedDietaryTags(prev => prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]);
   };
   const handleTilePress = (p: ApiProduct) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -291,41 +169,49 @@ export default function MenuScreen() {
   };
   const handleAddToCart = (p: ApiProduct) => {
     const raw = p as any;
-    const priceCents = raw.priceCents ?? p.prices?.[0]?.unit_amount ?? 0;
     addItemToCart({
-      productId: p.id,
-      productName: p.name,
-      variantId: undefined,
-      variantName: undefined,
-      basePriceCents: priceCents,
-      selectedOptions: [],
-      quantity: 1,
+      productId: p.id, productName: p.name,
+      variantId: undefined, variantName: undefined,
+      basePriceCents: raw.priceCents ?? p.prices?.[0]?.unit_amount ?? 0,
+      selectedOptions: [], quantity: 1,
       imageUrl: p.images?.[0] ?? PRODUCT_IMAGES[p.name],
       category: p.metadata?.category,
     });
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   };
+
   return (
     <View style={s.root}>
       <OfflineBanner />
-      <LoginRequiredModal
-        visible={showLoginRequired}
-        redirectTo="/(customer)/cart"
-        onCancel={() => setShowLoginRequired(false)}
-      />
+      <LoginRequiredModal visible={showLoginRequired} redirectTo="/(customer)/cart" onCancel={() => setShowLoginRequired(false)} />
+
       {/* ── Header ── */}
       <View style={[s.header, { paddingTop: insets.top + 16, paddingHorizontal: hPad }]}>
         <View style={s.headerTop}>
           <Text style={[s.headerTitle, { fontWeight: '700', fontSize: isTablet ? 36 : 32 }]}>Menu</Text>
-          {isSkipQueue && (
-            <View style={s.skipBadge}>
-              <Feather name="zap" size={12} color="#E07B00" />
-              <Text style={[s.skipBadgeText, { fontWeight: '600' }]}>Skip the Queue</Text>
-            </View>
-          )}
+
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            {/* Basket icon — cart accessible from Menu */}
+            <Pressable
+              style={s.basketBtn}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                if (!user) { setShowLoginRequired(true); return; }
+                router.push('/(customer)/cart');
+              }}
+            >
+              <Feather name="shopping-bag" size={20} color="#1C1C1E" />
+              {cartCount > 0 && (
+                <View style={s.basketBadge}>
+                  <Text style={s.basketBadgeText}>{cartCount > 9 ? '9+' : cartCount}</Text>
+                </View>
+              )}
+            </Pressable>
+          </View>
         </View>
+
         {/* Search */}
-        <View style={[s.searchBar, isTablet && { height: 50, borderRadius: 14 }]}>
+        <View style={[s.searchBar, isTablet && { height: 50, borderRadius: 18 }]}>
           <Feather name="search" size={16} color="#8E8E93" />
           <TextInput
             style={[s.searchInput, { fontWeight: '400', fontSize: isTablet ? 16 : 15 }]}
@@ -336,64 +222,28 @@ export default function MenuScreen() {
           />
           {search ? <Pressable onPress={() => setSearch('')}><Feather name="x" size={16} color="#8E8E93" /></Pressable> : null}
         </View>
+
         {/* Category carousel */}
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10, paddingBottom: 2, paddingHorizontal: 0 }}>
-          {categories.map(cat => {
-            const pal    = getPalette(cat.id === 'all' ? 'default' : cat.id);
-            const accent = cat.color ?? pal.banner;
-            const active = activeCategory === cat.id;
-            return (
-              <Pressable
-                key={cat.id}
-                onPress={() => { setUserChangedCategory(true); setActiveCategory(cat.id); setSearch(''); setSelectedDietaryTags([]); Haptics.selectionAsync(); }}
-                style={[
-                  s.catTile,
-                  { borderColor: active ? accent : '#E8E8ED', backgroundColor: active ? `${accent}0F` : '#fff' },
-                  isTablet && { paddingHorizontal: 16, paddingVertical: 13, minWidth: 80 },
-                ]}
-              >
-                <View style={[s.catIconWrap, { backgroundColor: active ? accent : '#F2F2F7' }, isTablet && { width: 48, height: 48, borderRadius: 24 }]}>
-                  {cat.icon.startsWith('svg:')
-                    ? <CategorySvgIcon name={cat.icon.slice(4)} size={isTablet ? 22 : 18} color={active ? '#fff' : '#636366'} />
-                    : cat.icon.startsWith('mc:')
-                    ? <MaterialCommunityIcons name={cat.icon.slice(3) as any} size={isTablet ? 22 : 18} color={active ? '#fff' : '#636366'} />
-                    : <Feather name={cat.icon as any} size={isTablet ? 22 : 18} color={active ? '#fff' : '#636366'} />
-                  }
-                </View>
-                <Text style={[s.catLabel, {
-                  color: active ? accent : '#3C3C43',
-                  fontWeight: active ? '700' : '500',
-                  fontSize: isTablet ? 13 : 12,
-                }]}>
-                  {cat.label}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </ScrollView>
-        {/* Dietary filter chips — only shown when at least one product has dietary tags */}
+        <CategoryFilterBar
+          categories={categories}
+          activeCategory={activeCategory}
+          onCategoryChange={(id) => {
+            setUserChangedCategory(true);
+            setActiveCategory(id);
+            setSearch('');
+            setSelectedDietaryTags([]);
+          }}
+          isTablet={isTablet}
+        />
+
+        {/* Dietary filter chips */}
         {catalogHasDietaryTags && availableChips.length > 0 && (
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingBottom: 2 }}>
-            {availableChips.map(tag => {
-              const isActive = selectedDietaryTags.includes(tag);
-              return (
-                <Pressable
-                  key={tag}
-                  onPress={() => toggleDietaryTag(tag)}
-                  style={[s.dietaryChip, isActive && s.dietaryChipActive]}
-                >
-                  <Text style={s.dietaryChipEmoji}>{DIETARY_ICONS[tag]}</Text>
-                  <Text style={[s.dietaryChipLabel, isActive && s.dietaryChipLabelActive, { fontSize: isTablet ? 13 : 12 }]}>
-                    {tag}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </ScrollView>
+          <DietaryTagFilter chips={availableChips} selectedTags={selectedDietaryTags} onToggle={toggleDietaryTag} hPad={0} />
         )}
       </View>
+
       {isLoading ? (
-        <MenuShimmer shimmerProgress={shimmerProgress} numColumns={numColumns} hPad={hPad} />
+        <MenuShimmerGrid shimmerProgress={shimmerProgress} numColumns={numColumns} hPad={hPad} />
       ) : (
         <Reanimated.View style={[{ flex: 1 }, contentAnimStyle]}>
           <FlatList
@@ -403,44 +253,11 @@ export default function MenuScreen() {
             keyExtractor={p => p.id}
             numColumns={numColumns}
             columnWrapperStyle={{ gap: tileGap }}
-            contentContainerStyle={{
-              paddingHorizontal: hPad,
-              paddingTop: hPad,
-              gap: tileGap,
-              paddingBottom: insets.bottom + 110,
-            }}
+            contentContainerStyle={{ paddingHorizontal: hPad, paddingTop: hPad, gap: tileGap, paddingBottom: insets.bottom + 110 }}
             showsVerticalScrollIndicator={false}
             refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={BLUE} />}
             ListHeaderComponent={
               <>
-                {/* Frequently ordered — only shown on Skip the Queue */}
-                {isSkipQueue && coffeeProducts.length > 0 && (
-                  <View style={s.frequentSection}>
-                    <View style={s.frequentHeader}>
-                      <View style={s.frequentIconWrap}>
-                        <Text style={{ fontSize: 14 }}>☕</Text>
-                      </View>
-                      <View style={{ flex: 1 }}>
-                        <Text style={[s.frequentTitle, { fontWeight: '700' }]}>Your usual?</Text>
-                        <Text style={[s.frequentSub, { fontWeight: '400' }]}>Frequently ordered</Text>
-                      </View>
-                      <Pressable
-                        onPress={() => {
-                          if (!user) { setShowLoginRequired(true); return; }
-                          router.push('/(customer)/cart');
-                        }}
-                        style={s.viewCartBtn}
-                      >
-                        <Text style={[s.viewCartText, { fontWeight: '600' }]}>View cart</Text>
-                        <Feather name="chevron-right" size={13} color={BLUE} />
-                      </Pressable>
-                    </View>
-                    {coffeeProducts.map(p => (
-                      <FrequentCoffeeTile key={p.id} product={p} onPress={() => handleTilePress(p)} />
-                    ))}
-                    <View style={s.frequentDivider} />
-                  </View>
-                )}
                 <Text style={[s.count, { fontWeight: '400' }]}>
                   {filtered.length} item{filtered.length !== 1 ? 's' : ''}
                   {activeCategory !== 'all' ? ` · ${categories.find((c: any) => c.id === activeCategory)?.label ?? activeCategory}` : ''}
@@ -450,19 +267,14 @@ export default function MenuScreen() {
             }
             ListEmptyComponent={
               <View style={{ alignItems: 'center', marginTop: 60, gap: 10 }}>
-                <Text style={{ fontSize: 36 }}>
-                  {selectedDietaryTags.length > 0 ? selectedDietaryTags.map(t => DIETARY_ICONS[t]).join(' ') : '🔍'}
-                </Text>
+                <Text style={{ fontSize: 36 }}>{selectedDietaryTags.length > 0 ? selectedDietaryTags.map(t => DIETARY_ICONS[t]).join(' ') : '🔍'}</Text>
                 <Text style={{ color: '#1C1C1E', fontWeight: '600', fontSize: 15, textAlign: 'center' }}>
                   {selectedDietaryTags.length > 0
                     ? `No ${activeCategory !== 'all' ? (categories.find((c: any) => c.id === activeCategory)?.label ?? activeCategory) + ' ' : ''}items match your filters`
                     : 'No items found'}
                 </Text>
                 {selectedDietaryTags.length > 0 && (
-                  <Pressable
-                    onPress={() => { setSelectedDietaryTags([]); Haptics.selectionAsync(); }}
-                    style={s.clearFiltersBtn}
-                  >
+                  <Pressable onPress={() => { setSelectedDietaryTags([]); Haptics.selectionAsync(); }} style={s.clearFiltersBtn}>
                     <Text style={[s.clearFiltersText, { fontWeight: '600' }]}>Clear filters</Text>
                   </Pressable>
                 )}
@@ -479,62 +291,26 @@ export default function MenuScreen() {
     </View>
   );
 }
+
 const s = StyleSheet.create({
-  root:        { flex: 1, backgroundColor: '#fff' },
-  // Header
-  header:      {
+  root:   { flex: 1, backgroundColor: '#fff' },
+  header: {
     paddingBottom: 16, gap: 14, backgroundColor: '#fff',
     borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#E5E5EA',
     shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 6, elevation: 2, zIndex: 10,
   },
-  headerTop:   { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  headerTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   headerTitle: { color: '#1C1C1E' },
-  skipBadge:   { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: '#FFF3E0', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20 },
-  skipBadgeText:{ fontSize: 12, color: '#E07B00' },
+  // Basket icon
+  basketBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#F2F2F7', alignItems: 'center', justifyContent: 'center' },
+  basketBadge: { position: 'absolute', top: -2, right: -2, backgroundColor: CHERRY, borderRadius: 10, minWidth: 18, height: 18, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 3 },
+  basketBadgeText: { color: '#fff', fontSize: 10, fontWeight: '800' },
   // Search
-  searchBar:   { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, height: 44, backgroundColor: '#F2F2F7', borderRadius: 12 },
+  searchBar:   { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, height: 44, backgroundColor: '#F2F2F7', borderRadius: 16 },
   searchInput: { flex: 1, color: '#1C1C1E' },
-  // Category carousel
-  catTile:     { alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 12, borderRadius: 16, borderWidth: 1.5, minWidth: 72 },
-  catIconWrap: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
-  catLabel:    { textAlign: 'center' },
   // Count row
-  count:       { color: '#8E8E93', fontSize: 13, marginBottom: 4 },
-  // Dietary filter chips
-  dietaryChip:          { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20, borderWidth: 1.5, borderColor: '#E8E8ED', backgroundColor: '#fff' },
-  dietaryChipActive:    { borderColor: '#40C0F2', backgroundColor: '#EBF7FD' },
-  dietaryChipEmoji:     { fontSize: 14 },
-  dietaryChipLabel:     { color: '#3C3C43', fontWeight: '500' as const },
-  dietaryChipLabelActive: { color: '#0D8FC4', fontWeight: '600' as const },
+  count: { color: '#8E8E93', fontSize: 13, marginBottom: 4 },
   // Clear filters button
-  clearFiltersBtn:      { paddingHorizontal: 20, paddingVertical: 9, borderRadius: 20, backgroundColor: '#EBF7FD', borderWidth: 1.5, borderColor: '#40C0F2' },
-  clearFiltersText:     { color: '#0D8FC4', fontSize: 14 },
-  // Frequently ordered section
-  frequentSection: { marginBottom: 16, gap: 0 },
-  frequentHeader:  { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 12 },
-  frequentIconWrap:{ width: 36, height: 36, borderRadius: 10, backgroundColor: '#FFF3E0', alignItems: 'center', justifyContent: 'center' },
-  frequentTitle:   { fontSize: 16, color: '#1C1C1E' },
-  frequentSub:     { fontSize: 12, color: '#8E8E93', marginTop: 1 },
-  viewCartBtn:     { flexDirection: 'row', alignItems: 'center', gap: 2 },
-  viewCartText:    { fontSize: 13, color: '#1493FF' },
-  frequentTile:    { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: '#F9F9FB', borderRadius: 14, padding: 10, marginBottom: 8 },
-  frequentImg:     { width: 56, height: 56, borderRadius: 10, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
-  frequentName:    { fontSize: 14, color: '#1C1C1E' },
-  frequentPrice:   { fontSize: 13, color: '#8E8E93' },
-  frequentAdd:     { width: 34, height: 34, borderRadius: 17, backgroundColor: '#1493FF', alignItems: 'center', justifyContent: 'center' },
-  frequentDivider: { height: StyleSheet.hairlineWidth, backgroundColor: '#E5E5EA', marginTop: 8, marginBottom: 4 },
-  // Product tile
-  tile:          { flex: 1, backgroundColor: '#fff', borderRadius: 18, overflow: 'hidden', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.08, shadowRadius: 12, elevation: 4 },
-  tileImg:       { height: 155, alignItems: 'center', justifyContent: 'center', overflow: 'hidden', position: 'relative' },
-  tileEmoji:     { fontSize: 52, lineHeight: 62 },
-  badgeRow:      { position: 'absolute', top: 8, left: 8, flexDirection: 'row', gap: 4 },
-  badge:         { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6 },
-  badgeText:     { color: '#fff', fontSize: 9 },
-  soldOutOverlay:{ position: 'absolute', inset: 0, backgroundColor: 'rgba(0,0,0,0.48)', alignItems: 'center', justifyContent: 'center' },
-  tileInfo:      { padding: 10, gap: 4, backgroundColor: '#fff' },
-  tileName:      { fontSize: 13, color: '#1C1C1E', flex: 1 },
-  shortDesc:     { fontSize: 11, color: '#8E8E93', lineHeight: 15 },
-  tilePriceRow:  { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 },
-  priceMain:     { fontSize: 15, color: '#1C1C1E' },
-  tileAddBtn:    { width: 34, height: 34, borderRadius: 17, backgroundColor: '#1C1C1E', alignItems: 'center', justifyContent: 'center' },
+  clearFiltersBtn:  { paddingHorizontal: 20, paddingVertical: 9, borderRadius: 20, backgroundColor: '#EBF7FD', borderWidth: 1.5, borderColor: '#40C0F2' },
+  clearFiltersText: { color: '#0D8FC4', fontSize: 14 },
 });

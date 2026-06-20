@@ -29,8 +29,8 @@ interface Props {
   onAddToCart?: () => void;
 }
 
-const ADD_BLUE       = '#1493FF';
-const ADD_BLUE_FLASH = '#5BB8FF';
+const ADD_CHERRY       = '#D20001';
+const ADD_CHERRY_FLASH = '#FF3333';
 
 export default function ProductTile({ product, onPress, onAddToCart }: Props) {
   const raw       = product as any;
@@ -52,7 +52,7 @@ export default function ProductTile({ product, onPress, onAddToCart }: Props) {
 
   const addBtnAnimStyle = useAnimatedStyle(() => ({
     transform: [{ scale: addScale.value }],
-    backgroundColor: interpolateColor(flashProg.value, [0, 1], [ADD_BLUE, ADD_BLUE_FLASH]),
+    backgroundColor: interpolateColor(flashProg.value, [0, 1], [ADD_CHERRY, ADD_CHERRY_FLASH]),
   }));
 
   const handleAddPress = () => {
