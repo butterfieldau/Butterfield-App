@@ -3116,7 +3116,7 @@ function TicketItemRow({
               )}
             </TouchableOpacity>
             <View style={styles.qtyControls}>
-              <Pressable onPress={onDecrement} style={styles.qtyBtn} hitSlop={6}>
+              <Pressable onPress={item.quantity === 1 ? onRemove : onDecrement} style={styles.qtyBtn} hitSlop={6}>
                 {item.quantity === 1
                   ? <Feather name="trash-2" size={14} color={CHERRY} />
                   : <Feather name="minus" size={14} color={MID} />}
