@@ -3007,6 +3007,8 @@ function TicketItemRow({
   const variantLabel = item.variantName;
 
   const swipeableRef = useRef<Swipeable>(null);
+  const rowHeightAnim = useRef(new Animated.Value(64)).current;
+  const isCollapsing = useRef(false);
 
   const [showPriceEdit, setShowPriceEdit] = React.useState(false);
   const [rawPrice, setRawPrice] = React.useState('');
@@ -3039,33 +3041,58 @@ function TicketItemRow({
     }
   };
 
-  const renderRightActions = () => (
-    <View style={styles.ticketSwipeDelete}>
-      <Feather name="trash-2" size={18} color="#FFFFFF" />
-      <Text style={styles.ticketSwipeDeleteLabel}>Delete</Text>
-    </View>
-  );
+  const renderRightActions = (progress: Animated.AnimatedInterpolation<number>) => {
+    const scale = progress.interpolate({
+      inputRange: [0, 1],
+      outputRange: [0.6, 1.0],
+      extrapolate: 'clamp',
+    });
+    const opacity = progress.interpolate({
+      inputRange: [0, 0.5, 1],
+      outputRange: [0, 0.7, 1],
+      extrapolate: 'clamp',
+    });
+    return (
+      <View style={styles.ticketSwipeDelete}>
+        <Animated.View style={{ alignItems: 'center', transform: [{ scale }], opacity }}>
+          <Feather name="trash-2" size={18} color="#FFFFFF" />
+          <Text style={styles.ticketSwipeDeleteLabel}>Delete</Text>
+        </Animated.View>
+      </View>
+    );
+  };
+
+  const handleSwipeOpen = () => {
+    if (isCollapsing.current) return;
+    isCollapsing.current = true;
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+    Animated.timing(rowHeightAnim, {
+      toValue: 0,
+      duration: 220,
+      useNativeDriver: false,
+    }).start(() => {
+      onRemove();
+    });
+  };
 
   return (
     <>
       <Swipeable
         ref={swipeableRef}
         renderRightActions={renderRightActions}
-        rightThreshold={160}
-        overshootRight={false}
-        friction={2}
+        rightThreshold={75}
+        overshootRight
+        overshootFriction={6}
+        friction={1.5}
         onSwipeableWillOpen={() => {
           if (openSwipeableRef.current && openSwipeableRef.current !== swipeableRef.current) {
             openSwipeableRef.current.close();
           }
           openSwipeableRef.current = swipeableRef.current;
         }}
-        onSwipeableOpen={() => {
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-          onRemove();
-        }}
+        onSwipeableOpen={handleSwipeOpen}
       >
-        <View style={styles.ticketItem}>
+        <Animated.View style={[styles.ticketItem, { height: rowHeightAnim, overflow: 'hidden' }]}>
           <TouchableOpacity onPress={onEdit} style={{ flex: 1 }} activeOpacity={0.7}>
             <Text style={styles.ticketItemName} numberOfLines={1}>{item.productName}</Text>
             {(variantLabel || optionSummary) && (
@@ -3100,7 +3127,7 @@ function TicketItemRow({
               </Pressable>
             </View>
           </View>
-        </View>
+        </Animated.View>
       </Swipeable>
 
       <Modal visible={showPriceEdit} transparent animationType="fade" onRequestClose={() => setShowPriceEdit(false)}>
