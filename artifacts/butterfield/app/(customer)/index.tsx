@@ -106,7 +106,7 @@ export default function CustomerHome() {
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
-      <StatusBar barStyle="light-content" />
+      <StatusBar barStyle="dark-content" />
       <OfflineBanner />
       <StoreInfoSheet visible={storeSheetVisible} store={featuredStore} onClose={() => setStoreSheetVisible(false)} />
       <LoginRequiredModal visible={!!loginTarget} redirectTo={loginTarget ?? undefined} onCancel={() => setLoginTarget(null)} />
@@ -129,7 +129,7 @@ export default function CustomerHome() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={BLUE} />}
       >
         {/* ── EDITORIAL HERO ── */}
-        <View style={[s.heroCard, { marginHorizontal: hPad, marginTop: hPad, paddingTop: insets.top + 20 }]}>
+        <View style={[s.heroCard, { marginHorizontal: hPad, marginTop: insets.top + 12, paddingTop: 22 }]}>
           <LinearGradient colors={[HERO_TOP, HERO_BTM]} style={StyleSheet.absoluteFill} start={{ x: 0.15, y: 0 }} end={{ x: 0.85, y: 1 }} />
           {/* Subtle texture ring */}
           <View style={s.heroRing} />
