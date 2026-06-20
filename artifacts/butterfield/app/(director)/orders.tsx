@@ -55,11 +55,6 @@ function fmtHourLabel(h: number) {
   return h > 12 ? `${h - 12}:00 PM` : `${h}:00 AM`;
 }
 
-function isThisMonth(d: Date | string) {
-  const date = new Date(d);
-  const now   = new Date();
-  return date.getFullYear() === now.getFullYear() && date.getMonth() === now.getMonth();
-}
 // ── Map helper ────────────────────────────────────────────────────────────────
 function openMap(address: string) {
   const q = encodeURIComponent(address);
@@ -68,20 +63,23 @@ function openMap(address: string) {
     : `https://maps.google.com/?q=${q}`;
   Linking.openURL(url).catch(() => Linking.openURL(`https://maps.google.com/?q=${q}`));
 }
-// ── Date helpers ──────────────────────────────────────────────────────────────
-function startOfDay(d: Date) {
-  const r = new Date(d); r.setHours(0,0,0,0); return r;
+// ── Date helpers (Sydney-timezone-aware) ──────────────────────────────────────
+// Before 10am AEST, UTC date is still "yesterday". Always compare using
+// Sydney wall-clock date to avoid miscounting orders placed between midnight
+// and 10am Sydney time.
+const SYD_TZ = 'Australia/Sydney';
+function sydDate(d: Date | string): string {
+  return new Date(d).toLocaleDateString('en-CA', { timeZone: SYD_TZ });
 }
-function isSameDay(a: Date | string, b: Date) {
-  const ad = new Date(a);
-  return ad.getFullYear() === b.getFullYear() &&
-    ad.getMonth() === b.getMonth() && ad.getDate() === b.getDate();
+function isSameDay(a: Date | string, b: Date): boolean {
+  return sydDate(a) === sydDate(b);
 }
-function isThisWeek(d: Date | string) {
-  const date = new Date(d);
-  const now  = new Date();
-  const weekAgo = new Date(now); weekAgo.setDate(now.getDate() - 7);
-  return date >= weekAgo;
+function isThisMonth(d: Date | string): boolean {
+  return sydDate(d).slice(0, 7) === sydDate(new Date()).slice(0, 7);
+}
+function isThisWeek(d: Date | string): boolean {
+  const cutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+  return sydDate(d) >= sydDate(cutoff);
 }
 function fmtTime(d: Date | string) {
   return new Date(d).toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit', timeZone: 'Australia/Sydney' });
@@ -95,11 +93,11 @@ function getOrderTimelineDate(order: ApiOrder) {
 }
 
 function fmtDateChip(d: Date) {
-  const today = new Date();
-  const yesterday = new Date(today); yesterday.setDate(today.getDate() - 1);
+  const today     = new Date();
+  const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000);
   if (isSameDay(d, today)) return 'Today';
   if (isSameDay(d, yesterday)) return 'Yesterday';
-  return d.toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short' });
+  return d.toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short', timeZone: SYD_TZ });
 }
 function getPastDays(n: number) {
   const days: Date[] = [];
@@ -716,7 +714,7 @@ function CalendarModal({
   onSelectDate: (d: Date) => void;
   ordersByDate: Record<string, number>;
 }) {
-  const today = useMemo(() => { const d = new Date(); d.setHours(0,0,0,0); return d; }, []);
+  const today = useMemo(() => new Date(), []);
 
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
@@ -1230,7 +1228,7 @@ export default function DirectorOrdersScreen() {
     return result;
   }, [statusFiltered, drillHour, productFilter]);
 
-  const today = useMemo(() => { const d = new Date(); d.setHours(0,0,0,0); return d; }, []);
+  const today = useMemo(() => new Date(), []);
   const activeTodayOrders = useMemo(
     () =>
       allOrders.filter((order) =>
@@ -1262,7 +1260,7 @@ export default function DirectorOrdersScreen() {
     const map: Record<string, number> = {};
     for (const o of statusFiltered) {
       const d = getOrderTimelineDate(o);
-      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      const key = sydDate(d);
       map[key] = (map[key] ?? 0) + 1;
     }
     return map;

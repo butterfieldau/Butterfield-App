@@ -66,7 +66,7 @@ function RevenueRangePicker({
   const [start, setStart] = useState<Date | null>(null);
   const [end, setEnd]     = useState<Date | null>(null);
 
-  const today = useState(() => { const d = new Date(); d.setHours(0,0,0,0); return d; })[0];
+  const today = useState(() => new Date())[0];
 
   const handleClose = () => { setStart(null); setEnd(null); setStep('start'); onClose(); };
   const handleApply = () => {
