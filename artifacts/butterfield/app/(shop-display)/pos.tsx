@@ -691,6 +691,17 @@ function PosScreenInner() {
   const [historyOpenAtFailed, setHistoryOpenAtFailed] = useState(false);
   const [lastDrawerSuccessAt, setLastDrawerSuccessAt] = useState<Date | null>(null);
 
+  // ── Bluetooth HID scanner ─────────────────────────────────────────────────
+  const scannerInputRef = useRef<TextInput>(null);
+  const scannerBufRef = useRef('');
+  const scannerClearingRef = useRef(false);
+  const scannerFlushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const scannerBannerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  type ScannerBanner = { kind: 'success' | 'error'; message: string } | null;
+  const [scannerBanner, setScannerBanner] = useState<ScannerBanner>(null);
+  const scannerBannerOpacity = useRef(new Animated.Value(0)).current;
+  const scannerBannerSlide = useRef(new Animated.Value(-40)).current;
+
   // ── Linkly crash-recovery state ───────────────────────────────────────────
   // A non-null value means a stale session was found on cold-start and the
   // operator chose to reconnect. The recovery stream overlay is shown until
@@ -741,6 +752,7 @@ function PosScreenInner() {
       if (v) try { setDiscountPresets(JSON.parse(v)); } catch {}
     });
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
 
   // Restore held tickets so they survive app restarts
   useEffect(() => {
@@ -1128,6 +1140,112 @@ function PosScreenInner() {
   const updateTicket = useCallback((patch: Partial<Ticket>) => {
     setTickets(prev => prev.map((t, i) => i === activeIdx ? { ...t, ...patch } : t));
   }, [activeIdx]);
+
+  // ── Bluetooth HID scanner logic ───────────────────────────────────────────
+  const showScannerBanner = useCallback((kind: 'success' | 'error', message: string) => {
+    if (scannerBannerTimerRef.current) clearTimeout(scannerBannerTimerRef.current);
+    setScannerBanner({ kind, message });
+    scannerBannerOpacity.setValue(0);
+    scannerBannerSlide.setValue(-40);
+    Animated.parallel([
+      Animated.timing(scannerBannerOpacity, { toValue: 1, duration: 180, useNativeDriver: true }),
+      Animated.timing(scannerBannerSlide, { toValue: 0, duration: 180, useNativeDriver: true }),
+    ]).start();
+    scannerBannerTimerRef.current = setTimeout(() => {
+      Animated.parallel([
+        Animated.timing(scannerBannerOpacity, { toValue: 0, duration: 300, useNativeDriver: true }),
+        Animated.timing(scannerBannerSlide, { toValue: -40, duration: 300, useNativeDriver: true }),
+      ]).start(() => setScannerBanner(null));
+    }, 2000);
+  }, [scannerBannerOpacity, scannerBannerSlide]);
+
+  const handleHidScan = useCallback(async (payload: string) => {
+    const trimmed = payload.trim();
+    if (trimmed.length < 4) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    let result: PosCustomerResult | null = null;
+    try {
+      const res = await api.pos.customerSearch({ qrPayload: trimmed });
+      result = res.data[0] ?? null;
+    } catch {
+      showScannerBanner('error', 'Customer not found');
+      return;
+    }
+    if (!result) {
+      showScannerBanner('error', 'Customer not found');
+      return;
+    }
+    const newCustomer: AttachedCustomer = {
+      userId: result.userId,
+      name: result.name,
+      email: result.email,
+      loyaltyPoints: result.loyaltyPoints,
+      stampCount: result.stampCount,
+      loyaltyTier: result.loyaltyTier,
+      freeCoffeeRewards: result.freeCoffeeRewards ?? 0,
+      birthday: (result as any).birthday ?? null,
+      availableClaimedRewards: (result as any).availableClaimedRewards ?? [],
+    };
+    const tierLabel = newCustomer.loyaltyTier.charAt(0).toUpperCase() + newCustomer.loyaltyTier.slice(1);
+    const current = (tickets[activeIdx] ?? tickets[0]!).customer;
+    if (current) {
+      if (current.userId === newCustomer.userId) {
+        showScannerBanner('success', `${newCustomer.name} — already attached · ${tierLabel}`);
+        return;
+      }
+      Alert.alert(
+        'Replace Customer?',
+        `Replace ${current.name} with ${newCustomer.name}?`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Replace',
+            onPress: () => {
+              updateTicket({ customer: newCustomer, appliedDiscount: null });
+              upsertCustomerCache(newCustomer).catch(() => {});
+              showScannerBanner('success', `${newCustomer.name} — ${newCustomer.loyaltyPoints} pts · ${tierLabel}`);
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            },
+          },
+        ],
+      );
+      return;
+    }
+    updateTicket({ customer: newCustomer, appliedDiscount: null });
+    upsertCustomerCache(newCustomer).catch(() => {});
+    showScannerBanner('success', `${newCustomer.name} — ${newCustomer.loyaltyPoints} pts · ${tierLabel}`);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  }, [tickets, activeIdx, updateTicket, showScannerBanner]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const flushScannerBuf = useCallback(() => {
+    if (scannerFlushTimerRef.current) { clearTimeout(scannerFlushTimerRef.current); scannerFlushTimerRef.current = null; }
+    const value = scannerBufRef.current;
+    scannerBufRef.current = '';
+    scannerClearingRef.current = true;
+    scannerInputRef.current?.clear();
+    setTimeout(() => { scannerClearingRef.current = false; }, 100);
+    if (value.length >= 4) handleHidScan(value);
+  }, [handleHidScan]);
+
+  // Refocus the hidden scanner input when the active ticket changes or modals close.
+  // Guards: if any text-input-bearing modal is open, skip (they take priority).
+  const focusScannerInput = useCallback(() => {
+    if (showCustomerModal || showPayment || showVoidSheet || !!customiseData || showRegister || !!discountPinGate || showZReport) return;
+    scannerInputRef.current?.focus();
+  }, [showCustomerModal, showPayment, showVoidSheet, customiseData, showRegister, discountPinGate, showZReport]);
+
+  useEffect(() => {
+    const t = setTimeout(focusScannerInput, 80);
+    return () => clearTimeout(t);
+  }, [activeIdx, showCustomerModal, showPayment, showVoidSheet, customiseData, showRegister, discountPinGate, showZReport, focusScannerInput]);
+
+  // Cleanup scanner timers on unmount
+  useEffect(() => {
+    return () => {
+      if (scannerFlushTimerRef.current) clearTimeout(scannerFlushTimerRef.current);
+      if (scannerBannerTimerRef.current) clearTimeout(scannerBannerTimerRef.current);
+    };
+  }, []);
 
   const addItemToTicket = useCallback((item: TicketItem) => {
     setTickets(prev => {
@@ -1647,6 +1765,47 @@ function PosScreenInner() {
           <Text style={styles.syncToastText}>{syncToast}</Text>
         </View>
       )}
+
+      {/* ── Bluetooth HID scanner: invisible capture input ───────────────── */}
+      <TextInput
+        ref={scannerInputRef}
+        style={{ position: 'absolute', width: 0, height: 0, opacity: 0 }}
+        onChangeText={(text) => {
+          if (scannerClearingRef.current) return;
+          scannerBufRef.current = text;
+          if (scannerFlushTimerRef.current) clearTimeout(scannerFlushTimerRef.current);
+          scannerFlushTimerRef.current = setTimeout(flushScannerBuf, 500);
+        }}
+        onSubmitEditing={flushScannerBuf}
+        blurOnSubmit={false}
+        autoCorrect={false}
+        autoCapitalize="none"
+        keyboardType="default"
+        showSoftInputOnFocus={false}
+        importantForAccessibility="no-hide-descendants"
+      />
+
+      {/* ── HID scanner feedback banner (slides down from top) ───────────── */}
+      {!!scannerBanner && (
+        <Animated.View
+          style={[
+            styles.scannerBanner,
+            {
+              opacity: scannerBannerOpacity,
+              transform: [{ translateY: scannerBannerSlide }],
+            },
+            scannerBanner.kind === 'error' && styles.scannerBannerError,
+          ]}
+        >
+          <Feather
+            name={scannerBanner.kind === 'success' ? 'user-check' : 'alert-circle'}
+            size={14}
+            color={WHITE}
+          />
+          <Text style={styles.scannerBannerText}>{scannerBanner.message}</Text>
+        </Animated.View>
+      )}
+
       {/* ── Header ─────────────────────────────────────────────────────────── */}
       <View style={styles.header}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
@@ -1738,6 +1897,7 @@ function PosScreenInner() {
             onChangeText={setSearchText}
             returnKeyType="search"
             autoFocus
+            onBlur={() => setTimeout(focusScannerInput, 150)}
           />
           {searchText.length > 0 && (
             <Pressable onPress={() => setSearchText('')} hitSlop={8}>
@@ -1871,6 +2031,7 @@ function PosScreenInner() {
                 if (cached) setCustomiseData({ product: cached, editItem: item });
               }}
               discountPresets={discountPresets}
+              onInputBlur={focusScannerInput}
             />
           </View>
         )}
@@ -2446,7 +2607,7 @@ function ReorderCategoriesModal({
 function TicketPanel({
   ticket, onUpdateTicket, onRemoveItem, onUpdateQty, onPriceOverride,
   onClear, onHold, onAttachCustomer, onScanQR, onCharge, onEditItem,
-  discountPresets,
+  discountPresets, onInputBlur,
 }: {
   ticket: Ticket;
   onUpdateTicket: (p: Partial<Ticket>) => void;
@@ -2460,6 +2621,7 @@ function TicketPanel({
   onCharge: () => void;
   onEditItem: (item: TicketItem) => void;
   discountPresets: number[];
+  onInputBlur?: () => void;
 }) {
   const subtotal = ticketSubtotal(ticket);
   const total = ticketTotal(ticket);
@@ -2473,6 +2635,19 @@ function TicketPanel({
   const [validating, setValidating] = React.useState(false);
   const [codeError, setCodeError] = React.useState<string | null>(null);
   const [showCodeInput, setShowCodeInput] = React.useState(false);
+
+  // When the code input is dismissed (applied, toggled off, or blurred), hand focus
+  // back to the HID scanner input so subsequent scans are never dropped.
+  const prevShowCodeInputRef = React.useRef(showCodeInput);
+  React.useEffect(() => {
+    if (prevShowCodeInputRef.current && !showCodeInput && onInputBlur) {
+      const t = setTimeout(onInputBlur, 150);
+      prevShowCodeInputRef.current = false;
+      return () => clearTimeout(t);
+    }
+    prevShowCodeInputRef.current = showCodeInput;
+    return undefined;
+  }, [showCodeInput, onInputBlur]);
 
   // Determine if customer has free coffee rewards and order has coffee items
   const hasCoffeeItems = ticket.items.some(i => i.category.toLowerCase() === 'coffee');
@@ -2656,6 +2831,7 @@ function TicketPanel({
           onChangeText={v => onUpdateTicket({ notes: v })}
           returnKeyType="done"
           blurOnSubmit
+          onBlur={() => onInputBlur && setTimeout(onInputBlur, 150)}
         />
         {ticket.notes.length > 0 && (
           <Pressable onPress={() => onUpdateTicket({ notes: '' })} hitSlop={8}>
@@ -2745,6 +2921,7 @@ function TicketPanel({
                     autoFocus
                     returnKeyType="done"
                     onSubmitEditing={applyCode}
+                    onBlur={() => onInputBlur && setTimeout(onInputBlur, 150)}
                   />
                   <Pressable
                     onPress={applyCode}
@@ -6615,6 +6792,11 @@ const styles = StyleSheet.create({
   // Sync toast (top of screen)
   syncToast:              { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: '#16A34A', paddingVertical: 10, paddingHorizontal: 16 },
   syncToastText:          { fontSize: 13, fontWeight: '700', color: WHITE },
+
+  // Bluetooth HID scanner feedback banner
+  scannerBanner:          { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#16A34A', paddingVertical: 8, paddingHorizontal: 16, zIndex: 99 },
+  scannerBannerError:     { backgroundColor: CHERRY },
+  scannerBannerText:      { fontSize: 13, fontWeight: '700', color: WHITE, flex: 1 },
 
   // Payment modal offline notice
   offlinePayNotice:       { flexDirection: 'row', alignItems: 'flex-start', gap: 8, backgroundColor: '#FEF3C7', borderRadius: 10, padding: 12, marginBottom: 12, borderWidth: 1, borderColor: '#FCD34D' },
