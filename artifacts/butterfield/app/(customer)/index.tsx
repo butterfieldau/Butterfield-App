@@ -35,6 +35,7 @@ import { useRefreshControl } from '@/hooks/useRefreshControl';
 import BannerPicksCarousel from '@/components/BannerPicksCarousel';
 import { SvgXml } from 'react-native-svg';
 import { EARN_POINTS_SVG, BIRTHDAY_TREAT_SVG } from '@/constants/benefit-icons';
+import { CoffeeStampIcon } from '@/components/CoffeeStampIcon';
 
 const HERO_TOP = '#0C1428';
 const HERO_BTM = '#162040';
@@ -45,19 +46,19 @@ const GUEST_BENEFITS: { key: string; title: string; desc: string; renderIcon: ()
     key: 'earn',
     title: 'Earn points',
     desc: 'Every order builds your balance',
-    renderIcon: () => <SvgXml xml={EARN_POINTS_SVG} width={30} height={30} />,
+    renderIcon: () => <SvgXml xml={EARN_POINTS_SVG} width={36} height={36} />,
   },
   {
     key: 'coffee',
     title: 'Free coffee',
     desc: 'Stamp card rewards on us',
-    renderIcon: () => <Feather name="coffee" size={26} color={BLUE} />,
+    renderIcon: () => <CoffeeStampIcon size={36} color={BLUE} />,
   },
   {
     key: 'birthday',
     title: 'Birthday treat',
     desc: 'A gift every year, just for you',
-    renderIcon: () => <SvgXml xml={BIRTHDAY_TREAT_SVG} width={30} height={30} />,
+    renderIcon: () => <SvgXml xml={BIRTHDAY_TREAT_SVG} width={36} height={36} />,
   },
 ];
 
