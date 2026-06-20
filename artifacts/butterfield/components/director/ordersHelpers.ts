@@ -1,0 +1,114 @@
+import type { ApiOrder } from '@/lib/api';
+import { Linking, Alert } from 'react-native';
+
+export function sydDate(d: Date) {
+  return d.toLocaleDateString('en-CA', { timeZone: 'Australia/Sydney' });
+}
+
+export function isSameDay(a: Date, b: Date): boolean {
+  return sydDate(a) === sydDate(b);
+}
+
+export function isThisMonth(d: Date): boolean {
+  const now = new Date();
+  const ds = sydDate(d).slice(0, 7);
+  const ns = sydDate(now).slice(0, 7);
+  return ds === ns;
+}
+
+export function isThisWeek(d: Date): boolean {
+  const now = new Date();
+  const msInDay = 86400000;
+  const today = new Date(sydDate(now) + 'T12:00:00');
+  const diff = Math.floor((today.getTime() - new Date(sydDate(d) + 'T12:00:00').getTime()) / msInDay);
+  return diff >= 0 && diff < 7;
+}
+
+export function fmtTime(iso: string | Date) {
+  const d = typeof iso === 'string' ? new Date(iso) : iso;
+  return d.toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit', hour12: true });
+}
+
+export function fmtDateChip(d: Date) {
+  return d.toLocaleDateString('en-AU', { day: 'numeric', month: 'short' });
+}
+
+export function sydneyDateStr(): string {
+  return new Date().toLocaleDateString('en-CA', { timeZone: 'Australia/Sydney' });
+}
+
+export function shiftPosDate(dateStr: string, days: number): string {
+  const d = new Date(dateStr + 'T12:00:00');
+  d.setDate(d.getDate() + days);
+  return d.toLocaleDateString('en-CA', { timeZone: 'Australia/Sydney' });
+}
+
+export function fmtCents(cents: number) {
+  return `$${(cents / 100).toLocaleString('en-AU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+export function formatPosDay(dateStr: string): string {
+  const today = sydneyDateStr();
+  if (dateStr === today) return 'Today';
+  const yesterday = shiftPosDate(today, -1);
+  if (dateStr === yesterday) return 'Yesterday';
+  const d = new Date(dateStr + 'T12:00:00');
+  return d.toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'short' });
+}
+
+export function getPosPaymentLabel(method: string | undefined, splits: unknown): string {
+  if (Array.isArray(splits) && splits.length > 1) return 'Split';
+  const m = (method ?? 'eftpos').toLowerCase();
+  if (m === 'eftpos' || m === 'card') return 'EFTPOS';
+  if (m === 'cash') return 'Cash';
+  return method ?? 'EFTPOS';
+}
+
+export function summarisePosItems(items: unknown): string {
+  if (!Array.isArray(items) || items.length === 0) return 'No items';
+  const first = items[0];
+  const name = (first as any)?.name ?? (first as any)?.productName ?? 'Item';
+  if (items.length === 1) return name;
+  return `${name} +${items.length - 1} more`;
+}
+
+export function openMap(address: string) {
+  const encoded = encodeURIComponent(address);
+  const url = `https://maps.apple.com/?q=${encoded}`;
+  Linking.openURL(url).catch(() => Alert.alert('Error', 'Could not open Maps.'));
+}
+
+export function getOrderTimelineDate(order: ApiOrder): Date {
+  if (order.scheduledFor) return new Date(order.scheduledFor);
+  return new Date(order.createdAt);
+}
+
+export function fmtHourLabel(h: number): string {
+  if (h === 0) return '12 AM';
+  if (h === 12) return '12 PM';
+  return h > 12 ? `${h - 12} PM` : `${h} AM`;
+}
+
+export function getOrderSectionKey(o: ApiOrder): string {
+  const s = o.status;
+  if (['received', 'pending'].includes(s)) return 'pending';
+  if (['being_prepared', 'processing'].includes(s)) return 'preparing';
+  if (['ready_for_pickup', 'dispatched'].includes(s)) return 'ready';
+  if (['completed', 'accepted', 'scheduled'].includes(s)) return 'done';
+  return 'cancelled';
+}
+
+export const ORDER_STATUS_SECTIONS = [
+  { key: 'pending',   label: 'Pending',   accentColor: '#F59E0B' },
+  { key: 'preparing', label: 'Preparing', accentColor: '#1493FF' },
+  { key: 'ready',     label: 'Ready',     accentColor: '#22C55E' },
+  { key: 'done',      label: 'Completed', accentColor: '#8B5CF6' },
+  { key: 'cancelled', label: 'Cancelled', accentColor: '#EF4444' },
+] as const;
+
+export function getWholesaleInvoiceUrl(orderId: string): string {
+  const base = process.env.EXPO_PUBLIC_DOMAIN
+    ? `https://${process.env.EXPO_PUBLIC_DOMAIN}/api`
+    : 'http://localhost:80/api';
+  return `${base}/wholesale/orders/${orderId}/invoice`;
+}
