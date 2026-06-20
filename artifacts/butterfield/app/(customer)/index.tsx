@@ -446,6 +446,6 @@ const s = StyleSheet.create({
     justifyContent: 'center',
     marginBottom: 12,
   },
-  benefitTitle: { fontSize: 14, fontWeight: '700', letterSpacing: -0.2, textAlign: 'center', marginBottom: 4 },
+  benefitTitle: { fontSize: 14, fontWeight: '700', letterSpacing: -0.2, textAlign: 'center' },
   benefitDesc:  { fontSize: 12, fontWeight: '400', textAlign: 'center', lineHeight: 16 },
 });
