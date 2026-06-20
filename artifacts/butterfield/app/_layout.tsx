@@ -21,6 +21,53 @@ import { clearAppBadge } from "@/lib/pushNotifications";
 
 SplashScreen.preventAutoHideAsync();
 
+// ---------------------------------------------------------------------------
+// Global JS error handler — last-resort safety net for native module startup
+// failures (e.g. react-native-star-io10 on iOS 26 arm64e). If a native module
+// throws an exception during TurboModule eager init, React Native surfaces it
+// here before any screen renders. We log it and, for non-fatal errors, allow
+// the app to continue rather than showing a blank crash.
+// ---------------------------------------------------------------------------
+(function installGlobalErrorHandler() {
+  try {
+    // ErrorUtils is a React Native global — not always typed in @types/react-native.
+    const EU = (global as any).ErrorUtils;
+    if (!EU || typeof EU.setGlobalHandler !== 'function') return;
+
+    const previousHandler: ((error: Error, isFatal?: boolean) => void) | undefined =
+      typeof EU.getGlobalHandler === 'function' ? EU.getGlobalHandler() : undefined;
+
+    EU.setGlobalHandler((error: Error, isFatal?: boolean) => {
+      const message = error?.message ?? String(error);
+
+      // Detect known native-module startup errors so we can downgrade them.
+      const isNativeModuleStartup =
+        message.includes('StarIO') ||
+        message.includes('star-io') ||
+        message.includes('TurboModuleRegistry') ||
+        message.includes('NativeModule') ||
+        message.includes('Cannot read property') ||
+        false;
+
+      if (isNativeModuleStartup && isFatal) {
+        // Downgrade to non-fatal — the ObjC shim should have already caught
+        // the real crash; this handles edge cases where an error still surfaces.
+        console.warn(
+          '[GlobalErrorHandler] Downgraded native-module startup error to non-fatal:',
+          message,
+        );
+        previousHandler?.(error, false);
+        return;
+      }
+
+      // All other errors: pass through to the previous handler unchanged.
+      previousHandler?.(error, isFatal);
+    });
+  } catch {
+    // Never let the error handler installation crash the app.
+  }
+}());
+
 // Treat "unknown yet" network states as online so native boot doesn't get stuck
 // serving stale cache while connectivity is still being resolved.
 onlineManager.setEventListener((setOnline) => {

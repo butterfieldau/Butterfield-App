@@ -61,7 +61,8 @@
           ]
         }
       ],
-      "./plugins/withGoogleSignInFix"
+      "./plugins/withGoogleSignInFix",
+      "./plugins/withStarIOLazyInit"
     ],
     "experiments": {
       "typedRoutes": true,
