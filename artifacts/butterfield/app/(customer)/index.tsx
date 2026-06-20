@@ -2,7 +2,7 @@ import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import React, { useCallback, useRef, useState } from 'react';
 import { useScrollToTopCompat as useScrollToTop } from '@/hooks/useScrollToTopCompat';
 import { useQueryClient } from '@tanstack/react-query';
@@ -47,6 +47,8 @@ export default function CustomerHome() {
   const [storeSheetVisible, setStoreSheetVisible] = useState(false);
   const [showQR, setShowQR] = useState(false);
   const [loginTarget, setLoginTarget] = useState<string | null>(null);
+
+  useFocusEffect(useCallback(() => { StatusBar.setBarStyle('dark-content', true); }, []));
 
   const { width } = useWindowDimensions();
   const isTablet = width >= 768;
