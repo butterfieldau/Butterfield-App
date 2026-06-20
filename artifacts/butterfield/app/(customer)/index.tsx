@@ -46,19 +46,19 @@ const GUEST_BENEFITS: { key: string; title: string; desc: string; renderIcon: ()
     key: 'earn',
     title: 'Earn points',
     desc: 'Every order builds your balance',
-    renderIcon: () => <SvgXml xml={EARN_POINTS_SVG} width={36} height={36} />,
+    renderIcon: () => <SvgXml xml={EARN_POINTS_SVG} width={44} height={44} />,
   },
   {
     key: 'coffee',
     title: 'Free coffee',
     desc: 'Stamp card rewards on us',
-    renderIcon: () => <CoffeeStampIcon size={36} color={BLUE} />,
+    renderIcon: () => <CoffeeStampIcon size={44} color={BLUE} />,
   },
   {
     key: 'birthday',
     title: 'Birthday treat',
     desc: 'A gift every year, just for you',
-    renderIcon: () => <SvgXml xml={BIRTHDAY_TREAT_SVG} width={36} height={36} />,
+    renderIcon: () => <SvgXml xml={BIRTHDAY_TREAT_SVG} width={44} height={44} />,
   },
 ];
 
