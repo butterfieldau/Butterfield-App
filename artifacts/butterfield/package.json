@@ -10,7 +10,9 @@
     "ios:submit:testflight": "eas submit --platform ios --profile production",
     "postinstall": "node scripts/patch-stripe-ios.js",
     "serve": "node server/serve.js",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "android": "expo run:android",
+    "ios": "expo run:ios"
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",
@@ -82,6 +84,9 @@
     "react-native-maps": "^1.27.2",
     "react-native-qrcode-svg": "^6.3.21",
     "react-native-star-io10": "^1.12.1",
-    "react-native-tcp-socket": "^6.4.1"
+    "react-native-tcp-socket": "^6.4.1",
+    "expo": "~54.0.34",
+    "react": "19.1.0",
+    "react-native": "0.81.5"
   }
 }
