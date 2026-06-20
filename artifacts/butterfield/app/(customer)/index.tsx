@@ -33,15 +33,32 @@ import { setSelectedProduct } from '@/lib/selectedProduct';
 import { setPreselectedOptions } from '@/lib/preselectedOptions';
 import { useRefreshControl } from '@/hooks/useRefreshControl';
 import BannerPicksCarousel from '@/components/BannerPicksCarousel';
+import { SvgXml } from 'react-native-svg';
+import { EARN_POINTS_SVG, BIRTHDAY_TREAT_SVG } from '@/constants/benefit-icons';
 
 const HERO_TOP = '#0C1428';
 const HERO_BTM = '#162040';
 const BLUE     = '#40C0F2';
 
-const GUEST_BENEFITS = [
-  { icon: 'award',  title: 'Earn points',    desc: 'Every order builds your balance' },
-  { icon: 'coffee', title: 'Free coffee',    desc: 'Stamp card rewards on us' },
-  { icon: 'gift',   title: 'Birthday treat', desc: 'A gift every year, just for you' },
+const GUEST_BENEFITS: { key: string; title: string; desc: string; renderIcon: () => React.ReactNode }[] = [
+  {
+    key: 'earn',
+    title: 'Earn points',
+    desc: 'Every order builds your balance',
+    renderIcon: () => <SvgXml xml={EARN_POINTS_SVG} width={30} height={30} />,
+  },
+  {
+    key: 'coffee',
+    title: 'Free coffee',
+    desc: 'Stamp card rewards on us',
+    renderIcon: () => <Feather name="coffee" size={26} color={BLUE} />,
+  },
+  {
+    key: 'birthday',
+    title: 'Birthday treat',
+    desc: 'A gift every year, just for you',
+    renderIcon: () => <SvgXml xml={BIRTHDAY_TREAT_SVG} width={30} height={30} />,
+  },
 ];
 
 export default function CustomerHome() {
@@ -202,7 +219,7 @@ export default function CustomerHome() {
               data={GUEST_BENEFITS}
               horizontal
               showsHorizontalScrollIndicator={false}
-              keyExtractor={(b) => b.icon}
+              keyExtractor={(b) => b.key}
               contentContainerStyle={{ paddingHorizontal: hPad, gap: 12 }}
               renderItem={({ item: b }) => (
                 <Pressable
@@ -213,8 +230,8 @@ export default function CustomerHome() {
                   }}
                   android_ripple={{ color: 'rgba(64,192,242,0.08)' }}
                 >
-                  <View style={s.benefitIconWrap}>
-                    <Feather name={b.icon as any} size={22} color={BLUE} />
+                  <View style={s.benefitIconArea}>
+                    {b.renderIcon()}
                   </View>
                   <Text style={[s.benefitTitle, { color: colors.foreground }]}>{b.title}</Text>
                   <Text style={[s.benefitDesc, { color: colors.mutedForeground }]}>{b.desc}</Text>
@@ -423,11 +440,8 @@ const s = StyleSheet.create({
     shadowRadius: 8,
     elevation: 2,
   },
-  benefitIconWrap: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: 'rgba(64,192,242,0.10)',
+  benefitIconArea: {
+    height: 36,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 12,
