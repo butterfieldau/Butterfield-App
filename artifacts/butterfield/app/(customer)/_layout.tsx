@@ -12,7 +12,7 @@ import { getHomeRouteForRole } from '@/lib/roleRoutes';
 import { AnimatedTabItem, GlassCircle, GlassPill } from '@/components/FloatingTabBar';
 
 const BLUE      = '#1493FF';
-const CIRCLE_SZ = 54;
+const CIRCLE_SZ = 62;
 
 const CUSTOMER_TABS = {
   index:   { icon: 'home',    title: 'Home'    },
