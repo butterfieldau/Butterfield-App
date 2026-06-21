@@ -28,17 +28,7 @@ import {
 } from '@/lib/api';
 import { DirectorStandaloneScreen } from '@/components/DirectorStandaloneScreen';
 import { useRefreshControl } from '@/hooks/useRefreshControl';
-
-const BG = '#EFF6FF';
-const CARD = '#FFFFFF';
-const BORDER = '#E5E7EB';
-const TEXT = '#1C1C1E';
-const MUTED = '#8E8E93';
-const BLUE = '#1493FF';
-const NAVY = '#1A2B4A';
-const GREEN = '#22C55E';
-const RED = '#EF4444';
-const AMBER = '#F59E0B';
+import { BG, CARD, BLUE, NAVY, TEXT, MUTED, BORDER, GREEN, AMBER, RED, PURPLE, PINK, TEAL, ROSE, GOLD, GLASS_BG, GLASS_BORDER } from '@/components/director/directorColors';
 
 type SupportedAudienceType = 'all_customers' | 'loyalty_tier' | 'active_rewards' | 'inactive_customers';
 

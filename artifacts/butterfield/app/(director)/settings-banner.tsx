@@ -1,10 +1,11 @@
 import React from 'react';
-import { BannerTab, SettingsStandaloneScreen } from './settings';
+import { BannerTab } from '@/components/director';
+import { DirectorStandaloneScreen } from '@/components/DirectorStandaloneScreen';
 
 export default function DirectorBannerSettingsPage() {
   return (
-    <SettingsStandaloneScreen title="Banner">
+    <DirectorStandaloneScreen title="Banner">
       <BannerTab />
-    </SettingsStandaloneScreen>
+    </DirectorStandaloneScreen>
   );
 }

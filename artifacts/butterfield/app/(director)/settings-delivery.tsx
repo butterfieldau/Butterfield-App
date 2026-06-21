@@ -22,16 +22,7 @@ import {
   type DirectorDeliveryProduct,
 } from '@/lib/api';
 import { DirectorStandaloneScreen } from '@/components/DirectorStandaloneScreen';
-
-const CARD   = '#FFFFFF';
-const NAVY   = '#1A2B4A';
-const TEXT   = '#1C1C1E';
-const MUTED  = '#6B7280';
-const BORDER = '#E5E7EB';
-const GREEN  = '#22C55E';
-const RED    = '#EF4444';
-const BLUE   = '#1493FF';
-const AMBER  = '#F59E0B';
+import { BG, CARD, BLUE, NAVY, TEXT, MUTED, BORDER, GREEN, AMBER, RED, PURPLE, PINK, TEAL, ROSE, GOLD, GLASS_BG, GLASS_BORDER } from '@/components/director/directorColors';
 
 const DAY_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const DAY_FULL  = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];

@@ -5,13 +5,8 @@ import { Feather } from '@expo/vector-icons';
 
 import { DirectorStandaloneScreen } from '@/components/DirectorStandaloneScreen';
 import { api, type LoyaltyTierKey, type LoyaltyTierSetting, type LoyaltyTierSettings } from '@/lib/api';
+import { BG, CARD, BLUE, NAVY, TEXT, MUTED, BORDER, GREEN, AMBER, RED, PURPLE, PINK, TEAL, ROSE, GOLD, GLASS_BG, GLASS_BORDER } from '@/components/director/directorColors';
 
-const BG = '#EFF6FF';
-const CARD = '#FFFFFF';
-const TEXT = '#1C1C1E';
-const MUTED = '#8E8E93';
-const BORDER = '#E5E7EB';
-const BLUE = '#1493FF';
 const TIER_ORDER: LoyaltyTierKey[] = ['blue', 'silver', 'gold', 'black'];
 
 type EditableTierState = LoyaltyTierSetting & {

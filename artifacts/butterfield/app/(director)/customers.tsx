@@ -21,17 +21,8 @@ import {
   type LoyaltyTransaction,
 } from '@/lib/api';
 import { normalizeOrderItems } from '@/lib/orderItems';
+import { BG, CARD, BLUE, NAVY, TEXT, MUTED, BORDER, GREEN, AMBER, RED, PURPLE, PINK, TEAL, ROSE, GOLD, GLASS_BG, GLASS_BORDER } from '@/components/director/directorColors';
 
-const BG     = '#EFF6FF';
-const CARD   = '#FFFFFF';
-const BLUE   = '#1493FF';
-const NAVY   = '#1A2B4A';
-const TEXT   = '#1C1C1E';
-const MUTED  = '#8E8E93';
-const BORDER = '#E5E7EB';
-const GREEN  = '#22C55E';
-const AMBER  = '#F59E0B';
-const RED    = '#EF4444';
 const TIER_CFG: Record<string, { label: string; color: string; bg: string }> = {
   blue:     { label: 'Blue',     color: '#0C4DA2', bg: '#DBECFF' },
   bronze:   { label: 'Blue',     color: '#0C4DA2', bg: '#DBECFF' },

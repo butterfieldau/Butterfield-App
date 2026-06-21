@@ -13,19 +13,10 @@ import { useRefreshControl } from '@/hooks/useRefreshControl';
 import { useAuth } from '@/context/AuthContext';
 import { api, type StockCategory, type StockItem, type StockItemInput } from '@/lib/api';
 import { DirectorStandaloneScreen } from '@/components/DirectorStandaloneScreen';
+import { DirectorSearchBar } from '@/components/DirectorSearchBar';
+import { DirectorEmptyState } from '@/components/DirectorEmptyState';
+import { BG, CARD, BLUE, NAVY, TEXT, MUTED, BORDER, GREEN, AMBER, RED, PURPLE, PINK, TEAL, ROSE, GOLD, GLASS_BG, GLASS_BORDER } from '@/components/director/directorColors';
 
-const BG     = '#EFF6FF';
-const CARD   = '#FFFFFF';
-const NAVY   = '#1A2B4A';
-const TEXT   = '#1C1C1E';
-const MUTED  = '#8E8E93';
-const BORDER      = '#E5E7EB';
-const GLASS_BG    = 'rgba(255,255,255,0.6)';
-const GLASS_BORDER= 'rgba(255,255,255,0.85)';
-const GREEN  = '#22C55E';
-const AMBER  = '#F59E0B';
-const RED    = '#EF4444';
-const BLUE   = '#1493FF';
 type FeatherIconName = ComponentProps<typeof Feather>['name'];
 
 const CAT_COLORS: Record<string, string> = {
@@ -582,21 +573,12 @@ export default function StockScreen() {
       headerBottom={
         <View style={s.header}>
           {/* Search */}
-          <View style={s.searchBox}>
-            <Feather name="search" size={15} color={MUTED} />
-            <TextInput
-              style={s.searchInput}
-              value={search}
-              onChangeText={setSearch}
-              placeholder="Search items or supplier…"
-              placeholderTextColor={MUTED}
-            />
-            {search.length > 0 && (
-              <Pressable onPress={() => setSearch('')}>
-                <Feather name="x-circle" size={15} color={MUTED} />
-              </Pressable>
-            )}
-          </View>
+          <DirectorSearchBar
+            value={search}
+            onChangeText={setSearch}
+            placeholder="Search items or supplier…"
+            onClear={() => setSearch('')}
+          />
 
           {/* Category filter — only categories with items */}
           {(activeCatIds.length > 0 || items.length > 0) && (
@@ -668,14 +650,11 @@ export default function StockScreen() {
           <ActivityIndicator size="large" color={NAVY} />
         </View>
       ) : filtered.length === 0 ? (
-        <View style={s.empty}>
-          <Feather name="archive" size={40} color={BORDER} />
-          <Text style={s.emptyTxt}>
-            {items.length === 0
-              ? isDirector ? 'No stock items yet.\nTap + Add to get started.' : 'No stock items have been added yet.'
-              : 'No items match your filters.'}
-          </Text>
-        </View>
+        <DirectorEmptyState
+          icon="archive"
+          title={items.length === 0 ? 'No stock items yet' : 'No items match your filters'}
+          description={items.length === 0 && isDirector ? 'Tap + Add to get started' : undefined}
+        />
       ) : (
         <FlatList
           data={filtered}

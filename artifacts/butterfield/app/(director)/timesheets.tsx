@@ -16,19 +16,10 @@ import { DirectorStandaloneScreen } from '@/components/DirectorStandaloneScreen'
 import { useAuth } from '@/context/AuthContext';
 import InlineCalendarPicker from '@/components/InlineCalendarPicker';
 import TimeWheelPicker from '@/components/TimeWheelPicker';
+import { BG, CARD, BLUE, NAVY, TEXT, MUTED, BORDER, GREEN, AMBER, RED, PURPLE, PINK, TEAL, ROSE, GOLD, GLASS_BG, GLASS_BORDER } from '@/components/director/directorColors';
 
 // ── Palette ───────────────────────────────────────────────────────────────────
-const BG         = '#EFF6FF';
-const CARD       = '#FFFFFF';
-const BLUE       = '#1493FF';
 const INDIGO     = '#4F46E5';
-const NAVY       = '#1A2B4A';
-const TEXT       = '#1C1C1E';
-const MUTED      = '#8E8E93';
-const BORDER     = '#E5E7EB';
-const GREEN      = '#22C55E';
-const AMBER      = '#F59E0B';
-const GLASS_BG   = 'rgba(255,255,255,0.8)';
 const GLASS_BDR  = 'rgba(255,255,255,0.9)';
 type FeatherName = ComponentProps<typeof Feather>['name'];
 
@@ -1219,7 +1210,6 @@ const sc = StyleSheet.create({
   customApplyBtn:   { backgroundColor: BLUE, borderRadius: 12, height: 44, alignItems: 'center', justifyContent: 'center' },
   customApplyBtnText:{ color: '#fff', fontSize: 15, fontWeight: '700' },
 });
-
 
 const py = StyleSheet.create({
   card:      { backgroundColor: CARD, borderRadius: 16, borderWidth: 1, borderColor: BORDER, padding: 16, gap: 0 },

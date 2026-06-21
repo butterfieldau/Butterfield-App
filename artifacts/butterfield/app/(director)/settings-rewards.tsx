@@ -1,10 +1,11 @@
 import React from 'react';
-import { RewardsTab, SettingsStandaloneScreen } from './settings';
+import { RewardsTab } from '@/components/director';
+import { DirectorStandaloneScreen } from '@/components/DirectorStandaloneScreen';
 
 export default function DirectorRewardsSettingsPage() {
   return (
-    <SettingsStandaloneScreen title="Rewards">
+    <DirectorStandaloneScreen title="Rewards">
       <RewardsTab />
-    </SettingsStandaloneScreen>
+    </DirectorStandaloneScreen>
   );
 }

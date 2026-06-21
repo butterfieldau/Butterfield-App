@@ -20,20 +20,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { DirectorStandaloneScreen } from '@/components/DirectorStandaloneScreen';
+import { DirectorEmptyState } from '@/components/DirectorEmptyState';
+import { BG, CARD, BLUE, NAVY, TEXT, MUTED, BORDER, GREEN, AMBER, RED, PURPLE, PINK, TEAL, ROSE, GOLD, GLASS_BG, GLASS_BORDER } from '@/components/director/directorColors';
 
-const BG    = '#EFF6FF';
-const CARD  = '#FFFFFF';
 const CARD2 = '#F3F4F6';
-const TEXT  = '#1C1C1E';
-const MUTED = '#8E8E93';
-const BORDER      = '#E5E7EB';
-const GLASS_BG    = 'rgba(255,255,255,0.6)';
-const GLASS_BORDER= 'rgba(255,255,255,0.85)';
-const NAVY  = '#1A2B4A';
-const RED   = '#EF4444';
-const GREEN = '#22C55E';
-const BLUE  = '#1493FF';
-const GOLD  = '#B45309';
 
 // ── Date helpers (Australian format DD/MM/YYYY ↔ ISO) ──────────────────────
 function isoToAU(iso: string | null | undefined): string {
@@ -322,11 +312,11 @@ export default function DirectorDiscountsScreen() {
           refreshControl={<RefreshControl refreshing={false} onRefresh={refetch} tintColor={MUTED} />}
         >
           {codes.length === 0 && (
-            <View style={s.emptyWrap}>
-              <Feather name="tag" size={36} color={MUTED} />
-              <Text style={s.emptyText}>No discount codes yet</Text>
-              <Text style={s.emptySub}>Tap "New Code" to create your first code</Text>
-            </View>
+            <DirectorEmptyState
+              icon="tag"
+              title="No discount codes yet"
+              description={'Tap "New Code" to create your first code'}
+            />
           )}
           {codes.map((dc) => (
             <View key={dc.id} style={s.card}>

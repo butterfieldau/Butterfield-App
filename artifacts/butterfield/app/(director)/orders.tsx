@@ -28,18 +28,8 @@ import {
   isThisMonth, isThisWeek, getOrderTimelineDate, fmtDateChip,
 } from '@/components/director/ordersHelpers';
 import { styles } from '@/components/director/ordersStyles';
+import { BG, CARD, BLUE, NAVY, TEXT, MUTED, BORDER, GREEN, AMBER, RED, PURPLE, PINK, TEAL, ROSE, GOLD, GLASS_BG, GLASS_BORDER } from '@/components/director/directorColors';
 
-const BG     = '#EFF6FF';
-const CARD   = '#FFFFFF';
-const BLUE   = '#1493FF';
-const TEXT   = '#1C1C1E';
-const MUTED  = '#8E8E93';
-const BORDER      = '#E5E7EB';
-const GLASS_BG    = 'rgba(255,255,255,0.6)';
-const GLASS_BORDER= 'rgba(255,255,255,0.85)';
-const GREEN  = '#22C55E';
-const NAVY   = '#1A2B4A';
-const PURPLE = '#8B5CF6';
 const RED_CONST = '#DC2626';
 const TWO_WEEKS_MS = 14 * 24 * 60 * 60 * 1000;
 const FILTER_TABS = [
@@ -53,7 +43,6 @@ const FILTER_TABS = [
   { key: 'wholesale',        label: 'Wholesale' },
   { key: 'cancelled',        label: 'Cancelled' },
 ];
-
 
 // ── Main screen ───────────────────────────────────────────────────────────────
 export default function DirectorOrdersScreen() {

@@ -19,18 +19,7 @@ import { api } from '@/lib/api';
 import type { PosTransaction } from '@/lib/api';
 import InlineCalendarPicker from '@/components/InlineCalendarPicker';
 import { DirectorStandaloneScreen } from '@/components/DirectorStandaloneScreen';
-
-const NAVY  = '#1A2B4A';
-const BG    = '#EFF6FF';
-const CARD  = '#FFFFFF';
-const TEXT  = '#1C1C1E';
-const MUTED = '#8E8E93';
-const BORD  = '#E5E7EB';
-const BLUE  = '#1493FF';
-const GREEN = '#22C55E';
-const PURPLE= '#8B5CF6';
-const AMBER = '#F59E0B';
-const RED   = '#EF4444';
+import { BG, CARD, BLUE, NAVY, TEXT, MUTED, BORDER, BORD, GREEN, AMBER, RED, PURPLE, PINK, TEAL, ROSE, GOLD, GLASS_BG, GLASS_BORDER } from '@/components/director/directorColors';
 
 const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
   received:   { bg: '#DCFCE7', text: '#166534' },

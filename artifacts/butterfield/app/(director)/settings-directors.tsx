@@ -1,10 +1,11 @@
 import React from 'react';
-import { DirectorsTab, SettingsStandaloneScreen } from './settings';
+import { DirectorsTab } from '@/components/director';
+import { DirectorStandaloneScreen } from '@/components/DirectorStandaloneScreen';
 
 export default function DirectorDirectorsSettingsPage() {
   return (
-    <SettingsStandaloneScreen title="Directors">
+    <DirectorStandaloneScreen title="Directors">
       <DirectorsTab />
-    </SettingsStandaloneScreen>
+    </DirectorStandaloneScreen>
   );
 }

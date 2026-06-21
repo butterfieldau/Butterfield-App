@@ -10,15 +10,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
 import { useLayoutHandledSafeArea } from '@/context/LayoutSafeAreaContext';
 import { api } from '@/lib/api';
-import { buildCategories, type Category } from './_moreCategories';
+import { buildCategories, getLiveItemCount, type Category } from './_moreCategories';
+import { BG, CARD, TEXT, MUTED, BORD, BLUE, RED, GOLD } from '@/components/director/directorColors';
 
-const BG      = '#EFF6FF';
-const TEXT    = '#1C1C1E';
-const MUTED   = '#8E8E93';
-const BORD    = '#E5E7EB';
-const RED     = '#EF4444';
 const OBSIDIAN = '#0A0A0A';
-const GOLD    = '#C9A84C';
 
 function PremiumVaultCard({ cat, onPress }: { cat: Category; onPress: () => void }) {
   return (
@@ -51,31 +46,23 @@ function PremiumVaultCard({ cat, onPress }: { cat: Category; onPress: () => void
 function CategoryCard({ cat, onPress }: { cat: Category; onPress: () => void }) {
   if (cat.premium) return <PremiumVaultCard cat={cat} onPress={onPress} />;
 
-  const allItems  = cat.groups.flatMap(g => g.items);
-  const soonCount = allItems.filter(i => i.soon).length;
+  const liveCount = getLiveItemCount(cat);
 
   return (
     <Pressable
       onPress={() => { Haptics.selectionAsync(); onPress(); }}
       style={({ pressed }) => [s.catCard, { opacity: pressed ? 0.8 : 1 }]}
     >
-      <View style={[s.catIcon, { backgroundColor: cat.color + '33', borderColor: cat.color + '55' }]}>
-        <Feather name={cat.icon as any} size={22} color={cat.color} />
+      <View style={s.catIcon}>
+        <Feather name={cat.icon as any} size={22} color={BLUE} />
       </View>
       <View style={{ flex: 1, gap: 3 }}>
         <Text style={s.catLabel}>{cat.label}</Text>
         <Text style={s.catDesc} numberOfLines={1}>{cat.description}</Text>
         <View style={{ flexDirection: 'row', gap: 6, marginTop: 2 }}>
-          <View style={[s.badge, { backgroundColor: cat.color + '18' }]}>
-            <Text style={[s.badgeText, { color: cat.color }]}>
-              {cat.groups.length} {cat.groups.length === 1 ? 'section' : 'sections'}
-            </Text>
+          <View style={s.badge}>
+            <Text style={s.badgeText}>{liveCount} {liveCount === 1 ? 'tool' : 'tools'}</Text>
           </View>
-          {soonCount > 0 && (
-            <View style={[s.badge, { backgroundColor: MUTED + '18' }]}>
-              <Text style={[s.badgeText, { color: MUTED }]}>{soonCount} coming soon</Text>
-            </View>
-          )}
         </View>
       </View>
       <Feather name="chevron-right" size={18} color={MUTED} />
@@ -115,49 +102,48 @@ export default function MoreScreen() {
         contentContainerStyle={{ paddingBottom: insets.bottom + 32 }}
         showsVerticalScrollIndicator={false}
       >
-      <View style={[s.homeHeader, { paddingTop: layoutHandledSA ? 16 : insets.top + 16 }]}>
-        <Text style={s.homeTitle}>More</Text>
-        <Text style={s.homeSub}>Tools, settings & configuration</Text>
-      </View>
+        <View style={[s.homeHeader, { paddingTop: layoutHandledSA ? 16 : insets.top + 16 }]}>
+          <Text style={s.homeTitle}>More</Text>
+          <Text style={s.homeSub}>Tools, settings & configuration</Text>
+        </View>
 
-      <View style={{ paddingHorizontal: 16, gap: 10 }}>
-        {categories.map(cat => (
-          <CategoryCard
-            key={cat.key}
-            cat={cat}
+        <View style={{ paddingHorizontal: 16, gap: 10 }}>
+          {categories.map(cat => (
+            <CategoryCard
+              key={cat.key}
+              cat={cat}
+              onPress={() => {
+                if (cat.key === 'vault') {
+                  router.push('/director-vault' as any);
+                } else {
+                  router.push({ pathname: '/director-more-category', params: { category: cat.key } } as any);
+                }
+              }}
+            />
+          ))}
+
+          <Pressable
             onPress={() => {
-              if (cat.key === 'vault') {
-                router.push('/director-vault' as any);
-              } else {
-                router.push({ pathname: '/director-more-category', params: { category: cat.key } } as any);
-              }
+              Haptics.selectionAsync();
+              Alert.alert('Sign Out', 'Sign out of your account?', [
+                { text: 'Cancel', style: 'cancel' },
+                { text: 'Sign Out', style: 'destructive', onPress: () => logout() },
+              ]);
             }}
-          />
-        ))}
+            style={({ pressed }) => [s.signOut, { opacity: pressed ? 0.75 : 1 }]}
+          >
+            <Feather name="log-out" size={16} color={RED} />
+            <View style={{ flex: 1 }}>
+              <Text style={[s.catLabel, { color: RED }]}>Sign Out</Text>
+              <Text style={s.catDesc}>{user?.email ?? ''}</Text>
+            </View>
+          </Pressable>
+        </View>
 
-        {/* Sign out */}
-        <Pressable
-          onPress={() => {
-            Haptics.selectionAsync();
-            Alert.alert('Sign Out', 'Sign out of your account?', [
-              { text: 'Cancel', style: 'cancel' },
-              { text: 'Sign Out', style: 'destructive', onPress: () => logout() },
-            ]);
-          }}
-          style={({ pressed }) => [s.signOut, { opacity: pressed ? 0.75 : 1 }]}
-        >
-          <Feather name="log-out" size={16} color={RED} />
-          <View style={{ flex: 1 }}>
-            <Text style={[s.catLabel, { color: RED }]}>Sign Out</Text>
-            <Text style={s.catDesc}>{user?.email ?? ''}</Text>
-          </View>
-        </Pressable>
-      </View>
-
-      <Text style={s.footer}>
-        Butterfield {isManager ? 'Manager' : 'Director'} Portal
-      </Text>
-    </ScrollView>
+        <Text style={s.footer}>
+          Butterfield {isManager ? 'Manager' : 'Director'} Portal
+        </Text>
+      </ScrollView>
     </View>
   );
 }
@@ -170,19 +156,23 @@ const s = StyleSheet.create({
 
   catCard: {
     flexDirection: 'row', alignItems: 'center', gap: 14,
-    backgroundColor: '#FFFFFF', borderRadius: 18,
-    paddingVertical: 16, paddingHorizontal: 16,
+    backgroundColor: CARD, borderRadius: 16,
+    paddingVertical: 14, paddingHorizontal: 16,
     borderWidth: StyleSheet.hairlineWidth, borderColor: BORD,
   },
-  catIcon:  { width: 48, height: 48, borderRadius: 14, alignItems: 'center', justifyContent: 'center', borderWidth: 1.5 },
+  catIcon: {
+    width: 48, height: 48, borderRadius: 14,
+    alignItems: 'center', justifyContent: 'center',
+    backgroundColor: BLUE + '12',
+  },
   catLabel: { fontSize: 16, fontWeight: '700', color: TEXT },
   catDesc:  { fontSize: 12, color: MUTED },
-  badge:    { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 20 },
-  badgeText:{ fontSize: 11, fontWeight: '600' },
+  badge:    { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 20, backgroundColor: BLUE + '12' },
+  badgeText:{ fontSize: 11, fontWeight: '600', color: BLUE },
 
   vaultCard: {
     flexDirection: 'row', alignItems: 'center', gap: 14,
-    backgroundColor: OBSIDIAN, borderRadius: 18,
+    backgroundColor: OBSIDIAN, borderRadius: 16,
     paddingVertical: 18, paddingHorizontal: 16,
     borderWidth: 1.5, borderColor: GOLD + '55',
   },
@@ -198,7 +188,7 @@ const s = StyleSheet.create({
 
   signOut: {
     flexDirection: 'row', alignItems: 'center', gap: 14,
-    backgroundColor: RED + '0A', borderRadius: 18,
+    backgroundColor: RED + '0A', borderRadius: 16,
     paddingVertical: 14, paddingHorizontal: 16,
     borderWidth: StyleSheet.hairlineWidth, borderColor: RED + '30',
     marginTop: 4,

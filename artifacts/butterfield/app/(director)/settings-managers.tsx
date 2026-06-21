@@ -20,18 +20,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { api, type AccessRole, type DirectorIdentity, type DirectorManager, type DirectorUserSummary } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import { DirectorStandaloneScreen } from '@/components/DirectorStandaloneScreen';
+import { BG, CARD, BLUE, NAVY, TEXT, MUTED, BORDER, GREEN, AMBER, RED, PURPLE, PINK, TEAL, ROSE, GOLD, GLASS_BG, GLASS_BORDER } from '@/components/director/directorColors';
 
-const BG = '#EFF6FF';
-const CARD = '#FFFFFF';
-const TEXT = '#1C1C1E';
-const MUTED = '#8E8E93';
-const BORDER = '#E5E7EB';
-const BLUE = '#1493FF';
-const GREEN = '#22C55E';
-const PURPLE = '#8B5CF6';
 const INDIGO = '#3730A3';
-const AMBER = '#F59E0B';
-const RED = '#EF4444';
 
 type FeatherIconName = ComponentProps<typeof Feather>['name'];
 

@@ -7,17 +7,7 @@ import { useQuery } from '@tanstack/react-query';
 import { api, type RosterShift } from '@/lib/api';
 import { useRefreshControl } from '@/hooks/useRefreshControl';
 import { DirectorTabScreen } from '@/components/DirectorTabScreen';
-
-const BG     = '#EFF6FF';
-const CARD   = '#FFFFFF';
-const NAVY   = '#1A2B4A';
-const TEXT   = '#1C1C1E';
-const MUTED  = '#8E8E93';
-const BORDER = '#E5E7EB';
-const BLUE   = '#1493FF';
-const GREEN  = '#22C55E';
-const AMBER  = '#F59E0B';
-const PURPLE = '#8B5CF6';
+import { BG, CARD, BLUE, NAVY, TEXT, MUTED, BORDER, GREEN, AMBER, RED, PURPLE, PINK, TEAL, ROSE, GOLD, GLASS_BG, GLASS_BORDER } from '@/components/director/directorColors';
 
 const ROLE_COLORS: Record<string, string> = {
   crew: BLUE, supervisor: AMBER, manager: NAVY, trainer: PURPLE,

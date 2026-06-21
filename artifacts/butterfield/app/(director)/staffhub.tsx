@@ -24,20 +24,9 @@ import {
 import { INTERNAL_GLASS_BG, INTERNAL_GLASS_BORDER } from '@/components/InternalGlass';
 import { useRefreshControl } from '@/hooks/useRefreshControl';
 import { DirectorStandaloneScreen } from '@/components/DirectorStandaloneScreen';
+import { BG, CARD, BLUE, NAVY, TEXT, MUTED, BORDER, GREEN, AMBER, RED, PURPLE, PINK, TEAL, ROSE, GOLD } from '@/components/director/directorColors';
 
-const BG     = '#EFF6FF';
-const CARD   = '#FFFFFF';
-const TEXT   = '#1C1C1E';
-const MUTED  = '#8E8E93';
-const BORDER = '#E5E7EB';
-const BLUE   = '#1493FF';
-const RED    = '#EF4444';
-const AMBER  = '#F59E0B';
-const GREEN  = '#22C55E';
-const PURPLE = '#8B5CF6';
-const PINK   = '#EC4899';
-
-// Glass card standard
+// Glass card standard — uses InternalGlass (frosted effect, differs from default glass)
 const GLASS_BG     = INTERNAL_GLASS_BG;
 const GLASS_BORDER = INTERNAL_GLASS_BORDER;
 type FeatherIcon = keyof typeof Feather.glyphMap;

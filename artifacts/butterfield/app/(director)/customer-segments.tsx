@@ -9,15 +9,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
 import { api, type CrmSegment } from '@/lib/api';
 import { DirectorStandaloneScreen } from '@/components/DirectorStandaloneScreen';
-
-const BG    = '#EFF6FF';
-const CARD  = '#FFFFFF';
-const BLUE  = '#1493FF';
-const NAVY  = '#1A2B4A';
-const TEXT  = '#1C1C1E';
-const MUTED = '#8E8E93';
-const BORDER = '#E5E7EB';
-const RED   = '#EF4444';
+import { BG, CARD, BLUE, NAVY, TEXT, MUTED, BORDER, GREEN, AMBER, RED, PURPLE, PINK, TEAL, ROSE, GOLD, GLASS_BG, GLASS_BORDER } from '@/components/director/directorColors';
 
 function SegmentNotifyModal({ segment, onClose }: { segment: CrmSegment; onClose: () => void }) {
   const insets = useSafeAreaInsets();

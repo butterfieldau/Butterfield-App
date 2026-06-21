@@ -9,14 +9,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/context/AuthContext';
 import { api } from '@/lib/api';
-import { InternalGlassCard } from '@/components/InternalGlass';
-import { buildCategories, type RowItem } from './_moreCategories';
+import { buildCategories, getSoonItemNames, type RowItem } from './_moreCategories';
 import { DirectorStandaloneScreen } from '@/components/DirectorStandaloneScreen';
-
-const BG    = '#EFF6FF';
-const TEXT  = '#1C1C1E';
-const MUTED = '#8E8E93';
-const BORD  = '#E5E7EB';
+import { CARD, TEXT, MUTED, BORD, BLUE } from '@/components/director/directorColors';
 
 function SectionRow({ item, isLast }: { item: RowItem; isLast: boolean }) {
   return (
@@ -29,18 +24,14 @@ function SectionRow({ item, isLast }: { item: RowItem; isLast: boolean }) {
         }}
         style={({ pressed }) => [s.row, pressed && !item.soon && { opacity: 0.68 }]}
       >
-        <View style={[s.rowIcon, { backgroundColor: (item.soon ? MUTED : item.color) + '33', borderColor: (item.soon ? MUTED : item.color) + '55' }]}>
-          <Feather name={item.icon as any} size={16} color={item.soon ? MUTED : item.color} />
+        <View style={s.rowIcon}>
+          <Feather name={item.icon as any} size={16} color={BLUE} />
         </View>
         <View style={{ flex: 1 }}>
-          <Text style={[s.rowLabel, item.soon && { color: MUTED }]}>{item.label}</Text>
+          <Text style={s.rowLabel}>{item.label}</Text>
           <Text style={s.rowSub}>{item.sub}</Text>
         </View>
-        {item.soon ? (
-          <View style={s.soonBadge}><Text style={s.soonText}>SOON</Text></View>
-        ) : (
-          <Feather name="chevron-right" size={15} color={MUTED} />
-        )}
+        <Feather name="chevron-right" size={15} color={MUTED} />
       </Pressable>
       {!isLast && <View style={s.divider} />}
     </>
@@ -78,28 +69,34 @@ export default function MoreCategoryScreen() {
 
   if (!openCategory) {
     return (
-      <View style={{ flex: 1, backgroundColor: BG, justifyContent: 'center', alignItems: 'center', paddingTop: insets.top }}>
+      <View style={{ flex: 1, backgroundColor: '#EFF6FF', justifyContent: 'center', alignItems: 'center', paddingTop: insets.top }}>
         <Feather name="alert-circle" size={32} color={MUTED} />
         <Text style={{ color: MUTED, marginTop: 12 }}>Category not found</Text>
         <Pressable onPress={() => router.back()} style={{ marginTop: 20, padding: 12 }}>
-          <Text style={{ color: '#1493FF', fontWeight: '600' }}>Go Back</Text>
+          <Text style={{ color: BLUE, fontWeight: '600' }}>Go Back</Text>
         </Pressable>
       </View>
     );
   }
 
+  const soonNames = getSoonItemNames(openCategory);
+
+  const liveGroups = openCategory.groups.map(g => ({
+    ...g,
+    items: g.items.filter(i => !i.soon),
+  })).filter(g => g.items.length > 0);
+
   return (
     <DirectorStandaloneScreen title={openCategory.label} subtitle={openCategory.description}>
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: insets.bottom + 40 }}
+        contentContainerStyle={{ paddingBottom: insets.bottom + 40, paddingTop: 8 }}
       >
-        {/* Groups */}
-        <View style={{ paddingHorizontal: 16, paddingTop: 8, gap: 22 }}>
-          {openCategory.groups.map(group => (
+        <View style={{ paddingHorizontal: 16, gap: 22 }}>
+          {liveGroups.map(group => (
             <View key={group.label}>
               <Text style={s.groupLabel}>{group.label.toUpperCase()}</Text>
-              <InternalGlassCard style={s.groupCard}>
+              <View style={s.groupCard}>
                 {group.items.map((item, i) => (
                   <SectionRow
                     key={item.label}
@@ -107,9 +104,16 @@ export default function MoreCategoryScreen() {
                     isLast={i === group.items.length - 1}
                   />
                 ))}
-              </InternalGlassCard>
+              </View>
             </View>
           ))}
+
+          {soonNames.length > 0 && (
+            <View style={s.soonBlock}>
+              <Text style={s.soonTitle}>MORE COMING SOON</Text>
+              <Text style={s.soonText}>{soonNames.join(' · ')}</Text>
+            </View>
+          )}
         </View>
       </ScrollView>
     </DirectorStandaloneScreen>
@@ -117,23 +121,36 @@ export default function MoreCategoryScreen() {
 }
 
 const s = StyleSheet.create({
-  backRow:   { flexDirection: 'row', alignItems: 'center', gap: 2, paddingHorizontal: 16, paddingTop: 12, paddingBottom: 4 },
-  backLabel: { fontSize: 15, fontWeight: '600' },
+  groupLabel: {
+    fontSize: 11, fontWeight: '600', color: MUTED,
+    letterSpacing: 0.8, textTransform: 'uppercase',
+    marginBottom: 8, marginLeft: 4,
+  },
+  groupCard: {
+    backgroundColor: CARD, borderRadius: 16,
+    borderWidth: StyleSheet.hairlineWidth, borderColor: BORD,
+    overflow: 'hidden',
+  },
+  divider: { height: StyleSheet.hairlineWidth, backgroundColor: BORD, marginHorizontal: 14 },
 
-  detailHeader: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingHorizontal: 20, paddingTop: 12, paddingBottom: 20 },
-  detailIcon:   { width: 56, height: 56, borderRadius: 16, alignItems: 'center', justifyContent: 'center', flexShrink: 0, borderWidth: 1.5 },
-  detailTitle:  { fontSize: 22, fontWeight: '700', color: TEXT },
-  detailDesc:   { fontSize: 13, color: MUTED },
-
-  groupLabel: { fontSize: 11, fontWeight: '700', color: MUTED, letterSpacing: 0.8, marginBottom: 8, marginLeft: 4 },
-  groupCard:  { borderRadius: 18, padding: 4 },
-  divider:    { height: StyleSheet.hairlineWidth, backgroundColor: 'rgba(0,0,0,0.07)', marginHorizontal: 14 },
-
-  row:      { flexDirection: 'row', alignItems: 'center', gap: 13, paddingHorizontal: 14, paddingVertical: 13 },
-  rowIcon:  { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center', borderWidth: 1.5 },
-  rowLabel: { fontSize: 14, fontWeight: '500', color: TEXT },
+  row:      { flexDirection: 'row', alignItems: 'center', gap: 13, paddingHorizontal: 14, paddingVertical: 14 },
+  rowIcon:  {
+    width: 36, height: 36, borderRadius: 10,
+    alignItems: 'center', justifyContent: 'center',
+    backgroundColor: BLUE + '12',
+  },
+  rowLabel: { fontSize: 14, fontWeight: '600', color: TEXT },
   rowSub:   { fontSize: 12, color: MUTED, marginTop: 1 },
 
-  soonBadge: { paddingHorizontal: 7, paddingVertical: 3, borderRadius: 20, backgroundColor: 'rgba(0,0,0,0.06)' },
-  soonText:  { fontSize: 10, fontWeight: '700', color: MUTED, letterSpacing: 0.4 },
+  soonBlock: {
+    marginTop: 8, paddingHorizontal: 4,
+  },
+  soonTitle: {
+    fontSize: 11, fontWeight: '600', color: MUTED,
+    letterSpacing: 0.8, textTransform: 'uppercase',
+    marginBottom: 6,
+  },
+  soonText: {
+    fontSize: 13, color: MUTED, fontStyle: 'italic', lineHeight: 18,
+  },
 });

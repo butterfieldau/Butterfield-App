@@ -1,14 +1,11 @@
 import * as Haptics from 'expo-haptics';
 import React, { useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { DirectorStandaloneScreen } from '@/components/DirectorStandaloneScreen';
 import {
   AnalyticsTab, RegisterReportsTab, FeedbackTab, DownloadReportModal,
 } from '@/components/director';
-
-const BLUE   = '#1493FF';
-const MUTED  = '#8E8E93';
-const BORDER = '#E5E7EB';
+import { BLUE, TEXT, CARD, BORD } from '@/components/director/directorColors';
 
 const TABS = ['Analytics', 'Register Reports', 'Feedback'] as const;
 type TabKey = typeof TABS[number];
@@ -19,16 +16,27 @@ export default function DirectorReportsScreen() {
 
   return (
     <DirectorStandaloneScreen title="Reports">
-      <View style={[s.tabBar, { borderBottomColor: BORDER }]}>
-        {TABS.map(t => (
-          <Pressable
-            key={t}
-            style={[s.tabBtn, tab === t && { borderBottomColor: BLUE, borderBottomWidth: 2 }]}
-            onPress={() => { setTab(t); Haptics.selectionAsync(); }}
-          >
-            <Text style={[s.tabText, { color: tab === t ? BLUE : MUTED }]}>{t}</Text>
-          </Pressable>
-        ))}
+      <View style={s.chipRow}>
+        <FlatList
+          horizontal
+          data={TABS}
+          keyExtractor={t => t}
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={{ paddingHorizontal: 16, gap: 8, paddingVertical: 10 }}
+          renderItem={({ item }) => {
+            const active = tab === item;
+            return (
+              <Pressable
+                onPress={() => { setTab(item); Haptics.selectionAsync(); }}
+                style={[s.chip, active ? s.chipActive : s.chipInactive]}
+              >
+                <Text style={[s.chipText, active ? s.chipTextActive : s.chipTextInactive]}>
+                  {item}
+                </Text>
+              </Pressable>
+            );
+          }}
+        />
       </View>
 
       {tab === 'Analytics' && (
@@ -48,7 +56,15 @@ export default function DirectorReportsScreen() {
 }
 
 const s = StyleSheet.create({
-  tabBar: { flexDirection: 'row', backgroundColor: '#fff', borderBottomWidth: 1 },
-  tabBtn: { flex: 1, paddingVertical: 12, alignItems: 'center', borderBottomWidth: 2, borderBottomColor: 'transparent' },
-  tabText: { fontSize: 13, fontWeight: '600' },
+  chipRow: {
+    backgroundColor: CARD,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: BORD,
+  },
+  chip:             { height: 34, borderRadius: 17, paddingHorizontal: 16, alignItems: 'center', justifyContent: 'center' },
+  chipActive:       { backgroundColor: BLUE },
+  chipInactive:     { backgroundColor: '#F1F5F9' },
+  chipText:         { fontSize: 13, fontWeight: '600' },
+  chipTextActive:   { color: '#FFFFFF' },
+  chipTextInactive: { color: TEXT },
 });

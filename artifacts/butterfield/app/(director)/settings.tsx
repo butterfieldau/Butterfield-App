@@ -1,31 +1,12 @@
-import type { ReactNode } from 'react';
 import React, { useState } from 'react';
-import { FlatList, Pressable, Text, View } from 'react-native';
+import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { DirectorTabScreen } from '@/components/DirectorTabScreen';
-import { DirectorStandaloneScreen } from '@/components/DirectorStandaloneScreen';
 import {
   StoreTab, BannerTab, RewardsTab, NotifyTab, ManagersTab, DirectorsTab,
 } from '@/components/director';
-import { screen as styles } from '@/components/director/settingsStyles';
-
-// ─── Re-exports (backward-compat for settings-*.tsx standalone routes) ─────────
-export { BannerTab }         from '@/components/director';
-export { StoreHoursSection } from '@/components/director';
-export { RewardsTab }        from '@/components/director';
-export { NotifyTab }         from '@/components/director';
-export { DirectorsTab }      from '@/components/director';
-export { ManagersTab }       from '@/components/director';
-
-// ─── Standalone wrapper (used by settings-banner.tsx, settings-notify.tsx…) ───
-export function SettingsStandaloneScreen({ title, children }: { title: string; children: ReactNode }) {
-  return (
-    <DirectorStandaloneScreen title={title}>
-      {children}
-    </DirectorStandaloneScreen>
-  );
-}
+import { BLUE, TEXT, CARD, BORD } from '@/components/director/directorColors';
 
 // ─── Tab config ───────────────────────────────────────────────────────────────
 const TABS = [
@@ -60,21 +41,21 @@ export default function DirectorSettingsScreen() {
     <DirectorTabScreen
       title="Settings"
       headerBottom={
-        <View style={styles.tabBar}>
+        <View style={s.chipRow}>
           <FlatList
             horizontal
             data={TABS}
             keyExtractor={t => t.key}
             showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.tabList}
+            contentContainerStyle={{ paddingHorizontal: 16, gap: 8, paddingVertical: 10 }}
             renderItem={({ item }) => {
               const active = activeTab === item.key;
               return (
                 <Pressable
                   onPress={() => { Haptics.selectionAsync(); setActiveTab(item.key); }}
-                  style={[styles.tab, active && styles.tabActive]}
+                  style={[s.chip, active ? s.chipActive : s.chipInactive]}
                 >
-                  <Text style={[styles.tabText, active && styles.tabTextActive]}>
+                  <Text style={[s.chipText, active ? s.chipTextActive : s.chipTextInactive]}>
                     {item.label}
                   </Text>
                 </Pressable>
@@ -89,3 +70,16 @@ export default function DirectorSettingsScreen() {
   );
 }
 
+const s = StyleSheet.create({
+  chipRow: {
+    backgroundColor: CARD,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: BORD,
+  },
+  chip:             { height: 34, borderRadius: 17, paddingHorizontal: 16, alignItems: 'center', justifyContent: 'center' },
+  chipActive:       { backgroundColor: BLUE },
+  chipInactive:     { backgroundColor: '#F1F5F9' },
+  chipText:         { fontSize: 13, fontWeight: '600' },
+  chipTextActive:   { color: '#FFFFFF' },
+  chipTextInactive: { color: TEXT },
+});

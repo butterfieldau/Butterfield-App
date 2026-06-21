@@ -23,19 +23,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { DirectorTabScreen } from '@/components/DirectorTabScreen';
 import { api } from '@/lib/api';
 import type { DirectorProduct, DirectorUserSummary, CustomerPricingRule, PricingTier, QuantityPriceBreak } from '@/lib/api';
-
-const NAVY  = '#1A2B4A';
-const BLUE  = '#1493FF';
-const RED   = '#EF4444';
-const GREEN = '#22C55E';
-const AMBER = '#F59E0B';
-const BG    = '#EFF6FF';
-const CARD  = '#FFFFFF';
-const TEXT  = '#1C1C1E';
-const MUTED = '#8E8E93';
-const BORDER      = '#E5E7EB';
-const GLASS_BG    = 'rgba(255,255,255,0.6)';
-const GLASS_BORDER= 'rgba(255,255,255,0.85)';
+import { BG, CARD, BLUE, NAVY, TEXT, MUTED, BORDER, GREEN, AMBER, RED, PURPLE, PINK, TEAL, ROSE, GOLD, GLASS_BG, GLASS_BORDER } from '@/components/director/directorColors';
 
 type Tab = 'tiers' | 'breaks' | 'custom' | 'assign';
 type FeatherIconName = ComponentProps<typeof Feather>['name'];

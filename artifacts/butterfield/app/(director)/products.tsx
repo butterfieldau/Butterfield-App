@@ -15,22 +15,11 @@ import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-quer
 import { api } from '@/lib/api';
 import { OptionsTab, ProductModal, CatalogTab } from '@/components/director';
 import { styles } from '@/components/director/productsStyles';
+import { BG, CARD, BLUE, NAVY, TEXT, MUTED, BORDER, GREEN, AMBER, RED, PURPLE, PINK, TEAL, ROSE, GOLD, GLASS_BG, GLASS_BORDER } from '@/components/director/directorColors';
+import { DirectorSearchBar } from '@/components/DirectorSearchBar';
+import { DirectorEmptyState } from '@/components/DirectorEmptyState';
 
 // ─── Palette ──────────────────────────────────────────────────────────────────
-const BG          = '#EFF6FF';
-const CARD        = '#FFFFFF';
-const BLUE        = '#1493FF';
-const NAVY        = '#1A2B4A';
-const RED         = '#EF4444';
-const TEXT        = '#1C1C1E';
-const MUTED       = '#8E8E93';
-const BORDER      = '#E5E7EB';
-const GLASS_BG    = 'rgba(255,255,255,0.6)';
-const GLASS_BORDER= 'rgba(255,255,255,0.85)';
-const GREEN       = '#22C55E';
-const AMBER       = '#F59E0B';
-const PURPLE      = '#8B5CF6';
-const PINK        = '#EC4899';
 
 // ─── Data constants ────────────────────────────────────────────────────────────
 const PRODUCT_TYPES = ['standard','limited','seasonal','wholesale-only','staff-only'];
@@ -192,9 +181,9 @@ export default function DirectorProductsScreen() {
   };
 
   const TAB_ITEMS = [
-    { id: 'products' as const, label: 'Products',   icon: 'package' },
-    { id: 'catalog'  as const, label: 'Categories', icon: 'grid'    },
-    { id: 'options'  as const, label: 'Options',    icon: 'sliders' },
+    { id: 'products' as const, label: 'Products'   },
+    { id: 'catalog'  as const, label: 'Categories' },
+    { id: 'options'  as const, label: 'Options'    },
   ] as const;
 
   return (
@@ -208,46 +197,39 @@ export default function DirectorProductsScreen() {
           <Feather name="search" size={18} color={searchOpen ? BLUE : NAVY} />
         </Pressable>
       }
+      headerBottom={
+        <View style={styles.pillTabRow}>
+          {TAB_ITEMS.map(t => {
+            const active = activeTab === t.id;
+            return (
+              <Pressable
+                key={t.id}
+                onPress={() => { setActiveTab(t.id); Haptics.selectionAsync(); }}
+                style={[styles.pillTab, active && styles.pillTabActive]}
+              >
+                <Text style={[styles.pillTabText, active && styles.pillTabTextActive]}>{t.label}</Text>
+              </Pressable>
+            );
+          })}
+        </View>
+      }
     >
-      {/* ── Top tab bar ───────────────────────────────────────────────────── */}
-      <View style={styles.tileTabRow}>
-        {TAB_ITEMS.map(t => {
-          const active = activeTab === t.id;
-          return (
-            <Pressable
-              key={t.id}
-              onPress={() => { setActiveTab(t.id); Haptics.selectionAsync(); }}
-              style={[styles.tileTabBtn, active && styles.tileTabBtnActive]}
-            >
-              <Feather name={t.icon as any} size={15} color={active ? NAVY : MUTED} />
-              <Text style={[styles.tileTabText, active && styles.tileTabTextActive]}>{t.label}</Text>
-            </Pressable>
-          );
-        })}
-      </View>
 
       {/* ── Catalog / Options tabs ─────────────────────────────────────────── */}
-      {activeTab === 'catalog'  && <CatalogTab />}
+      {activeTab === 'catalog' && <CatalogTab />}
       {activeTab === 'options'  && <OptionsTab />}
 
       {/* ── Products tab ──────────────────────────────────────────────────── */}
       {activeTab === 'products' && (
         <>
           {/* Search bar */}
-          {(searchOpen || search.trim()) && (
-            <View style={styles.searchBar}>
-              <Feather name="search" size={16} color={MUTED} />
-              <TextInput
-                value={search} onChangeText={setSearch}
-                placeholder="Search products, SKU, category…"
-                placeholderTextColor={MUTED}
-                style={[styles.searchInput, { fontWeight: '400', color: TEXT }]}
-                clearButtonMode="while-editing"
-              />
-              <Pressable onPress={() => { setSearch(''); setSearchOpen(false); }} hitSlop={8}>
-                <Feather name="x" size={16} color={MUTED} />
-              </Pressable>
-            </View>
+          {(searchOpen || search.trim().length > 0) && (
+            <DirectorSearchBar
+              value={search}
+              onChangeText={setSearch}
+              placeholder="Search products, SKU, category…"
+              onClear={() => { setSearch(''); setSearchOpen(false); }}
+            />
           )}
 
           {/* Stats strip */}
@@ -355,18 +337,12 @@ export default function DirectorProductsScreen() {
                 </Text>
               }
               ListEmptyComponent={
-                <View style={{ alignItems: 'center', marginTop: 60, gap: 14 }}>
-                  <View style={{ backgroundColor: BORDER, width: 64, height: 64, borderRadius: 20, alignItems: 'center', justifyContent: 'center' }}>
-                    <Feather name="package" size={28} color={MUTED} />
-                  </View>
-                  <Text style={{ color: MUTED, fontWeight: '500', fontSize: 15 }}>
-                    No products {statusFilter !== 'All' ? `in "${statusFilter}"` : catFilter !== 'all' ? `in "${dbCategories.find(c => c.slug === catFilter)?.name ?? catFilter}"` : ''}
-                  </Text>
-                  <Pressable onPress={openAdd} style={styles.emptyAddBtn}>
-                    <Feather name="plus" size={16} color="#fff" />
-                    <Text style={{ color: '#fff', fontWeight: '700', fontSize: 14 }}>Add first product</Text>
-                  </Pressable>
-                </View>
+                <DirectorEmptyState
+                  icon="package"
+                  title={`No products${statusFilter !== 'All' ? ` in "${statusFilter}"` : catFilter !== 'all' ? ` in "${dbCategories.find(c => c.slug === catFilter)?.name ?? catFilter}"` : ''}`}
+                  description="Tap + New to add a product"
+                  action={{ label: 'Add first product', onPress: openAdd }}
+                />
               }
               renderItem={({ item: p }) => {
                 const catColor  = CAT_COLORS[p.category] ?? MUTED;
@@ -441,7 +417,6 @@ export default function DirectorProductsScreen() {
     </DirectorTabScreen>
   );
 }
-
 
 const API_DOMAIN = process.env.EXPO_PUBLIC_DOMAIN ?? '';
 function toDisplayUrl(url: string): string {

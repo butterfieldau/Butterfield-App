@@ -15,6 +15,12 @@ export const styles = StyleSheet.create({
   tileTabText:    { fontSize: 12, fontWeight: '600' as const, color: MUTED },
   tileTabTextActive: { color: NAVY },
 
+  pillTabRow:      { flexDirection: 'row', gap: 8, paddingHorizontal: 16, paddingVertical: 10, backgroundColor: CARD, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: BORDER },
+  pillTab:         { height: 34, borderRadius: 17, paddingHorizontal: 16, alignItems: 'center', justifyContent: 'center', backgroundColor: '#F1F5F9' },
+  pillTabActive:   { backgroundColor: BLUE },
+  pillTabText:     { fontSize: 13, fontWeight: '600' as const, color: TEXT },
+  pillTabTextActive: { color: '#FFFFFF' },
+
   searchBar:   { flexDirection: 'row', alignItems: 'center', gap: 10, marginHorizontal: 16, marginTop: 4, marginBottom: 0, backgroundColor: CARD, borderRadius: 16, borderWidth: 1, borderColor: BORDER, paddingHorizontal: 14, height: 50 },
   searchInput: { flex: 1, fontSize: 14, height: 44 },
 

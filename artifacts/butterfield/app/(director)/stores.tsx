@@ -16,20 +16,7 @@ import { useRefreshControl } from '@/hooks/useRefreshControl';
 import { AddressSearchInput } from '@/components/AddressSearchInput';
 import { DirectorStandaloneScreen } from '@/components/DirectorStandaloneScreen';
 import { sendTestPrint, sendOpenDrawer } from '@/lib/printer';
-
-const BG     = '#EFF6FF';
-const CARD   = '#FFFFFF';
-const BLUE   = '#1493FF';
-const NAVY   = '#1A2B4A';
-const TEXT   = '#1C1C1E';
-const MUTED  = '#8E8E93';
-const BORDER      = '#E5E7EB';
-const GLASS_BG    = 'rgba(255,255,255,0.6)';
-const GLASS_BORDER= 'rgba(255,255,255,0.85)';
-const GREEN  = '#22C55E';
-const AMBER  = '#F59E0B';
-const RED    = '#EF4444';
-const PURPLE = '#8B5CF6';
+import { BG, CARD, BLUE, NAVY, TEXT, MUTED, BORDER, GREEN, AMBER, RED, PURPLE, PINK, TEAL, ROSE, GOLD, GLASS_BG, GLASS_BORDER } from '@/components/director/directorColors';
 
 const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 const SHORT_DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -88,7 +75,6 @@ function serializeBreakToNotes(breakStart: string, breakEnd: string): string {
 function getErrorMessage(error: unknown, fallback = 'Something went wrong.') {
   return error instanceof Error ? error.message : fallback;
 }
-
 
 // ── StoreCard ────────────────────────────────────────────────────────────────
 function StoreCard({ store, onPress }: { store: StoreSummary; onPress: () => void }) {
@@ -195,7 +181,6 @@ function StoreEditorModal({
   const [hours,            setHours]             = useState<HourRow[]>(defaultHours());
   const [activeTab,        setActiveTab]         = useState<(typeof STORE_EDITOR_TABS)[number]>('Details');
 
-
   // Populate from existing store
   useEffect(() => {
     if (!visible) return;
@@ -269,7 +254,6 @@ function StoreEditorModal({
       })
       .catch(() => setHours(defaultHours()));
   }, [visible, store?.id]);
-
 
   const updateHour = (dow: number, field: keyof HourRow, value: HourRow[keyof HourRow]) => {
     setHours(prev => prev.map(h => h.dayOfWeek === dow ? { ...h, [field]: value } : h));

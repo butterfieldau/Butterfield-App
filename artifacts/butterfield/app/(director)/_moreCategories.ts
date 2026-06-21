@@ -73,42 +73,42 @@ const ALL_CATEGORIES: Category[] = [
       {
         label: 'Analytics',
         items: [
-          { icon: 'bar-chart-2', label: 'Reports',        sub: 'Revenue, sales trends & export',     color: NAVY,   perm: 'reports', onPress: () => router.push('/director-reports' as any) },
-          { icon: 'percent',     label: 'Discount Codes', sub: 'Coupons, promotions & campaigns',    color: RED,    perm: 'pricing', onPress: () => router.push('/director-discounts' as any) },
+          { icon: 'bar-chart-2', label: 'Reports',        sub: 'Revenue, sales trends & export',     color: BLUE,   perm: 'reports', onPress: () => router.push('/director-reports' as any) },
+          { icon: 'percent',     label: 'Discount Codes', sub: 'Coupons, promotions & campaigns',    color: BLUE,   perm: 'pricing', onPress: () => router.push('/director-discounts' as any) },
         ],
       },
       {
         label: 'Rewards & Loyalty',
         items: [
-          { icon: 'gift',        label: 'Loyalty Tiers',         sub: 'Blue, Silver, Gold & Black tiers',       color: GREEN,  perm: 'rewards', onPress: () => router.push('/director-settings-loyalty-tiers' as any) },
-          { icon: 'star',        label: 'Reward Catalogue',      sub: 'Points redemption rewards & vouchers',   color: AMBER,  perm: 'rewards', onPress: () => router.push('/director-settings-rewards' as any) },
-          { icon: 'coffee',      label: 'Coffee Stamp Settings', sub: 'Stamp card thresholds & rewards',        color: '#92400E', perm: 'rewards', soon: true },
-          { icon: 'share-2',     label: 'Referral Program',      sub: 'Referral codes & incentives',            color: ROSE,   perm: 'rewards', soon: true },
-          { icon: 'zap',         label: 'Points Rules',          sub: 'Earn rates, bonuses & expiry rules',     color: PURPLE, perm: 'rewards', soon: true },
+          { icon: 'gift',        label: 'Loyalty Tiers',         sub: 'Blue, Silver, Gold & Black tiers',       color: BLUE,   perm: 'rewards', onPress: () => router.push('/director-settings-loyalty-tiers' as any) },
+          { icon: 'star',        label: 'Reward Catalogue',      sub: 'Points redemption rewards & vouchers',   color: BLUE,   perm: 'rewards', onPress: () => router.push('/director-settings-rewards' as any) },
+          { icon: 'coffee',      label: 'Coffee Stamp Settings', sub: 'Stamp card thresholds & rewards',        color: BLUE,   perm: 'rewards', soon: true },
+          { icon: 'share-2',     label: 'Referral Program',      sub: 'Referral codes & incentives',            color: BLUE,   perm: 'rewards', soon: true },
+          { icon: 'zap',         label: 'Points Rules',          sub: 'Earn rates, bonuses & expiry rules',     color: BLUE,   perm: 'rewards', soon: true },
         ],
       },
       {
         label: 'Marketing',
         items: [
-          { icon: 'image',       label: 'Banners',               sub: 'Homepage banners & hero images',         color: AMBER,  perm: 'banners', onPress: () => router.push('/director-settings-banner' as any) },
+          { icon: 'image',       label: 'Banners',               sub: 'Homepage banners & hero images',         color: BLUE,   perm: 'banners', onPress: () => router.push('/director-settings-banner' as any) },
           { icon: 'package',     label: 'Featured Products',     sub: 'Highlight products on the home screen',  color: BLUE,   perm: 'banners', soon: true },
-          { icon: 'layout',      label: 'Homepage Promotions',   sub: 'Banners, callouts & promo tiles',        color: TEAL,   perm: 'banners', soon: true },
-          { icon: 'sun',         label: 'Seasonal Campaigns',    sub: 'Holiday & event promotions',             color: ROSE,   perm: 'banners', soon: true },
+          { icon: 'layout',      label: 'Homepage Promotions',   sub: 'Banners, callouts & promo tiles',        color: BLUE,   perm: 'banners', soon: true },
+          { icon: 'sun',         label: 'Seasonal Campaigns',    sub: 'Holiday & event promotions',             color: BLUE,   perm: 'banners', soon: true },
         ],
       },
       {
         label: 'Announcements',
         items: [
-          { icon: 'bell',        label: 'Push Notifications',    sub: 'Send to all or segmented customers',     color: TEAL,   perm: 'announcements', onPress: () => router.push('/director-settings-notify' as any) },
-          { icon: 'clock',       label: 'Scheduled Notifications', sub: 'Queue messages for later',             color: BLUE,   perm: 'announcements', onPress: () => router.push('/director-settings-scheduled-notifications' as any) },
-          { icon: 'users',       label: 'Customer Segments',     sub: 'Target by tier, location or behaviour',  color: PURPLE, perm: 'announcements', onPress: () => router.push('/customer-segments' as any) },
-          { icon: 'list',        label: 'Announcement History',  sub: 'Past sends & open rates',                color: NAVY,   perm: 'announcements', soon: true },
+          { icon: 'bell',        label: 'Push Notifications',      sub: 'Send to all or segmented customers',     color: BLUE,   perm: 'announcements', onPress: () => router.push('/director-settings-notify' as any) },
+          { icon: 'clock',       label: 'Scheduled Notifications', sub: 'Queue messages for later',               color: BLUE,   perm: 'announcements', onPress: () => router.push('/director-settings-scheduled-notifications' as any) },
+          { icon: 'users',       label: 'Customer Segments',       sub: 'Target by tier, location or behaviour',  color: BLUE,   perm: 'announcements', onPress: () => router.push('/customer-segments' as any) },
+          { icon: 'list',        label: 'Announcement History',    sub: 'Past sends & open rates',                color: BLUE,   perm: 'announcements', soon: true },
         ],
       },
       {
         label: 'Customer Feedback',
         items: [
-          { icon: 'message-square', label: 'Feedback Inbox',    sub: 'Star ratings, comments & order reviews', color: AMBER,  perm: 'announcements', onPress: () => router.push('/(director)/feedback' as any) },
+          { icon: 'message-square', label: 'Feedback Inbox',    sub: 'Star ratings, comments & order reviews', color: BLUE,   perm: 'announcements', onPress: () => router.push('/(director)/feedback' as any) },
         ],
       },
     ],
@@ -119,93 +119,47 @@ const ALL_CATEGORIES: Category[] = [
     key: 'operations',
     label: 'Operations',
     icon: 'tool',
-    color: GREEN,
+    color: BLUE,
     description: 'Store setup, stock, timesheets & hardware',
     groups: [
       {
         label: 'Store Setup',
         items: [
-          { icon: 'map-pin',      label: 'Store Locations',      sub: 'Open status, hours, printers, pickup, geofence and notes per store', color: RED, perm: 'settings', onPress: () => router.push('/director-store-locations' as any) },
-        ],
-      },
-      {
-        label: 'Retail Delivery',
-        items: [
-          { icon: 'truck', label: 'Delivery Settings', sub: 'Slots, fee, blackout dates & category eligibility', color: BLUE, perm: 'settings', onPress: () => router.push('/director-settings-delivery' as any) },
+          { icon: 'map-pin',   label: 'Store Locations',   sub: 'Open status, hours, printers, pickup, geofence and notes per store', color: BLUE, perm: 'settings', onPress: () => router.push('/director-store-locations' as any) },
+          { icon: 'truck',     label: 'Delivery Settings', sub: 'Slots, fee, blackout dates & category eligibility',                  color: BLUE, perm: 'settings', onPress: () => router.push('/director-settings-delivery' as any) },
         ],
       },
       {
         label: 'Catalogue & Menu',
         items: [
-          { icon: 'package', label: 'Products', sub: 'Browse, search and manage the product library', color: BLUE, perm: 'products', onPress: () => router.push('/(director)/products' as any) },
-          { icon: 'grid', label: 'Categories', sub: 'Organise menu categories and category order', color: PURPLE, perm: 'products', onPress: () => router.push({ pathname: '/(director)/products', params: { tab: 'catalog' } } as any) },
-          { icon: 'sliders', label: 'Options', sub: 'Milk types, extras, sizes and product options', color: TEAL, perm: 'products', onPress: () => router.push({ pathname: '/(director)/products', params: { tab: 'options' } } as any) },
+          { icon: 'package', label: 'Products',   sub: 'Browse, search and manage the product library',    color: BLUE, perm: 'products', onPress: () => router.push('/(director)/products' as any) },
+          { icon: 'grid',    label: 'Categories', sub: 'Organise menu categories and category order',      color: BLUE, perm: 'products', onPress: () => router.push({ pathname: '/(director)/products', params: { tab: 'catalog' } } as any) },
+          { icon: 'sliders', label: 'Options',    sub: 'Milk types, extras, sizes and product options',   color: BLUE, perm: 'products', onPress: () => router.push({ pathname: '/(director)/products', params: { tab: 'options' } } as any) },
         ],
       },
       {
         label: 'Stock & Inventory',
         items: [
-          { icon: 'archive',     label: 'Inventory',             sub: 'View & adjust stock on hand',            color: AMBER,  perm: 'stock', onPress: () => router.push('/director-inventory' as any) },
-          { icon: 'repeat',      label: 'Stock Movements',       sub: 'Receipts, write-offs & transfers',       color: GREEN,  perm: 'stock', soon: true },
-          { icon: 'alert-circle',label: 'Low Stock Alerts',      sub: 'Reorder thresholds & email alerts',      color: RED,    perm: 'stock', soon: true },
-          { icon: 'dollar-sign', label: 'Cost Tracking',         sub: 'COGS, margins & supplier pricing',       color: NAVY,   perm: 'stock', soon: true },
+          { icon: 'archive',      label: 'Inventory',        sub: 'View & adjust stock on hand',              color: BLUE,   perm: 'stock', onPress: () => router.push('/director-inventory' as any) },
+          { icon: 'repeat',       label: 'Stock Movements',  sub: 'Receipts, write-offs & transfers',         color: BLUE,   perm: 'stock', soon: true },
+          { icon: 'alert-circle', label: 'Low Stock Alerts', sub: 'Reorder thresholds & email alerts',        color: BLUE,   perm: 'stock', soon: true },
+          { icon: 'dollar-sign',  label: 'Cost Tracking',    sub: 'COGS, margins & supplier pricing',         color: BLUE,   perm: 'stock', soon: true },
         ],
       },
       {
         label: 'Timesheets',
         items: [
-          { icon: 'clock',       label: 'Staff Hours',           sub: 'Weekly timesheets & shift breakdown',    color: PURPLE, perm: 'timesheets', onPress: () => router.push('/director-staff-hours' as any) },
-          { icon: 'download',    label: 'Payroll Export',        sub: 'Export hours as CSV for payroll',        color: GREEN,  perm: 'timesheets', soon: true },
+          { icon: 'clock',    label: 'Staff Hours',    sub: 'Weekly timesheets & shift breakdown',  color: BLUE,   perm: 'timesheets', onPress: () => router.push('/director-staff-hours' as any) },
+          { icon: 'download', label: 'Payroll Export', sub: 'Export hours as CSV for payroll',      color: BLUE,   perm: 'timesheets', soon: true },
         ],
       },
       {
         label: 'Hardware & Devices',
         items: [
-          { icon: 'server',      label: 'Kitchen Printers',      sub: 'Kitchen display & order tickets',        color: '#D97706', directorOnly: true, soon: true },
-          { icon: 'tag',         label: 'Label Printers',        sub: 'Product label & barcode printers',       color: TEAL,   directorOnly: true, soon: true },
-          { icon: 'maximize',    label: 'Scanner Devices',       sub: 'Barcode & QR scanners',                  color: PURPLE, directorOnly: true, soon: true },
-          { icon: 'monitor',     label: 'POS Devices',           sub: 'Counter iPad logins, store assignments & permissions', color: BLUE, directorOnly: true, onPress: () => router.push({ pathname: '/(director)/users', params: { mode: 'pos' } } as any) },
-        ],
-      },
-    ],
-  },
-
-  // ── PEOPLE ─────────────────────────────────────────────────────────────────
-  {
-    key: 'people',
-    label: 'People',
-    icon: 'users',
-    color: PURPLE,
-    description: 'Customers, staff accounts, roles & access',
-    groups: [
-      {
-        label: 'Customers',
-        items: [
-          { icon: 'users',      label: 'All Customers',      sub: 'Search, filter, CRM notes, tags & timeline',          color: BLUE,   perm: 'users', onPress: () => router.push({ pathname: '/(director)/users', params: { tab: 'Customers' } } as any) },
-          { icon: 'award',      label: 'Loyalty History',    sub: 'Points, stamps & redemptions per user',               color: AMBER,  perm: 'users', soon: true },
-        ],
-      },
-      {
-        label: 'Staff',
-        items: [
-          { icon: 'users',      label: 'Staff Accounts',     sub: 'All staff, roles & employment details',  color: PURPLE, perm: 'users', onPress: () => router.push('/director-staff-accounts' as any) },
-          { icon: 'clock',      label: 'Timesheet Access',   sub: 'Staff clock-in history & hour totals',   color: GREEN,  perm: 'timesheets', onPress: () => router.push('/director-staff-hours' as any) },
-          { icon: 'calendar',   label: 'Rosters',            sub: 'Weekly shift schedule & staff roster',   color: BLUE,   perm: 'timesheets', onPress: () => router.push('/director-roster' as any) },
-          { icon: 'file-text',  label: 'Employment Details', sub: 'Contracts, TFN & pay rates',             color: NAVY,   perm: 'users', soon: true },
-          { icon: 'shield',     label: 'Roles & Permissions', sub: 'Manager, Supervisor, Store Manager, Area Manager, Director and Master', color: NAVY, directorOnly: true, onPress: () => router.push('/director-settings-managers' as any) },
-        ],
-      },
-      {
-        label: 'Security & Access',
-        items: [
-          { icon: 'shield',     label: 'Audit Log',          sub: 'System events, refunds, voids & PIN access',  color: NAVY, directorOnly: true, onPress: () => router.push('/director-audit-log' as any) },
-          { icon: 'log-in',     label: 'Login History',      sub: 'All login attempts, failures & geo blocks',   color: PURPLE, directorOnly: true, onPress: () => router.push('/director-login-history' as any) },
-        ],
-      },
-      {
-        label: 'Account Management',
-        items: [
-          { icon: 'trash-2',    label: 'Deleted Accounts',   sub: 'Recently deleted customer & staff accounts', color: RED, directorOnly: true, onPress: () => router.push({ pathname: '/(director)/users', params: { mode: 'deleted' } } as any) },
+          { icon: 'monitor',  label: 'POS Devices',      sub: 'Counter iPad logins, store assignments & permissions', color: BLUE,   directorOnly: true, onPress: () => router.push({ pathname: '/(director)/users', params: { mode: 'pos' } } as any) },
+          { icon: 'server',   label: 'Kitchen Printers', sub: 'Kitchen display & order tickets',                      color: BLUE,   directorOnly: true, soon: true },
+          { icon: 'tag',      label: 'Label Printers',   sub: 'Product label & barcode printers',                     color: BLUE,   directorOnly: true, soon: true },
+          { icon: 'maximize', label: 'Scanner Devices',  sub: 'Barcode & QR scanners',                                color: BLUE,   directorOnly: true, soon: true },
         ],
       },
     ],
@@ -216,31 +170,31 @@ const ALL_CATEGORIES: Category[] = [
     key: 'wholesale',
     label: 'Wholesale',
     icon: 'briefcase',
-    color: AMBER,
+    color: BLUE,
     description: 'Pricing tiers, quantity breaks & credit limits',
     groups: [
       {
         label: 'Accounts',
         items: [
-          { icon: 'briefcase',    label: 'Wholesale Accounts',  sub: 'B2B customers, account status & credit setup', color: GREEN, perm: 'users', onPress: () => router.push('/director-wholesale-accounts' as any) },
-          { icon: 'file-text',    label: 'Invoice Management',  sub: 'View unpaid & overdue invoices, mark as paid',  color: BLUE,  perm: 'users', onPress: () => router.push('/director-wholesale-invoices' as any) },
+          { icon: 'briefcase',  label: 'Wholesale Accounts', sub: 'B2B customers, account status & credit setup', color: BLUE, perm: 'users', onPress: () => router.push('/director-wholesale-accounts' as any) },
+          { icon: 'file-text',  label: 'Invoice Management', sub: 'View unpaid & overdue invoices, mark as paid',  color: BLUE, perm: 'users', onPress: () => router.push('/director-wholesale-invoices' as any) },
+          { icon: 'phone',      label: 'Account Managers',   sub: 'Assign account managers to wholesale customers', color: BLUE, perm: 'users', onPress: () => router.push('/director-wholesale-accounts' as any) },
         ],
       },
       {
         label: 'Pricing & Tiers',
         items: [
-          { icon: 'tag',          label: 'Pricing Tiers',       sub: 'Tier names, discounts & min orders',    color: AMBER,    perm: 'pricing', onPress: () => router.push({ pathname: '/director-pricing', params: { tab: 'Tiers' } } as any) },
-          { icon: 'layers',       label: 'Qty Breaks',          sub: 'Volume discount rules per product',     color: '#D97706', perm: 'pricing', onPress: () => router.push({ pathname: '/director-pricing', params: { tab: 'QtyBreaks' } } as any) },
-          { icon: 'dollar-sign',  label: 'Custom Pricing',      sub: 'Per-customer product overrides',        color: '#B45309', perm: 'pricing', onPress: () => router.push({ pathname: '/director-pricing', params: { tab: 'Custom' } } as any) },
-          { icon: 'user-plus',    label: 'Customer Assignments',sub: 'Assign wholesale clients to tiers',     color: '#92400E', perm: 'pricing', onPress: () => router.push({ pathname: '/director-pricing', params: { tab: 'Assign' } } as any) },
-          { icon: 'credit-card',  label: 'Credit Limits',       sub: 'Enable credit & set limits per client', color: GREEN,    perm: 'users',   soon: true },
-          { icon: 'phone',        label: 'Account Managers',    sub: 'Assign account managers to wholesale customers',    color: BLUE,     perm: 'users',   onPress: () => router.push('/director-wholesale-accounts' as any) },
+          { icon: 'tag',         label: 'Pricing Tiers',        sub: 'Tier names, discounts & min orders',    color: BLUE, perm: 'pricing', onPress: () => router.push({ pathname: '/director-pricing', params: { tab: 'Tiers' } } as any) },
+          { icon: 'layers',      label: 'Qty Breaks',           sub: 'Volume discount rules per product',     color: BLUE, perm: 'pricing', onPress: () => router.push({ pathname: '/director-pricing', params: { tab: 'QtyBreaks' } } as any) },
+          { icon: 'dollar-sign', label: 'Custom Pricing',       sub: 'Per-customer product overrides',        color: BLUE, perm: 'pricing', onPress: () => router.push({ pathname: '/director-pricing', params: { tab: 'Custom' } } as any) },
+          { icon: 'user-plus',   label: 'Customer Assignments', sub: 'Assign wholesale clients to tiers',     color: BLUE, perm: 'pricing', onPress: () => router.push({ pathname: '/director-pricing', params: { tab: 'Assign' } } as any) },
+          { icon: 'credit-card', label: 'Credit Limits',        sub: 'Enable credit & set limits per client', color: BLUE, perm: 'users',   soon: true },
         ],
       },
       {
         label: 'Delivery',
         items: [
-          { icon: 'truck',  label: 'Delivery Settings',  sub: 'Cutoff times, delivery windows & order reminders', color: '#0284C7', directorOnly: true, onPress: () => router.push('/director-wholesale-delivery' as any) },
+          { icon: 'truck', label: 'Delivery Settings', sub: 'Cutoff times, delivery windows & order reminders', color: BLUE, directorOnly: true, onPress: () => router.push('/director-wholesale-delivery' as any) },
         ],
       },
     ],
@@ -251,40 +205,31 @@ const ALL_CATEGORIES: Category[] = [
     key: 'system',
     label: 'System',
     icon: 'cpu',
-    color: NAVY,
-    description: 'Notifications, integrations & hardware',
+    color: BLUE,
+    description: 'Notifications, integrations & POS',
     groups: [
       {
         label: 'Notification Preferences',
         items: [
-          { icon: 'bell',         label: 'My Notifications',    sub: 'Control what you get notified about',   color: PURPLE, onPress: () => router.push('/notification-prefs' as any) },
-          { icon: 'calendar',     label: 'Scheduled Sends',     sub: 'Automate notification delivery times',  color: BLUE,   directorOnly: true, soon: true },
-        ],
-      },
-      {
-        label: 'Integrations',
-        items: [
-          { icon: 'shopping-bag', label: 'Shopify',             sub: 'Product & order sync',                  color: '#96BF48', directorOnly: true, soon: true },
-          { icon: 'credit-card',  label: 'Square',              sub: 'POS & payment terminal',                color: '#000000', directorOnly: true, soon: true },
-          { icon: 'globe',        label: 'Google Login',         sub: 'Sign in with Google for customers',    color: RED,       soon: true },
-          { icon: 'smartphone',   label: 'Apple Login',          sub: 'Sign in with Apple for customers',     color: NAVY,      soon: true },
-          { icon: 'message-square', label: 'SMS Provider',      sub: 'Twilio or Vonage for SMS receipts',     color: GREEN,     directorOnly: true, soon: true },
+          { icon: 'bell', label: 'My Notifications', sub: 'Control what you get notified about', color: BLUE, onPress: () => router.push('/notification-prefs' as any) },
+          { icon: 'calendar', label: 'Scheduled Sends', sub: 'Automate notification delivery times', color: BLUE, directorOnly: true, soon: true },
         ],
       },
       {
         label: 'POS',
         items: [
-          { icon: 'lock',         label: 'POS Thresholds',      sub: 'Require manager PIN for refunds & large discounts', color: RED,  directorOnly: true, onPress: () => router.push('/director-pos-thresholds' as any) },
-          { icon: 'shopping-bag', label: 'POS Transactions',    sub: 'Read-only terminal sales history',                  color: NAVY, directorOnly: true, onPress: () => router.push('/director-pos-orders' as any) },
+          { icon: 'lock',         label: 'POS Thresholds',   sub: 'Require manager PIN for refunds & large discounts', color: BLUE, directorOnly: true, onPress: () => router.push('/director-pos-thresholds' as any) },
+          { icon: 'shopping-bag', label: 'POS Transactions', sub: 'Read-only terminal sales history',                  color: BLUE, directorOnly: true, onPress: () => router.push('/director-pos-orders' as any) },
         ],
       },
       {
-        label: 'Hardware & Devices',
+        label: 'Integrations',
         items: [
-          { icon: 'printer',      label: 'Receipt Printers',    sub: 'Configure receipt printer settings',    color: NAVY,   directorOnly: true, soon: true },
-          { icon: 'server',       label: 'Kitchen Printers',    sub: 'Kitchen display & order tickets',       color: '#D97706', directorOnly: true, soon: true },
-          { icon: 'tag',          label: 'Label Printers',      sub: 'Product label & barcode printers',      color: TEAL,   directorOnly: true, soon: true },
-          { icon: 'maximize',     label: 'Scanners',            sub: 'Barcode & QR scanner config',           color: PURPLE, directorOnly: true, soon: true },
+          { icon: 'shopping-bag',   label: 'Shopify',       sub: 'Product & order sync',               color: BLUE, directorOnly: true, soon: true },
+          { icon: 'credit-card',    label: 'Square',        sub: 'POS & payment terminal',             color: BLUE, directorOnly: true, soon: true },
+          { icon: 'globe',          label: 'Google Login',  sub: 'Sign in with Google for customers',  color: BLUE,                     soon: true },
+          { icon: 'smartphone',     label: 'Apple Login',   sub: 'Sign in with Apple for customers',   color: BLUE,                     soon: true },
+          { icon: 'message-square', label: 'SMS Provider',  sub: 'Twilio or Vonage for SMS receipts',  color: BLUE, directorOnly: true, soon: true },
         ],
       },
     ],
@@ -306,4 +251,12 @@ export function buildCategories(
       }),
     })).filter(group => group.items.length > 0),
   })).filter(cat => cat.groups.length > 0);
+}
+
+export function getLiveItemCount(cat: Category): number {
+  return cat.groups.flatMap(g => g.items).filter(i => !i.soon).length;
+}
+
+export function getSoonItemNames(cat: Category): string[] {
+  return cat.groups.flatMap(g => g.items).filter(i => i.soon).map(i => i.label);
 }

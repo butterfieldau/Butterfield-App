@@ -20,19 +20,9 @@ import { useAuth } from '@/context/AuthContext';
 import { CrmCustomersTab } from '@/components/director';
 import { StaffProfileModal, WholesaleDetailModal, CreateUserModal, ShopDisplayDetailModal } from '@/components/director';
 import { styles, modal, wdl } from '@/components/director/usersStyles';
+import { DirectorEmptyState } from '@/components/DirectorEmptyState';
+import { BG, CARD, BLUE, NAVY, TEXT, MUTED, BORDER, GREEN, AMBER, RED, PURPLE, PINK, TEAL, ROSE, GOLD, GLASS_BG, GLASS_BORDER } from '@/components/director/directorColors';
 
-const BG     = '#EFF6FF';
-const CARD   = '#FFFFFF';
-const BLUE   = '#1493FF';
-const NAVY   = '#1A2B4A';
-const TEXT   = '#1C1C1E';
-const MUTED  = '#8E8E93';
-const BORDER      = '#E5E7EB';
-const GLASS_BG    = 'rgba(255,255,255,0.6)';
-const GLASS_BORDER= 'rgba(255,255,255,0.85)';
-const GREEN  = '#22C55E';
-const AMBER  = '#F59E0B';
-const RED    = '#EF4444';
 type FeatherIconName = ComponentProps<typeof Feather>['name'];
 type InputKeyboardType = ComponentProps<typeof TextInput>['keyboardType'];
 const TABS = ['Customers', 'Staff', 'Wholesale'] as const;
@@ -82,7 +72,6 @@ function getUserRoleLabel(user: DirectorUserSummary): string {
 
 type CreateType = 'staff' | 'wholesale' | 'shop_display';
 type UsersMode = 'wholesale' | 'staff' | 'pos' | 'deleted';
-
 
 export function DirectorUsersScreen({ modeOverride }: { modeOverride?: UsersMode } = {}) {
   const params = useLocalSearchParams<{ mode?: string; tab?: string }>();
@@ -344,10 +333,10 @@ export function DirectorUsersScreen({ modeOverride }: { modeOverride?: UsersMode
           contentContainerStyle={{ padding: 16, gap: 10, paddingBottom: 100 }}
           showsVerticalScrollIndicator={false}
           ListEmptyComponent={
-            <View style={{ alignItems: 'center', marginTop: 80, gap: 12 }}>
-              <Feather name="users" size={40} color={MUTED} />
-              <Text style={{ color: MUTED, fontWeight: '400' }}>No users in this category</Text>
-            </View>
+            <DirectorEmptyState
+              icon="users"
+              title="No users in this category"
+            />
           }
           renderItem={({ item: u }) => {
             const roleColors = ROLE_COLORS[u.role] ?? { bg: BG, text: MUTED };
