@@ -130,13 +130,13 @@ async function sendPrinterBytes(printerIp: string, printerPort: number, result: 
   const bytes = base64ToUint8Array(result.data.bytes);
 
   // Dynamic import — deferred until print time, never evaluated at screen load.
-  // react-native-tcp-socket is a native module; it requires a custom dev or EAS build.
-  // The try/catch handles Expo Go and any other environment where the module is unavailable.
-  let TcpSocket: any;
+  // react-native-tcp-socket is a POS-only native module (react-native-tcp-socket@^6.4.1).
+  // In non-POS builds metro.config.js resolves the import to stubs/tcp-socket-stub.js,
+  // which throws a descriptive error that lands in the catch below.
+  let TcpSocket: Awaited<typeof import('react-native-tcp-socket')>['default'];
   try {
-    // @ts-ignore — intentional: react-native-tcp-socket has no TS types in devDeps
     const mod = await import('react-native-tcp-socket');
-    TcpSocket = mod?.default ?? mod;
+    TcpSocket = mod?.default ?? (mod as any);
   } catch {
     throw new Error(
       'Direct printer connection requires a custom development build or the production app — ' +
