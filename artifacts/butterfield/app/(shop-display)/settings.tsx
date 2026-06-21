@@ -174,6 +174,7 @@ function LinklySection({ onLock }: { onLock: () => void }) {
 // ── Printer Configuration Card ────────────────────────────────────────────────
 function PrinterConfigCard() {
   const qc = useQueryClient();
+  const [expanded, setExpanded] = useState(false);
   const { data, isLoading } = useQuery<{ data: ShopDisplayPrinterConfig }>({
     queryKey: ['shop-display-printer-config'],
     queryFn: () => api.shopDisplay.getPrinterConfig(),
@@ -290,7 +291,7 @@ function PrinterConfigCard() {
 
   return (
     <View style={pc.card}>
-      <View style={pc.headerRow}>
+      <Pressable style={pc.headerRow} onPress={() => setExpanded(e => !e)}>
         <View style={pc.iconWrap}>
           <Feather name="printer" size={18} color={BLUE} />
         </View>
@@ -298,14 +299,10 @@ function PrinterConfigCard() {
           <Text style={pc.cardTitle}>Printer Configuration</Text>
           <Text style={pc.cardSub}>Local settings for this display device</Text>
         </View>
-        <Pressable onPress={copyFromStore} disabled={copying} style={pc.copyBtn} hitSlop={8}>
-          {copying
-            ? <ActivityIndicator size="small" color={BLUE} />
-            : <><Feather name="copy" size={13} color={BLUE} /><Text style={pc.copyBtnText}>Copy from store</Text></>
-          }
-        </Pressable>
-      </View>
+        <Feather name={expanded ? 'chevron-up' : 'chevron-down'} size={18} color={MUTED} />
+      </Pressable>
 
+      {expanded && <>
       <View style={pc.divider} />
 
       <Text style={pc.inputLabel}>Printer IP Address</Text>
@@ -363,8 +360,8 @@ function PrinterConfigCard() {
       </View>
 
       {autoDrawer && (
-        <View style={{ paddingVertical: 10 }}>
-          <Text style={pc.inputLabel}>Drawer Pin</Text>
+        <View style={{ paddingTop: 4, paddingBottom: 10 }}>
+          <Text style={[pc.groupLabel, { marginBottom: 8 }]}>Drawer Pin</Text>
           <View style={pc.brandRow}>
             {([0, 1] as const).map(pin => (
               <Pressable
@@ -419,6 +416,7 @@ function PrinterConfigCard() {
           <Text style={pc.actionBtnText}>{drawerBusy ? 'Opening…' : 'Open Drawer'}</Text>
         </Pressable>
       </View>
+      </>}
     </View>
   );
 }
