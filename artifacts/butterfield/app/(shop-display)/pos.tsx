@@ -544,7 +544,7 @@ function PosScreenInner() {
         style={{ position: 'absolute', width: 0, height: 0, opacity: 0 }}
         onChangeText={(text) => { scannerBufRef.current = text; if (scannerFlushTimerRef.current) clearTimeout(scannerFlushTimerRef.current); if (text.length > 0) scannerFlushTimerRef.current = setTimeout(flushScannerBuf, 500); }}
         onSubmitEditing={flushScannerBuf}
-        blurOnSubmit={false} autoCorrect={false} autoCapitalize="none" keyboardType="default" showSoftInputOnFocus={false} importantForAccessibility="no-hide-descendants"
+        blurOnSubmit={false} autoCorrect={false} autoCapitalize="none" keyboardType="default" inputMode="none" showSoftInputOnFocus={false} importantForAccessibility="no-hide-descendants"
       />
 
       {/* ── HID scanner feedback banner ───────────────────────────────────── */}
