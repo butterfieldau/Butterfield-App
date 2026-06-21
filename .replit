@@ -33,6 +33,10 @@ localPort = 19639
 externalPort = 3000
 exposeLocalhost = true
 
+[[ports]]
+localPort = 19640
+externalPort = 3001
+
 [nix]
 channel = "stable-25_05"
 
