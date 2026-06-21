@@ -597,9 +597,6 @@ router.get('/pos-orders', async (req, res) => {
     const sydParts = new Intl.DateTimeFormat('en-CA', { timeZone: 'Australia/Sydney' }).formatToParts(new Date());
     dateStr = sydParts.map(p => p.value).join('');
   }
-  const dayStart = sydneyBoundary(dateStr, false);
-  const dayEnd   = sydneyBoundary(dateStr, true);
-
   // Optional filters
   const statusFilter      = typeof req.query.status        === 'string' ? req.query.status.trim()        : null;
   const methodFilter      = typeof req.query.paymentMethod === 'string' ? req.query.paymentMethod.trim() : null;
@@ -627,8 +624,8 @@ router.get('/pos-orders', async (req, res) => {
     FROM orders o
     LEFT JOIN users su ON su.id = o.staff_user_id
     WHERE o.source = 'pos'
-      AND o.created_at >= ${dayStart}
-      AND o.created_at <= ${dayEnd}
+      AND o.created_at >= (${dateStr}::date) AT TIME ZONE 'Australia/Sydney'
+      AND o.created_at <  (${dateStr}::date + interval '1 day') AT TIME ZONE 'Australia/Sydney'
       ${safeStatus ? sql`AND o.status = ${safeStatus}` : sql``}
       ${safeMethod ? sql`AND o.payment_method = ${safeMethod}` : sql``}
     ORDER BY o.created_at DESC

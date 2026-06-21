@@ -70,7 +70,6 @@ import { validateDiscountCode } from '../lib/discountUtils.js';
 import { countCoffeeItemsFromOrderItems, getOutstandingCoffeeStampsForOrder } from '../lib/orderLoyaltyUtils.js';
 import { generateOrderNumber } from '../lib/orderNumber.js';
 import { recordAuditLog } from '../lib/auditLog.js';
-import { sydneyStartOfDay } from '../lib/sydneyTime.js';
 import {
   addRegisterCashMovement,
   closeRegisterSession,
@@ -313,13 +312,13 @@ async function buildCurrentRegisterResponse(user: { id: string; role: string }) 
       FROM orders
       WHERE source = 'customer_app'
         AND status NOT IN ('cancelled', 'refunded')
-        AND created_at >= ${sydneyStartOfDay()}
+        AND created_at >= DATE_TRUNC('day', NOW() AT TIME ZONE 'Australia/Sydney') AT TIME ZONE 'Australia/Sydney'
     `),
     db.execute(sql`
       SELECT COUNT(*)::int AS count, COALESCE(SUM(total_cents), 0)::int AS revenue
       FROM wholesale_orders
       WHERE status != 'cancelled'
-        AND created_at >= ${sydneyStartOfDay()}
+        AND created_at >= DATE_TRUNC('day', NOW() AT TIME ZONE 'Australia/Sydney') AT TIME ZONE 'Australia/Sydney'
     `),
   ]);
   const inApp = (inAppRow.rows[0] ?? {}) as { count: number; revenue: number };
@@ -1482,9 +1481,6 @@ router.post('/orders/sync', async (req, res, next) => {
 router.get('/orders', async (req, res) => {
   await ensurePosSchemaReady();
 
-  // Sydney midnight in UTC = start of today's window
-  const startOfToday = sydneyStartOfDay();
-
   // Parse pagination params
   const rawLimit = parseInt(String(req.query.limit ?? '50'), 10);
   const limit = Math.min(Math.max(1, isNaN(rawLimit) ? 50 : rawLimit), 100);
@@ -1527,8 +1523,7 @@ router.get('/orders', async (req, res) => {
       LEFT JOIN users u  ON u.id  = o.user_id       AND o.user_id != o.staff_user_id
       LEFT JOIN users su ON su.id = o.staff_user_id
       WHERE o.source = 'pos'
-        -- ::timestamptz ensures Postgres treats the JS Date parameter as UTC, not session-local time.
-        AND o.created_at >= ${startOfToday}::timestamptz
+        AND o.created_at >= DATE_TRUNC('day', NOW() AT TIME ZONE 'Australia/Sydney') AT TIME ZONE 'Australia/Sydney'
         AND (
           ${cursorTime === null ? sql`TRUE` : sql`
             o.created_at < ${cursorTime}
@@ -1592,8 +1587,6 @@ router.get('/orders', async (req, res) => {
 router.get('/summary', async (req, res) => {
   await ensurePosSchemaReady();
 
-  const startOfToday = sydneyStartOfDay();
-
   try {
     const result = await db.execute(sql`
       SELECT
@@ -1601,8 +1594,7 @@ router.get('/summary', async (req, res) => {
         COALESCE(SUM(total_cents), 0) AS revenue_cents
       FROM orders
       WHERE source = 'pos'
-        -- ::timestamptz ensures Postgres treats the JS Date parameter as UTC, not session-local time.
-        AND created_at >= ${startOfToday}::timestamptz
+        AND created_at >= DATE_TRUNC('day', NOW() AT TIME ZONE 'Australia/Sydney') AT TIME ZONE 'Australia/Sydney'
         AND status NOT IN ('cancelled', 'refunded')
     `);
 
