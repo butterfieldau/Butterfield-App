@@ -3,11 +3,9 @@ const fs = require('fs');
 const path = require('path');
 
 // Pod spec names to exclude from consumer builds.
-// Covers the RN package pod (react-native-star-io10), the underlying Star
-// Micronics SDK framework pod (StarIO10), and the TCP socket module.
+// react-native-star-io10 has been removed from the project entirely.
+// Only tcp-socket remains excluded from consumer builds (POS-only hardware).
 const EXCLUDED_POD_PREFIXES = [
-  'react-native-star-io10',
-  'StarIO10',
   'react-native-tcp-socket',
 ];
 

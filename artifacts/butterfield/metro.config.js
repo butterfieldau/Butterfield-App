@@ -15,23 +15,12 @@ config.resolver.resolveRequest = (context, moduleName, platform) => {
     };
   }
 
-  // For non-POS builds, swap Star IO and TCP socket for safe no-op stubs.
-  // This prevents the native module from being evaluated at module-load time
-  // and surfaces a clear "hardware unavailable" error only if the user
-  // actually triggers a print action in a consumer build.
-  if (!isPOSBuild) {
-    if (moduleName === "react-native-star-io10") {
-      return {
-        filePath: path.resolve(__dirname, "stubs/star-io10-stub.js"),
-        type: "sourceFile",
-      };
-    }
-    if (moduleName === "react-native-tcp-socket") {
-      return {
-        filePath: path.resolve(__dirname, "stubs/tcp-socket-stub.js"),
-        type: "sourceFile",
-      };
-    }
+  // For non-POS builds, swap TCP socket for a safe no-op stub.
+  if (!isPOSBuild && moduleName === "react-native-tcp-socket") {
+    return {
+      filePath: path.resolve(__dirname, "stubs/tcp-socket-stub.js"),
+      type: "sourceFile",
+    };
   }
 
   if (originalResolveRequest) {

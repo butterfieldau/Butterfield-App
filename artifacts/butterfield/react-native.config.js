@@ -7,11 +7,6 @@ module.exports = {
     // withPodfileExclusion config plugin removes them at the Podfile level.
     // These RN CLI exclusions serve as an additional guard for the JS bundler.
     ...(!isPOSBuild && {
-      'react-native-star-io10': {
-        platforms: {
-          ios: null,
-        },
-      },
       'react-native-tcp-socket': {
         platforms: {
           ios: null,
