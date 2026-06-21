@@ -1,6 +1,6 @@
 import * as Haptics from 'expo-haptics';
 import { Feather } from '@expo/vector-icons';
-import { Redirect, Tabs, usePathname, useRouter } from 'expo-router';
+import { Redirect, Tabs, useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import { Pressable, StatusBar, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -23,16 +23,12 @@ const CUSTOMER_TABS = {
 
 const VISIBLE_ROUTES = ['index', 'menu', 'loyalty', 'profile'] as const;
 
-function FloatingCustomerTabBar({ state, navigation, hideTabs }: any) {
+function FloatingCustomerTabBar({ state, navigation }: any) {
   const insets         = useSafeAreaInsets();
   const router         = useRouter();
   const { user }       = useAuth();
   const { totalItems } = useCart();
-  const pathname       = usePathname() ?? '';
-  const onCartScreen   = pathname.includes('/cart');
   const [loginTarget, setLoginTarget] = useState<string | null>(null);
-
-  if (hideTabs) return null;
 
   const visibleRoutes = state.routes.filter((r: any) =>
     (VISIBLE_ROUTES as readonly string[]).includes(r.name),
@@ -48,11 +44,11 @@ function FloatingCustomerTabBar({ state, navigation, hideTabs }: any) {
 
   const goToCart = () => {
     if (!user) {
-      setLoginTarget('/(customer)/cart');
+      setLoginTarget('/customer-cart');
       return;
     }
     Haptics.selectionAsync();
-    router.push('/(customer)/cart' as any);
+    router.push('/customer-cart' as any);
   };
 
   return (
@@ -80,24 +76,22 @@ function FloatingCustomerTabBar({ state, navigation, hideTabs }: any) {
             })}
           </GlassPill>
 
-          {!onCartScreen && (
-            <Pressable onPress={goToCart} hitSlop={8} style={styles.cartWrap}>
-              <GlassCircle size={CIRCLE_SZ}>
-                <Feather
-                  name="shopping-bag"
-                  size={22}
-                  color={totalItems > 0 ? BLUE : '#333'}
-                />
-              </GlassCircle>
-              {totalItems > 0 && (
-                <View style={styles.badge}>
-                  <Text style={styles.badgeText}>
-                    {totalItems > 99 ? '99+' : String(totalItems)}
-                  </Text>
-                </View>
-              )}
-            </Pressable>
-          )}
+          <Pressable onPress={goToCart} hitSlop={8} style={styles.cartWrap}>
+            <GlassCircle size={CIRCLE_SZ}>
+              <Feather
+                name="shopping-bag"
+                size={22}
+                color={totalItems > 0 ? BLUE : '#333'}
+              />
+            </GlassCircle>
+            {totalItems > 0 && (
+              <View style={styles.badge}>
+                <Text style={styles.badgeText}>
+                  {totalItems > 99 ? '99+' : String(totalItems)}
+                </Text>
+              </View>
+            )}
+          </Pressable>
         </View>
       </View>
 
@@ -114,14 +108,12 @@ function ClassicCustomerTabs() {
   const colors   = useColors();
   const { user } = useAuth();
   const [loginTarget, setLoginTarget] = useState<string | null>(null);
-  const pathname = usePathname() ?? '';
-  const hideTabs = pathname.includes('/cart');
 
   return (
     <>
       <StatusBar barStyle="dark-content" />
       <Tabs
-        tabBar={(props) => <FloatingCustomerTabBar {...props} hideTabs={hideTabs} />}
+        tabBar={(props) => <FloatingCustomerTabBar {...props} />}
         screenOptions={{
           tabBarActiveTintColor:   colors.primary,
           tabBarInactiveTintColor: colors.mutedForeground,

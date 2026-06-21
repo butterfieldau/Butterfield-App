@@ -2,7 +2,7 @@ import { router, type Href } from 'expo-router';
 
 export type AccountFeatureTarget =
   | '/(customer)/loyalty'
-  | '/(customer)/cart'
+  | '/customer-cart'
   | '/orders'
   | '/addresses'
   | '/edit-details'

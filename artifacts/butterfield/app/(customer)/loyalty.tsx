@@ -392,7 +392,7 @@ function LoyaltyContent() {
                       </Text>
                       <Text style={styles.walletExpiry}>{expiryInfo?.label ?? 'Ready now'}</Text>
                       <View style={styles.walletButtonRow}>
-                        <Pressable style={styles.walletPrimaryButton} onPress={() => router.push('/(customer)/cart')}>
+                        <Pressable style={styles.walletPrimaryButton} onPress={() => router.push('/customer-cart' as any)}>
                           <Text style={styles.walletPrimaryButtonText}>Use now</Text>
                         </Pressable>
                         <Pressable style={styles.walletSecondaryButton} onPress={() => setShowQR(true)}>

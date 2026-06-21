@@ -232,6 +232,7 @@ function RootLayoutNav() {
       <Stack.Screen name="notifications" options={{ headerShown: false, animation: "slide_from_right" }} />
       <Stack.Screen name="notification-prefs" options={{ headerShown: false, animation: "slide_from_right" }} />
       <Stack.Screen name="addresses" options={{ headerShown: false, animation: "slide_from_right" }} />
+      <Stack.Screen name="customer-cart" options={{ headerShown: false, animation: "slide_from_right", gestureEnabled: true, fullScreenGestureEnabled: true }} />
       <Stack.Screen name="director-vault"             options={directorStandaloneScreenOptions} />
       <Stack.Screen name="director-vault-recipe"     options={directorStandaloneScreenOptions} />
       <Stack.Screen name="director-vault-recipe-edit" options={directorStandaloneScreenOptions} />

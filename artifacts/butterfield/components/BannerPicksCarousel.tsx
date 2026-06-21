@@ -24,7 +24,7 @@ function parseRoute(buttonRoute: string | undefined): () => void {
   if (!buttonRoute) return () => router.push('/(customer)/menu' as any);
   if (buttonRoute === 'menu')    return () => router.push('/(customer)/menu' as any);
   if (buttonRoute === 'loyalty') return () => router.push('/(customer)/loyalty' as any);
-  if (buttonRoute === 'cart')    return () => router.push('/(customer)/cart' as any);
+  if (buttonRoute === 'cart')    return () => router.push('/customer-cart' as any);
   if (buttonRoute === 'profile') return () => router.push('/(customer)/profile' as any);
   if (buttonRoute === 'stores')  return () => router.push('/(customer)/menu' as any);
   if (buttonRoute.startsWith('category:')) {
