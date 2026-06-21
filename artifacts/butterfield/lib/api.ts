@@ -2832,7 +2832,7 @@ export interface DirectorOption {
 }
 
 export interface DirectorOptionInput {
-  name: string;
+  name?: string;
   priceAdjustmentCents?: number;
   sortOrder?: number;
   isActive?: boolean;

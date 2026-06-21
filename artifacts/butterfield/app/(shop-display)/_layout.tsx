@@ -269,12 +269,13 @@ export default function ShopDisplayLayout() {
   const permissions: string[] = meData?.data?.permissions ?? [];
 
   // ── New-order badge — counts orders in 'received' state (not yet acknowledged) ──
+  // refetchInterval matches App Sales (7 s) so notifications fire promptly on ANY tab,
+  // not only when the App Sales screen itself is open.
   const { data: ordersData } = useQuery({
     queryKey: ['shop-display-orders'],
     queryFn: () => api.shopDisplay.orders(),
     enabled: user?.role === 'shop_display',
-    refetchInterval: 15_000,
-    staleTime: 10_000,
+    refetchInterval: 7_000,
   });
   const layoutRows: Array<{ id: string; status: string; customerName?: string | null; orderNumber?: string | null; createdAt?: string }> = ordersData?.data ?? [];
   const incomingOrderCount = layoutRows.filter((o) => NEW_ORDER_STATUSES.has(o.status)).length;
@@ -291,6 +292,11 @@ export default function ShopDisplayLayout() {
 
   useEffect(() => {
     getShopDisplaySoundEnabled().then(setSoundEnabled).catch(() => {});
+    // Arm audio mode on mount (native only) so the alert sound plays even on
+    // the first notification, regardless of which tab is currently visible.
+    if (Platform.OS !== 'web') {
+      setAudioModeAsync({ playsInSilentMode: true, allowsRecording: false }).catch(() => {});
+    }
   }, []);
 
   // Pre-unlock the Web AudioContext on the first user gesture anywhere on the
