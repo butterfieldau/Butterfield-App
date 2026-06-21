@@ -130,9 +130,12 @@ async function sendPrinterBytes(printerIp: string, printerPort: number, result: 
   const bytes = base64ToUint8Array(result.data.bytes);
 
   // Dynamic import — deferred until print time, never evaluated at screen load.
-  // In Expo Go this will throw (caught below); in EAS / production builds it works.
+  // react-native-tcp-socket is not in package.json (POS-only); the metro stub
+  // intercepts this import for consumer builds. TypeScript doesn't know the
+  // module so we suppress the error here — the try/catch handles runtime failures.
   let TcpSocket: any;
   try {
+    // @ts-ignore — intentional: tcp-socket removed from deps; metro stub handles consumer build
     const mod = await import('react-native-tcp-socket');
     TcpSocket = mod?.default ?? mod;
   } catch {

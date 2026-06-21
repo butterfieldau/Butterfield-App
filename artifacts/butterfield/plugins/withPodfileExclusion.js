@@ -3,55 +3,59 @@ const fs = require('fs');
 const path = require('path');
 
 // Pod spec names to exclude from consumer builds.
-// react-native-star-io10 has been removed from the project entirely.
-// tcp-socket is POS-only hardware, and keyboard-controller is disabled on iOS
-// to avoid a TurboModule startup exception on iOS 26 / arm64e.
+// react-native-tcp-socket is POS-only hardware — not needed in consumer binary.
+// react-native-keyboard-controller has been removed from the project entirely
+// (replaced with RN built-ins) so it no longer appears here.
 const EXCLUDED_POD_PREFIXES = [
   'react-native-tcp-socket',
-  'react-native-keyboard-controller',
 ];
 
 /**
- * Ruby snippet injected into the Podfile as a pre_install hook.
+ * Ruby snippet injected into the Podfile as a post_install hook.
  *
- * Why pre_install + analysis_result.specifications.reject!:
- *   - `pre_install` runs before CocoaPods resolves, integrates, or generates
- *     the Pods.xcodeproj. Removing a spec here means the pod is never compiled
- *     or linked — the most deterministic exclusion point possible.
- *   - `installer.pods_project` (used by many guides) is NOT available in
- *     pre_install; it only exists after `pod install` creates the project.
- *     Manipulating it in post_install is too late to prevent compilation.
- *   - analysis_result.specifications is the canonical pre-integration list;
- *     reject! on it is the standard RN community pattern for pod exclusion.
+ * Why post_install (not pre_install + analysis_result.specifications.reject!):
+ *   - CocoaPods 1.15 does NOT fully populate `analysis_result` during
+ *     `pre_install`. The `reject!` call runs but silently removes nothing,
+ *     so the pod is still compiled and linked — the bug that caused the
+ *     iOS 26 startup crash.
+ *   - `post_install` has full access to the resolved Xcode project via
+ *     `installer.pods_project`. Setting EXCLUDED_SOURCE_FILE_NAMES to
+ *     "$(SRCROOT)/**" in every build configuration effectively voids the
+ *     pod's compilation without removing it from the dependency graph.
+ *     This is reliable across CocoaPods 1.13–1.15+.
  */
-const PRE_INSTALL_HOOK = `
-# Consumer build: remove POS-only pods before CocoaPods integrates them.
-# These native modules are irrelevant in the consumer binary and their
-# TurboModule eager-init causes a SIGABRT startup crash on iOS 26 / arm64e.
-# Using pre_install + analysis_result.specifications.reject! is the
-# deterministic exclusion point — pods removed here are never compiled or linked.
-pre_install do |installer|
+const POST_INSTALL_HOOK = `
+# Consumer build: remove POS-only pods v3 (post_install, CocoaPods 1.15 safe).
+# pre_install + analysis_result.specifications.reject! silently fails in
+# CocoaPods 1.15 — analysis_result is not fully populated at that hook point.
+# post_install has full access to the resolved Xcode project and is reliable.
+post_install do |installer|
   pods_to_remove = ${JSON.stringify(EXCLUDED_POD_PREFIXES)}
-  installer.analysis_result.specifications.reject! do |spec|
-    pods_to_remove.any? { |pod_name| spec.name.start_with?(pod_name) }
+  installer.pods_project.targets.each do |target|
+    next unless pods_to_remove.any? { |pod| target.name.start_with?(pod) }
+    target.build_configurations.each do |config|
+      config.build_settings['COMPILER_FLAGS'] = ''
+      config.build_settings['EXCLUDED_SOURCE_FILE_NAMES'] = '$(SRCROOT)/**'
+    end
   end
+  installer.pods_project.save
 end
 `;
 
 /**
- * Config plugin that injects a Podfile pre_install hook to remove
- * StarIO10 and react-native-tcp-socket from non-POS consumer builds.
+ * Config plugin that injects a Podfile post_install hook to remove
+ * POS-only native pods from consumer builds.
  *
  * These are POS/Shop Display hardware modules that have no role in the
  * consumer binary. Expo's prebuild autolinking includes them regardless
- * of react-native.config.js — this plugin removes them at the spec-resolution
- * level so they are never compiled into or linked with the consumer IPA.
+ * of react-native.config.js — this plugin removes them at the Xcode
+ * project level so they are never compiled into or linked with the consumer IPA.
  *
  * Set IS_POS_BUILD=1 in the EAS build profile environment to keep them.
  */
 module.exports = function withPodfileExclusion(config) {
   if (process.env.IS_POS_BUILD === '1') {
-    console.log('[withPodfileExclusion] IS_POS_BUILD=1 — keeping StarIO10 and tcp-socket pods for POS build.');
+    console.log('[withPodfileExclusion] IS_POS_BUILD=1 — keeping tcp-socket pod for POS build.');
     return config;
   }
 
@@ -68,31 +72,22 @@ module.exports = function withPodfileExclusion(config) {
       let podfileContents = fs.readFileSync(podfilePath, 'utf8');
 
       // Idempotent — do not inject the hook twice across repeated prebuild runs.
-      if (podfileContents.includes('Consumer build: remove POS-only pods')) {
-        console.log('[withPodfileExclusion] Podfile already patched — skipping.');
+      // Sentinel bumped to v3 so EAS doesn't reuse a cached Podfile with the
+      // old broken pre_install hook.
+      if (podfileContents.includes('Consumer build: remove POS-only pods v3')) {
+        console.log('[withPodfileExclusion] Podfile already patched (v3) — skipping.');
         return modConfig;
       }
 
-      // Inject the pre_install hook at the top level of the Podfile, before
-      // the first `target` block. Expo-generated Podfiles begin with platform
-      // and plugin lines before the first `target 'butterfield' do` block.
-      // Appending before the target block ensures we're at the top level (not
-      // nested inside a target), which is required for pre_install hooks.
-      const targetMatch = podfileContents.match(/^target\s+['"][\w-]+['"]\s+do\b/m);
-      if (targetMatch && targetMatch.index !== undefined) {
-        podfileContents =
-          podfileContents.slice(0, targetMatch.index) +
-          PRE_INSTALL_HOOK + '\n' +
-          podfileContents.slice(targetMatch.index);
-      } else {
-        // Fallback: append at the very end if we can't locate the target block.
-        console.warn('[withPodfileExclusion] Could not locate target block — appending pre_install hook at end of Podfile.');
-        podfileContents += '\n' + PRE_INSTALL_HOOK;
-      }
+      // Append the post_install hook at the end of the Podfile.
+      // post_install must be at the top level (not inside a target block).
+      // Appending at the end is safe — CocoaPods collects all post_install
+      // hooks regardless of position.
+      podfileContents += '\n' + POST_INSTALL_HOOK;
 
       fs.writeFileSync(podfilePath, podfileContents, 'utf8');
       console.log(
-        '[withPodfileExclusion] Injected pre_install hook to exclude POS-only pods from consumer build.',
+        '[withPodfileExclusion] Injected post_install hook (v3) to exclude POS-only pods from consumer build.',
         'Excluded prefixes:', EXCLUDED_POD_PREFIXES.join(', '),
       );
 
