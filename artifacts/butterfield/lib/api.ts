@@ -294,6 +294,10 @@ export const api = {
       request<{ success: boolean }>('/shop-display/printer-config', { method: 'PATCH', body: JSON.stringify(data) }),
     getStorePrinterConfig: () =>
       request<{ data: ShopDisplayPrinterConfig | null }>('/shop-display/store-printer-config'),
+    testPrint: (data: { ip: string; port?: number; brand?: string }) =>
+      request<{ ok: boolean }>('/shop-display/test-print', { method: 'POST', body: JSON.stringify(data) }),
+    openDrawer: (data: { ip: string; port?: number; brand?: string; drawerPin?: 0 | 1 }) =>
+      request<{ ok: boolean }>('/shop-display/open-drawer', { method: 'POST', body: JSON.stringify(data) }),
     analytics: (range: 'day' | 'week' | 'month', date?: string, storeId?: string | null) => {
       const p = new URLSearchParams({ range });
       if (date) p.set('date', date);

@@ -31,6 +31,12 @@ import {
   saveLinklyConfig,
   startPurchaseTransaction,
 } from '../lib/linklyCloud.js';
+import net from 'net';
+import {
+  buildRegisterSummaryBytes,
+  buildOpenDrawerBytes,
+  buildStarOpenDrawerBytes,
+} from '../lib/printer.js';
 
 const router = Router();
 router.use(requireRole('shop_display'));
@@ -1225,6 +1231,81 @@ router.patch('/printer-config', async (req, res) => {
 
   return res.json({ success: true });
 });
+
+// ── Server-side test print ────────────────────────────────────────────────────
+router.post('/test-print', async (req, res) => {
+  const { ip, port, brand } = req.body ?? {};
+  if (!ip?.trim()) {
+    return res.status(400).json({ error: 'ip is required' });
+  }
+  const printerPort: number = parseInt(port, 10) || 9100;
+  const printerBrand: 'epson' | 'star' = brand === 'star' ? 'star' : 'epson';
+
+  const bytes = buildRegisterSummaryBytes({
+    printerBrand,
+    title: 'TEST PRINT',
+    lines: [
+      `IP:\t${ip}`,
+      `Port:\t${printerPort}`,
+      `Brand:\t${printerBrand}`,
+      '---',
+      'Printer OK',
+    ],
+  });
+
+  try {
+    await sendBytes(bytes, ip.trim(), printerPort);
+    return res.json({ ok: true });
+  } catch (err: any) {
+    return res.status(500).json({ error: err?.message ?? 'Could not reach printer' });
+  }
+});
+
+// ── Server-side open drawer ───────────────────────────────────────────────────
+router.post('/open-drawer', async (req, res) => {
+  const { ip, port, brand, drawerPin } = req.body ?? {};
+  if (!ip?.trim()) {
+    return res.status(400).json({ error: 'ip is required' });
+  }
+  const printerPort: number = parseInt(port, 10) || 9100;
+  const pin: 0 | 1 = drawerPin === 1 ? 1 : 0;
+  const bytes = brand === 'star'
+    ? buildStarOpenDrawerBytes(pin)
+    : buildOpenDrawerBytes(pin);
+
+  try {
+    await sendBytes(bytes, ip.trim(), printerPort);
+    return res.json({ ok: true });
+  } catch (err: any) {
+    return res.status(500).json({ error: err?.message ?? 'Could not reach printer' });
+  }
+});
+
+function sendBytes(bytes: Buffer, ip: string, port: number): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const socket = new net.Socket();
+    let done = false;
+    const finish = (err?: Error) => {
+      if (done) return;
+      done = true;
+      try { socket.destroy(); } catch {}
+      if (err) reject(err); else resolve();
+    };
+    const timer = setTimeout(
+      () => finish(new Error(`Printer timeout: could not reach ${ip}:${port}`)),
+      8000,
+    );
+    socket.connect(port, ip, () => {
+      socket.write(bytes, (writeErr) => {
+        clearTimeout(timer);
+        if (writeErr) { finish(writeErr); return; }
+        socket.end();
+      });
+    });
+    socket.on('close', () => finish());
+    socket.on('error', (err) => { clearTimeout(timer); finish(err); });
+  });
+}
 
 router.get('/store-printer-config', async (req, res) => {
   await ensureShopDisplaySchemaReady();
