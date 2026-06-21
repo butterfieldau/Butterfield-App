@@ -597,8 +597,6 @@ export default function ShopDisplayLayout() {
         options={{
           title: 'App Sales',
           tabBarIcon: ({ color, size }) => <Feather name="shopping-bag" size={size} color={color} />,
-          tabBarBadge: incomingOrderCount > 0 ? incomingOrderCount : undefined,
-          tabBarBadgeStyle: { backgroundColor: '#EF4444', fontSize: 11, minWidth: 18, height: 18, lineHeight: 18 },
         }}
       />
       <Tabs.Screen
