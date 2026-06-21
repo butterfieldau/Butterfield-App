@@ -1,8 +1,8 @@
 import * as Haptics from 'expo-haptics';
-import { Ionicons } from '@expo/vector-icons';
+import { Feather } from '@expo/vector-icons';
 import { Redirect, Tabs, usePathname, useRouter } from 'expo-router';
 import React, { useState } from 'react';
-import { Platform, Pressable, StatusBar, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StatusBar, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '@/context/AuthContext';
 import { useCart } from '@/context/CartContext';
@@ -23,31 +23,14 @@ const CUSTOMER_TABS = {
 
 const VISIBLE_ROUTES = ['index', 'menu', 'loyalty', 'profile'] as const;
 
-function CartCircleButton({ onPress, count }: { onPress: () => void; count: number }) {
-  return (
-    <Pressable onPress={onPress} hitSlop={8}>
-      <GlassCircle size={CIRCLE_SZ}>
-        <Ionicons
-          name={count > 0 ? 'bag' : 'bag-outline'}
-          size={22}
-          color={count > 0 ? BLUE : '#444'}
-        />
-        {count > 0 && (
-          <View style={styles.badge}>
-            <Text style={styles.badgeText}>{count > 99 ? '99+' : String(count)}</Text>
-          </View>
-        )}
-      </GlassCircle>
-    </Pressable>
-  );
-}
-
 function FloatingCustomerTabBar({ state, navigation, hideTabs }: any) {
-  const insets              = useSafeAreaInsets();
-  const router              = useRouter();
-  const { totalItems }      = useCart();
-  const pathname            = usePathname() ?? '';
-  const onCartScreen        = pathname.includes('/cart');
+  const insets         = useSafeAreaInsets();
+  const router         = useRouter();
+  const { user }       = useAuth();
+  const { totalItems } = useCart();
+  const pathname       = usePathname() ?? '';
+  const onCartScreen   = pathname.includes('/cart');
+  const [loginTarget, setLoginTarget] = useState<string | null>(null);
 
   if (hideTabs) return null;
 
@@ -64,87 +47,87 @@ function FloatingCustomerTabBar({ state, navigation, hideTabs }: any) {
   };
 
   const goToCart = () => {
-    Haptics.selectionAsync();
-    router.push('/(customer)/cart' as any);
-  };
-
-  return (
-    <View
-      pointerEvents="box-none"
-      style={[styles.wrap, { paddingBottom: Math.max(insets.bottom, 12) }]}
-    >
-      <View style={styles.barRow}>
-        {/* Left spacer mirrors cart circle width to keep pill visually centred */}
-        <View style={{ width: CIRCLE_SZ }} pointerEvents="none" />
-
-        <GlassPill>
-          {visibleRoutes.map((route: any) => {
-            const routeIndex = state.routes.findIndex((r: any) => r.key === route.key);
-            const focused    = state.index === routeIndex;
-            const cfg        = (CUSTOMER_TABS as any)[route.name] ?? { icon: 'circle', title: route.name };
-
-            return (
-              <AnimatedTabItem
-                key={route.key}
-                focused={focused}
-                onPress={makeOnPress(route, focused)}
-                cfg={cfg}
-                activeColor={BLUE}
-              />
-            );
-          })}
-        </GlassPill>
-
-        {!onCartScreen && (
-          <CartCircleButton onPress={goToCart} count={totalItems} />
-        )}
-        {onCartScreen && <View style={{ width: CIRCLE_SZ }} pointerEvents="none" />}
-      </View>
-    </View>
-  );
-}
-
-function ClassicCustomerTabs() {
-  const colors              = useColors();
-  const { user }            = useAuth();
-  const { totalItems }      = useCart();
-  const router              = useRouter();
-  const insets              = useSafeAreaInsets();
-  const [loginTarget, setLoginTarget] = useState<string | null>(null);
-  const isIOS    = Platform.OS === 'ios';
-  const isWeb    = Platform.OS === 'web';
-  const pathname = usePathname() ?? '';
-  const hideTabs = pathname.includes('/cart');
-
-  const goToCart = () => {
+    if (!user) {
+      setLoginTarget('/(customer)/cart');
+      return;
+    }
     Haptics.selectionAsync();
     router.push('/(customer)/cart' as any);
   };
 
   return (
     <>
+      <View
+        pointerEvents="box-none"
+        style={[styles.wrap, { paddingBottom: Math.max(insets.bottom, 12) }]}
+      >
+        <View style={styles.barRow}>
+          <GlassPill>
+            {visibleRoutes.map((route: any) => {
+              const routeIndex = state.routes.findIndex((r: any) => r.key === route.key);
+              const focused    = state.index === routeIndex;
+              const cfg        = (CUSTOMER_TABS as any)[route.name] ?? { icon: 'circle', title: route.name };
+
+              return (
+                <AnimatedTabItem
+                  key={route.key}
+                  focused={focused}
+                  onPress={makeOnPress(route, focused)}
+                  cfg={cfg}
+                  activeColor={BLUE}
+                />
+              );
+            })}
+          </GlassPill>
+
+          {!onCartScreen && (
+            <Pressable onPress={goToCart} hitSlop={8}>
+              <GlassCircle size={CIRCLE_SZ}>
+                <Feather
+                  name="shopping-bag"
+                  size={22}
+                  color={totalItems > 0 ? BLUE : '#333'}
+                />
+                {totalItems > 0 && (
+                  <View style={styles.badge}>
+                    <Text style={styles.badgeText}>
+                      {totalItems > 99 ? '99+' : String(totalItems)}
+                    </Text>
+                  </View>
+                )}
+              </GlassCircle>
+            </Pressable>
+          )}
+        </View>
+      </View>
+
+      <LoginRequiredModal
+        visible={!!loginTarget}
+        redirectTo={loginTarget ?? undefined}
+        onCancel={() => setLoginTarget(null)}
+      />
+    </>
+  );
+}
+
+function ClassicCustomerTabs() {
+  const colors   = useColors();
+  const { user } = useAuth();
+  const [loginTarget, setLoginTarget] = useState<string | null>(null);
+  const pathname = usePathname() ?? '';
+  const hideTabs = pathname.includes('/cart');
+
+  return (
+    <>
       <StatusBar barStyle="dark-content" />
       <Tabs
-        tabBar={(props) => (isIOS ? <FloatingCustomerTabBar {...props} hideTabs={hideTabs} /> : undefined)}
+        tabBar={(props) => <FloatingCustomerTabBar {...props} hideTabs={hideTabs} />}
         screenOptions={{
           tabBarActiveTintColor:   colors.primary,
           tabBarInactiveTintColor: colors.mutedForeground,
-          headerShown:     false,
+          headerShown:    false,
           tabBarShowLabel: false,
-          tabBarStyle: hideTabs
-            ? { display: 'none' }
-            : isIOS
-              ? { position: 'absolute', height: 0, backgroundColor: 'transparent', borderTopWidth: 0, elevation: 0 }
-              : {
-                  position:        'absolute',
-                  backgroundColor: colors.background,
-                  borderTopWidth:  isWeb ? 1 : 0,
-                  borderTopColor:  colors.border,
-                  elevation:       0,
-                  ...(isWeb ? { height: 84 } : {}),
-                },
-          tabBarBackground: () =>
-            isWeb ? <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.background }]} /> : null,
+          tabBarStyle:    { position: 'absolute', height: 0, backgroundColor: 'transparent', borderTopWidth: 0, elevation: 0 },
         }}
       >
         <Tabs.Screen name="index"   options={{ title: 'Home'    }} />
@@ -159,21 +142,11 @@ function ClassicCustomerTabs() {
           listeners={{ tabPress: (e) => { if (!user) { e.preventDefault(); setLoginTarget('/(customer)/profile'); } } }}
           options={{ title: 'Account' }}
         />
-        <Tabs.Screen name="cart"           options={{ href: null, title: 'Order'         }} />
-        <Tabs.Screen name="track/[id]"     options={{ href: null, title: 'Track Order'   }} />
-        <Tabs.Screen name="stores"         options={{ href: null, title: 'Our Stores'    }} />
+        <Tabs.Screen name="cart"            options={{ href: null, title: 'Order'           }} />
+        <Tabs.Screen name="track/[id]"      options={{ href: null, title: 'Track Order'     }} />
+        <Tabs.Screen name="stores"          options={{ href: null, title: 'Our Stores'      }} />
         <Tabs.Screen name="payment-methods" options={{ href: null, title: 'Payment Methods' }} />
       </Tabs>
-
-      {/* Floating cart circle for web / Android (iOS uses FloatingCustomerTabBar above) */}
-      {!isIOS && !hideTabs && (
-        <View
-          pointerEvents="box-none"
-          style={[styles.webCartWrap, { bottom: Math.max(insets.bottom + (isWeb ? 84 : 56), 100) }]}
-        >
-          <CartCircleButton onPress={goToCart} count={totalItems} />
-        </View>
-      )}
 
       <LoginRequiredModal
         visible={!!loginTarget}
@@ -205,10 +178,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems:    'center',
     gap:           10,
-  },
-  webCartWrap: {
-    position: 'absolute',
-    right:    24,
   },
   badge: {
     position:          'absolute',
