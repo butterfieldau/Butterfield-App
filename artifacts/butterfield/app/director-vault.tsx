@@ -124,7 +124,7 @@ function VaultLockView({ onUnlocked }: { onUnlocked: () => void }) {
   const createPinRef = useRef('');
 
   useEffect(() => {
-    if (!user || (user.role !== 'director' && user.role !== 'manager')) return;
+    if (!user || (user.role !== 'director' && user.role !== 'manager' && user.role !== 'master')) return;
     api.vault.status().then(r => {
       const data = r.data as unknown as { isPinSet: boolean };
       setStatusData(data as any);
@@ -536,7 +536,7 @@ export default function VaultScreen() {
     changePinStep === 'new'     ? 'Choose a new 6-digit PIN for the vault' :
                                   'Re-enter your new PIN to confirm';
 
-  if (!user || (user.role !== 'director' && user.role !== 'manager')) {
+  if (!user || (user.role !== 'director' && user.role !== 'manager' && user.role !== 'master')) {
     return (
       <View style={{ flex: 1, backgroundColor: BG, alignItems: 'center', justifyContent: 'center', padding: 32 }}>
         <StatusBar barStyle="dark-content" backgroundColor={BG} />
