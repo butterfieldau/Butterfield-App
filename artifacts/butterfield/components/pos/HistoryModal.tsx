@@ -184,7 +184,14 @@ export default function HistoryModal({
   };
 
   const fmtTime = (iso: string) => {
-    try { return new Date(iso).toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'Australia/Sydney' }); } catch { return ''; }
+    try {
+      return new Intl.DateTimeFormat('en-AU', {
+        timeZone: 'Australia/Sydney',
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true,
+      }).format(new Date(iso));
+    } catch { return ''; }
   };
 
   const canVoid = (order: PosHistoryOrder) => order.status !== 'cancelled' && now - new Date(order.createdAt).getTime() < 5 * 60 * 1000;

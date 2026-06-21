@@ -70,10 +70,14 @@ function formatDayLabel(dateStr: string): string {
 }
 
 function fmtTime(iso: string): string {
-  return new Date(iso).toLocaleTimeString('en-AU', {
-    timeZone: 'Australia/Sydney',
-    hour: '2-digit', minute: '2-digit',
-  });
+  try {
+    return new Intl.DateTimeFormat('en-AU', {
+      timeZone: 'Australia/Sydney',
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+    }).format(new Date(iso));
+  } catch { return ''; }
 }
 
 function fmtCents(cents: number): string {
