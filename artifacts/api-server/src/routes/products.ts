@@ -320,16 +320,16 @@ router.get('/', async (_req, res) => {
 });
 
 // ── GET /products/categories — customer-facing active category list ───────
-// Returns active categories that are NOT flagged as POS-only (showPos = false).
+// Returns active categories where showPublic = true (visible in the customer ordering app).
 // Three-tier fallback so the endpoint survives production DBs at any migration stage:
-//   1. Drizzle ORM with showPos filter (fast path, fully migrated schema)
-//   2. Raw SQL with show_pos column reference (show_pos exists but Drizzle errored)
-//   3. Raw SQL without show_pos (pre-migration DB — all categories visible to customers)
+//   1. Drizzle ORM with showPublic filter (fast path, fully migrated schema)
+//   2. Raw SQL with show_public column reference (show_public exists but Drizzle errored)
+//   3. Raw SQL without show_public (pre-migration DB — all active categories returned)
 router.get('/categories', async (_req, res) => {
   try {
     const { productCategoriesTable: catTable } = await import('@workspace/db');
     const cats = await db.select().from(catTable)
-      .where(and(eq(catTable.isActive, true), eq(catTable.showPos, true)))
+      .where(and(eq(catTable.isActive, true), eq(catTable.showPublic, true)))
       .orderBy(asc(catTable.sortOrder));
     return res.json({ data: cats });
   } catch {
@@ -351,7 +351,7 @@ router.get('/categories', async (_req, res) => {
           created_at           AS "createdAt",
           updated_at           AS "updatedAt"
         FROM product_categories
-        WHERE is_active = true AND show_pos = true
+        WHERE is_active = true AND show_public = true
         ORDER BY sort_order ASC
       `);
       return res.json({ data: result.rows ?? [] });

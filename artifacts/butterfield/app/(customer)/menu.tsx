@@ -122,13 +122,24 @@ export default function MenuScreen() {
   }, [isLoading]);
   const contentAnimStyle = useAnimatedStyle(() => ({ opacity: contentOpacity.value }));
 
-  const products      = data?.data ?? [];
+  const products = data?.data ?? [];
+
+  // Build a set of slugs that are visible to customers. When no categories
+  // have loaded yet (null) we skip the filter so nothing disappears on first load.
+  const visibleSlugs = useMemo<Set<string> | null>(() => {
+    const backendCats: ProductCategory[] = categoriesData?.data ?? [];
+    if (!categoriesData || backendCats.length === 0) return null;
+    return new Set(backendCats.map(c => c.slug));
+  }, [categoriesData]);
 
   const categoryFiltered = useMemo(() => products.filter(p => {
-    const matchCat    = activeCategory === 'all' || p.metadata?.category === activeCategory;
+    const cat = p.metadata?.category as string | undefined;
+    // Hide products whose category has been disabled by the director.
+    if (visibleSlugs && cat && !visibleSlugs.has(cat)) return false;
+    const matchCat    = activeCategory === 'all' || cat === activeCategory;
     const matchSearch = !search || p.name.toLowerCase().includes(search.toLowerCase()) || (p.description ?? '').toLowerCase().includes(search.toLowerCase());
     return matchCat && matchSearch;
-  }), [products, activeCategory, search]);
+  }), [products, activeCategory, search, visibleSlugs]);
 
   const availableChips = useMemo(() => {
     const tagSet = new Set<string>();

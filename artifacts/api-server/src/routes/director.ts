@@ -1904,7 +1904,7 @@ router.post('/products', async (req, res) => {
 router.patch('/products/:id', async (req, res) => {
   const { id } = req.params;
   const allowed = [
-    'name','description','shortDescription','category','productType',
+    'name','description','shortDescription','category','categoryId','productType',
     'priceCents','salePriceCents','costPriceCents','wholesalePriceCents','gstIncluded',
     'sku','barcode','imageUrl','galleryUrls','productUrl',
     'isAvailable','isActive','isFeatured','isNew','isWholesaleAvailable','isStaffOnly',
