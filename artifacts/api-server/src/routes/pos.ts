@@ -312,13 +312,13 @@ async function buildCurrentRegisterResponse(user: { id: string; role: string }) 
       FROM orders
       WHERE source = 'customer_app'
         AND status NOT IN ('cancelled', 'refunded')
-        AND created_at >= DATE_TRUNC('day', NOW() AT TIME ZONE 'Australia/Sydney') AT TIME ZONE 'Australia/Sydney'
+        AND created_at >= DATE_TRUNC('day', NOW() AT TIME ZONE 'Australia/Sydney') AT TIME ZONE 'Australia/Sydney' AT TIME ZONE 'UTC'
     `),
     db.execute(sql`
       SELECT COUNT(*)::int AS count, COALESCE(SUM(total_cents), 0)::int AS revenue
       FROM wholesale_orders
       WHERE status != 'cancelled'
-        AND created_at >= DATE_TRUNC('day', NOW() AT TIME ZONE 'Australia/Sydney') AT TIME ZONE 'Australia/Sydney'
+        AND created_at >= DATE_TRUNC('day', NOW() AT TIME ZONE 'Australia/Sydney') AT TIME ZONE 'Australia/Sydney' AT TIME ZONE 'UTC'
     `),
   ]);
   const inApp = (inAppRow.rows[0] ?? {}) as { count: number; revenue: number };
@@ -1523,7 +1523,7 @@ router.get('/orders', async (req, res) => {
       LEFT JOIN users u  ON u.id  = o.user_id       AND o.user_id != o.staff_user_id
       LEFT JOIN users su ON su.id = o.staff_user_id
       WHERE o.source = 'pos'
-        AND o.created_at >= DATE_TRUNC('day', NOW() AT TIME ZONE 'Australia/Sydney') AT TIME ZONE 'Australia/Sydney'
+        AND o.created_at >= DATE_TRUNC('day', NOW() AT TIME ZONE 'Australia/Sydney') AT TIME ZONE 'Australia/Sydney' AT TIME ZONE 'UTC'
         AND (
           ${cursorTime === null ? sql`TRUE` : sql`
             o.created_at < ${cursorTime}
@@ -1594,7 +1594,7 @@ router.get('/summary', async (req, res) => {
         COALESCE(SUM(total_cents), 0) AS revenue_cents
       FROM orders
       WHERE source = 'pos'
-        AND created_at >= DATE_TRUNC('day', NOW() AT TIME ZONE 'Australia/Sydney') AT TIME ZONE 'Australia/Sydney'
+        AND created_at >= DATE_TRUNC('day', NOW() AT TIME ZONE 'Australia/Sydney') AT TIME ZONE 'Australia/Sydney' AT TIME ZONE 'UTC'
         AND status NOT IN ('cancelled', 'refunded')
     `);
 

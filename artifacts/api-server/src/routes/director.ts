@@ -624,8 +624,8 @@ router.get('/pos-orders', async (req, res) => {
     FROM orders o
     LEFT JOIN users su ON su.id = o.staff_user_id
     WHERE o.source = 'pos'
-      AND o.created_at >= (${dateStr}::date) AT TIME ZONE 'Australia/Sydney'
-      AND o.created_at <  (${dateStr}::date + interval '1 day') AT TIME ZONE 'Australia/Sydney'
+      AND o.created_at >= (${dateStr}::date)::timestamp AT TIME ZONE 'Australia/Sydney' AT TIME ZONE 'UTC'
+      AND o.created_at <  (${dateStr}::date + interval '1 day')::timestamp AT TIME ZONE 'Australia/Sydney' AT TIME ZONE 'UTC'
       ${safeStatus ? sql`AND o.status = ${safeStatus}` : sql``}
       ${safeMethod ? sql`AND o.payment_method = ${safeMethod}` : sql``}
     ORDER BY o.created_at DESC
