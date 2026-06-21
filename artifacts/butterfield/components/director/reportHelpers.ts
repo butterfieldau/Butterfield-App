@@ -14,14 +14,14 @@ export function fmtDate(iso: string) {
 
 export function fmtDateShort(iso: string) {
   const d = new Date(iso);
-  if (!isNaN(d.getTime())) return d.toLocaleDateString('en-AU', { day: 'numeric', month: 'short' });
+  if (!isNaN(d.getTime())) return d.toLocaleDateString('en-AU', { timeZone: 'Australia/Sydney', day: 'numeric', month: 'short' });
   return iso;
 }
 
 export function fmtDisplayDate(iso: string): string {
   const d = new Date(iso);
   if (isNaN(d.getTime())) return iso;
-  return d.toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' });
+  return d.toLocaleDateString('en-AU', { timeZone: 'Australia/Sydney', day: 'numeric', month: 'short', year: 'numeric' });
 }
 
 export function fmtHour(h: number): string {

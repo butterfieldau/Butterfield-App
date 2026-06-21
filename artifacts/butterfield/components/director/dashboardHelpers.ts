@@ -11,5 +11,5 @@ export function timeAgo(dateStr: string) {
 }
 
 export function fmtDateBox(d: Date) {
-  return d.toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' });
+  return d.toLocaleDateString('en-AU', { timeZone: 'Australia/Sydney', day: 'numeric', month: 'short', year: 'numeric' });
 }

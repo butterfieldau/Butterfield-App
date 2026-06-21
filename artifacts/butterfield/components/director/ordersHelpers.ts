@@ -53,7 +53,7 @@ export function formatPosDay(dateStr: string): string {
   const yesterday = shiftPosDate(today, -1);
   if (dateStr === yesterday) return 'Yesterday';
   const d = new Date(dateStr + 'T12:00:00');
-  return d.toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'short' });
+  return d.toLocaleDateString('en-AU', { timeZone: 'Australia/Sydney', weekday: 'long', day: 'numeric', month: 'short' });
 }
 
 export function getPosPaymentLabel(method: string | undefined, splits: unknown): string {

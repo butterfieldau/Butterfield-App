@@ -76,7 +76,7 @@ function RefundOperatorsCard({ from, to }: { from: string; to: string }) {
               <View style={[s.breakRow, { marginTop: 6 }]}>
                 <View style={{ flex: 1 }}>
                   <Text style={s.breakSub}>
-                    {r.operatorName} · {new Date(r.createdAt).toLocaleDateString('en-AU', { day: '2-digit', month: 'short' })}
+                    {r.operatorName} · {new Date(r.createdAt).toLocaleDateString('en-AU', { timeZone: 'Australia/Sydney', day: '2-digit', month: 'short' })}
                   </Text>
                   {r.orderId && <Text style={[s.breakSub, { fontSize: 10 }]}>Order {r.orderId.slice(0, 12)}…</Text>}
                   {r.reason && <Text style={[s.breakSub, { fontSize: 10, fontStyle: 'italic' }]}>{r.reason}</Text>}

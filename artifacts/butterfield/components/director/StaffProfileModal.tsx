@@ -96,9 +96,9 @@ function LoginHistoryInline({ userId }: { userId: string | null }) {
               {ev.ip ? <Text style={{ fontSize: 11, color: MUTED }}>IP: {ev.ip}</Text> : null}
             </View>
             <Text style={{ fontSize: 11, color: MUTED }}>
-              {new Date(ev.createdAt).toLocaleDateString('en-AU', { day: '2-digit', month: 'short' })}
+              {new Date(ev.createdAt).toLocaleDateString('en-AU', { timeZone: 'Australia/Sydney', day: '2-digit', month: 'short' })}
               {' '}
-              {new Date(ev.createdAt).toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit' })}
+              {new Date(ev.createdAt).toLocaleTimeString('en-AU', { timeZone: 'Australia/Sydney', hour: '2-digit', minute: '2-digit' })}
             </Text>
           </View>
         ))}
@@ -771,11 +771,11 @@ function StaffProfileModal({ userId, visible, onClose, onRefresh, onDelete }: {
                       <View key={shift.id} style={[sp_s.shiftRow, idx < Math.min(recentShifts.length, 10) - 1 && { borderBottomWidth: 1, borderBottomColor: BORDER }]}>
                         <View style={{ flex: 1 }}>
                           <Text style={sp_s.shiftDate}>
-                            {new Date(shift.clockIn).toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short' })}
+                            {new Date(shift.clockIn).toLocaleDateString('en-AU', { timeZone: 'Australia/Sydney', weekday: 'short', day: 'numeric', month: 'short' })}
                           </Text>
                           <Text style={sp_s.shiftTime}>
-                            {new Date(shift.clockIn).toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit', hour12: true })}
-                            {shift.clockOut ? ` – ${new Date(shift.clockOut).toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit', hour12: true })}` : ' (active)'}
+                            {new Date(shift.clockIn).toLocaleTimeString('en-AU', { timeZone: 'Australia/Sydney', hour: '2-digit', minute: '2-digit', hour12: true })}
+                            {shift.clockOut ? ` – ${new Date(shift.clockOut).toLocaleTimeString('en-AU', { timeZone: 'Australia/Sydney', hour: '2-digit', minute: '2-digit', hour12: true })}` : ' (active)'}
                           </Text>
                         </View>
                         <Text style={[sp_s.shiftHrs, { color: shift.clockOut ? TEXT : GREEN }]}>
