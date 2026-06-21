@@ -31,7 +31,15 @@ types.setTypeParser(1115 as never, (val: string) => {
     );
 });
 
-export const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+// Force UTC session timezone via connection options.
+// This ensures `timestamp without tz` columns (which store UTC) are always
+// compared as UTC — not re-interpreted in the server's local TZ (Australia/Sydney)
+// when mixed with timestamptz values in WHERE clauses.
+export const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  options: "-c timezone=UTC",
+});
+
 export const db = drizzle(pool, { schema });
 
 export * from "./schema";

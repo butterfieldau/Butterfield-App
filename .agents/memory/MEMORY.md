@@ -6,5 +6,6 @@
 - [Linkly Cloud notification flow](linkly-notification-flow.md) — GET endpoint returns 202 {} (useless for polling); only the webhook callback signals completion; LINKLY_NOTIFICATION_BASE_URL must only be set in production.
 - [Star MCP30 cash drawer commands](star-mcp30-drawer.md) — DLE DC4 (0x10 0x14 0x01) for standalone; ESC p also usable embedded but DLE DC4 is safer; /shop-display/store must include autoDrawer+drawerPin.
 - [sydneyTime recurring UTC bug](sydney-time-recurring-bug.md) — Never parse locale strings back with new Date(); use Intl.DateTimeFormat.formatToParts + Date.UTC.
+- [pg session timezone must be UTC](pg-session-timezone-utc.md) — TZ=Australia/Sydney on Node process does NOT set pg session TZ; must use pool options: "-c timezone=UTC" or timestamp comparisons break.
 - [Client-side Sydney date comparison pattern](client-sydney-date.md) — Use toLocaleDateString('en-CA', {timeZone:'Australia/Sydney'}) for all date comparisons; never getDate/getMonth on device-local time.
 - [Expo Router Stack inside Tabs](expo-router-stack-in-tabs.md) — never pair foo.tsx with foo/ directory; use only foo/_layout.tsx + foo/index.tsx pattern.
