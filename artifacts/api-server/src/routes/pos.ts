@@ -313,13 +313,13 @@ async function buildCurrentRegisterResponse(user: { id: string; role: string }) 
       FROM orders
       WHERE source = 'customer_app'
         AND status NOT IN ('cancelled', 'refunded')
-        AND created_at >= date_trunc('day', now())
+        AND created_at >= ${sydneyStartOfDay()}
     `),
     db.execute(sql`
       SELECT COUNT(*)::int AS count, COALESCE(SUM(total_cents), 0)::int AS revenue
       FROM wholesale_orders
       WHERE status != 'cancelled'
-        AND created_at >= date_trunc('day', now())
+        AND created_at >= ${sydneyStartOfDay()}
     `),
   ]);
   const inApp = (inAppRow.rows[0] ?? {}) as { count: number; revenue: number };
@@ -1541,7 +1541,7 @@ router.get('/orders', async (req, res) => {
     const rows = (result.rows ?? result as unknown as any[]) as Array<{
       id: string;
       order_number: string;
-      created_at: string;
+      created_at: Date | string;
       total_cents: string | number;
       status: string;
       payment_method: string | null;
@@ -1566,7 +1566,7 @@ router.get('/orders', async (req, res) => {
       data: pageRows.map(r => ({
         id: r.id,
         orderNumber: r.order_number,
-        createdAt: r.created_at,
+        createdAt: new Date(r.created_at).toISOString(),
         totalCents: Number(r.total_cents),
         status: r.status,
         paymentMethod: r.payment_method ?? 'eftpos',
