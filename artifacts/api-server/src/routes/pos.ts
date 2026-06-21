@@ -1527,7 +1527,8 @@ router.get('/orders', async (req, res) => {
       LEFT JOIN users u  ON u.id  = o.user_id       AND o.user_id != o.staff_user_id
       LEFT JOIN users su ON su.id = o.staff_user_id
       WHERE o.source = 'pos'
-        AND o.created_at >= ${startOfToday}
+        -- ::timestamptz ensures Postgres treats the JS Date parameter as UTC, not session-local time.
+        AND o.created_at >= ${startOfToday}::timestamptz
         AND (
           ${cursorTime === null ? sql`TRUE` : sql`
             o.created_at < ${cursorTime}
@@ -1600,7 +1601,8 @@ router.get('/summary', async (req, res) => {
         COALESCE(SUM(total_cents), 0) AS revenue_cents
       FROM orders
       WHERE source = 'pos'
-        AND created_at >= ${startOfToday}
+        -- ::timestamptz ensures Postgres treats the JS Date parameter as UTC, not session-local time.
+        AND created_at >= ${startOfToday}::timestamptz
         AND status NOT IN ('cancelled', 'refunded')
     `);
 

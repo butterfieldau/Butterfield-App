@@ -99,7 +99,7 @@ function getNextStatusActions(order: ShopDisplayOrder): ReadonlyArray<string> {
 
 function formatTime(value?: string | null) {
   if (!value) return 'ASAP';
-  return new Date(value).toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' });
+  return new Date(value).toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit', timeZone: 'Australia/Sydney' });
 }
 
 function getSydneyDayParts(input: string | Date) {

@@ -30,6 +30,7 @@ function fmtDateTime(iso: string | null | undefined) {
   return d.toLocaleString('en-AU', {
     day: 'numeric', month: 'short', year: 'numeric',
     hour: '2-digit', minute: '2-digit',
+    timeZone: 'Australia/Sydney',
   });
 }
 

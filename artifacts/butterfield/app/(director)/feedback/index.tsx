@@ -48,8 +48,8 @@ function FeedbackCard({
   onToggleRead: (id: string, isRead: boolean) => void;
 }) {
   const date = new Date(item.createdAt);
-  const dateStr = date.toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' });
-  const timeStr = date.toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit' });
+  const dateStr = date.toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Australia/Sydney' });
+  const timeStr = date.toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit', timeZone: 'Australia/Sydney' });
 
   return (
     <View style={[s.card, !item.isRead && s.cardUnread]}>

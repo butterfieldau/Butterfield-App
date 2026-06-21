@@ -357,7 +357,7 @@ export function StampScanScreen({ externalScanData = null, onExternalScanHandled
                 <View key={activity.id} style={s.activityRow}>
                   <Text style={s.activityText} numberOfLines={1}>{activity.description}</Text>
                   <Text style={s.activityTime}>
-                    {new Date(activity.createdAt).toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' })}
+                    {new Date(activity.createdAt).toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit', timeZone: 'Australia/Sydney' })}
                   </Text>
                 </View>
               ))}

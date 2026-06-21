@@ -397,6 +397,40 @@ router.get('/stats', async (req, res) => {
   });
 });
 
+// ── Timezone debug (dev-only) ─────────────────────────────────────────────────
+if (process.env['NODE_ENV'] !== 'production') {
+  router.get('/debug/tz', async (req, res) => {
+    const startOfDay = sydneyStartOfDay();
+    const [pgResult, orderResult] = await Promise.all([
+      db.execute(sql`
+        SELECT
+          NOW()                            AS pg_now,
+          CURRENT_TIMESTAMP                AS pg_current_timestamp,
+          current_setting('timezone')      AS pg_timezone
+      `),
+      db.execute(sql`
+        SELECT
+          COUNT(*)::int  AS order_count,
+          MIN(created_at) AS earliest,
+          MAX(created_at) AS latest
+        FROM orders
+        WHERE created_at >= ${startOfDay}::timestamptz
+      `),
+    ]);
+    const pg = ((pgResult as any).rows ?? [])[0] ?? {};
+    const ord = ((orderResult as any).rows ?? [])[0] ?? {};
+    return res.json({
+      startOfDayUtcIso:    startOfDay.toISOString(),
+      startOfDaySydney:    startOfDay.toLocaleString('en-AU', { timeZone: 'Australia/Sydney' }),
+      pgNow:               pg.pg_now,
+      pgTimezone:          pg.pg_timezone,
+      ordersInWindow:      ord.order_count,
+      earliestOrderInWindow: ord.earliest,
+      latestOrderInWindow:   ord.latest,
+    });
+  });
+}
+
 // ── Hourly revenue (today, Sydney time) ──────────────────────────────────────
 router.get('/stats/hourly-revenue', async (req, res) => {
   try {
@@ -408,8 +442,10 @@ router.get('/stats/hourly-revenue', async (req, res) => {
         EXTRACT(HOUR FROM created_at::timestamptz AT TIME ZONE 'Australia/Sydney')::int AS hour,
         COALESCE(SUM(total_cents), 0)::bigint AS revenue_cents
       FROM orders
-      WHERE created_at >= ${startOfDay}
-        AND created_at  < ${endOfDay}
+      -- ::timestamptz ensures Postgres treats the JS Date parameter as UTC, not session-local time.
+      -- Without this, orders placed before 10am Sydney (i.e. before UTC midnight) are excluded.
+      WHERE created_at >= ${startOfDay}::timestamptz
+        AND created_at  < ${endOfDay}::timestamptz
         AND status NOT IN ('cancelled','refunded','voided')
       GROUP BY hour
       ORDER BY hour
@@ -443,8 +479,9 @@ router.get('/stats/top-products', async (req, res) => {
                        COALESCE(NULLIF(item->>'quantity','')::int, 1), 0))            AS revenue_cents
       FROM orders,
         jsonb_array_elements(items) AS item
-      WHERE created_at >= ${startOfDay}
-        AND created_at  < ${endOfDay}
+      -- ::timestamptz ensures Postgres treats the JS Date parameter as UTC, not session-local time.
+      WHERE created_at >= ${startOfDay}::timestamptz
+        AND created_at  < ${endOfDay}::timestamptz
         AND status NOT IN ('cancelled','refunded','voided')
         AND jsonb_typeof(items) = 'array'
       GROUP BY product_key, name
@@ -479,8 +516,9 @@ router.get('/stats/insights', async (req, res) => {
           EXTRACT(HOUR FROM created_at::timestamptz AT TIME ZONE 'Australia/Sydney')::int AS hour,
           COALESCE(SUM(total_cents), 0)::bigint AS revenue_cents
         FROM orders
-        WHERE created_at >= ${startOfDay}
-          AND created_at  < ${endOfDay}
+        -- ::timestamptz ensures Postgres treats the JS Date parameter as UTC, not session-local time.
+        WHERE created_at >= ${startOfDay}::timestamptz
+          AND created_at  < ${endOfDay}::timestamptz
           AND status NOT IN ('cancelled','refunded','voided')
         GROUP BY hour
         ORDER BY hour

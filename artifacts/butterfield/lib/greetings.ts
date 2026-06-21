@@ -51,23 +51,38 @@ const SESSION_OFFSET = Math.floor(Math.random() * 9973); // prime keeps distribu
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function getSydneyNow(): Date {
+  // Use Intl.DateTimeFormat.formatToParts to extract Sydney date/time components reliably.
+  // Never parse a locale string back with new Date() — non-standard and silently wrong
+  // on some JS engines / ICU builds. Never hardcode +10 offset (breaks during AEDT/+11).
+  //
+  // Use the LOCAL Date constructor (not Date.UTC) so that .getHours() / .getDay() /
+  // .getMonth() / .getDate() return the Sydney wall-clock values on any device timezone.
+  // Date.UTC() would make those getters device-dependent (broken on non-UTC devices).
+  const ref = new Date();
   try {
-    const str = new Date().toLocaleString('en-US', { timeZone: 'Australia/Sydney' });
-    const d = new Date(str);
-    if (!isNaN(d.getTime())) return d;
-  } catch {}
-  // Fallback: build a plain date string representing Sydney wall-clock time (AEST UTC+10).
-  // We MUST NOT use new Date(Date.now() + 10h) directly because .getHours() applies
-  // the device's local timezone offset a second time, double-counting on Sydney devices.
-  const shifted = new Date(Date.now() + 10 * 60 * 60 * 1000);
-  const Y  = shifted.getUTCFullYear();
-  const M  = String(shifted.getUTCMonth() + 1).padStart(2, '0');
-  const D  = String(shifted.getUTCDate()).padStart(2, '0');
-  const h  = String(shifted.getUTCHours()).padStart(2, '0');
-  const mi = String(shifted.getUTCMinutes()).padStart(2, '0');
-  const s  = String(shifted.getUTCSeconds()).padStart(2, '0');
-  // No timezone suffix → parsed as local time → getHours() returns correct Sydney hour
-  return new Date(`${Y}-${M}-${D}T${h}:${mi}:${s}`);
+    const parts = new Intl.DateTimeFormat('en-AU', {
+      timeZone: 'Australia/Sydney',
+      year:   'numeric',
+      month:  'numeric',
+      day:    'numeric',
+      hour:   'numeric',
+      minute: 'numeric',
+      second: 'numeric',
+      hour12: false,
+    }).formatToParts(ref);
+    const get = (type: string) => parseInt(parts.find(p => p.type === type)?.value ?? '0', 10);
+    const hr = get('hour');
+    return new Date(
+      get('year'),
+      get('month') - 1,
+      get('day'),
+      hr === 24 ? 0 : hr,
+      get('minute'),
+      get('second'),
+    );
+  } catch {
+    return ref;
+  }
 }
 
 function getAuSeason(month: number): 'summer' | 'autumn' | 'winter' | 'spring' {

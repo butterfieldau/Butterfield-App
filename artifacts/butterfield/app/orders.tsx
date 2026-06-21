@@ -88,14 +88,14 @@ const STAGES_DELIVERY = [
 const ACTIVE_STATUSES = ['received', 'being_prepared', 'ready_for_pickup', 'out_for_delivery', 'scheduled', 'accepted'];
 
 function fmtDate(iso: string) {
-  return new Date(iso).toLocaleString('en-AU', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+  return new Date(iso).toLocaleString('en-AU', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'Australia/Sydney' });
 }
 
 function fmtShort(iso: string) {
   const d = new Date(iso);
   return {
-    date: d.toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short' }),
-    time: d.toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit', hour12: false }),
+    date: d.toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Australia/Sydney' }),
+    time: d.toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Australia/Sydney' }),
   };
 }
 

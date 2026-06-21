@@ -24,8 +24,8 @@ const RED    = '#EF4444';
 
 function formatDate(iso: string) {
   const d = new Date(iso);
-  return d.toLocaleDateString('en-AU', { day: '2-digit', month: 'short', year: 'numeric' })
-    + ' ' + d.toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit' });
+  return d.toLocaleDateString('en-AU', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'Australia/Sydney' })
+    + ' ' + d.toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit', timeZone: 'Australia/Sydney' });
 }
 
 function LoginCard({ item }: { item: LoginHistoryEntry }) {

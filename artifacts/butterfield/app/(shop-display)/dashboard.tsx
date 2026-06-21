@@ -398,7 +398,7 @@ async function exportReport(data: ShopDisplayAnalytics, range: Range, date: stri
   const lines: string[] = [
     'Butterfield Cookies — Sales Analytics Report',
     `Period: ${label}`,
-    `Generated: ${new Date().toLocaleString('en-AU')}`,
+    `Generated: ${new Date().toLocaleString('en-AU', { timeZone: 'Australia/Sydney' })}`,
     '',
     '--- SUMMARY ---',
     `Total Sales,${fmtAUD(data.totalCents)}`,

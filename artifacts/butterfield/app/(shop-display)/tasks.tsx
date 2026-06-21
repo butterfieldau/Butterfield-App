@@ -142,7 +142,7 @@ export default function ShopDisplayTasksScreen() {
                   <Text style={styles.taskDesc}>{item.completedByName ?? 'Unknown'} · {String(item.completionStatus).replace(/_/g, ' ')}</Text>
                 </View>
                 <Text style={styles.historyTime}>
-                  {new Date(item.createdAt).toLocaleString('en-AU', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })}
+                  {new Date(item.createdAt).toLocaleString('en-AU', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit', timeZone: 'Australia/Sydney' })}
                 </Text>
               </View>
             )}
