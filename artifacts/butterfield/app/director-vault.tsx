@@ -7,6 +7,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   Alert,
   Animated,
+  Modal,
   Pressable,
   ScrollView,
   StatusBar,
@@ -325,10 +326,12 @@ type Recipe = {
 
 const VIEWS = ['Recipes', 'Settings'] as const;
 
+type ChangePinStep = 'idle' | 'current' | 'new' | 'confirm';
+
 export default function VaultScreen() {
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
-  const { isUnlocked, vaultToken, resetInactivityTimer, lock } = useVault();
+  const { isUnlocked, vaultToken, resetInactivityTimer, lock, unlock } = useVault();
   const queryClient = useQueryClient();
 
   const [unlocked, setUnlocked] = useState(isUnlocked);
@@ -338,6 +341,16 @@ export default function VaultScreen() {
   const [showArchived, setShowArchived] = useState(false);
   const [categories, setCategories] = useState<string[]>(DEFAULT_CATEGORIES);
   const [newCatName, setNewCatName] = useState('');
+
+  const [changePinStep, setChangePinStep] = useState<ChangePinStep>('idle');
+  const [changePinCurrent, setChangePinCurrent] = useState('');
+  const [changePinNew, setChangePinNew]         = useState('');
+  const [changePinConfirm, setChangePinConfirm] = useState('');
+  const changePinNewRef = useRef('');
+  const changePinCurrentRef = useRef('');
+  const [changePinError, setChangePinError]   = useState('');
+  const [changePinLoading, setChangePinLoading] = useState(false);
+  const changePinShakeAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => { setUnlocked(isUnlocked); }, [isUnlocked]);
 
@@ -397,6 +410,131 @@ export default function VaultScreen() {
       { text: 'Lock', onPress: () => { lock(); setUnlocked(false); } },
     ]);
   }
+
+  function shakeChangePinAnim() {
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    Animated.sequence([
+      Animated.timing(changePinShakeAnim, { toValue: 10, duration: 60, useNativeDriver: true }),
+      Animated.timing(changePinShakeAnim, { toValue: -10, duration: 60, useNativeDriver: true }),
+      Animated.timing(changePinShakeAnim, { toValue: 8, duration: 60, useNativeDriver: true }),
+      Animated.timing(changePinShakeAnim, { toValue: 0, duration: 60, useNativeDriver: true }),
+    ]).start();
+  }
+
+  function openChangePinFlow() {
+    setChangePinStep('current');
+    setChangePinCurrent('');
+    setChangePinNew('');
+    setChangePinConfirm('');
+    changePinNewRef.current = '';
+    changePinCurrentRef.current = '';
+    setChangePinError('');
+    setChangePinLoading(false);
+    Haptics.selectionAsync();
+  }
+
+  function closeChangePinFlow() {
+    setChangePinStep('idle');
+    setChangePinCurrent('');
+    setChangePinNew('');
+    setChangePinConfirm('');
+    changePinNewRef.current = '';
+    changePinCurrentRef.current = '';
+    setChangePinError('');
+    setChangePinLoading(false);
+  }
+
+  function handleChangePinDigit(d: string) {
+    setChangePinError('');
+    if (changePinStep === 'current') {
+      setChangePinCurrent(prev => prev.length >= 6 ? prev : prev + d);
+    } else if (changePinStep === 'new') {
+      setChangePinNew(prev => prev.length >= 6 ? prev : prev + d);
+    } else if (changePinStep === 'confirm') {
+      setChangePinConfirm(prev => prev.length >= 6 ? prev : prev + d);
+    }
+  }
+
+  function handleChangePinDelete() {
+    setChangePinError('');
+    if (changePinStep === 'current') setChangePinCurrent(prev => prev.slice(0, -1));
+    else if (changePinStep === 'new') setChangePinNew(prev => prev.slice(0, -1));
+    else if (changePinStep === 'confirm') setChangePinConfirm(prev => prev.slice(0, -1));
+  }
+
+  useEffect(() => {
+    if (changePinStep === 'idle') return;
+    const activePin =
+      changePinStep === 'current' ? changePinCurrent :
+      changePinStep === 'new'     ? changePinNew :
+                                    changePinConfirm;
+    if (activePin.length < 6) return;
+
+    (async () => {
+      setChangePinLoading(true);
+      setChangePinError('');
+      try {
+        if (changePinStep === 'current') {
+          changePinCurrentRef.current = changePinCurrent;
+          setChangePinStep('new');
+          setChangePinLoading(false);
+          return;
+        }
+        if (changePinStep === 'new') {
+          changePinNewRef.current = changePinNew;
+          setChangePinStep('confirm');
+          setChangePinLoading(false);
+          return;
+        }
+        if (changePinStep === 'confirm') {
+          if (changePinNewRef.current !== changePinConfirm) {
+            shakeChangePinAnim();
+            setChangePinError("PINs don't match — try again");
+            setChangePinConfirm('');
+            setChangePinLoading(false);
+            return;
+          }
+          await api.vault.changePin({
+            currentPin: changePinCurrentRef.current,
+            newPin: changePinNewRef.current,
+          });
+          await unlock(vaultToken!, changePinNewRef.current);
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          closeChangePinFlow();
+          Alert.alert('PIN Changed', 'Your vault PIN has been updated successfully.');
+        }
+      } catch (e: any) {
+        shakeChangePinAnim();
+        const msg = e?.message ?? 'Incorrect PIN';
+        setChangePinError(msg);
+        if (changePinStep === 'current') {
+          setChangePinCurrent('');
+          changePinCurrentRef.current = '';
+        } else if (changePinStep === 'confirm') {
+          setChangePinConfirm('');
+        } else {
+          setChangePinNew('');
+          changePinNewRef.current = '';
+        }
+        setChangePinLoading(false);
+      }
+    })();
+  }, [changePinCurrent, changePinNew, changePinConfirm, changePinStep]);
+
+  const changePinFilled =
+    changePinStep === 'current' ? changePinCurrent.length :
+    changePinStep === 'new'     ? changePinNew.length :
+    changePinStep === 'confirm' ? changePinConfirm.length : 0;
+
+  const changePinTitle =
+    changePinStep === 'current' ? 'Enter Current PIN' :
+    changePinStep === 'new'     ? 'Enter New PIN' :
+                                  'Confirm New PIN';
+
+  const changePinSubtitle =
+    changePinStep === 'current' ? 'Enter your existing 6-digit vault PIN' :
+    changePinStep === 'new'     ? 'Choose a new 6-digit PIN for the vault' :
+                                  'Re-enter your new PIN to confirm';
 
   if (!user || (user.role !== 'director' && user.role !== 'manager')) {
     return (
@@ -567,6 +705,72 @@ export default function VaultScreen() {
         </ScrollView>
       )}
 
+      {/* ── Change PIN modal ── */}
+      <Modal
+        visible={changePinStep !== 'idle'}
+        animationType="slide"
+        presentationStyle="fullScreen"
+        onRequestClose={closeChangePinFlow}
+      >
+        <View style={{ flex: 1, backgroundColor: BG, paddingTop: insets.top }}>
+          <StatusBar barStyle="dark-content" backgroundColor={BG} />
+          <View style={{ flexDirection: 'row', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderBottomColor: BORD }}>
+            <Pressable onPress={closeChangePinFlow} style={{ padding: 6 }}>
+              <Feather name="x" size={22} color={MUTED} />
+            </Pressable>
+            <Text style={{ flex: 1, fontSize: 18, fontWeight: '700', color: TEXT, marginLeft: 8 }}>Change Vault PIN</Text>
+            <View style={{ flexDirection: 'row', gap: 6 }}>
+              {(['current', 'new', 'confirm'] as const).map((step, i) => (
+                <View
+                  key={step}
+                  style={{
+                    width: 8, height: 8, borderRadius: 4,
+                    backgroundColor:
+                      step === changePinStep ? GOLD :
+                      (['current', 'new', 'confirm'].indexOf(changePinStep) > i) ? GOLD + '55' : BORD,
+                  }}
+                />
+              ))}
+            </View>
+          </View>
+
+          <ScrollView contentContainerStyle={{ padding: 32, alignItems: 'center', gap: 28 }}>
+            <View style={{ width: 80, height: 80, borderRadius: 24, backgroundColor: GOLD_BG, borderWidth: 1.5, borderColor: GOLD + '44', alignItems: 'center', justifyContent: 'center' }}>
+              <Feather name="key" size={34} color={GOLD} />
+            </View>
+
+            <View style={{ alignItems: 'center', gap: 6 }}>
+              <Text style={{ fontSize: 22, fontWeight: '700', color: TEXT }}>{changePinTitle}</Text>
+              <Text style={{ fontSize: 14, color: TEXTD, textAlign: 'center' }}>{changePinSubtitle}</Text>
+            </View>
+
+            <Animated.View style={{ transform: [{ translateX: changePinShakeAnim }] }}>
+              <PinDots filled={changePinFilled} />
+            </Animated.View>
+
+            {changePinError ? (
+              <View style={{ backgroundColor: ERROR + '12', borderRadius: 10, paddingHorizontal: 16, paddingVertical: 8 }}>
+                <Text style={{ color: ERROR, fontSize: 13, textAlign: 'center' }}>{changePinError}</Text>
+              </View>
+            ) : null}
+
+            {changePinLoading ? (
+              <Text style={{ color: MUTED, fontSize: 13 }}>Updating…</Text>
+            ) : null}
+
+            <View style={{ width: '100%' }}>
+              <PinPad onDigit={handleChangePinDigit} onDelete={handleChangePinDelete} />
+            </View>
+
+            {changePinStep === 'confirm' && (
+              <Pressable onPress={() => { setChangePinStep('new'); setChangePinNew(''); setChangePinConfirm(''); setChangePinError(''); changePinNewRef.current = ''; }}>
+                <Text style={{ color: TEXTD, fontSize: 13 }}>← Re-enter new PIN</Text>
+              </Pressable>
+            )}
+          </ScrollView>
+        </View>
+      </Modal>
+
       {/* ── Settings view ── */}
       {view === 'Settings' && (
         <ScrollView contentContainerStyle={{ padding: 20, gap: 24, paddingBottom: insets.bottom + 40 }}>
@@ -610,6 +814,11 @@ export default function VaultScreen() {
             <Text style={{ fontSize: 13, color: TEXTD, marginBottom: 16 }}>
               The vault auto-locks after 2 minutes of inactivity or when the app goes to background.
             </Text>
+            <Pressable onPress={openChangePinFlow} style={s.changePinBtn}>
+              <Feather name="key" size={16} color={GOLD_DK} />
+              <Text style={{ color: GOLD_DK, fontWeight: '600', fontSize: 14 }}>Change PIN</Text>
+            </Pressable>
+            <View style={{ height: 10 }} />
             <Pressable onPress={handleLock} style={s.lockNowBtn}>
               <Feather name="lock" size={16} color={ERROR} />
               <Text style={{ color: ERROR, fontWeight: '600', fontSize: 14 }}>Lock Vault Now</Text>
@@ -664,5 +873,6 @@ const s = StyleSheet.create({
   addCatRow: { flexDirection: 'row', gap: 10, marginTop: 14, alignItems: 'center' },
   addCatInput: { flex: 1, height: 40, borderWidth: 1, borderColor: BORD, borderRadius: 10, paddingHorizontal: 12, fontSize: 14, color: TEXT, backgroundColor: SURFACE },
   addCatBtn: { width: 40, height: 40, backgroundColor: GOLD, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  changePinBtn: { flexDirection: 'row', gap: 8, alignItems: 'center', justifyContent: 'center', padding: 14, borderRadius: 12, borderWidth: 1, borderColor: GOLD + '55', backgroundColor: GOLD_BG },
   lockNowBtn: { flexDirection: 'row', gap: 8, alignItems: 'center', justifyContent: 'center', padding: 14, borderRadius: 12, borderWidth: 1, borderColor: ERROR + '33', backgroundColor: ERROR + '0A' },
 });
