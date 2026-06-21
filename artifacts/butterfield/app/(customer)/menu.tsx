@@ -25,13 +25,11 @@ import Reanimated, {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRefreshControl } from '@/hooks/useRefreshControl';
 import { useCart } from '@/context/CartContext';
-import { useAuth } from '@/context/AuthContext';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, type ApiProduct, type ProductCategory } from '@/lib/api';
 import SharedProductTile, { PRODUCT_IMAGES } from '@/components/ProductTile';
 import OfflineBanner from '@/components/OfflineBanner';
 import { setSelectedProduct } from '@/lib/selectedProduct';
-import { LoginRequiredModal } from '@/components/LoginRequiredModal';
 import { MenuShimmerGrid } from '@/components/customer/MenuShimmerGrid';
 import { DietaryTagFilter } from '@/components/customer/DietaryTagFilter';
 import { CategoryFilterBar } from '@/components/customer/CategoryFilterBar';
@@ -67,13 +65,11 @@ function parseArr(val: any): string[] {
 
 export default function MenuScreen() {
   const insets = useSafeAreaInsets();
-  const { addItemToCart, items: cartItems } = useCart();
-  const { user } = useAuth();
+  const { addItemToCart } = useCart();
   const params = useLocalSearchParams<{ category?: string }>();
   const [search, setSearch]                   = useState('');
   const [activeCategory, setActiveCategory]   = useState(params.category ?? 'all');
   const [userChangedCategory, setUserChangedCategory] = useState(false);
-  const [showLoginRequired, setShowLoginRequired]     = useState(false);
   const [selectedDietaryTags, setSelectedDietaryTags] = useState<string[]>([]);
 
   const { width, height } = useWindowDimensions();
@@ -83,8 +79,6 @@ export default function MenuScreen() {
   const hPad        = isTablet ? (isLandscape ? 28 : 24) : 16;
   const tileGap     = isTablet ? 14 : 12;
   const qc          = useQueryClient();
-
-  const cartCount = cartItems.reduce((sum, i) => sum + i.quantity, 0);
 
   useEffect(() => {
     if (params.category) { setActiveCategory(params.category); setSelectedDietaryTags([]); }
@@ -183,31 +177,11 @@ export default function MenuScreen() {
   return (
     <View style={s.root}>
       <OfflineBanner />
-      <LoginRequiredModal visible={showLoginRequired} redirectTo="/(customer)/cart" onCancel={() => setShowLoginRequired(false)} />
 
       {/* ── Header ── */}
       <View style={[s.header, { paddingTop: insets.top + 16, paddingHorizontal: hPad }]}>
         <View style={s.headerTop}>
           <Text style={[s.headerTitle, { fontWeight: '700', fontSize: isTablet ? 36 : 32 }]}>Menu</Text>
-
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-            {/* Basket icon — cart accessible from Menu */}
-            <Pressable
-              style={s.basketBtn}
-              onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                if (!user) { setShowLoginRequired(true); return; }
-                router.push('/(customer)/cart');
-              }}
-            >
-              <Feather name="shopping-bag" size={20} color="#1C1C1E" />
-              {cartCount > 0 && (
-                <View style={s.basketBadge}>
-                  <Text style={s.basketBadgeText}>{cartCount > 9 ? '9+' : cartCount}</Text>
-                </View>
-              )}
-            </Pressable>
-          </View>
         </View>
 
         {/* Search */}
@@ -299,12 +273,8 @@ const s = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#E5E5EA',
     shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 6, elevation: 2, zIndex: 10,
   },
-  headerTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  headerTop: { flexDirection: 'row', alignItems: 'center' },
   headerTitle: { color: '#1C1C1E' },
-  // Basket icon
-  basketBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#F2F2F7', alignItems: 'center', justifyContent: 'center' },
-  basketBadge: { position: 'absolute', top: -2, right: -2, backgroundColor: CHERRY, borderRadius: 10, minWidth: 18, height: 18, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 3 },
-  basketBadgeText: { color: '#fff', fontSize: 10, fontWeight: '800' },
   // Search
   searchBar:   { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, height: 44, backgroundColor: '#F2F2F7', borderRadius: 16 },
   searchInput: { flex: 1, color: '#1C1C1E' },
