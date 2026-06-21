@@ -1,0 +1,18 @@
+diff --git a/ReactCommon/react/nativemodule/core/platform/ios/ReactCommon/RCTTurboModule.mm b/ReactCommon/react/nativemodule/core/platform/ios/ReactCommon/RCTTurboModule.mm
+index 2a677974ca8a929849109f294bddcb239bb202d0..3e48fed7eb96368bd7a77b2013e42f605a1e50c0 100644
+--- a/ReactCommon/react/nativemodule/core/platform/ios/ReactCommon/RCTTurboModule.mm
++++ b/ReactCommon/react/nativemodule/core/platform/ios/ReactCommon/RCTTurboModule.mm
+@@ -435,7 +435,12 @@ void ObjCTurboModule::performVoidMethodInvocation(
+     @try {
+       [inv invokeWithTarget:strongModule];
+     } @catch (NSException *exception) {
+-      throw convertNSExceptionToJSError(runtime, exception, std::string{moduleName}, methodNameStr);
++      // PATCH ios26-thread-safety: convertNSExceptionToJSError calls JSI/Hermes from a
++      // background GCD thread, racing with GCScopeMarkerRAII on the JS thread → SIGSEGV on
++      // iOS 26 / arm64e. performVoidMethodInvocation is void-returning with no JS callback,
++      // so it is safe to log-and-discard here. Fixed upstream in React Native 0.82+.
++      NSLog(@"[RCTTurboModule] NSException swallowed in void method '%s' on module '%s': %@",
++            methodName, moduleName, exception.reason);
+     } @finally {
+       [retainedObjectsForInvocation removeAllObjects];
+     }
