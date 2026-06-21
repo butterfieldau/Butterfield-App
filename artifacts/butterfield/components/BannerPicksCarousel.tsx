@@ -18,7 +18,6 @@ import type { HomeBannerSlide } from '@/lib/api';
 const CHERRY = '#D20001';
 const BLUE   = '#40C0F2';
 
-const CARD_WIDTH  = Dimensions.get('window').width - 32 - 12;
 const CARD_HEIGHT = 190;
 
 function parseRoute(buttonRoute: string | undefined): () => void {
@@ -113,7 +112,7 @@ interface BannerPicksCarouselProps {
 export default function BannerPicksCarousel({ slides, hPad = 16 }: BannerPicksCarouselProps) {
   const flatRef = useRef<FlatList>(null);
   const [activeIndex, setActiveIndex] = useState(0);
-  const cardWidth = Dimensions.get('window').width - hPad * 2 - 12;
+  const cardWidth = Dimensions.get('window').width - hPad * 2;
 
   const scrollTo = useCallback((index: number) => {
     flatRef.current?.scrollToIndex({ index, animated: true });
