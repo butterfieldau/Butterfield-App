@@ -823,7 +823,7 @@ function StoreEditorModal({
                       setDrawerBusy(true);
                       await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
                       try {
-                        await sendOpenDrawer(ip, parseInt(printerPort, 10) || 9100, undefined, drawerPin);
+                        await sendOpenDrawer(ip, parseInt(printerPort, 10) || 9100, undefined, drawerPin, printerBrand);
                         setTestPrintResult({ ok: true, message: 'Cash drawer opened successfully.' });
                       } catch (err: any) {
                         setTestPrintResult({ ok: false, message: err?.message ?? 'Could not open the cash drawer.' });
