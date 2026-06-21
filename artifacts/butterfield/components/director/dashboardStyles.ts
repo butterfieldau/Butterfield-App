@@ -1,8 +1,20 @@
-import { StyleSheet } from 'react-native';
+import { Dimensions, StyleSheet } from 'react-native';
 import {
   GLASS_BG, GLASS_BORDER, GLASS_SHADOW,
   MUTED, TEXT, GREEN, RED, BORDER, BLUE,
 } from './directorColors';
+
+const SCREEN_W = Dimensions.get('window').width;
+const H_PAD    = 16;
+const INNER_W  = SCREEN_W - H_PAD * 2;
+
+const KPI_COLS = 2;
+const KPI_GAP  = 10;
+const KPI_W    = (INNER_W - KPI_GAP * (KPI_COLS - 1)) / KPI_COLS;
+
+const QA_COLS  = 4;
+const QA_GAP   = 8;
+const QA_W     = (INNER_W - QA_GAP * (QA_COLS - 1)) / QA_COLS;
 
 export const styles = StyleSheet.create({
   revCard:       { borderRadius: 20, padding: 20, gap: 16 },
@@ -40,7 +52,7 @@ export const styles = StyleSheet.create({
 });
 
 export const kpi = StyleSheet.create({
-  tile:     { width: '47.5%', backgroundColor: GLASS_BG, borderColor: GLASS_BORDER, borderRadius: 16, borderWidth: 1, padding: 14, gap: 6, ...GLASS_SHADOW },
+  tile:     { width: KPI_W, backgroundColor: GLASS_BG, borderColor: GLASS_BORDER, borderRadius: 16, borderWidth: 1, padding: 14, gap: 6, ...GLASS_SHADOW },
   iconBox:  { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center', position: 'relative', borderWidth: 1.5 },
   alertDot: { position: 'absolute', top: 0, right: 0, width: 8, height: 8, borderRadius: 4, backgroundColor: RED },
   value:    { fontSize: 26, fontWeight: '700' },
@@ -49,7 +61,7 @@ export const kpi = StyleSheet.create({
 });
 
 export const qa = StyleSheet.create({
-  btn:   { width: '23%', backgroundColor: GLASS_BG, borderColor: GLASS_BORDER, borderRadius: 16, borderWidth: 1, padding: 10, gap: 6, alignItems: 'center', ...GLASS_SHADOW },
+  btn:   { width: QA_W, backgroundColor: GLASS_BG, borderColor: GLASS_BORDER, borderRadius: 16, borderWidth: 1, padding: 10, gap: 6, alignItems: 'center', ...GLASS_SHADOW },
   icon:  { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center', borderWidth: 1.5 },
   label: { fontSize: 10, fontWeight: '500', textAlign: 'center' },
 });

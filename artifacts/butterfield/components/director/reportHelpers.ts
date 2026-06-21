@@ -9,7 +9,7 @@ export function fmtAUD(cents: number) {
 }
 
 export function fmtDate(iso: string) {
-  return new Date(iso).toLocaleString('en-AU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+  return new Date(iso).toLocaleString('en-AU', { timeZone: 'Australia/Sydney', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
 }
 
 export function fmtDateShort(iso: string) {
@@ -55,6 +55,7 @@ export function fmtDateTime(iso: string | null | undefined) {
   const d = new Date(iso);
   if (isNaN(d.getTime())) return 'Not recorded';
   return d.toLocaleString('en-AU', {
+    timeZone: 'Australia/Sydney',
     day: 'numeric',
     month: 'short',
     year: 'numeric',

@@ -370,16 +370,6 @@ router.post('/', async (req, res) => {
       { orderId, screen: '/(director)/orders', filter: 'scheduled' },
     ).catch((err) => req.log.warn({ err, orderId }, 'Scheduled order internal notification failed'));
 
-    const customerMsg = scheduledDateLabel
-      ? `Your ${resolvedOrderType === 'delivery' ? 'delivery' : 'pickup'} for ${scheduledDateLabel} has been placed and is awaiting confirmation.`
-      : 'Your order has been placed and is awaiting confirmation.';
-    void notifyUser(
-      req.user!.id,
-      'order_scheduled',
-      'Order Placed',
-      customerMsg,
-      { orderId, screen: `/(customer)/track/${orderId}` },
-    ).catch((err) => req.log.warn({ err, orderId }, 'Scheduled order customer notification failed'));
   } else {
     // Quick pickup — immediate, no acceptance needed
     void sendNotificationToInternalTeam(
@@ -388,14 +378,6 @@ router.post('/', async (req, res) => {
       `${itemCount} item${itemCount !== 1 ? 's' : ''} · $${(authorativeTotalCents / 100).toFixed(2)} · Pickup`,
       { orderId, screen: '/(staff)/orders' },
     ).catch((err) => req.log.warn({ err, orderId }, 'Internal order notification failed'));
-
-    void notifyUser(
-      req.user!.id,
-      'order_confirmed',
-      'Order Received',
-      'We\'ve got your order and will have it ready soon!',
-      { orderId, screen: `/(customer)/track/${orderId}` },
-    ).catch((err) => req.log.warn({ err, orderId }, 'Customer order notification failed'));
   }
 
   // ── Compute reward savings for email / response ────────────────────────────

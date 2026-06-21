@@ -64,9 +64,13 @@ export default function DownloadReportModal({ visible, onClose }: DownloadModalP
         if (!res2.ok) throw new Error(await res2.text());
         const buf = await res2.arrayBuffer();
         const bytes = new Uint8Array(buf);
-        const xlsxFile = new (FileSystem as any).File((FileSystem as any).Paths.cache, filename);
-        xlsxFile.write(bytes);
-        const fileUri = xlsxFile.uri;
+        const binary = Array.from(bytes).map(b => String.fromCharCode(b)).join('');
+        const base64data = btoa(binary);
+        const cacheDir = ((FileSystem as any).cacheDirectory ?? (FileSystem as any).documentDirectory ?? '') as string;
+        const fileUri = cacheDir + filename;
+        await FileSystem.writeAsStringAsync(fileUri, base64data, {
+          encoding: 'base64' as any,
+        });
         const canShare = await Sharing.isAvailableAsync();
         if (canShare) {
           await Sharing.shareAsync(fileUri, {

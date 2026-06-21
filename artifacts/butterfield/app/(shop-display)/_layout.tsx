@@ -20,7 +20,7 @@ import {
 import { PosIdleScreen } from '@/components/PosIdleScreen';
 import PosPinModal from '@/components/PosPinModal';
 
-const IDLE_TIMEOUT_MS = 60_000;
+const IDLE_TIMEOUT_MS = 120_000;
 
 const BLUE  = '#1493FF';
 const NAVY  = '#1A2B4A';

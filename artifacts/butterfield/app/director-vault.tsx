@@ -215,6 +215,7 @@ function VaultLockView({ onUnlocked }: { onUnlocked: () => void }) {
         setError(e?.message ?? 'Invalid PIN');
         setPin('');
         setConfirm('');
+        if (mode === 'confirm') setMode('create');
       } finally { setLoading(false); }
     })();
   }, [pin, confirm]);

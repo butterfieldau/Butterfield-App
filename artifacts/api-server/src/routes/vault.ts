@@ -95,7 +95,7 @@ async function getOrCreateVaultConfig() {
   return created;
 }
 
-const directorOnly = requireRole('director');
+const directorOnly = requireRole('director', 'manager');
 
 router.get('/status', directorOnly, async (req: Request, res: Response) => {
   const config = await getOrCreateVaultConfig();
