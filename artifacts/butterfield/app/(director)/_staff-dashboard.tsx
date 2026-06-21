@@ -20,15 +20,10 @@ import {
   sendClockInConfirmation,
   sendClockOutConfirmation,
 } from '@/lib/staffNotifications';
+import { BG, CARD, BLUE, TEXT, MUTED, BORDER } from '@/constants/directorColors';
 
-const BG     = '#EFF6FF';
-const CARD   = '#FFFFFF';
-const BLUE   = '#1493FF';
-const RED    = '#F40009';
-const TEXT   = '#1C1C1E';
-const MUTED  = '#8E8E93';
-const BORDER = '#E5E7EB';
-const GREEN  = '#16A34A';
+const RED   = '#F40009';
+const GREEN = '#16A34A';
 
 function formatDuration(totalMins: number): string {
   if (totalMins === 0) return '0m';

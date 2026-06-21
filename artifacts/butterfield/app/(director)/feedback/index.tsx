@@ -9,16 +9,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, type DirectorFeedback } from '@/lib/api';
 import { DirectorStandaloneScreen } from '@/components/DirectorStandaloneScreen';
-
-const BG    = '#EFF6FF';
-const CARD  = '#FFFFFF';
-const TEXT  = '#1C1C1E';
-const MUTED = '#8E8E93';
-const BORD  = '#E5E7EB';
-const BLUE  = '#1493FF';
-const GOLD  = '#F59E0B';
-const GREEN = '#22C55E';
-const RED   = '#EF4444';
+import { BG, CARD, TEXT, MUTED, BORD, BLUE, AMBER as GOLD, GREEN, RED } from '@/constants/directorColors';
 
 type StarFilter = 'all' | 'unread' | '1' | '2' | '3' | '4' | '5';
 

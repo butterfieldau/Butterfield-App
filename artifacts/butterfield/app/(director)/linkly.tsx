@@ -4,11 +4,7 @@ import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import LinklyCloudSettingsCard from '@/components/LinklyCloudSettingsCard';
 import { DirectorStandaloneScreen } from '@/components/DirectorStandaloneScreen';
-
-const BG = '#EFF6FF';
-const TEXT = '#1C1C1E';
-const MUTED = '#8E8E93';
-const BLUE = '#1493FF';
+import { BG, TEXT, MUTED, BLUE } from '@/constants/directorColors';
 
 export default function DirectorLinklyScreen() {
   const insets = useSafeAreaInsets();

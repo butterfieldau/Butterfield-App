@@ -1,4 +1,5 @@
 import { router } from 'expo-router';
+import { BLUE, GREEN, AMBER, PURPLE, RED, NAVY, TEAL, ROSE } from '@/constants/directorColors';
 
 export type RowItem = {
   icon: string;
@@ -25,15 +26,6 @@ export type Category = {
   groups: RowGroup[];
   premium?: boolean;
 };
-
-const BLUE   = '#1493FF';
-const GREEN  = '#22C55E';
-const AMBER  = '#F59E0B';
-const PURPLE = '#8B5CF6';
-const RED    = '#EF4444';
-const NAVY   = '#1A2B4A';
-const TEAL   = '#06B6D4';
-const ROSE   = '#F43F5E';
 
 const ALL_CATEGORIES: Category[] = [
 

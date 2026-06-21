@@ -9,10 +9,7 @@ import { api } from '@/lib/api';
 import { getHomeRouteForRole, isInternalRole } from '@/lib/roleRoutes';
 import { FloatingInternalTabBar } from '@/components/FloatingTabBar';
 import { LayoutSafeAreaContext } from '@/context/LayoutSafeAreaContext';
-
-const BLUE = '#1493FF';
-const NAVY = '#1A2B4A';
-const BG_STAFF = '#EFF6FF';
+import { BG, BLUE, NAVY } from '@/constants/directorColors';
 
 const STAFF_TAB_CONFIG = {
   index:    { icon: 'home',          title: 'Dashboard' },
@@ -106,9 +103,9 @@ export default function DirectorLayout() {
   // ── Staff / Manager: light bg + animated glass floating tab bar ──────────────
   if (isInternal) {
     return (
-      <View style={{ flex: 1, backgroundColor: BG_STAFF }}>
-        <StatusBar barStyle="dark-content" backgroundColor={BG_STAFF} translucent={false} />
-        <View style={{ height: insets.top, backgroundColor: BG_STAFF }} />
+      <View style={{ flex: 1, backgroundColor: BG }}>
+        <StatusBar barStyle="dark-content" backgroundColor={BG} translucent={false} />
+        <View style={{ height: insets.top, backgroundColor: BG }} />
         <LayoutSafeAreaContext.Provider value={true}>
         <Tabs
           initialRouteName="index"
