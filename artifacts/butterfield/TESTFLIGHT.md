@@ -37,27 +37,22 @@ EAS will ask for App Store Connect credentials unless an API key is already conf
 
 ## Star IO SDK — iOS Compatibility
 
-`react-native-star-io10` is pinned to `^1.12.1`. A swizzle shim (`plugins/withStarIOLazyInit.js`) patches the iOS 26 / arm64e startup crash introduced by PAC pointer validation changes.
+`react-native-star-io10` remains installed for JavaScript compatibility, but iOS autolinking is disabled in `react-native.config.js` for the TestFlight / App Store app.
 
-### iOS compatibility matrix
+That keeps the consumer build stable on iOS 26, where the precompiled Star framework currently aborts during React Native startup before any screen renders.
 
-| iOS version | Status |
-|-------------|--------|
-| iOS 26 (arm64e) | Shim **required** — SDK throws `NSException` during TurboModule eager init |
-| iOS 17–25 | Shim is a no-op; SDK inits cleanly |
-| iOS <17 | Untested — treat as unsupported for POS hardware |
+### What still works
 
-### Updating the SDK
+- Epson and Star receipt printing over raw TCP
+- Auto-print flows
+- Director and POS print actions
 
-1. Bump `react-native-star-io10` in `package.json`.
-2. Run a device build against the latest iOS beta and confirm the crash is gone.
-3. Update the **"Validated against"** comment at the top of `plugins/withStarIOLazyInit.js` to reflect the new version.
+### What is intentionally unavailable on iOS
 
-### EAS build profiles
+- The Star native cash-drawer path used by `sendOpenDrawer` / `tryOpenDrawerWithStarSdk`
 
-| Profile | `IS_POS_BUILD` | Description |
-|---------|---------------|-------------|
-| `production` | `0` | Standard consumer build — shim active, Star IO init is guarded |
-| `production-pos` | `1` | Dedicated POS IPA — shim **skipped**, Star IO inits eagerly for full hardware access |
+When the native Star module is not linked, those actions fail gracefully and show the existing in-app error instead of crashing the whole app.
 
-Set `IS_POS_BUILD=1` only when shipping an IPA to physical POS terminals that must have Star IO available immediately at launch. Never use `production-pos` for App Store / TestFlight consumer builds.
+### Re-enabling Star on iOS later
+
+Only re-enable iOS autolinking for `react-native-star-io10` after validating a Star SDK version that launches cleanly on current iOS hardware from TestFlight.
