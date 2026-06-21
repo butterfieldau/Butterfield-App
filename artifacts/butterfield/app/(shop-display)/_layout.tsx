@@ -712,12 +712,19 @@ export default function ShopDisplayLayout() {
           {lastSyncedAt ? (
             <Text style={styles.sidebarSyncTime}>{formatSyncTime(lastSyncedAt)}</Text>
           ) : null}
-          {lockPin ? (
-            <Pressable onPress={doLock} style={styles.sidebarLogout}>
-              <Feather name="lock" size={15} color={MUTED} />
-              <Text style={styles.sidebarLogoutText}>Lock screen</Text>
-            </Pressable>
-          ) : null}
+          <Pressable
+            onPress={() => {
+              if (lockPin) {
+                doLock();
+              } else {
+                router.navigate('/(shop-display)/settings' as any);
+              }
+            }}
+            style={styles.sidebarLogout}
+          >
+            <Feather name="lock" size={15} color={MUTED} />
+            <Text style={styles.sidebarLogoutText}>{lockPin ? 'Lock screen' : 'Set up lock'}</Text>
+          </Pressable>
         </View>
       )}
 
