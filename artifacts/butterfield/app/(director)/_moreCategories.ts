@@ -47,7 +47,7 @@ const ALL_CATEGORIES: Category[] = [
             sub: 'Recipes, ingredients & margin calculator',
             color: '#C9A84C',
             directorOnly: true,
-            onPress: () => router.push('/(director)/vault' as any),
+            onPress: () => router.push('/director-vault' as any),
           },
         ],
       },
@@ -93,14 +93,14 @@ const ALL_CATEGORIES: Category[] = [
         items: [
           { icon: 'bell',        label: 'Push Notifications',      sub: 'Send to all or segmented customers',     color: BLUE,   perm: 'announcements', onPress: () => router.push('/director-settings-notify' as any) },
           { icon: 'clock',       label: 'Scheduled Notifications', sub: 'Queue messages for later',               color: BLUE,   perm: 'announcements', onPress: () => router.push('/director-settings-scheduled-notifications' as any) },
-          { icon: 'users',       label: 'Customer Segments',       sub: 'Target by tier, location or behaviour',  color: BLUE,   perm: 'announcements', onPress: () => router.push('/customer-segments' as any) },
+          { icon: 'users',       label: 'Customer Segments',       sub: 'Target by tier, location or behaviour',  color: BLUE,   perm: 'announcements', onPress: () => router.push('/director-customer-segments' as any) },
           { icon: 'list',        label: 'Announcement History',    sub: 'Past sends & open rates',                color: BLUE,   perm: 'announcements', soon: true },
         ],
       },
       {
         label: 'Customer Feedback',
         items: [
-          { icon: 'message-square', label: 'Feedback Inbox',    sub: 'Star ratings, comments & order reviews', color: BLUE,   perm: 'announcements', onPress: () => router.push('/(director)/feedback' as any) },
+          { icon: 'message-square', label: 'Feedback Inbox',    sub: 'Star ratings, comments & order reviews', color: BLUE,   perm: 'announcements', onPress: () => router.push('/director-feedback' as any) },
         ],
       },
     ],
