@@ -81,21 +81,21 @@ function FloatingCustomerTabBar({ state, navigation, hideTabs }: any) {
           </GlassPill>
 
           {!onCartScreen && (
-            <Pressable onPress={goToCart} hitSlop={8}>
+            <Pressable onPress={goToCart} hitSlop={8} style={styles.cartWrap}>
               <GlassCircle size={CIRCLE_SZ}>
                 <Feather
                   name="shopping-bag"
                   size={22}
                   color={totalItems > 0 ? BLUE : '#333'}
                 />
-                {totalItems > 0 && (
-                  <View style={styles.badge}>
-                    <Text style={styles.badgeText}>
-                      {totalItems > 99 ? '99+' : String(totalItems)}
-                    </Text>
-                  </View>
-                )}
               </GlassCircle>
+              {totalItems > 0 && (
+                <View style={styles.badge}>
+                  <Text style={styles.badgeText}>
+                    {totalItems > 99 ? '99+' : String(totalItems)}
+                  </Text>
+                </View>
+              )}
             </Pressable>
           )}
         </View>
@@ -178,6 +178,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems:    'center',
     gap:           10,
+  },
+  cartWrap: {
+    position: 'relative',
   },
   badge: {
     position:          'absolute',
