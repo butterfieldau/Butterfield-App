@@ -4,9 +4,11 @@ const path = require('path');
 
 // Pod spec names to exclude from consumer builds.
 // react-native-star-io10 has been removed from the project entirely.
-// Only tcp-socket remains excluded from consumer builds (POS-only hardware).
+// tcp-socket is POS-only hardware, and keyboard-controller is disabled on iOS
+// to avoid a TurboModule startup exception on iOS 26 / arm64e.
 const EXCLUDED_POD_PREFIXES = [
   'react-native-tcp-socket',
+  'react-native-keyboard-controller',
 ];
 
 /**

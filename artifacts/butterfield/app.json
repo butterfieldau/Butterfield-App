@@ -62,6 +62,7 @@
         }
       ],
       "./plugins/withGoogleSignInFix",
+      "./plugins/withStarIOLazyInit",
       "./plugins/withPodfileExclusion"
     ],
     "experiments": {
