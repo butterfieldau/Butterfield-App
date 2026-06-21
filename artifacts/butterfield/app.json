@@ -61,9 +61,7 @@
           ]
         }
       ],
-      "./plugins/withGoogleSignInFix",
-      "./plugins/withStarIOLazyInit",
-      "./plugins/withPodfileExclusion"
+      "./plugins/withGoogleSignInFix"
     ],
     "experiments": {
       "typedRoutes": true,
