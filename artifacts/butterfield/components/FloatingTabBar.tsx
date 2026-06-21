@@ -157,15 +157,15 @@ export function GlassCircle({
       <View style={[gc.clip, { width: size, height: size, borderRadius: size / 2 }]}>
         {useBlur && (
           <BlurView
-            intensity={90}
-            tint="systemChromeMaterial"
+            intensity={80}
+            tint="light"
             style={StyleSheet.absoluteFill}
           />
         )}
         <View
           style={[
             StyleSheet.absoluteFill,
-            { backgroundColor: useBlur ? 'rgba(255,255,255,0.45)' : 'rgba(255,255,255,0.97)' },
+            { backgroundColor: useBlur ? 'rgba(255,255,255,0.55)' : 'rgba(255,255,255,0.97)' },
           ]}
         />
         <View style={[gc.content, { width: size, height: size }]}>{children}</View>
