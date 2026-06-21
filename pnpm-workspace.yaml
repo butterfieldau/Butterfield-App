@@ -25,8 +25,8 @@ catalog:
   drizzle-orm: ^0.45.2
   framer-motion: ^12.23.24
   lucide-react: ^0.545.0
-  react: 19.1.0
-  react-dom: 19.1.0
+  react: 19.2.0
+  react-dom: 19.2.0
   tailwind-merge: ^3.3.1
   tailwindcss: ^4.1.14
   tsx: ^4.21.0
@@ -150,5 +150,3 @@ overrides:
   vite>picomatch: 4.0.4
   yaml: ^2.9.0
 
-patchedDependencies:
-  react-native@0.81.5: patches/react-native@0.81.5.patch

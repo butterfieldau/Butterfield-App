@@ -426,7 +426,7 @@ async function exportReport(data: ShopDisplayAnalytics, range: Range, date: stri
   const fileUri = cacheDir + `butterfield-analytics-${safeName}.csv`;
   try {
     await FileSystem.writeAsStringAsync(fileUri, csv, {
-      encoding: FileSystem.EncodingType.UTF8,
+      encoding: 'utf8',
     });
     if (await Sharing.isAvailableAsync()) {
       await Sharing.shareAsync(fileUri, { mimeType: 'text/csv', dialogTitle: 'Export Analytics Report', UTI: 'public.comma-separated-values-text' });

@@ -28,9 +28,7 @@
       "autoIncrement": true,
       "env": {
         "EXPO_PUBLIC_DOMAIN": "app.butterfieldcookies.com.au",
-        "IS_POS_BUILD": "0",
-        "RCT_USE_PREBUILT_RNCORE": "0",
-        "RCT_USE_RN_DEP": "0"
+        "IS_POS_BUILD": "0"
       },
       "ios": {
         "distribution": "store",
@@ -41,9 +39,7 @@
       "autoIncrement": true,
       "env": {
         "EXPO_PUBLIC_DOMAIN": "app.butterfieldcookies.com.au",
-        "IS_POS_BUILD": "1",
-        "RCT_USE_PREBUILT_RNCORE": "0",
-        "RCT_USE_RN_DEP": "0"
+        "IS_POS_BUILD": "1"
       },
       "ios": {
         "distribution": "store",

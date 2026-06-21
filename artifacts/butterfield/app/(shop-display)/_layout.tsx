@@ -1,5 +1,5 @@
 import { Feather } from '@expo/vector-icons';
-import { Audio, InterruptionModeAndroid, InterruptionModeIOS } from 'expo-av';
+import { AudioPlayer, createAudioPlayer, setAudioModeAsync } from 'expo-audio';
 import { Redirect, router, Tabs, usePathname } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import React, { useState, useEffect, useCallback, useRef } from 'react';
@@ -72,7 +72,7 @@ function NewOrderAlertOverlay({
   queueIndex?: number;
   queueTotal?: number;
 }) {
-  const soundRef = useRef<Audio.Sound | null>(null);
+  const soundRef = useRef<AudioPlayer | null>(null);
   // On web: holds the currently-playing AudioBufferSourceNode (looping)
   const webSourceRef = useRef<AudioBufferSourceNode | null>(null);
 
@@ -83,8 +83,8 @@ function NewOrderAlertOverlay({
         webSourceRef.current = null;
       }
       if (soundRef.current) {
-        soundRef.current.stopAsync().catch(() => {});
-        soundRef.current.unloadAsync().catch(() => {});
+        soundRef.current.pause();
+        soundRef.current.remove();
         soundRef.current = null;
       }
       return;
@@ -125,30 +125,21 @@ function NewOrderAlertOverlay({
         }
 
         // Native path ─────────────────────────────────────────────────────────
-        await Audio.setAudioModeAsync({
-          playsInSilentModeIOS: true,
-          allowsRecordingIOS: false,
-          staysActiveInBackground: false,
-          interruptionModeIOS: InterruptionModeIOS.DuckOthers,
-          shouldDuckAndroid: true,
-          interruptionModeAndroid: InterruptionModeAndroid.DuckOthers,
-          playThroughEarpieceAndroid: false,
+        await setAudioModeAsync({
+          playsInSilentMode: true,
+          allowsRecording: false,
         });
-        const sound = new Audio.Sound();
-        await sound.loadAsync(
-          alertSoundModule,
-          { shouldPlay: false, volume: 1 },
-          true,
-        );
+        const player = createAudioPlayer(alertSoundModule);
+        player.loop = true;
+        player.volume = 1;
         if (cancelled) {
-          sound.unloadAsync().catch(() => {});
+          player.remove();
           return;
         }
-        await sound.setIsLoopingAsync(true);
-        await sound.setVolumeAsync(1);
-        soundRef.current = sound;
+        soundRef.current = player;
         if (soundEnabled) {
-          await sound.playFromPositionAsync(0);
+          player.seekTo(0);
+          player.play();
         }
       } catch (error) {
         console.warn('App Sales order alert sound failed to start', error);
@@ -161,8 +152,8 @@ function NewOrderAlertOverlay({
         webSourceRef.current = null;
       }
       if (soundRef.current) {
-        soundRef.current.stopAsync().catch(() => {});
-        soundRef.current.unloadAsync().catch(() => {});
+        soundRef.current.pause();
+        soundRef.current.remove();
         soundRef.current = null;
       }
     };

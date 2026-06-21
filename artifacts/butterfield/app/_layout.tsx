@@ -30,7 +30,7 @@ SplashScreen.preventAutoHideAsync();
 (function installGlobalErrorHandler() {
   try {
     // ErrorUtils is a React Native global — not always typed in @types/react-native.
-    const EU = (global as any).ErrorUtils;
+    const EU = (globalThis as any).ErrorUtils;
     if (!EU || typeof EU.setGlobalHandler !== 'function') return;
 
     const previousHandler: ((error: Error, isFatal?: boolean) => void) | undefined =
