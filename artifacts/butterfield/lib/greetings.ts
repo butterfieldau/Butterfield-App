@@ -108,7 +108,7 @@ function daysSinceLastOrder(lastOrderDate: string | null | undefined): number | 
   return Math.floor((Date.now() - new Date(lastOrderDate).getTime()) / 86_400_000);
 }
 
-/** Deterministic pick — rotates every hour, never the same twice in a row.
+/** Deterministic pick. Rotates every hour, never the same twice in a row.
  *  Throws if arr is empty so callers that forget a length-guard get a clear error
  *  instead of silently returning undefined (which causes a Babel _slicedToArray crash
  *  on the next `const [a, b] = stablePick(...)` destructure). */
@@ -116,13 +116,13 @@ function stablePick<T>(arr: ReadonlyArray<T>, seed: number): T {
   if (!arr || arr.length === 0) {
     throw new Error(`stablePick: empty array (seed=${seed})`);
   }
-  // Guard against NaN/Infinity (e.g. when getSydneyNow returns Invalid Date)
+  // Guard against NaN/Infinity (e.g. When getSydneyNow returns Invalid Date)
   const safeSeed = Number.isFinite(seed) ? seed : Date.now();
   const idx = ((Math.floor(safeSeed) % arr.length) + arr.length) % arr.length;
   return arr[idx];
 }
 
-/** Random pick — kept for low-stakes one-off selections. */
+/** Random pick. Kept for low-stakes one-off selections. */
 function pick<T>(arr: T[]): T {
   return arr[Math.floor(Math.random() * arr.length)];
 }
@@ -153,23 +153,23 @@ function getBakingWindow(hour: number, minute: number): 'just_out' | 'warm' | nu
 
 const BAKING_MESSAGES: Record<'just_out' | 'warm', Array<[string, string]>> = {
   just_out: [
-    ['Cookies just came out of the oven. 🍪', 'Fresh and hot — best time to come in.'],
+    ['Cookies just came out of the oven. 🍪', 'Fresh and hot. Best time to come in.'],
     ['Fresh batch just landed. 🍪', 'Hot cookies and a great coffee. Perfect timing.'],
     ['Oven just opened. 🍪', 'Cookies are out. They won\'t last long.'],
-    ['Hot cookies right now. 🍪', 'Fresh out of the oven — come get one while they\'re warm.'],
+    ['Hot cookies right now. 🍪', 'Fresh out of the oven. Come get one while they\'re warm.'],
     ['Cookies are out! 🍪', 'Just baked. Hot and ready. Get in quick.'],
-    ['Fresh bake just dropped. 🍪', 'Still steaming — come grab one.'],
+    ['Fresh bake just dropped. 🍪', 'Still steaming. Come grab one.'],
     ['Oven-fresh cookies right now. 🍪', 'This is the moment. Come in.'],
     ['Just pulled from the oven. 🍪', 'Warm cookies and the best coffee in the area.'],
   ],
   warm: [
     ['Cookies are still warm from the oven. 🍪', 'Come grab one before they cool down.'],
     ['Warm cookies on the counter right now. 🍪', 'A coffee on the side makes it perfect.'],
-    ['Fresh cookies, still warm. 🍪', 'Best time to pop in — they\'re at peak flavour.'],
+    ['Fresh cookies, still warm. 🍪', 'Best time to pop in. They\'re at peak flavour.'],
     ['Cookies are fresh and warm. 🍪', 'Get one while the warmth lasts.'],
     ['Still warm from the oven. 🍪', 'Cookies + coffee right now = best decision of the day.'],
-    ['Warm cookies waiting for you. 🍪', 'Fresh bake — pair with a great coffee.'],
-    ['Cookies are warm and ready. 🍪', 'Come in now — this is the sweet spot.'],
+    ['Warm cookies waiting for you. 🍪', 'Fresh bake. Pair with a great coffee.'],
+    ['Cookies are warm and ready. 🍪', 'Come in now. This is the sweet spot.'],
     ['Fresh batch, still warm. 🍪', 'The window for warm cookies is open. Come in.'],
   ],
 };
@@ -196,21 +196,21 @@ const RAMADAN_MESSAGES: Array<[string, string]> = [
 
 const CALENDAR_HOLIDAY_MESSAGES: Record<string, Array<[string, string]>> = {
   'new-year': [
-    ['New year, same cravings.', 'Start it right — fresh cookies and great coffee.'],
+    ['New year, same cravings.', 'Start it right. Fresh cookies and great coffee.'],
     ['Fresh year.', 'Fresh coffee. Warm cookies. That\'s the move.'],
     ['Happy New Year! 🥂', 'Celebrate with a cookie and the best coffee around.'],
     ['New year.', 'Same spot. Same great cookies and coffee.'],
   ],
   'australia-day': [
     ['Happy Australia Day! 🇦🇺', 'Grab a great coffee and a fresh cookie. Celebrate properly.'],
-    ['Aussie day cravings?', 'Cookies, coffee, soft serve — all sorted.'],
+    ['Aussie day cravings?', 'Cookies, coffee, soft serve. All sorted.'],
     ['Australia Day. 🇦🇺', 'Our coffee is something else. Come celebrate with one.'],
     ['Happy Australia Day! 🇦🇺', 'Cookies and iced coffee. That\'s a proper Aussie day sorted.'],
   ],
   'valentines': [
     ['Valentine\'s cravings?', 'Share a cookie. Or don\'t.'],
     ['Love is sweet.', 'So are our cookies. And our soft serve. 💝'],
-    ['Happy Valentine\'s Day ❤️', 'Treat yourself — a cookie and a great coffee.'],
+    ['Happy Valentine\'s Day ❤️', 'Treat yourself. A cookie and a great coffee.'],
     ['Valentine\'s sorted. ❤️', 'Fresh cookies, vanilla soft serve, great coffee.'],
   ],
   'anzac-day': [
@@ -237,24 +237,24 @@ const CALENDAR_HOLIDAY_MESSAGES: Record<string, Array<[string, string]>> = {
     ['Boxing Day.', 'Fresh cookies, great coffee, vanilla soft serve. We\'re here.'],
   ],
   'nye': [
-    ['New Year\'s Eve! 🥂', 'Last cookie of the year — make it count.'],
+    ['New Year\'s Eve! 🥂', 'Last cookie of the year. Make it count.'],
     ['One more night.', 'One more cookie. One more great coffee. You deserve it.'],
-    ['NYE sorted. 🥂', 'Cookies, soft serve, milkshakes — last run of the year.'],
+    ['NYE sorted. 🥂', 'Cookies, soft serve, milkshakes. Last run of the year.'],
   ],
   'mothers-day': [
     ['Happy Mother\'s Day 💐', 'Mum deserves a seriously good coffee today.'],
     ['For Mum, always the best.', 'Our coffee and fresh cookies. Sorted.'],
     ['Happy Mother\'s Day 💐', 'Treat Mum to a vanilla soft serve and a great coffee.'],
-    ['Mother\'s Day sorted. 💐', 'Coffee, cookies, soft serve — Mum picks first.'],
+    ['Mother\'s Day sorted. 💐', 'Coffee, cookies, soft serve. Mum picks first.'],
   ],
   'fathers-day': [
     ['Happy Father\'s Day 🙌', 'Dad deserves a fresh cookie and a seriously good coffee.'],
-    ['Treat Dad properly today.', 'Coffee, cookies, soft serve — all here.'],
+    ['Treat Dad properly today.', 'Coffee, cookies, soft serve. All here.'],
     ['Happy Father\'s Day 🙌', 'A great coffee and a warm cookie. Sort Dad out.'],
-    ['Father\'s Day sorted. 🙌', 'Cookies and our coffee — the two things Dad actually wants.'],
+    ['Father\'s Day sorted. 🙌', 'Cookies and our coffee. The two things Dad actually wants.'],
   ],
   'easter': [
-    ['Easter treats? 🐣', 'Fresh cookies and great coffee — we\'ve got you.'],
+    ['Easter treats? 🐣', 'Fresh cookies and great coffee. We\'ve got you.'],
     ['Long weekend cravings are real.', 'Cookies, soft serve, milkshakes. Come through.'],
     ['Happy Easter! 🐰', 'Vanilla soft serve and fresh cookies are waiting.'],
     ['Easter long weekend. 🐣', 'Soft serve, frappes, iced coffee, cookies. Sorted.'],
@@ -265,12 +265,12 @@ const WEATHER_MESSAGES: Record<string, (temp: number) => Array<[string, string]>
   clear: (temp) => temp >= 30
     ? [
         [`${temp}° and clear in Sydney. ☀️`, 'Iced coffee and soft serve are calling.'],
-        [`Hot one today. ${temp}°`, 'Frappe or iced coffee — your call.'],
+        [`Hot one today. ${temp}°`, 'Frappe or iced coffee. Your call.'],
         [`Scorching ${temp}° out there. ☀️`, 'Vanilla soft serve hits different on days like this.'],
         [`${temp}° in Sydney. ☀️`, 'Iced drinks and frappes are ready for you.'],
         [`Too hot. ${temp}°`, 'Soft serve and iced coffee. Come sort it out.'],
         [`${temp}° and sunny. ☀️`, 'This is soft serve weather. No debate.'],
-        [`Seriously hot. ${temp}° ☀️`, 'Iced coffee or a frappe — both are cold and waiting.'],
+        [`Seriously hot. ${temp}° ☀️`, 'Iced coffee or a frappe. Both are cold and waiting.'],
       ]
     : temp >= 23
     ? [
@@ -278,21 +278,21 @@ const WEATHER_MESSAGES: Record<string, (temp: number) => Array<[string, string]>
         [`Lovely ${temp}° and clear. ☀️`, 'Soft serve weather. Come get one.'],
         [`${temp}° and sunny in Sydney. ☀️`, 'Iced coffee or frappe? Both are waiting.'],
         [`Great day in Sydney. ${temp}° ☀️`, 'Cookies and iced drinks sorted.'],
-        [`Warm ${temp}° day. ☀️`, 'Iced matcha or coffee — it\'s a good call either way.'],
+        [`Warm ${temp}° day. ☀️`, 'Iced matcha or coffee. It\'s a good call either way.'],
         [`${temp}° and gorgeous outside. ☀️`, 'Come in for a cold drink and a fresh cookie.'],
       ]
     : temp >= 15
     ? [
         [`Mild ${temp}° in Sydney. ☀️`, 'Perfect weather for a coffee and a cookie.'],
-        [`A pleasant ${temp}° today. ☀️`, 'Matcha or coffee — come grab something good.'],
-        [`${temp}° and sunny. ☀️`, 'Warm coffee or iced — it\'s a good day either way.'],
+        [`A pleasant ${temp}° today. ☀️`, 'Matcha or coffee. Come grab something good.'],
+        [`${temp}° and sunny. ☀️`, 'Warm coffee or iced. It\'s a good day either way.'],
         [`Nice ${temp}° in Sydney. ☀️`, 'Cookies are fresh. Coffee is on.'],
         [`${temp}° out there. ☀️`, 'Perfect excuse for a cookie and a flat white.'],
-        [`Good weather today. ${temp}° ☀️`, 'Matcha, coffee, or something cold — we\'ve got it all.'],
+        [`Good weather today. ${temp}° ☀️`, 'Matcha, coffee, or something cold. We\'ve got it all.'],
       ]
     : [
         [`Cool ${temp}° in Sydney today. ☀️`, 'A warm cookie and a hot coffee fixes everything.'],
-        [`Only ${temp}° — but sunny! ☀️`, 'Warm up with our coffee. It\'s the best around.'],
+        [`Only ${temp}°. But sunny! ☀️`, 'Warm up with our coffee. It\'s the best around.'],
         [`Chilly ${temp}° out there. ☀️`, 'Hot coffee and fresh cookies are waiting.'],
         [`${temp}° in Sydney. ☀️`, 'Perfect cookie-and-coffee weather.'],
         [`Cold but clear. ${temp}° ☀️`, 'A hot flat white sorts this right out.'],
@@ -300,23 +300,23 @@ const WEATHER_MESSAGES: Record<string, (temp: number) => Array<[string, string]>
   cloudy: (temp) => [
     [`${temp}° and overcast in Sydney. ⛅`, 'A hot coffee and a cookie sounds right.'],
     [`Grey skies today. ${temp}°`, 'Warm cookies and great coffee are waiting.'],
-    [`Cloudy ${temp}° day in Sydney. ⛅`, 'Matcha or coffee — we\'ve got both sorted.'],
+    [`Cloudy ${temp}° day in Sydney. ⛅`, 'Matcha or coffee. We\'ve got both sorted.'],
     [`Overcast in Sydney. ${temp}° ⛅`, 'Perfect weather to grab a cookie and sit down.'],
     [`${temp}° and cloudy. ⛅`, 'Our coffee is the best in the area. Come find out.'],
     [`Grey day outside. ${temp}° ⛅`, 'Warm cookies and a great coffee. Easy fix.'],
-    [`Overcast Sydney day. ${temp}° ⛅`, 'Hot matcha or a flat white — both are ready.'],
+    [`Overcast Sydney day. ${temp}° ⛅`, 'Hot matcha or a flat white. Both are ready.'],
   ],
   rainy: (_temp) => [
     ['Rainy day in Sydney. 🌧️', 'Warm cookies and hot coffee are inside.'],
     ['Wet one out there. 🌧️', 'Our coffee is calling. Come dry off.'],
     ['Sydney rain hits different. 🌧️', 'A cookie and a hot coffee. Problem solved.'],
     ['Raining in Sydney. 🌧️', 'Perfect excuse to grab a warm cookie and a coffee.'],
-    ['Rain outside. 🌧️', 'Matcha or coffee — both are warm and waiting.'],
+    ['Rain outside. 🌧️', 'Matcha or coffee. Both are warm and waiting.'],
     ['Pouring in Sydney. 🌧️', 'Get in, get dry, get a cookie. Easy.'],
     ['Rainy one today. 🌧️', 'Hot coffee and a fresh-baked cookie. Best combo for rain.'],
   ],
   showery: (_temp) => [
-    ['Showers in Sydney today. 🌦️', 'Pop in between the rain — cookies are fresh.'],
+    ['Showers in Sydney today. 🌦️', 'Pop in between the rain. Cookies are fresh.'],
     ['On-and-off showers. 🌦️', 'A hot coffee sorts that right out.'],
     ['Showers rolling through. 🌦️', 'Warm cookies and the best coffee around. Inside.'],
     ['Patchy rain in Sydney. 🌦️', 'Matcha or coffee? Either way, come in.'],
@@ -332,7 +332,7 @@ const WEATHER_MESSAGES: Record<string, (temp: number) => Array<[string, string]>
   foggy: (_temp) => [
     ['Foggy Sydney morning. 🌫️', 'A coffee helps clear the head. Best in the area.'],
     ['Thick fog in Sydney today. 🌫️', 'Stay safe and grab a warm coffee on the way.'],
-    ['Foggy out there. 🌫️', 'Matcha or coffee — come start the day properly.'],
+    ['Foggy out there. 🌫️', 'Matcha or coffee. Come start the day properly.'],
     ['Sydney fog this morning. 🌫️', 'A hot coffee and a cookie. That\'s the move.'],
     ['Misty morning in Sydney. 🌫️', 'Warm up with a flat white and a fresh cookie.'],
   ],
@@ -341,7 +341,7 @@ const WEATHER_MESSAGES: Record<string, (temp: number) => Array<[string, string]>
 const SEASON_MESSAGES: Record<string, Array<[string, string]>> = {
   summer: [
     ['Sydney summer is doing too much.', 'Soft serve and iced coffee are waiting.'],
-    ['Summer sorted.', 'Iced coffee, frappes, vanilla soft serve — all here.'],
+    ['Summer sorted.', 'Iced coffee, frappes, vanilla soft serve. All here.'],
     ['Too hot to think?', 'Iced coffee or a frappe. Come sort it out.'],
     ['Summer cravings?', 'Soft serve, iced drinks, cookies. We\'ve got all of it.'],
     ['Hot Sydney day.', 'Our vanilla soft serve is famous for a reason.'],
@@ -350,20 +350,20 @@ const SEASON_MESSAGES: Record<string, Array<[string, string]>> = {
     ['Summer heat hitting hard.', 'Cold drinks and fresh cookies. Come sort it out.'],
     ['Scorching summer day.', 'Soft serve + cookies. This is the move.'],
     ['Hot one again.', 'Iced coffee and vanilla soft serve. Your call.'],
-    ['Sydney summer doing its thing.', 'Stay cool — frappes and iced drinks are ready.'],
+    ['Sydney summer doing its thing.', 'Stay cool. Frappes and iced drinks are ready.'],
     ['Another warm one.', 'Cookies are baking. Iced drinks are cold. Come in.'],
   ],
   autumn: [
     ['Autumn weather.', 'Warm cookies and a great coffee. Perfect match.'],
     ['Cosy season is here.', 'Fresh cookies and the best coffee around.'],
-    ['Autumn vibes.', 'Matcha or coffee — both are calling.'],
+    ['Autumn vibes.', 'Matcha or coffee. Both are calling.'],
     ['Settling into autumn.', 'A cookie and a hot coffee sorts the day out.'],
     ['Autumn in Sydney.', 'Fresh cookies are baking. Coffee is on.'],
     ['Cool autumn day.', 'Matcha latte and a warm cookie. Come through.'],
     ['Autumn is the best cookie season.', 'Fresh bake, great coffee. Come find out.'],
     ['Golden hour in Sydney.', 'Warm cookie and a flat white. That\'s autumn sorted.'],
     ['Crisp autumn air.', 'Our coffee hits different when it\'s cool outside.'],
-    ['Autumn coffee weather.', 'Flat white, matcha, or hot choc — all on.'],
+    ['Autumn coffee weather.', 'Flat white, matcha, or hot choc. All on.'],
     ['Perfect cookie weather.', 'Autumn was made for this. Fresh-baked and ready.'],
     ['Autumn calls for warm things.', 'Cookies, hot coffee, matcha. All here.'],
     ['Good day for a warm one.', 'Fresh cookies and the best coffee in the area.'],
@@ -381,35 +381,35 @@ const SEASON_MESSAGES: Record<string, Array<[string, string]>> = {
     ['Winter warmth.', 'Hot flat white and a fresh cookie. That\'s the move.'],
     ['Cold enough for a hot drink.', 'Our coffee is the best in Merrylands. Come find out.'],
     ['Layers on, coffee in hand.', 'Warm cookies and great coffee. We\'ve got you.'],
-    ['Winter just hits different.', 'Hot matcha or a flat white — both are ready.'],
+    ['Winter just hits different.', 'Hot matcha or a flat white. Both are ready.'],
     ['Frosty morning.', 'Hot coffee, warm cookie. This is the fix.'],
-    ['Rugging up today?', 'So are we. Warm cookies and hot coffee — come in.'],
+    ['Rugging up today?', 'So are we. Warm cookies and hot coffee. Come in.'],
     ['Cold enough to need both hands around a coffee.', 'We\'ve got you covered.'],
   ],
   spring: [
     ['Spring in Sydney.', 'Fresh cookies, iced coffee, matcha. Sorted.'],
     ['Fresh day, fresh coffee.', 'Our coffee is the best in the area.'],
-    ['Spring mood.', 'Iced coffee or matcha — it\'s a vibe either way.'],
+    ['Spring mood.', 'Iced coffee or matcha. It\'s a vibe either way.'],
     ['Flowers are blooming.', 'Cookies are baking. Come say hi.'],
     ['Warming up in Sydney.', 'Soft serve season is almost here. Cookies are already ready.'],
-    ['Spring day sorted.', 'Matcha, iced coffee, fresh cookies — all waiting.'],
+    ['Spring day sorted.', 'Matcha, iced coffee, fresh cookies. All waiting.'],
     ['Beautiful spring day.', 'Grab a cookie and something to drink. You deserve it.'],
     ['Spring is here.', 'Warm enough for iced coffee, cool enough for a latte.'],
     ['Sydney spring.', 'Fresh cookies + a great coffee = best time of year.'],
     ['That spring feeling.', 'Come grab a matcha or an iced coffee. Cookies are fresh.'],
     ['Spring vibes.', 'Frappes, iced matcha, cookies. The season is here.'],
-    ['Good spring day.', 'Iced or hot — it\'s a great coffee either way.'],
+    ['Good spring day.', 'Iced or hot. It\'s a great coffee either way.'],
     ['Warming up out there.', 'Soft serve is almost back in full swing. Cookies always are.'],
   ],
 };
 
 const TIME_MESSAGES: Record<string, Array<[string, string]>> = {
   earlyMorning: [
-    ['Early start?', 'Seven Miles Coffee, matcha, or cookies — all sorted.'],
+    ['Early start?', 'Seven Miles Coffee, matcha, or cookies. All sorted.'],
     ['Up before the city.', 'Seven Miles Coffee is ready. Best in the area.'],
     ['Early bird?', 'Hot coffee and fresh cookies are waiting.'],
     ['Starting early?', 'A Seven Miles Coffee sorts the morning right out.'],
-    ['First one in?', 'Iced matcha or a flat white — we\'ve got you covered.'],
+    ['First one in?', 'Iced matcha or a flat white. We\'ve got you covered.'],
     ['Early riser.', 'Seven Miles Coffee in Merrylands. Come start the day right.'],
     ['Up with the birds?', 'We\'re baking. Seven Miles Coffee is on. Come in.'],
     ['Early morning run?', 'Seven Miles Coffee and a fresh cookie. Perfect fuel.'],
@@ -418,35 +418,35 @@ const TIME_MESSAGES: Record<string, Array<[string, string]>> = {
     ['Good morning.', 'Seven Miles Coffee is ready. Best in the area.'],
     ['Good morning! ☀️', 'Fresh cookies and Seven Miles Coffee are waiting.'],
     ['Good morning.', 'Iced matcha or coffee? Either way, come grab one.'],
-    ['Good morning! ☀️', 'Start the day properly — a Seven Miles Coffee and a warm cookie.'],
+    ['Good morning! ☀️', 'Start the day properly. A Seven Miles Coffee and a warm cookie.'],
     ['Good morning.', 'Hot coffee and fresh cookies. We\'ve got you.'],
     ['Morning sorted.', 'Seven Miles Coffee and warm cookies are waiting.'],
     ['Good morning! ☀️', 'A flat white and a fresh cookie. That\'s the move.'],
-    ['Good morning.', 'Seven Miles Coffee — the best in the area. Come find out why.'],
+    ['Good morning.', 'Seven Miles Coffee. The best in the area. Come find out why.'],
     ['Morning.', 'Cookies are baking. Seven Miles Coffee is always on. Come in.'],
-    ['Good morning! ☀️', 'Iced matcha, flat white, or a frappe — whatever starts your day.'],
+    ['Good morning! ☀️', 'Iced matcha, flat white, or a frappe. Whatever starts your day.'],
     ['Morning people know.', 'A great coffee and a fresh cookie changes everything.'],
     ['Rise and shine.', 'Fresh cookies and the best flat white around.'],
-    ['Morning fuel.', 'Coffee, matcha, or an iced drink — all ready.'],
+    ['Morning fuel.', 'Coffee, matcha, or an iced drink. All ready.'],
     ['Good morning.', 'Cookies just went in the oven. Coffee is always on.'],
     ['Start the day right.', 'A fresh cookie and our coffee. That\'s the move.'],
     ['Good morning! ☀️', 'Flat white or matcha? Either way, it\'s a great morning.'],
   ],
   afternoon: [
-    ['Afternoon pick-me-up?', 'Iced coffee, frappe, or a Red Bull Fusion — sorted.'],
-    ['Midday cravings are real.', 'Cookies, iced coffee, matcha — we\'ve got it all.'],
+    ['Afternoon pick-me-up?', 'Iced coffee, frappe, or a Red Bull Fusion. Sorted.'],
+    ['Midday cravings are real.', 'Cookies, iced coffee, matcha. We\'ve got it all.'],
     ['Afternoon slump?', 'Frappe or iced coffee. That\'ll sort it.'],
     ['Need a boost?', 'Red Bull Fusion, V Fusion, or an iced coffee. Your call.'],
     ['3pm cravings hitting?', 'A cookie and an iced coffee. Problem solved.'],
-    ['Afternoon sorted.', 'Matcha, iced coffee, or a frappe — all waiting.'],
+    ['Afternoon sorted.', 'Matcha, iced coffee, or a frappe. All waiting.'],
     ['Energy low?', 'Red Bull or V Fusion? We\'ve got both. Plus cookies.'],
     ['Midday break?', 'Best cookies in the area. Seven Miles Coffee to match.'],
     ['Post-lunch cravings?', 'A fresh cookie and an iced coffee. That\'s the one.'],
-    ['Afternoon treat?', 'Soft serve or a frappe — your afternoon, your call.'],
+    ['Afternoon treat?', 'Soft serve or a frappe. Your afternoon, your call.'],
     ['Work slump?', 'A cookie and a great coffee. Best fix around.'],
-    ['Halfway through the day.', 'Reward yourself — cookies and coffee are ready.'],
+    ['Halfway through the day.', 'Reward yourself. Cookies and coffee are ready.'],
     ['Iced matcha hitting different this afternoon.', 'Come grab one with a cookie.'],
-    ['Need something cold?', 'Iced drinks, frappes, milkshakes — all ready.'],
+    ['Need something cold?', 'Iced drinks, frappes, milkshakes. All ready.'],
     ['Afternoon craving sorted.', 'Seven Miles Coffee, iced or hot. Always consistent.'],
   ],
   evening: [
@@ -467,30 +467,30 @@ const TIME_MESSAGES: Record<string, Array<[string, string]>> = {
     ['Night owl?', 'A cookie and a milkshake helps. Trust us.'],
     ['Still up?', 'So are we. Cookies and soft serve are waiting.'],
     ['Late night cookie run?', 'That\'s what we\'re here for.'],
-    ['Night craving sorted.', 'Soft serve, cookies, milkshakes — come through.'],
+    ['Night craving sorted.', 'Soft serve, cookies, milkshakes. Come through.'],
     ['Midnight munchies?', 'We\'ve got you. Fresh cookies still going.'],
   ],
 };
 
 const LOYALTY_MESSAGES = {
   reward_ready: [
-    ['Your reward is ready.', 'A free cookie or coffee is waiting — come claim it.'],
+    ['Your reward is ready.', 'A free cookie or coffee is waiting. Come claim it.'],
     ['Free treat unlocked.', 'Cookie, soft serve, or coffee. Your pick.'],
     ['Your next one\'s on us.', 'Come in and claim it. Cookies are fresh.'],
     ['Reward ready to claim.', 'Something good is waiting for you.'],
-    ['You\'ve earned it.', 'Your free reward is waiting — come grab it.'],
+    ['You\'ve earned it.', 'Your free reward is waiting. Come grab it.'],
   ] as Array<[string, string]>,
   high_points: [
     ['Your rewards are building nicely.', 'Coffee run today?'],
     ['Getting close to your next reward.', 'A cookie or coffee could be on us soon.'],
     ['Points stacking up.', 'A free coffee or soft serve is getting closer.'],
     ['Almost at your next reward.', 'One more visit and something\'s on us.'],
-    ['Rewards are close.', 'Keep going — a free treat is nearly within reach.'],
+    ['Rewards are close.', 'Keep going. A free treat is nearly within reach.'],
   ] as Array<[string, string]>,
   not_ordered_long: [
     ['We\'ve missed you.', 'Fresh cookies and great coffee are waiting.'],
     ['Been a minute.', 'Your coffee misses you. So do the cookies.'],
-    ['Your usual spot is waiting.', 'Cookies, coffee, soft serve — all here.'],
+    ['Your usual spot is waiting.', 'Cookies, coffee, soft serve. All here.'],
     ['It\'s been a while.', 'Come back for a cookie and the best coffee around.'],
     ['Haven\'t seen you in a bit.', 'Fresh cookies and a great coffee are ready whenever you are.'],
     ['Been a while.', 'We kept the coffee warm and the cookies fresh.'],
@@ -521,18 +521,18 @@ const CATEGORY_ALIASES: Record<string, string> = {
 
 const FAVOURITE_CATEGORY_MESSAGES: Record<string, Array<[string, string]>> = {
   cookies: [
-    ['Your usual cookies are fresh.', 'Warm and ready — just how you like them.'],
+    ['Your usual cookies are fresh.', 'Warm and ready. Just how you like them.'],
     ['Cookie run?', 'Your favourites are fresh out the oven.'],
     ['Fresh cookies, just for you.', 'Your go-to order is ready whenever you are.'],
     ['Cookie lover.', 'Your favourites are baking right now.'],
     ['Cookie time.', 'Fresh batch is in. Come grab your usual.'],
-    ['Your cookies are ready.', 'Fresh-baked and waiting — same as always.'],
+    ['Your cookies are ready.', 'Fresh-baked and waiting. Same as always.'],
   ],
   coffee: [
     ['Your usual Seven Miles Coffee is waiting.', 'Same order, same perfect cup.'],
-    ['Coffee regular?', 'Your go-to is ready — Seven Miles, always consistent.'],
+    ['Coffee regular?', 'Your go-to is ready. Seven Miles, always consistent.'],
     ['Coffee run time.', 'Seven Miles Coffee. The best in the area. Come grab it.'],
-    ['Your coffee is calling.', 'Seven Miles — same order, same great taste.'],
+    ['Your coffee is calling.', 'Seven Miles. Same order, same great taste.'],
     ['Coffee time.', 'Best flat white in the area. Your usual is waiting.'],
     ['Regular coffee order?', 'Seven Miles Coffee sorted. Always the same great cup.'],
     ['Coffee person?', 'Seven Miles Coffee. Consistent every single time.'],
@@ -542,22 +542,22 @@ const FAVOURITE_CATEGORY_MESSAGES: Record<string, Array<[string, string]>> = {
     ['Dessert craving?', 'Your go-to order is waiting for you.'],
     ['Sweet things are ready.', 'Your usual favourites are on the menu.'],
     ['Dessert run?', 'Your favourites are fresh and ready.'],
-    ['Something sweet?', 'Soft serve, cookies, desserts — your go-to is ready.'],
+    ['Something sweet?', 'Soft serve, cookies, desserts. Your go-to is ready.'],
   ],
   'soft-serve': [
     ['Soft serve time?', 'Vanilla soft serve is ready and waiting.'],
-    ['Your usual soft serve.', 'Smooth, cold, perfect — same as always.'],
+    ['Your usual soft serve.', 'Smooth, cold, perfect. Same as always.'],
     ['Soft serve calling?', 'Come grab one. Fresh and ready.'],
     ['Vanilla soft serve ready.', 'Your go-to is waiting. Come grab it.'],
   ],
   milkshakes: [
     ['Milkshake craving?', 'Your usual is cold and waiting.'],
     ['Milkshake time.', 'Your go-to order is ready whenever you are.'],
-    ['Best milkshakes around.', 'Your usual is ready — come grab it.'],
+    ['Best milkshakes around.', 'Your usual is ready. Come grab it.'],
     ['Milkshake run?', 'Cold, thick, and waiting. Come through.'],
   ],
   'cold-drinks': [
-    ['Your iced drink is waiting.', 'Cold and ready — same great order.'],
+    ['Your iced drink is waiting.', 'Cold and ready. Same great order.'],
     ['Iced coffee regular?', 'Your usual is cold and waiting.'],
     ['Cold drink craving?', 'Your go-to iced order is ready. Come grab it.'],
     ['Chilled and ready.', 'Your usual cold drink is waiting.'],
@@ -566,38 +566,38 @@ const FAVOURITE_CATEGORY_MESSAGES: Record<string, Array<[string, string]>> = {
   matcha: [
     ['Iced matcha person?', 'Your usual is cold and ready.'],
     ['Matcha craving?', 'Your go-to is made and waiting.'],
-    ['Iced matcha is ready.', 'Smooth and cold — your usual order.'],
-    ['Matcha time.', 'Your usual is waiting — iced and ready.'],
+    ['Iced matcha is ready.', 'Smooth and cold. Your usual order.'],
+    ['Matcha time.', 'Your usual is waiting. Iced and ready.'],
   ],
   fusions: [
     ['Red Bull or V Fusion?', 'Your usual is cold and waiting.'],
-    ['Fusion craving?', 'Red Bull or V Fusion — your go-to is ready.'],
+    ['Fusion craving?', 'Red Bull or V Fusion. Your go-to is ready.'],
     ['Energy sorted.', 'Your usual fusion drink is cold and waiting.'],
-    ['Fusion time.', 'Red Bull or V Fusion — come grab your usual.'],
+    ['Fusion time.', 'Red Bull or V Fusion. Come grab your usual.'],
   ],
   bundles: [
     ['Bundle order?', 'Your favourite combo is ready.'],
     ['Sharing is caring.', 'Your go-to bundle is fresh and ready.'],
-    ['Bundle up.', 'Your favourite order is on — same as always.'],
+    ['Bundle up.', 'Your favourite order is on. Same as always.'],
     ['Your bundle is ready.', 'Fresh cookies and everything you love.'],
   ],
 };
 
 const WEEKEND_MESSAGES: Array<[string, string]> = [
   ['Weekend mode is on.', 'Cookies are fresh. Seven Miles Coffee is always on.'],
-  ['Saturday sorted.', 'Soft serve, iced coffee, cookies — all here.'],
+  ['Saturday sorted.', 'Soft serve, iced coffee, cookies. All here.'],
   ['Sunday treat?', 'Vanilla soft serve or a frappe. Come get one.'],
   ['Weekend coffee run?', 'Make it Seven Miles. Best coffee in the area.'],
   ['Weekend cravings sorted.', 'Cookies, milkshakes, soft serve. We\'ve got it all.'],
   ['Slow Sunday?', 'A cookie and a Seven Miles Coffee fixes that.'],
   ['Saturday vibes.', 'Iced coffee, frappes, fresh cookies. Let\'s go.'],
-  ['Weekend reward.', 'Treat yourself — fresh cookies and Seven Miles Coffee.'],
+  ['Weekend reward.', 'Treat yourself. Fresh cookies and Seven Miles Coffee.'],
   ['Weekend, sorted.', 'Milkshakes, frappes, cookies. Come through.'],
   ['Saturday coffee run?', 'Seven Miles Coffee. Cookies too. Come in.'],
-  ['Sunday session.', 'Cookies, soft serve, milkshakes — all ready.'],
+  ['Sunday session.', 'Cookies, soft serve, milkshakes. All ready.'],
   ['Enjoy the weekend.', 'Fresh cookies and a Seven Miles Coffee. You\'ve earned it.'],
   ['Weekend iced matcha?', 'Smooth, cold, perfect. Cookies on the side. Come in.'],
-  ['Weekend sorted.', 'Red Bull Fusion, iced coffee, or soft serve — your call.'],
+  ['Weekend sorted.', 'Red Bull Fusion, iced coffee, or soft serve. Your call.'],
   ['Saturday treat?', 'Vanilla soft serve and a fresh cookie. That\'s the one.'],
 ];
 
@@ -650,8 +650,8 @@ export function buildGreeting(ctx: GreetingContext): Greeting {
     const openLine = opensAt ? `We open at ${opensAt}.` : 'Check back when we\'re open.';
     const subLine  =
       timePeriod === 'morning'   ? 'Fresh cookies and great coffee will be ready soon.' :
-      timePeriod === 'afternoon' ? 'Come back soon — cookies and coffee are worth it.'  :
-      timePeriod === 'evening'   ? 'We\'re closing up — see you next time.'             :
+      timePeriod === 'afternoon' ? 'Come back soon. Cookies and coffee are worth it.'  :
+      timePeriod === 'evening'   ? 'We\'re closing up. See you next time.'             :
                                    'Late night craving? We\'ll be back soon.';
 
     if (isBirthday(birthday) && name) {
@@ -667,13 +667,14 @@ export function buildGreeting(ctx: GreetingContext): Greeting {
     return { line1: `Happy birthday, ${name}! 🎉`, line2: 'Your birthday treat is waiting.' };
   }
 
-  // 2. Reward ready
-  if (hasClaimableReward && name) {
+  // 2. Reward ready — shown ~30 % of sessions so it feels like a nudge,
+  // not a constant nag. The other 70 % fall through to the normal greeting.
+  if (hasClaimableReward && name && (seed % 10) < 3) {
     const [, l2] = stablePick(LOYALTY_MESSAGES.reward_ready, seed);
     return { line1: `${name}, your reward is ready.`, line2: l2 };
   }
 
-  // 3. Cookie baking window — always shown when cookies are fresh/warm
+  // 3. Cookie baking window. Always shown when cookies are fresh/warm
   const bakingWindow = getBakingWindow(hour, minute);
   if (bakingWindow) {
     const bank = BAKING_MESSAGES[bakingWindow];
