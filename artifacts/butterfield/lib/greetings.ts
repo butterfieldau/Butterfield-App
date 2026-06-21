@@ -489,18 +489,18 @@ const TIME_MESSAGES: Record<string, Array<[string, string]>> = {
 
 const LOYALTY_MESSAGES = {
   reward_ready: [
-    ['Your reward is ready.', 'A free cookie or coffee is waiting. Come claim it.'],
-    ['Free treat unlocked.', 'Cookie, soft serve, or coffee. Your pick.'],
-    ['Your next one\'s on us.', 'Come in and claim it. Cookies are fresh.'],
-    ['Reward ready to claim.', 'Something good is waiting for you.'],
-    ['You\'ve earned it.', 'Your free reward is waiting. Come grab it.'],
+    ['Your reward is ready.', 'A free coffee is waiting. Come claim it.'],
+    ['Free coffee unlocked.', 'Your free coffee is ready. Come grab it.'],
+    ['Your next one\'s on us.', 'Come in and claim your free coffee.'],
+    ['Reward ready to claim.', 'A free coffee is waiting for you.'],
+    ['You\'ve earned it.', 'Your free coffee is ready. Come grab it.'],
   ] as Array<[string, string]>,
   high_points: [
     ['Your rewards are building nicely.', 'Coffee run today?'],
-    ['Getting close to your next reward.', 'A cookie or coffee could be on us soon.'],
-    ['Points stacking up.', 'A free coffee or soft serve is getting closer.'],
+    ['Getting close to your next reward.', 'A free coffee could be on us soon.'],
+    ['Points stacking up.', 'A free coffee is getting closer.'],
     ['Almost at your next reward.', 'One more visit and something\'s on us.'],
-    ['Rewards are close.', 'Keep going. A free treat is nearly within reach.'],
+    ['Rewards are close.', 'Keep going. A free coffee is nearly within reach.'],
   ] as Array<[string, string]>,
   not_ordered_long: [
     ['We\'ve missed you.', 'Fresh cookies and great coffee are waiting.'],
