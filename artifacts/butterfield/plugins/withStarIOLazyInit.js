@@ -5,7 +5,7 @@ const path = require('path');
 const SHIM_FILENAME = 'StarIOSafeInit.m';
 
 /**
- * Objective-C swizzle shim injected into the iOS build.
+ * Objective-C swizzle shim injected into POS iOS builds.
  *
  * react-native-star-io10 v1.12.x is eagerly initialised by React Native's
  * TurboModule registry at launch — before any JavaScript runs. On iOS 26 with
@@ -14,11 +14,17 @@ const SHIM_FILENAME = 'StarIOSafeInit.m';
  * causes React Native to call convertNSExceptionToJSError. At that point the
  * Hermes JSI runtime pointer fails PAC validation → SIGSEGV crash.
  *
- * This shim uses +load (guaranteed to run before any code in the binary) to
- * swizzle -[StarIO10ReactNative init] and wrap the original implementation in
- * @try/@catch. If the SDK throws on iOS 26, we catch, log, and return the
- * partially-initialised instance. The JS dynamic import guard in lib/printer.ts
- * then handles the case where the module is unavailable at runtime.
+ * This shim uses +load (guaranteed to run before any code in the binary) to:
+ *   1. Swizzle -[StarIO10ReactNative init] and wrap it in @try/@catch.
+ *   2. If init throws, set a static starIOInitFailed flag and use
+ *      class_copyMethodList to replace EVERY instance method of
+ *      StarIO10ReactNative with a safe no-op IMP. This prevents
+ *      performVoidMethodInvocation from throwing when RN calls void methods
+ *      on the partially-initialised instance — the real crash site on iOS 26.
+ *
+ * Consumer builds do not link StarIO10 at all (withPodfileExclusion plugin),
+ * so this shim is only active in POS builds. NSClassFromString returns nil for
+ * absent classes, making it a safe no-op on any build without the SDK.
  */
 // Validated against: react-native-star-io10 ^1.12.1 (Star Micronics StarXpand SDK 1.12.x)
 // Minimum tested iOS: 26.0 (arm64e / Pointer Authentication Codes)
@@ -38,16 +44,58 @@ const SHIM_CONTENT = `//
 // Validated against: react-native-star-io10 ^1.12.1 (Star Micronics StarXpand SDK 1.12.x)
 // iOS compatibility: iOS 26 arm64e crash fix — see plugins/withStarIOLazyInit.js header.
 //
-// Prevents iOS 26 / arm64e startup crash caused by react-native-star-io10
-// throwing an NSException during TurboModule eager initialisation.
+// POS build safety net: suppresses iOS 26 / arm64e startup crash caused by
+// react-native-star-io10 throwing an NSException during TurboModule eager
+// initialisation, AND prevents performVoidMethodInvocation from crashing on
+// any subsequently-invoked method of a partially-initialised StarIO instance.
 //
 #import <Foundation/Foundation.h>
 #import <objc/runtime.h>
+
+// Set to YES the first time StarIO10ReactNative -init throws. While this flag
+// is set, every instance method on the class returns a safe no-op IMP so that
+// performVoidMethodInvocation (called by RN after init) cannot re-throw.
+static BOOL starIOInitFailed = NO;
+
+// Universal no-op IMP returned for all void methods when init failed.
+// id return type covers both void and id-returning selectors safely.
+static id starIONoopIMP(id self, SEL _cmd) {
+  return nil;
+}
 
 @interface StarIOSafeInitSwizzler : NSObject
 @end
 
 @implementation StarIOSafeInitSwizzler
+
+/**
+ * Replaces every instance method on cls with a no-op IMP.
+ * Called once after a failed init so that any subsequent RN TurboModule
+ * method dispatch (performVoidMethodInvocation, etc.) cannot throw.
+ */
++ (void)replaceAllMethodsOnClass:(Class)cls withNoopIMP:(IMP)noopIMP {
+  @try {
+    unsigned int methodCount = 0;
+    Method *methods = class_copyMethodList(cls, &methodCount);
+    if (!methods) {
+      return;
+    }
+    for (unsigned int i = 0; i < methodCount; i++) {
+      Method m = methods[i];
+      // Preserve -init itself (already swizzled) to avoid an infinite replace
+      // loop; for every other method, inject the universal no-op.
+      SEL sel = method_getName(m);
+      if (sel_isEqual(sel, @selector(init))) {
+        continue;
+      }
+      method_setImplementation(m, noopIMP);
+    }
+    free(methods);
+    NSLog(@"[StarIOSafeInit] Replaced %u StarIO10 instance methods with no-op IMPs.", methodCount);
+  } @catch (...) {
+    // Never let the safety shim crash the app.
+  }
+}
 
 + (void)load {
   @try {
@@ -65,15 +113,28 @@ const SHIM_CONTENT = `//
     }
 
     IMP originalIMP = method_getImplementation(originalMethod);
+    IMP universalNoopIMP = (IMP)starIONoopIMP;
 
-    // Replace -init with a version that suppresses NSException on iOS 26.
+    // Replace -init with a version that:
+    //   a) Catches any NSException thrown during SDK initialisation on iOS 26.
+    //   b) On failure, sets starIOInitFailed and replaces ALL instance methods
+    //      with no-op IMPs so performVoidMethodInvocation cannot re-throw.
     IMP safeIMP = imp_implementationWithBlock(^id _Nullable (id _Nonnull self) {
+      if (starIOInitFailed) {
+        // A previous init already failed; return self without re-running init.
+        return self;
+      }
       @try {
         typedef id (*InitFunc)(id, SEL);
         InitFunc fn = (InitFunc)originalIMP;
-        return fn(self, sel);
+        id result = fn(self, sel);
+        return result;
       } @catch (NSException *exception) {
         NSLog(@"[StarIOSafeInit] Suppressed NSException from StarIO10 init on iOS 26: %@", exception.reason);
+        // Mark all methods as no-ops BEFORE returning, so RN's subsequent
+        // performVoidMethodInvocation calls land on the universal no-op.
+        starIOInitFailed = YES;
+        [StarIOSafeInitSwizzler replaceAllMethodsOnClass:[self class] withNoopIMP:universalNoopIMP];
         // Return self so callers get a valid (but non-functional) object.
         // The JS layer's dynamic import guard handles the unavailable module.
         return self;
@@ -81,7 +142,7 @@ const SHIM_CONTENT = `//
     });
 
     method_setImplementation(originalMethod, safeIMP);
-    NSLog(@"[StarIOSafeInit] StarIO10 init swizzled for iOS 26 safety.");
+    NSLog(@"[StarIOSafeInit] StarIO10 init swizzled for iOS 26 safety (full method no-op on failure).");
   } @catch (...) {
     // Never let the safety shim itself crash the app.
   }
@@ -94,16 +155,13 @@ const SHIM_CONTENT = `//
  * Writes StarIOSafeInit.m into the Xcode project directory and registers it
  * as a compiled source file in the .xcodeproj so it is built into the binary.
  *
- * Set IS_POS_BUILD=1 in your EAS build profile environment to skip this shim
- * if you ever ship a dedicated POS IPA that always has full Star IO access.
+ * For consumer builds, StarIO10 is excluded at the pod level by
+ * withPodfileExclusion. This shim therefore only runs in POS builds where
+ * the SDK is linked. IS_POS_BUILD env is checked in withPodfileExclusion;
+ * here we always inject the shim so POS builds get the iOS 26 safety net
+ * even when IS_POS_BUILD is not set at plugin-evaluation time.
  */
 module.exports = function withStarIOLazyInit(config) {
-  // Skip on POS builds that need full Star IO access from the start.
-  if (process.env.IS_POS_BUILD === '1') {
-    console.log('[withStarIOLazyInit] IS_POS_BUILD=1 — skipping StarIO safety shim.');
-    return config;
-  }
-
   // 1. Write the .m shim file into the iOS app source directory.
   config = withDangerousMod(config, [
     'ios',

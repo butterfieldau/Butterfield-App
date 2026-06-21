@@ -16,7 +16,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "au.com.butterfieldcookies.app",
-      "buildNumber": "5",
+      "buildNumber": "6",
       "infoPlist": {
         "NSCameraUsageDescription": "Butterfield uses the camera to scan loyalty QR codes and earn coffee stamps at the counter.",
         "NSBluetoothAlwaysUsageDescription": "Butterfield uses Bluetooth to connect to supported in-store hardware such as receipt printers and cash drawer devices for Shop Display and POS operations.",
@@ -61,7 +61,9 @@
           ]
         }
       ],
-      "./plugins/withGoogleSignInFix"
+      "./plugins/withGoogleSignInFix",
+      "./plugins/withStarIOLazyInit",
+      "./plugins/withPodfileExclusion"
     ],
     "experiments": {
       "typedRoutes": true,
