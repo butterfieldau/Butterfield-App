@@ -188,6 +188,38 @@ export function OptionsTab() {
 
   const toggleExpand = (id: string) => setExpanded(prev => ({ ...prev, [id]: !prev[id] }));
 
+  const moveGroup = async (index: number, dir: -1 | 1) => {
+    const other = groups[index + dir];
+    const current = groups[index];
+    if (!other || !current) return;
+    Haptics.selectionAsync();
+    try {
+      const aOrder = current.sortOrder ?? index * 10;
+      const bOrder = other.sortOrder ?? (index + dir) * 10;
+      await Promise.all([
+        api.director.updateOptionGroup(current.id, { sortOrder: bOrder }),
+        api.director.updateOptionGroup(other.id, { sortOrder: aOrder }),
+      ]);
+      await qc.invalidateQueries({ queryKey: ['director-option-groups'] });
+    } catch (e: any) { Alert.alert('Error', e.message); }
+  };
+
+  const moveOption = async (groupId: string, options: any[], index: number, dir: -1 | 1) => {
+    const other = options[index + dir];
+    const current = options[index];
+    if (!other || !current) return;
+    Haptics.selectionAsync();
+    try {
+      const aOrder = current.sortOrder ?? index * 10;
+      const bOrder = other.sortOrder ?? (index + dir) * 10;
+      await Promise.all([
+        api.director.updateOption(groupId, current.id, { sortOrder: bOrder }),
+        api.director.updateOption(groupId, other.id, { sortOrder: aOrder }),
+      ]);
+      await qc.invalidateQueries({ queryKey: ['director-option-groups'] });
+    } catch (e: any) { Alert.alert('Error', e.message); }
+  };
+
   const openAddGroup = () => {
     setEditGroup(null); setGName(''); setGType('single'); setGRequired(false);
     setGCatIds([]); setGProductIds([]); setGProductSearch('');
@@ -309,7 +341,7 @@ export function OptionsTab() {
             <Text style={{ fontSize: 15, fontWeight: '700', color: BLUE }}>Add Group</Text>
           </Pressable>
         }
-        renderItem={({ item: g }) => {
+        renderItem={({ item: g, index: gIndex }) => {
           const isExp          = expanded[g.id] ?? false;
           const selCol         = SEL_COLORS[g.selectionType] ?? BLUE;
           const selIcon        = SEL_ICONS[g.selectionType] ?? 'check-circle';
@@ -333,6 +365,17 @@ export function OptionsTab() {
                   paddingVertical: 16, paddingHorizontal: 16, opacity: pressed ? 0.8 : 1,
                 })}
               >
+                {/* Reorder arrows for group */}
+                <View style={{ gap: 2 }}>
+                  <Pressable onPress={() => moveGroup(gIndex, -1)} hitSlop={4}
+                    style={{ padding: 3, opacity: gIndex === 0 ? 0.2 : 1 }} disabled={gIndex === 0}>
+                    <Feather name="chevron-up" size={16} color={MUTED} />
+                  </Pressable>
+                  <Pressable onPress={() => moveGroup(gIndex, 1)} hitSlop={4}
+                    style={{ padding: 3, opacity: gIndex === groups.length - 1 ? 0.2 : 1 }} disabled={gIndex === groups.length - 1}>
+                    <Feather name="chevron-down" size={16} color={MUTED} />
+                  </Pressable>
+                </View>
                 <View style={{ width: 48, height: 48, borderRadius: 14, alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, backgroundColor: selCol + '33', borderColor: selCol + '55', flexShrink: 0 }}>
                   <Feather name={selIcon as any} size={22} color={selCol} />
                 </View>
@@ -374,8 +417,19 @@ export function OptionsTab() {
 
               {isExp && g.selectionType !== 'text' && (
                 <View style={{ borderTopWidth: 1, borderTopColor: BORDER, padding: 12, gap: 8 }}>
-                  {(g.options ?? []).map((opt: any) => (
-                    <View key={opt.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 8, paddingHorizontal: 12, backgroundColor: opt.isDefault ? '#F0FFF4' : BG, borderRadius: 10, borderWidth: 1, borderColor: opt.isDefault ? '#86EFAC' : BORDER }}>
+                  {(g.options ?? []).map((opt: any, oIndex: number) => (
+                    <View key={opt.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 8, paddingHorizontal: 10, backgroundColor: opt.isDefault ? '#F0FFF4' : BG, borderRadius: 10, borderWidth: 1, borderColor: opt.isDefault ? '#86EFAC' : BORDER }}>
+                      {/* Reorder arrows for option */}
+                      <View style={{ gap: 1 }}>
+                        <Pressable onPress={() => moveOption(g.id, g.options, oIndex, -1)} hitSlop={4}
+                          style={{ padding: 2, opacity: oIndex === 0 ? 0.2 : 1 }} disabled={oIndex === 0}>
+                          <Feather name="chevron-up" size={13} color={MUTED} />
+                        </Pressable>
+                        <Pressable onPress={() => moveOption(g.id, g.options, oIndex, 1)} hitSlop={4}
+                          style={{ padding: 2, opacity: oIndex === (g.options ?? []).length - 1 ? 0.2 : 1 }} disabled={oIndex === (g.options ?? []).length - 1}>
+                          <Feather name="chevron-down" size={13} color={MUTED} />
+                        </Pressable>
+                      </View>
                       {opt.isDefault && <Feather name="check-circle" size={13} color={GREEN} />}
                       <Text style={{ flex: 1, fontWeight: '500', color: TEXT, fontSize: 13 }}>{opt.name}</Text>
                       {opt.priceAdjustmentCents !== 0 ? (
