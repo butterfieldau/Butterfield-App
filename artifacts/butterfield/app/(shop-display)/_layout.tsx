@@ -1,5 +1,5 @@
 import { Feather } from '@expo/vector-icons';
-import { AudioPlayer, createAudioPlayer, setAudioModeAsync } from 'expo-audio';
+import { useAudioPlayer, setAudioModeAsync } from 'expo-audio';
 import { Redirect, router, Tabs, usePathname } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import React, { useState, useEffect, useCallback, useRef } from 'react';
@@ -72,20 +72,43 @@ function NewOrderAlertOverlay({
   queueIndex?: number;
   queueTotal?: number;
 }) {
-  const soundRef = useRef<AudioPlayer | null>(null);
   // On web: holds the currently-playing AudioBufferSourceNode (looping)
   const webSourceRef = useRef<AudioBufferSourceNode | null>(null);
 
+  // Native: useAudioPlayer manages lifecycle and cleanup automatically.
+  // Pass null on web so the hook is always called (rules of hooks) but is a no-op.
+  const player = useAudioPlayer(
+    Platform.OS !== 'web'
+      ? require('@/assets/sounds/app-sales-order-alert.wav')
+      : null,
+  );
+
+  // One-time native audio mode + player config (re-runs if player identity changes)
   useEffect(() => {
+    if (Platform.OS === 'web') return;
+    setAudioModeAsync({ playsInSilentMode: true, allowsRecording: false }).catch(() => {});
+    player.loop = true;
+    player.volume = 1;
+  }, [player]);
+
+  // Native: drive play/pause from visibility + sound setting
+  useEffect(() => {
+    if (Platform.OS === 'web') return;
+    if (visible && soundEnabled) {
+      player.seekTo(0);
+      player.play();
+    } else {
+      player.pause();
+    }
+  }, [visible, soundEnabled, player]);
+
+  // Web: manual Web Audio API path (expo-audio does not support web)
+  useEffect(() => {
+    if (Platform.OS !== 'web') return;
     if (!visible) {
       if (webSourceRef.current) {
         try { webSourceRef.current.stop(); } catch {}
         webSourceRef.current = null;
-      }
-      if (soundRef.current) {
-        soundRef.current.pause();
-        soundRef.current.remove();
-        soundRef.current = null;
       }
       return;
     }
@@ -93,54 +116,33 @@ function NewOrderAlertOverlay({
     (async () => {
       try {
         const alertSoundModule = require('@/assets/sounds/app-sales-order-alert.wav');
-        if (Platform.OS === 'web') {
-          const ctx = getOrCreateWebAudioCtx();
-          if (!ctx) throw new Error('Web audio is unavailable on this device');
-          // Ensure context is running — may still be suspended before first gesture
-          if (ctx.state === 'suspended') await ctx.resume();
+        const ctx = getOrCreateWebAudioCtx();
+        if (!ctx) throw new Error('Web audio is unavailable on this device');
+        // Ensure context is running — may still be suspended before first gesture
+        if (ctx.state === 'suspended') await ctx.resume();
 
-          const asset = Image.resolveAssetSource(alertSoundModule);
-          const rawSrc = asset?.uri;
-          if (!rawSrc) throw new Error('App Sales alert sound URL missing');
-          // Convert any relative URI to absolute so fetch() works in all browsers
-          const src = rawSrc.startsWith('http')
-            ? rawSrc
-            : `${(globalThis as any).location?.origin ?? ''}${rawSrc}`;
+        const asset = Image.resolveAssetSource(alertSoundModule);
+        const rawSrc = asset?.uri;
+        if (!rawSrc) throw new Error('App Sales alert sound URL missing');
+        // Convert any relative URI to absolute so fetch() works in all browsers
+        const src = rawSrc.startsWith('http')
+          ? rawSrc
+          : `${(globalThis as any).location?.origin ?? ''}${rawSrc}`;
 
-          const response = await fetch(src);
-          const arrayBuffer = await response.arrayBuffer();
-          if (cancelled) return;
-          const audioBuffer = await ctx.decodeAudioData(arrayBuffer);
-          if (cancelled) return;
+        const response = await fetch(src);
+        const arrayBuffer = await response.arrayBuffer();
+        if (cancelled) return;
+        const audioBuffer = await ctx.decodeAudioData(arrayBuffer);
+        if (cancelled) return;
 
-          if (!soundEnabled) return;
+        if (!soundEnabled) return;
 
-          const source = ctx.createBufferSource();
-          source.buffer = audioBuffer;
-          source.loop = true;
-          source.connect(ctx.destination);
-          source.start(0);
-          webSourceRef.current = source;
-          return;
-        }
-
-        // Native path ─────────────────────────────────────────────────────────
-        await setAudioModeAsync({
-          playsInSilentMode: true,
-          allowsRecording: false,
-        });
-        const player = createAudioPlayer(alertSoundModule);
-        player.loop = true;
-        player.volume = 1;
-        if (cancelled) {
-          player.remove();
-          return;
-        }
-        soundRef.current = player;
-        if (soundEnabled) {
-          player.seekTo(0);
-          player.play();
-        }
+        const source = ctx.createBufferSource();
+        source.buffer = audioBuffer;
+        source.loop = true;
+        source.connect(ctx.destination);
+        source.start(0);
+        webSourceRef.current = source;
       } catch (error) {
         console.warn('App Sales order alert sound failed to start', error);
       }
@@ -150,11 +152,6 @@ function NewOrderAlertOverlay({
       if (webSourceRef.current) {
         try { webSourceRef.current.stop(); } catch {}
         webSourceRef.current = null;
-      }
-      if (soundRef.current) {
-        soundRef.current.pause();
-        soundRef.current.remove();
-        soundRef.current = null;
       }
     };
   }, [visible, soundEnabled]);
