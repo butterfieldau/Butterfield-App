@@ -18,7 +18,8 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useVault } from '@/context/VaultContext';
-import { api } from '@/lib/api';
+import { useAuth } from '@/context/AuthContext';
+import { api, ApiError } from '@/lib/api';
 
 const BG       = '#FFFFFF';
 const SURFACE  = '#F5F6FA';
@@ -106,6 +107,7 @@ const pin_s = StyleSheet.create({
 
 function VaultLockView({ onUnlocked }: { onUnlocked: () => void }) {
   const insets = useSafeAreaInsets();
+  const { user } = useAuth();
   const { unlock, getBiometricPin } = useVault();
   const [statusData, setStatusData] = useState<{ hasPinSet: boolean } | null>(null);
   const [mode, setMode]     = useState<PinMode>('lock');
@@ -115,13 +117,24 @@ function VaultLockView({ onUnlocked }: { onUnlocked: () => void }) {
   const [loading, setLoading] = useState(false);
   const [hasBiometrics, setHasBiometrics] = useState(false);
   const shakeAnim = useRef(new Animated.Value(0)).current;
+  // Stores the PIN entered during the 'create' step so the 'confirm' comparison
+  // is always against the exact string captured at transition time — not a
+  // potentially stale closure value of `pin` state.
+  const createPinRef = useRef('');
 
   useEffect(() => {
+    if (!user || (user.role !== 'director' && user.role !== 'manager')) return;
     api.vault.status().then(r => {
       const data = r.data as unknown as { isPinSet: boolean };
       setStatusData(data as any);
       setMode(data.isPinSet ? 'lock' : 'create');
-    }).catch(() => setMode('create'));
+    }).catch((e: unknown) => {
+      if (e instanceof ApiError && e.status === 403) {
+        setError('Access denied — director account required');
+        return;
+      }
+      setMode('create');
+    });
 
     LocalAuthentication.hasHardwareAsync().then(hw => {
       if (!hw) return;
@@ -186,22 +199,27 @@ function VaultLockView({ onUnlocked }: { onUnlocked: () => void }) {
       setError('');
       try {
         if (mode === 'create') {
+          // Snapshot the PIN into a ref BEFORE transitioning to confirm mode so
+          // the confirm step always compares against the exact value entered here,
+          // not a potentially stale `pin` state closure.
+          createPinRef.current = pin;
           setMode('confirm');
           setLoading(false);
           return;
         }
 
         if (mode === 'confirm') {
-          if (pin !== confirm) {
+          // Compare confirm input against the ref snapshot captured at create time.
+          if (createPinRef.current !== confirm) {
             shake();
             setError('PINs don\'t match — try again');
             setConfirm('');
             setLoading(false);
             return;
           }
-          await api.vault.setupPin({ newPin: pin }) as any;
-          const res = await api.vault.unlock({ pin }) as any;
-          await unlock(res.vaultToken ?? res.data?.vaultToken, pin);
+          await api.vault.setupPin({ newPin: createPinRef.current }) as any;
+          const res = await api.vault.unlock({ pin: createPinRef.current }) as any;
+          await unlock(res.vaultToken ?? res.data?.vaultToken, createPinRef.current);
           onUnlocked();
           return;
         }
@@ -215,10 +233,13 @@ function VaultLockView({ onUnlocked }: { onUnlocked: () => void }) {
         setError(e?.message ?? 'Invalid PIN');
         setPin('');
         setConfirm('');
+        createPinRef.current = '';
         if (mode === 'confirm') setMode('create');
       } finally { setLoading(false); }
     })();
-  }, [pin, confirm]);
+  // mode added so the effect re-evaluates correctly when mode changes externally
+  // (e.g. status check completes and transitions lock→create).
+  }, [pin, confirm, mode]);
 
   const title    = mode === 'create'  ? 'Create Vault PIN'
                  : mode === 'confirm' ? 'Confirm PIN'
@@ -285,7 +306,7 @@ function VaultLockView({ onUnlocked }: { onUnlocked: () => void }) {
         )}
 
         {mode === 'confirm' && (
-          <Pressable onPress={() => { setMode('create'); setPin(''); setConfirm(''); setError(''); }}>
+          <Pressable onPress={() => { createPinRef.current = ''; setMode('create'); setPin(''); setConfirm(''); setError(''); }}>
             <Text style={{ color: TEXTD, fontSize: 13 }}>← Start over</Text>
           </Pressable>
         )}
@@ -306,6 +327,7 @@ const VIEWS = ['Recipes', 'Settings'] as const;
 
 export default function VaultScreen() {
   const insets = useSafeAreaInsets();
+  const { user } = useAuth();
   const { isUnlocked, vaultToken, resetInactivityTimer, lock } = useVault();
   const queryClient = useQueryClient();
 
@@ -374,6 +396,24 @@ export default function VaultScreen() {
       { text: 'Cancel', style: 'cancel' },
       { text: 'Lock', onPress: () => { lock(); setUnlocked(false); } },
     ]);
+  }
+
+  if (!user || (user.role !== 'director' && user.role !== 'manager')) {
+    return (
+      <View style={{ flex: 1, backgroundColor: BG, alignItems: 'center', justifyContent: 'center', padding: 32 }}>
+        <StatusBar barStyle="dark-content" backgroundColor={BG} />
+        <Feather name="lock" size={40} color={MUTED} style={{ marginBottom: 16 }} />
+        <Text style={{ fontSize: 18, fontWeight: '600', color: TEXT, marginBottom: 8, textAlign: 'center' }}>
+          Director Access Only
+        </Text>
+        <Text style={{ fontSize: 14, color: TEXTD, textAlign: 'center', marginBottom: 24 }}>
+          The Recipe Vault is only accessible to directors and managers.
+        </Text>
+        <Pressable onPress={() => router.back()} style={{ paddingHorizontal: 24, paddingVertical: 12, backgroundColor: GOLD, borderRadius: 10 }}>
+          <Text style={{ color: '#FFFFFF', fontWeight: '600' }}>Go Back</Text>
+        </Pressable>
+      </View>
+    );
   }
 
   if (!unlocked) {
