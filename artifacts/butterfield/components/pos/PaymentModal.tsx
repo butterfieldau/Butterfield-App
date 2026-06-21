@@ -283,7 +283,31 @@ export default function PaymentModal({
               <Feather name={isLinklyBusy ? 'arrow-left' : 'x'} size={22} color={DARK} />
             </Pressable>
             <Text style={styles.sheetTitle}>Payment</Text>
-            <View style={{ width: 22 }} />
+            {method === 'eftpos' && linklyStep === 'idle' && terminalStatus !== null ? (
+              <TouchableOpacity
+                onPress={() => checkTerminalStatus().catch(() => {})}
+                disabled={terminalStatus === 'checking'}
+                hitSlop={8}
+                style={{
+                  flexDirection: 'row', alignItems: 'center', gap: 5,
+                  backgroundColor: terminalStatus === 'ok' ? '#F0FDF4' : terminalStatus === 'checking' ? '#F8FAFC' : '#FFFBEB',
+                  borderRadius: 20, paddingHorizontal: 9, paddingVertical: 5,
+                  borderWidth: 1,
+                  borderColor: terminalStatus === 'ok' ? '#BBF7D0' : terminalStatus === 'checking' ? BORDER : '#FDE68A',
+                }}
+              >
+                {terminalStatus === 'checking' ? (
+                  <ActivityIndicator size="small" color={MUTED} style={{ width: 8, height: 8 }} />
+                ) : (
+                  <View style={{ width: 7, height: 7, borderRadius: 3.5, backgroundColor: terminalStatus === 'ok' ? '#16A34A' : '#F59E0B' }} />
+                )}
+                <Text style={{ fontSize: 11, fontWeight: '600', color: terminalStatus === 'ok' ? '#15803D' : terminalStatus === 'checking' ? MUTED : '#92400E' }}>
+                  {terminalStatus === 'checking' ? 'Checking…' : terminalStatus === 'ok' ? 'Ready' : 'Not verified'}
+                </Text>
+              </TouchableOpacity>
+            ) : (
+              <View style={{ width: 22 }} />
+            )}
           </View>
 
           <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: 24 }} keyboardShouldPersistTaps="handled">
@@ -596,23 +620,6 @@ export default function PaymentModal({
 
           {/* Footer */}
           <View style={styles.sheetFooter}>
-            {method === 'eftpos' && linklyStep === 'idle' && terminalStatus !== null && (
-              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, paddingHorizontal: 2 }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  {terminalStatus === 'checking' ? (
-                    <ActivityIndicator size="small" color={MUTED} />
-                  ) : (
-                    <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: terminalStatus === 'ok' ? '#16A34A' : '#F59E0B' }} />
-                  )}
-                  <Text style={{ fontSize: 12, color: MUTED, fontWeight: '500' }}>
-                    {terminalStatus === 'checking' ? 'Checking terminal…' : terminalStatus === 'ok' ? 'Terminal ready' : 'Terminal not verified'}
-                  </Text>
-                </View>
-                <TouchableOpacity onPress={() => checkTerminalStatus().catch(() => {})} hitSlop={8} disabled={terminalStatus === 'checking'}>
-                  <Text style={{ fontSize: 12, color: BLUE, fontWeight: '600' }}>Check</Text>
-                </TouchableOpacity>
-              </View>
-            )}
             {loading || isLinklyBusy ? (
               <View style={[styles.addToOrderBtn, { justifyContent: 'center' }]}>
                 <ActivityIndicator color={WHITE} />
