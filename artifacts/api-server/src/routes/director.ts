@@ -27,7 +27,7 @@ import { recordLoyaltyPoints, reverseCoffeeStamps } from '../lib/loyaltyIdentity
 import { getOutstandingCoffeeStampsForOrder } from '../lib/orderLoyaltyUtils.js';
 import { refundOrderStripePayment, refundWholesaleOrderStripePayment } from '../lib/stripeRefunds.js';
 import { getAllowedNextStatuses, getStatusMessage, TERMINAL_STATUSES } from '../lib/orderStatusTransitions.js';
-import { sydneyStartOfDay, sydneyStartOfMonth, getSydneyNow, sydneyHour } from '../lib/sydneyTime.js';
+import { sydneyStartOfDay, sydneyStartOfMonth, getSydneyNow, sydneyHour, sydneyDateParts } from '../lib/sydneyTime.js';
 import { syncWholesaleInvoiceStatuses, markStripeInvoicePaidOutOfBand } from '../lib/stripeWholesaleInvoices.js';
 import { buildInvoiceHtml } from '../lib/invoiceTemplate.js';
 import { claimedRewardsTable } from '@workspace/db';
@@ -135,14 +135,14 @@ router.get('/stats', async (req, res) => {
   const now = new Date();
   const sydneyNow = getSydneyNow();
   const startOfToday = sydneyStartOfDay();
-  const startOfWeekMonday = new Date(startOfToday);
-  const dayOfWeek = sydneyNow.getDay();
-  const mondayDiff = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
-  startOfWeekMonday.setDate(startOfWeekMonday.getDate() + mondayDiff);
-  const endOfWeekSunday = new Date(startOfWeekMonday);
-  endOfWeekSunday.setDate(endOfWeekSunday.getDate() + 6);
-  endOfWeekSunday.setHours(23, 59, 59, 999);
-  const startOfWeek  = new Date(startOfToday); startOfWeek.setDate(startOfToday.getDate() - 7);
+  // Use sydneyDateParts for day-of-week — avoids server TZ dependency in getDay().
+  // Use pure ms arithmetic for all week boundaries — avoids setDate/getDate TZ dependency.
+  const { dayOfWeek: sydneyDayOfWeek } = sydneyDateParts();
+  const mondayDiff = sydneyDayOfWeek === 0 ? -6 : 1 - sydneyDayOfWeek;
+  const startOfWeekMonday = new Date(startOfToday.getTime() + mondayDiff * 24 * 60 * 60 * 1000);
+  // End of Sunday = start of next Monday minus 1 ms
+  const endOfWeekSunday   = new Date(startOfWeekMonday.getTime() + 7 * 24 * 60 * 60 * 1000 - 1);
+  const startOfWeek       = new Date(startOfToday.getTime() - 7 * 24 * 60 * 60 * 1000);
   const startOfMonth = sydneyStartOfMonth();
   const longShiftCutoff = new Date(now.getTime() - 10 * 60 * 60 * 1000);
   const todayMMDD = `${String(sydneyNow.getMonth() + 1).padStart(2,'0')}-${String(sydneyNow.getDate()).padStart(2,'0')}`;
