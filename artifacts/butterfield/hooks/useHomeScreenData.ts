@@ -97,9 +97,30 @@ export function useHomeScreenData() {
         isOpen: featuredStore.openStatus === 'open' || featuredStore.openStatus === 'closing_soon',
         openUntil: featuredStore.todayHours?.closeTime ?? null,
         opensAt: featuredStore.todayHours?.openTime ?? null,
+        closesAt: featuredStore.todayHours?.closeTime ?? null,
         manualOverride: false,
       }
     : null;
+
+  // Derive the next trading day's opening time for goodnight messages.
+  // Uses Sydney's day-of-week so the transition is timezone-correct.
+  const nextOpensAt = useMemo(() => {
+    const openingHours = featuredStore?.openingHours ?? [];
+    if (openingHours.length === 0) return storeStatus?.opensAt ?? null;
+    try {
+      const sydneyDayStr = new Intl.DateTimeFormat('en-AU', {
+        timeZone: 'Australia/Sydney',
+        weekday: 'long',
+      }).format(new Date());
+      const days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+      const todayDow = days.indexOf(sydneyDayStr);
+      const nextDow  = todayDow === -1 ? (new Date().getDay() + 1) % 7 : (todayDow + 1) % 7;
+      const nextHours = openingHours.find((h) => h.dayOfWeek === nextDow && !h.isClosed);
+      return nextHours?.openTime ?? storeStatus?.opensAt ?? null;
+    } catch {
+      return storeStatus?.opensAt ?? null;
+    }
+  }, [featuredStore?.openingHours, storeStatus?.opensAt]);
   const open = storeStatus?.isOpen ?? false;
   const liveContext   = (contextData?.data ?? null) as LiveContext | null;
   const freshName     = meData?.user?.name ?? user?.name;
@@ -172,11 +193,13 @@ export function useHomeScreenData() {
         favouriteCategory,
         isOpen: storeStatus?.isOpen ?? true,
         opensAt: storeStatus?.opensAt ?? null,
+        closesAt: storeStatus?.closesAt ?? null,
+        nextOpensAt,
       });
     } catch {
       return { line1: 'Good day!', line2: 'Fresh cookies and great coffee are waiting.' };
     }
-  }, [firstName, loyaltyPoints, hasClaimableReward, birthday, tierCfg.key, stampCount, liveContext, favouriteCategory, storeStatus?.isOpen, storeStatus?.opensAt, greetingTick]);
+  }, [firstName, loyaltyPoints, hasClaimableReward, birthday, tierCfg.key, stampCount, liveContext, favouriteCategory, storeStatus?.isOpen, storeStatus?.opensAt, storeStatus?.closesAt, nextOpensAt, greetingTick]);
 
   const serverQrToken    = loyaltyData?.data?.loyaltyQrToken ?? null;
   const [healedQrToken, setHealedQrToken] = useState<string | null>(null);

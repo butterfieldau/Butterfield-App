@@ -36,6 +36,8 @@ export interface GreetingContext {
   favouriteCategory?: string | null;
   isOpen?: boolean;
   opensAt?: string | null;
+  closesAt?: string | null;
+  nextOpensAt?: string | null;
 }
 
 export interface Greeting {
@@ -121,6 +123,24 @@ function isBirthday(birthday: string | null | undefined): boolean {
 function daysSinceLastOrder(lastOrderDate: string | null | undefined): number | null {
   if (!lastOrderDate) return null;
   return Math.floor((Date.now() - new Date(lastOrderDate).getTime()) / 86_400_000);
+}
+
+/**
+ * Parse a time string like "6:30 AM", "10:00 PM", "22:00", "6:30"
+ * into total minutes since midnight. Returns null if unparseable.
+ */
+function parseTimeToMins(t: string | null | undefined): number | null {
+  if (!t) return null;
+  const clean = t.trim();
+  const pm = /pm/i.test(clean);
+  const am = /am/i.test(clean);
+  const match = clean.match(/(\d{1,2}):?(\d{2})?/);
+  if (!match) return null;
+  let h = parseInt(match[1], 10);
+  const m = match[2] ? parseInt(match[2], 10) : 0;
+  if (pm && h < 12) h += 12;
+  if (am && h === 12) h = 0;
+  return h * 60 + m;
 }
 
 /** Deterministic pick. Rotates every hour, never the same twice in a row.
@@ -616,12 +636,25 @@ const WEEKEND_MESSAGES: Array<[string, string]> = [
   ['Saturday treat?', 'Vanilla soft serve and a fresh cookie. That\'s the one.'],
 ];
 
+const CLOSED_GOODNIGHT_MESSAGES: Array<[string, string]> = [
+  ['Goodnight.',                   'Warm cookies from {opensAt} — we\'ll see you then.'],
+  ['We\'re done for today.',       'Your coffee will be waiting from {opensAt}.'],
+  ['Closing up now.',              'Sleep well — fresh batch starts at {opensAt}.'],
+  ['See you tomorrow.',            'Doors open at {opensAt}. Worth the wait.'],
+  ['Sweet dreams.',                'Cookies in the oven from {opensAt} — come say hi.'],
+  ['That\'s a wrap.',              'Back at {opensAt} with fresh everything.'],
+  ['Rest up.',                     'We\'ll have your order ready from {opensAt}.'],
+  ['We\'ve closed for tonight.',   'See you bright and early at {opensAt}.'],
+  ['Thanks for today.',            'Fresh cookies and coffee from {opensAt} tomorrow.'],
+  ['Lights are off.',              'We open again at {opensAt}. See you then.'],
+];
+
 // ── Main function ─────────────────────────────────────────────────────────────
 
 export function buildGreeting(ctx: GreetingContext): Greeting {
   const {
     firstName, loyaltyPoints, hasClaimableReward, birthday, lastOrderDate,
-    liveContext, favouriteCategory, isOpen, opensAt,
+    liveContext, favouriteCategory, isOpen, opensAt, closesAt, nextOpensAt,
   } = ctx;
 
   const name      = firstName && firstName !== 'there' ? firstName : null;
@@ -657,17 +690,31 @@ export function buildGreeting(ctx: GreetingContext): Greeting {
 
   // ── Closed-hours gate ──────────────────────────────────────────────────────
   if (isOpen === false) {
-    const timePeriod =
-      hour < 5  ? 'night'     :
-      hour < 12 ? 'morning'   :
-      hour < 17 ? 'afternoon' : 'evening';
+    const nowMins    = hour * 60 + minute;
+    const closeMins  = parseTimeToMins(closesAt);
+    // Post-close: current time is at or after close time (or hour ≥ 20 as fallback).
+    const isPostClose = closeMins !== null ? nowMins >= closeMins : hour >= 20;
 
-    const openLine = opensAt ? `We open at ${opensAt}.` : 'Check back when we\'re open.';
-    const subLine  =
-      timePeriod === 'morning'   ? 'Fresh cookies and great coffee will be ready soon.' :
-      timePeriod === 'afternoon' ? 'Come back soon. Cookies and coffee are worth it.'  :
-      timePeriod === 'evening'   ? 'We\'re closing up. See you next time.'             :
-                                   'Late night craving? We\'ll be back soon.';
+    if (isPostClose) {
+      // ── Goodnight / post-close ─────────────────────────────────────────────
+      const effectiveNextOpen = nextOpensAt ?? opensAt ?? null;
+      const openToken = effectiveNextOpen ?? 'early morning';
+
+      if (isBirthday(birthday) && name) {
+        return {
+          line1: `Goodnight, ${name}! 🎉`,
+          line2: `Your birthday treat will be waiting from ${openToken}.`,
+        };
+      }
+
+      const [l1, l2] = stablePick(CLOSED_GOODNIGHT_MESSAGES, seed);
+      const filledL2 = l2.replace('{opensAt}', openToken);
+      return withName(l1, filledL2);
+    }
+
+    // ── Pre-open / morning ─────────────────────────────────────────────────
+    const openLine = opensAt ? `We open at ${opensAt}.` : 'We\'ll be open soon.';
+    const subLine  = 'Fresh cookies and great coffee will be ready soon.';
 
     if (isBirthday(birthday) && name) {
       return { line1: `Happy birthday, ${name}! 🎉`, line2: 'Your birthday treat is waiting when we open.' };
