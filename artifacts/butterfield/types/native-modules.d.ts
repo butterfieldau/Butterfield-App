@@ -11,9 +11,7 @@ declare module 'react-native-maps' {
   export const Marker: any;
 }
 
-// react-native-tcp-socket — POS-only native module for LAN printer communication.
-// In non-POS builds (IS_POS_BUILD !== '1') metro.config.js substitutes stubs/tcp-socket-stub.js
-// which throws a helpful error so the try/catch in lib/printer.ts can surface it gracefully.
+// react-native-tcp-socket — native module for Shop Display LAN printer communication.
 declare module 'react-native-tcp-socket' {
   export interface TcpSocketOptions {
     host: string;

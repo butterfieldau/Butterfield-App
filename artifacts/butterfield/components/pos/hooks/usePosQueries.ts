@@ -64,8 +64,21 @@ export function usePosQueries({
     queryFn: async () => {
       let result: any;
       if (isShopDisplay) {
-        const res = await api.shopDisplay.store();
-        result = (res as any)?.data?.[0] ?? null;
+        const [storeRes, printerRes] = await Promise.all([
+          api.shopDisplay.store(),
+          api.shopDisplay.getPrinterConfig(),
+        ]);
+        const store = (storeRes as any)?.data?.[0] ?? {};
+        const printer = (printerRes as any)?.data ?? {};
+        result = {
+          ...store,
+          printerIp: printer.printerIp ?? null,
+          printerPort: printer.printerPort ? Number(printer.printerPort) : 9100,
+          printerBrand: printer.printerBrand === 'star' ? 'star' : 'epson',
+          autoPrint: printer.autoPrint === true,
+          autoDrawer: printer.autoDrawer === true,
+          drawerPin: (Number(printer.drawerPin ?? 0) === 1 ? 1 : 0) as 0 | 1,
+        };
       } else {
         const res = await api.director.settings();
         const s = (res as any)?.data ?? {};

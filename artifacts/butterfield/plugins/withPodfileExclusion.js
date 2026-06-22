@@ -3,12 +3,10 @@ const fs = require('fs');
 const path = require('path');
 
 // Pod spec names to exclude from consumer builds.
-// react-native-tcp-socket is POS-only hardware — not needed in consumer binary.
-// react-native-keyboard-controller has been removed from the project entirely
-// (replaced with RN built-ins) so it no longer appears here.
-const EXCLUDED_POD_PREFIXES = [
-  'react-native-tcp-socket',
-];
+//
+// Keep this empty: Shop Display printing uses react-native-tcp-socket to reach
+// receipt printers on the shop LAN from the TestFlight/App Store binary.
+const EXCLUDED_POD_PREFIXES = [];
 
 /**
  * Ruby snippet injected into the Podfile as a post_install hook.
@@ -54,8 +52,8 @@ end
  * Set IS_POS_BUILD=1 in the EAS build profile environment to keep them.
  */
 module.exports = function withPodfileExclusion(config) {
-  if (process.env.IS_POS_BUILD === '1') {
-    console.log('[withPodfileExclusion] IS_POS_BUILD=1 — keeping tcp-socket pod for POS build.');
+  if (EXCLUDED_POD_PREFIXES.length === 0) {
+    console.log('[withPodfileExclusion] No POS-only pods to exclude.');
     return config;
   }
 

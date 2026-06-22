@@ -19,6 +19,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/context/AuthContext';
 import { api } from '@/lib/api';
 import type { ShopDisplayPrinterConfig, ShopDisplayStore } from '@/lib/api';
+import { sendOpenDrawer, sendTestPrint } from '@/lib/printer';
 import LinklyCloudSettingsCard from '@/components/LinklyCloudSettingsCard';
 import {
   getShopDisplaySoundEnabled, setShopDisplaySoundEnabled,
@@ -256,7 +257,7 @@ function PrinterConfigCard() {
     if (!ip) { Alert.alert('No IP', 'Enter a printer IP address first.'); return; }
     setTestPrinting(true);
     try {
-      await api.shopDisplay.testPrint({ ip, port: parseInt(printerPort, 10) || 9100, brand: printerBrand });
+      await sendTestPrint(ip, parseInt(printerPort, 10) || 9100, printerBrand, api.shopDisplay.printerBytes);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (e: any) {
       Alert.alert('Print failed', e?.message ?? 'Could not reach printer.');
@@ -271,7 +272,7 @@ function PrinterConfigCard() {
     setDrawerBusy(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     try {
-      await api.shopDisplay.openDrawer({ ip, port: parseInt(printerPort, 10) || 9100, brand: printerBrand, drawerPin });
+      await sendOpenDrawer(ip, parseInt(printerPort, 10) || 9100, api.shopDisplay.printerBytes, drawerPin, printerBrand);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (e: any) {
       Alert.alert('Drawer Error', e?.message ?? 'Could not open the cash drawer.');

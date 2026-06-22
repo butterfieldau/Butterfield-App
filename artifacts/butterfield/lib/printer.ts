@@ -130,9 +130,8 @@ async function sendPrinterBytes(printerIp: string, printerPort: number, result: 
   const bytes = base64ToUint8Array(result.data.bytes);
 
   // Dynamic import — deferred until print time, never evaluated at screen load.
-  // react-native-tcp-socket is a POS-only native module (react-native-tcp-socket@^6.4.1).
-  // In non-POS builds metro.config.js resolves the import to stubs/tcp-socket-stub.js,
-  // which throws a descriptive error that lands in the catch below.
+  // Production builds include react-native-tcp-socket so Shop Display devices
+  // can reach the receipt printer on the shop LAN.
   let TcpSocket: Awaited<typeof import('react-native-tcp-socket')>['default'];
   try {
     const mod = await import('react-native-tcp-socket');
