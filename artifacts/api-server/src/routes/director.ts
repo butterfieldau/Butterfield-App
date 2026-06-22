@@ -609,7 +609,7 @@ router.get('/pos-orders', async (req, res) => {
     SELECT
       o.id,
       o.order_number,
-      o.created_at,
+      TO_CHAR(o.created_at, 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS created_at_iso,
       o.total_cents,
       o.status,
       o.payment_method,
@@ -634,7 +634,7 @@ router.get('/pos-orders', async (req, res) => {
   const rows = (result.rows ?? result as unknown as any[]) as Array<{
     id: string;
     order_number: string;
-    created_at: Date | string;
+    created_at_iso: string;
     total_cents: string | number;
     status: string;
     source: string | null;
@@ -651,7 +651,7 @@ router.get('/pos-orders', async (req, res) => {
     data: rows.map(r => ({
       id:             r.id,
       orderNumber:    r.order_number,
-      createdAt:      new Date(r.created_at).toISOString(),
+      createdAt:      r.created_at_iso,
       totalCents:     Number(r.total_cents),
       status:         r.status,
       source:         r.source ?? 'pos',

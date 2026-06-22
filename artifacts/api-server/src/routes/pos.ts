@@ -274,7 +274,7 @@ async function fetchRegisterCashMovements(sessionId: string) {
       m.movement_type,
       m.amount_cents,
       m.reason,
-      m.created_at,
+      TO_CHAR(m.created_at, 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS created_at_iso,
       m.created_by_user_id,
       creator.name AS created_by_name,
       m.approved_by_user_id,
@@ -290,7 +290,7 @@ async function fetchRegisterCashMovements(sessionId: string) {
     movementType: row.movement_type,
     amountCents: Number(row.amount_cents ?? 0),
     reason: row.reason ?? null,
-    createdAt: row.created_at ? new Date(row.created_at).toISOString() : null,
+    createdAt: row.created_at_iso ?? null,
     createdByUserId: row.created_by_user_id,
     createdByName: row.created_by_name ?? null,
     approvedByUserId: row.approved_by_user_id ?? null,
@@ -1508,6 +1508,7 @@ router.get('/orders', async (req, res) => {
         o.id,
         o.order_number,
         o.created_at,
+        TO_CHAR(o.created_at, 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS created_at_iso,
         o.total_cents,
         o.status,
         o.payment_method,
@@ -1538,6 +1539,7 @@ router.get('/orders', async (req, res) => {
       id: string;
       order_number: string;
       created_at: Date | string;
+      created_at_iso: string;
       total_cents: string | number;
       status: string;
       payment_method: string | null;
@@ -1555,14 +1557,14 @@ router.get('/orders', async (req, res) => {
     const pageRows = hasMore ? rows.slice(0, limit) : rows;
     const lastRow = pageRows[pageRows.length - 1];
     const nextCursor = hasMore && lastRow
-      ? `${new Date(lastRow.created_at).toISOString()}|${lastRow.id}`
+      ? `${lastRow.created_at_iso}|${lastRow.id}`
       : null;
 
     return res.json({
       data: pageRows.map(r => ({
         id: r.id,
         orderNumber: r.order_number,
-        createdAt: new Date(r.created_at).toISOString(),
+        createdAt: r.created_at_iso,
         totalCents: Number(r.total_cents),
         status: r.status,
         paymentMethod: r.payment_method ?? 'eftpos',
