@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Animated, Alert } from 'react-native';
+import { Animated, Alert, Keyboard } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { api } from '@/lib/api';
 import type { PosCustomerResult } from '@/lib/api';
@@ -84,6 +84,7 @@ export function usePosHidScanner({
   const focusScannerInput = useCallback(() => {
     if (anyModalOpen) return;
     scannerInputRef.current?.focus();
+    Keyboard.dismiss();
   }, [anyModalOpen]);
 
   useEffect(() => {
