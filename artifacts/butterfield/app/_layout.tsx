@@ -7,7 +7,7 @@ import { router, Stack } from "expo-router";
 import * as Notifications from "expo-notifications";
 import * as SplashScreen from "expo-splash-screen";
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { AppState, StatusBar } from "react-native";
+import { Animated, AppState, Easing, Image, StatusBar, StyleSheet } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
@@ -19,6 +19,10 @@ import { VaultProvider } from "@/context/VaultContext";
 import { clearAppBadge } from "@/lib/pushNotifications";
 
 SplashScreen.preventAutoHideAsync();
+
+// Record the moment the JS bundle starts executing so we can measure how
+// long auth takes and hold the splash for a minimum total of 3 seconds.
+const APP_START = Date.now();
 
 // ---------------------------------------------------------------------------
 // Global JS error handler — last-resort safety net for native module startup
@@ -105,19 +109,71 @@ const directorStandaloneScreenOptions = {
 };
 
 /**
- * Hides the native splash screen once the auth check has completed.
+ * Premium animated splash overlay.
+ *
+ * Strategy used by high-end hospitality apps (Nobu, Reserve, Ritz-Carlton):
+ *  1. Keep the native splash visible while auth resolves.
+ *  2. The moment auth is done, hide the native splash and let our React
+ *     overlay (same background + logo image) take over seamlessly.
+ *  3. Hold for a minimum of 3 seconds total from JS bundle start.
+ *  4. Ease-out opacity fade over 700 ms, then unmount the overlay.
+ *
  * Must live inside AuthProvider to read isLoading.
  */
-function SplashHider() {
+function AnimatedSplash() {
   const { isLoading } = useAuth();
+  const opacity = useRef(new Animated.Value(1)).current;
+  const [visible, setVisible] = useState(true);
 
   useEffect(() => {
     if (isLoading) return;
+
+    // Hand off from native splash → our React overlay immediately,
+    // so there is no flash between the two.
     SplashScreen.hideAsync().catch(() => {});
+
+    const elapsed = Date.now() - APP_START;
+    const holdMs  = Math.max(0, 3000 - elapsed);
+
+    const timer = setTimeout(() => {
+      Animated.timing(opacity, {
+        toValue:         0,
+        duration:        700,
+        easing:          Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }).start(() => setVisible(false));
+    }, holdMs);
+
+    return () => clearTimeout(timer);
   }, [isLoading]);
 
-  return null;
+  if (!visible) return null;
+
+  return (
+    <Animated.View
+      pointerEvents="none"
+      style={[styles.splashOverlay, { opacity }]}
+    >
+      <Image
+        source={require("@/assets/images/splash-combined.png")}
+        style={styles.splashImage}
+        resizeMode="cover"
+      />
+    </Animated.View>
+  );
 }
+
+const styles = StyleSheet.create({
+  splashOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "#1481ff",
+    zIndex: 9999,
+  },
+  splashImage: {
+    width:  "100%",
+    height: "100%",
+  },
+});
 
 /**
  * Handles notification taps and routes the user to the correct in-app screen.
@@ -316,8 +372,6 @@ export default function RootLayout() {
           }}
         >
           <AuthProvider>
-            {/* Hides native splash once auth check is done — must be inside AuthProvider */}
-            <SplashHider />
             <VaultProvider>
             <CartProvider>
               <GestureHandlerRootView style={{ flex: 1 }}>
@@ -327,6 +381,11 @@ export default function RootLayout() {
               <NotificationTapHandler />
             </CartProvider>
             </VaultProvider>
+            {/*
+              Animated splash overlay — rendered LAST so it sits on top of all
+              navigation content. Holds for 3 s then fades out over 700 ms.
+            */}
+            <AnimatedSplash />
           </AuthProvider>
         </PersistQueryClientProvider>
       </ErrorBoundary>
