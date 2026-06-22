@@ -85,13 +85,16 @@ export function sydneyStartOfMonth(ref: Date = new Date()): Date {
 /** Current date fields (year/month/day/dayOfWeek) in Sydney timezone. */
 export function sydneyDateParts(ref: Date = new Date()) {
   const p = sydneyParts(ref);
-  // dayOfWeek: recompute via Date constructed at Sydney midnight
-  const midnightUtc = new Date(Date.UTC(p.year, p.month, p.day) - sydneyOffsetMs(ref));
+  // dayOfWeek must come from the Sydney CALENDAR DATE, not its UTC equivalent.
+  // Bug: Date.UTC(y,m,d) - sydneyOffsetMs gives 2026-06-21T14:00Z for Sydney
+  // June 22 — getUTCDay() on that returns Sunday (0) instead of Monday (1).
+  // Fix: treat the Sydney date components as a UTC date for getUTCDay() only;
+  // day-of-week depends solely on the calendar date, not time-of-day.
   return {
     year:      p.year,
     month:     p.month,       // 0-indexed (Jan=0)
     day:       p.day,
-    dayOfWeek: midnightUtc.getUTCDay(),
+    dayOfWeek: new Date(Date.UTC(p.year, p.month, p.day)).getUTCDay(),
     monthNum:  p.month + 1,   // 1-indexed
   };
 }
