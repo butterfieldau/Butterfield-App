@@ -7,6 +7,7 @@ import { router, Stack } from "expo-router";
 import * as Notifications from "expo-notifications";
 import * as SplashScreen from "expo-splash-screen";
 import React, { useCallback, useEffect, useRef, useState } from "react";
+import { LinearGradient } from "expo-linear-gradient";
 import { Animated, AppState, Easing, Image, StatusBar, StyleSheet } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
@@ -154,6 +155,12 @@ function AnimatedSplash() {
       pointerEvents="none"
       style={[styles.splashOverlay, { opacity }]}
     >
+      <LinearGradient
+        colors={["#0b70f8", "#00adee"]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 0, y: 1 }}
+        style={StyleSheet.absoluteFill}
+      />
       <Image
         source={require("@/assets/images/splash-combined.png")}
         style={styles.splashImage}
@@ -166,12 +173,10 @@ function AnimatedSplash() {
 const styles = StyleSheet.create({
   splashOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: "#1481ff",
     zIndex: 9999,
   },
   splashImage: {
-    width:  "100%",
-    height: "100%",
+    ...StyleSheet.absoluteFillObject,
   },
 });
 
