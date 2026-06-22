@@ -1832,9 +1832,40 @@ router.post('/wholesale/invoices/:orderId/send-reminder', async (req, res) => {
 });
 
 // ── Products CRUD ─────────────────────────────────────────────────────────────
+
+function getProductsBaseUrl(): string {
+  const domain = (process.env.REPLIT_DOMAINS ?? process.env.REPLIT_DEV_DOMAIN ?? '')
+    .split(',').map((d) => d.trim()).find(Boolean);
+  return domain ? `https://${domain}` : '';
+}
+
+function absolutizeProductUrl(url: string | null | undefined): string | null {
+  if (!url) return null;
+  const base = getProductsBaseUrl();
+  if (/^https?:\/\//i.test(url)) {
+    const storageMatch = url.match(/(\/api\/storage\/objects\/.+)/);
+    if (storageMatch) return base ? `${base}${storageMatch[1]}` : storageMatch[1];
+    return url;
+  }
+  if (!base) return url;
+  return `${base}${url.startsWith('/') ? '' : '/'}${url}`;
+}
+
 router.get('/products', async (req, res) => {
   const products = await db.select().from(productsTable).orderBy(productsTable.sortOrder, productsTable.name);
-  return res.json({ data: products });
+  const data = products.map((p) => {
+    let galleryUrls = p.galleryUrls;
+    if (galleryUrls) {
+      try {
+        const parsed: unknown = typeof galleryUrls === 'string' ? JSON.parse(galleryUrls) : galleryUrls;
+        if (Array.isArray(parsed)) {
+          galleryUrls = JSON.stringify(parsed.map((u: unknown) => absolutizeProductUrl(String(u ?? '')) ?? ''));
+        }
+      } catch { /* leave as-is */ }
+    }
+    return { ...p, imageUrl: absolutizeProductUrl(p.imageUrl), galleryUrls };
+  });
+  return res.json({ data });
 });
 
 router.post('/products', async (req, res) => {
