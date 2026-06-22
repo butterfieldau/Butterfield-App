@@ -94,6 +94,8 @@ export function sydneyDateParts(ref: Date = new Date()) {
     year:      p.year,
     month:     p.month,       // 0-indexed (Jan=0)
     day:       p.day,
+    hour:      p.hour,        // 0-23, extracted via Intl — TZ-safe on any process TZ
+    minute:    p.minute,      // 0-59, extracted via Intl — TZ-safe on any process TZ
     dayOfWeek: new Date(Date.UTC(p.year, p.month, p.day)).getUTCDay(),
     monthNum:  p.month + 1,   // 1-indexed
   };

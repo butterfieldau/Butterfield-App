@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { db, storesTable, storeOpeningHoursTable } from '@workspace/db';
 import { inArray, eq, ne, isNull, and, isNotNull, lte } from 'drizzle-orm';
 import { ensureStoreConfigSchemaReady } from '../lib/ensureStoreConfigSchemaReady.js';
-import { getSydneyNow } from '../lib/sydneyTime.js';
+import { sydneyDateParts } from '../lib/sydneyTime.js';
 
 const router = Router();
 async function purgeExpiredDeletedStores() {
@@ -27,10 +27,6 @@ router.use(async (_req, _res, next) => {
   }
 });
 
-function toSydneyDate(): Date {
-  return getSydneyNow();
-}
-
 function fmt12(time: string): string {
   const [h, m] = time.split(':').map(Number);
   const ampm = h >= 12 ? 'pm' : 'am';
@@ -43,14 +39,13 @@ function getOpenStatus(store: typeof storesTable.$inferSelect, hours: typeof sto
   if (store.status === 'temporarily_closed') return { openStatus: 'temporarily_closed',   openLabel: 'Temporarily Closed' };
   if (store.status === 'closed')             return { openStatus: 'closed',               openLabel: 'Closed' };
 
-  const now = toSydneyDate();
-  const dow = now.getDay();
-  const todayHours = hours.find(h => h.dayOfWeek === dow);
+  const syd = sydneyDateParts();
+  const todayHours = hours.find(h => h.dayOfWeek === syd.dayOfWeek);
 
   if (!todayHours || todayHours.isClosed) return { openStatus: 'closed_today', openLabel: 'Closed Today' };
   if (!todayHours.openTime || !todayHours.closeTime) return { openStatus: 'open', openLabel: 'Open' };
 
-  const nowMins = now.getHours() * 60 + now.getMinutes();
+  const nowMins = syd.hour * 60 + syd.minute;
   const [oh, om] = todayHours.openTime.split(':').map(Number);
   const [ch, cm] = todayHours.closeTime.split(':').map(Number);
   const openMins  = oh * 60 + om;
@@ -75,8 +70,7 @@ router.get('/stores', async (_req, res) => {
 
   const data = stores.map(store => {
     const hours = allHours.filter(h => h.storeId === store.id).sort((a, b) => a.dayOfWeek - b.dayOfWeek);
-    const now   = toSydneyDate();
-    const todayHours = hours.find(h => h.dayOfWeek === now.getDay()) ?? null;
+    const todayHours = hours.find(h => h.dayOfWeek === sydneyDateParts().dayOfWeek) ?? null;
     return { ...store, ...getOpenStatus(store, hours), todayHours, openingHours: hours };
   });
 
