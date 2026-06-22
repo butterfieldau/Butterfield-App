@@ -1,0 +1,135 @@
+import React from "react";
+import { Pressable, StyleSheet } from "react-native";
+import Animated, {
+  useAnimatedScrollHandler,
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+  withTiming,
+} from "react-native-reanimated";
+
+export default function HomeScreen() {
+  const navScale = useSharedValue(1);
+  const navOpacity = useSharedValue(1);
+  const lastY = useSharedValue(0);
+
+  const growNav = () => {
+    navScale.value = withSpring(1, {
+      damping: 20,
+      stiffness: 180,
+      mass: 0.8,
+    });
+
+    navOpacity.value = withTiming(1, {
+      duration: 180,
+    });
+  };
+
+  const shrinkNav = () => {
+    navScale.value = withSpring(0.8, {
+      damping: 22,
+      stiffness: 170,
+      mass: 0.9,
+    });
+
+    navOpacity.value = withTiming(0.9, {
+      duration: 200,
+    });
+  };
+
+  const scrollHandler = useAnimatedScrollHandler({
+    onScroll: (event) => {
+      const currentY = event.contentOffset.y;
+      const diff = currentY - lastY.value;
+
+      if (diff > 8 && currentY > 80) {
+        shrinkNav();
+      }
+
+      if (diff < -8) {
+        growNav();
+      }
+
+      lastY.value = currentY;
+    },
+  });
+
+  const navStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: navScale.value }],
+    opacity: navOpacity.value,
+  }));
+
+  return (
+    <>
+      <Animated.ScrollView
+        onScroll={scrollHandler}
+        scrollEventThrottle={16}
+        contentContainerStyle={{
+          paddingBottom: 140,
+        }}
+      >
+        {/* Your page content here */}
+      </Animated.ScrollView>
+
+      <Animated.View style={[styles.bottomNav, navStyle]}>
+        <Pressable onPress={growNav} style={styles.activeItem}>
+          {/* Home Icon */}
+        </Pressable>
+
+        <Pressable onPress={growNav} style={styles.item}>
+          {/* Menu Icon */}
+        </Pressable>
+
+        <Pressable onPress={growNav} style={styles.item}>
+          {/* Rewards Icon */}
+        </Pressable>
+
+        <Pressable onPress={growNav} style={styles.item}>
+          {/* Account Icon */}
+        </Pressable>
+      </Animated.View>
+    </>
+  );
+}
+
+const styles = StyleSheet.create({
+  bottomNav: {
+    position: "absolute",
+    bottom: 28,
+    alignSelf: "center",
+    width: "78%",
+    height: 72,
+    borderRadius: 40,
+    backgroundColor: "#E8D7C4",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-around",
+
+    shadowColor: "#000",
+    shadowOpacity: 0.16,
+    shadowRadius: 24,
+    shadowOffset: {
+      width: 0,
+      height: 12,
+    },
+    elevation: 14,
+  },
+
+  activeItem: {
+    height: 58,
+    minWidth: 120,
+    paddingHorizontal: 22,
+    borderRadius: 32,
+    backgroundColor: "#1DA1FF",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  item: {
+    height: 58,
+    width: 58,
+    borderRadius: 29,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+});
