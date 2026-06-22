@@ -4,7 +4,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import React, { useRef } from 'react';
 import { useScrollToTopCompat as useScrollToTop } from '@/hooks/useScrollToTopCompat';
-import { useFocusStatusBar } from '@/hooks/useScrollStatusBar';
+import { useScrollStatusBar } from '@/hooks/useScrollStatusBar';
 import {
   Alert, Pressable, ScrollView, StatusBar, StyleSheet, Text, View,
 } from 'react-native';
@@ -31,7 +31,7 @@ export default function AccountScreen() {
   const insets = useSafeAreaInsets();
   const scrollRef = useRef(null);
   useScrollToTop(scrollRef);
-  useFocusStatusBar('light-content');
+  const { barStyle, handleScroll, onHeaderLayout } = useScrollStatusBar('light-content');
   const { user, logout } = useAuth();
   const qc = useQueryClient();
 
@@ -92,8 +92,9 @@ export default function AccountScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: BG }}>
-      <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
+      <StatusBar barStyle={barStyle} translucent backgroundColor="transparent" />
       {/* ── Frozen blue gradient header ────────────────────────────────────── */}
+      <View onLayout={onHeaderLayout}>
       <LinearGradient
         colors={['#1493FF', '#3CBBEE']}
         start={{ x: 0, y: 0 }}
@@ -124,6 +125,7 @@ export default function AccountScreen() {
           </Pressable>
         </View>
       </LinearGradient>
+      </View>
 
       {/* ── Scrollable content ─────────────────────────────────────────────── */}
       <ScrollView
@@ -131,6 +133,8 @@ export default function AccountScreen() {
         style={{ flex: 1, backgroundColor: BG }}
         contentContainerStyle={{ paddingBottom: insets.bottom + 110 }}
         showsVerticalScrollIndicator={false}
+        onScroll={handleScroll}
+        scrollEventThrottle={16}
       >
       <View style={{ paddingTop: 16, paddingHorizontal: 16, gap: 16 }}>
 

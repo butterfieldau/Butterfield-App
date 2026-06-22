@@ -6,7 +6,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useScrollToTopCompat as useScrollToTop } from '@/hooks/useScrollToTopCompat';
-import { useFocusStatusBar } from '@/hooks/useScrollStatusBar';
+import { useScrollStatusBar } from '@/hooks/useScrollStatusBar';
 import {
   ActivityIndicator,
   Alert,
@@ -67,7 +67,7 @@ function LoyaltyContent() {
   const qc = useQueryClient();
   const scrollRef = useRef<ScrollView>(null);
   useScrollToTop(scrollRef);
-  useFocusStatusBar('light-content');
+  const { barStyle, handleScroll, onHeaderLayout } = useScrollStatusBar('light-content');
 
   const [showQR, setShowQR]                       = useState(false);
   const [redeeming, setRedeeming]                 = useState<string | null>(null);
@@ -255,7 +255,7 @@ function LoyaltyContent() {
 
   return (
     <>
-      <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
+      <StatusBar barStyle={barStyle} translucent backgroundColor="transparent" />
       <TierCelebrateOverlay visible={!!celebrateTier} tier={celebrateTier} onClose={() => setCelebrateTier(null)} />
       <StampCelebrateOverlay visible={showStampCelebration} onClose={() => setShowStampCelebration(false)} />
       <CustomerQrModal
@@ -275,10 +275,14 @@ function LoyaltyContent() {
         contentContainerStyle={{ paddingBottom: insets.bottom + 120 }}
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={BRAND} />}
+        onScroll={handleScroll}
+        scrollEventThrottle={16}
       >
-        <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
-          <Text style={styles.pageLabel}>REWARDS</Text>
-          <Text style={styles.pageTitle}>Your loyalty card</Text>
+        <View onLayout={onHeaderLayout}>
+          <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
+            <Text style={styles.pageLabel}>REWARDS</Text>
+            <Text style={styles.pageTitle}>Your loyalty card</Text>
+          </View>
         </View>
 
         <Animated.View style={{ opacity: sectionFade, transform: [{ translateY: sectionFade.interpolate({ inputRange: [0, 1], outputRange: [16, 0] }) }] }}>

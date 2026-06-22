@@ -16,7 +16,7 @@ import { StaffDashboard } from './_staff-dashboard';
 import { fmtAUD, timeAgo, fmtDateBox} from '@/components/director/dashboardHelpers';
 import { RevenueRangePicker, KpiTile, QuickBtn, DeltaBadge, AovCustomerRow, HourlyInsightsChart } from '@/components/director';
 import { BG, CARD, BLUE, NAVY, TEXT, MUTED, BORDER, GREEN, AMBER, RED, PURPLE, PINK, TEAL, ROSE, GOLD, GLASS_BG, GLASS_BORDER } from '@/components/director/directorColors';
-import { useFocusStatusBar } from '@/hooks/useScrollStatusBar';
+import { useFocusStatusBar, useScrollStatusBar } from '@/hooks/useScrollStatusBar';
 
 const GLASS_SHADOW = {
   shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
@@ -24,7 +24,7 @@ const GLASS_SHADOW = {
 } as const;
 
 // ── Director/Master dashboard ─────────────────────────────────────────────────
-function DirectorDashboardInner() {
+function DirectorDashboardInner({ onScroll }: { onScroll?: (e: any) => void }) {
   const { data, isLoading, refetch } = useQuery({
     queryKey: ['director-stats'],
     queryFn: () => api.director.stats(),
@@ -80,6 +80,8 @@ function DirectorDashboardInner() {
       contentContainerStyle={{ paddingBottom: 120 }}
       showsVerticalScrollIndicator={false}
       refreshControl={<RefreshControl refreshing={false} onRefresh={onRefresh} tintColor={BLUE} />}
+      onScroll={onScroll}
+      scrollEventThrottle={16}
     >
       <View style={{ paddingHorizontal: 16, gap: 16, paddingTop: 14 }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
@@ -421,23 +423,31 @@ const BADGE_COLOR: Record<string, string> = {
   director: '#EF4444',
 };
 
-export default function DirectorHome() {
+function DirectorHomeInner() {
   const { user, logout } = useAuth();
+  const { barStyle, handleScroll, onHeaderLayout } = useScrollStatusBar('light-content');
+  return (
+    <View style={{ flex: 1, backgroundColor: BG }}>
+      <StatusBar barStyle={barStyle} translucent backgroundColor="transparent" />
+      <View onLayout={onHeaderLayout}>
+        <PortalHeader
+          badge={BADGE_LABEL[user?.role ?? ''] ?? 'DIRECTOR'}
+          badgeColor={BADGE_COLOR[user?.role ?? ''] ?? '#EF4444'}
+          backgroundColor={NAVY}
+          onLogout={() => logout().then(() => router.replace('/(auth)/login' as any))}
+        />
+      </View>
+      <DirectorDashboardInner onScroll={handleScroll} />
+    </View>
+  );
+}
+
+export default function DirectorHome() {
+  const { user } = useAuth();
   const role = user?.role;
   useFocusStatusBar(role === 'staff' || role === 'manager' ? 'dark-content' : 'light-content');
   if (role === 'staff' || role === 'manager') {
     return <StaffDashboard />;
   }
-  return (
-    <View style={{ flex: 1, backgroundColor: BG }}>
-      <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
-      <PortalHeader
-        badge={BADGE_LABEL[user?.role ?? ''] ?? 'DIRECTOR'}
-        badgeColor={BADGE_COLOR[user?.role ?? ''] ?? '#EF4444'}
-        backgroundColor={NAVY}
-        onLogout={() => logout().then(() => router.replace('/(auth)/login' as any))}
-      />
-      <DirectorDashboardInner />
-    </View>
-  );
+  return <DirectorHomeInner />;
 }
