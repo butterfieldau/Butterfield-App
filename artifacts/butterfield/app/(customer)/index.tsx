@@ -18,6 +18,8 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native';
+import Reanimated from 'react-native-reanimated';
+import { useNavScrollHandler } from '@/hooks/useNavScroll';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useCart } from '@/context/CartContext';
 import { useAuth } from '@/context/AuthContext';
@@ -68,6 +70,7 @@ export default function CustomerHome() {
   const insets  = useSafeAreaInsets();
   const scrollRef = useRef(null);
   useScrollToTop(scrollRef);
+  const scrollHandler = useNavScrollHandler();
   const { addItemToCart } = useCart();
   const { user } = useAuth();
   const [storeSheetVisible, setStoreSheetVisible] = useState(false);
@@ -156,11 +159,13 @@ export default function CustomerHome() {
         onRetry={() => { void refetchLoyalty(); }}
       />
 
-      <ScrollView
+      <Reanimated.ScrollView
         ref={scrollRef}
         style={{ flex: 1 }}
         contentContainerStyle={{ paddingBottom: insets.bottom + 120 }}
         showsVerticalScrollIndicator={false}
+        scrollEventThrottle={16}
+        onScroll={scrollHandler}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={BLUE} />}
       >
         {/* ── EDITORIAL HERO ── */}
@@ -331,7 +336,7 @@ export default function CustomerHome() {
             <BannerPicksCarousel slides={bannerSlides} hPad={hPad} />
           </View>
         )}
-      </ScrollView>
+      </Reanimated.ScrollView>
     </View>
   );
 }

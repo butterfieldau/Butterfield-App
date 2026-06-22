@@ -21,6 +21,8 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native';
+import Reanimated from 'react-native-reanimated';
+import { useNavScrollHandlerWithJS } from '@/hooks/useNavScroll';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRefreshControl } from '@/hooks/useRefreshControl';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -68,6 +70,7 @@ function LoyaltyContent() {
   const scrollRef = useRef<ScrollView>(null);
   useScrollToTop(scrollRef);
   const { barStyle, handleScroll, onHeaderLayout } = useScrollStatusBar('light-content');
+  const scrollHandler = useNavScrollHandlerWithJS(handleScroll);
 
   const [showQR, setShowQR]                       = useState(false);
   const [redeeming, setRedeeming]                 = useState<string | null>(null);
@@ -269,14 +272,14 @@ function LoyaltyContent() {
         onRetry={() => { void refetchQr(); }}
       />
 
-      <ScrollView
+      <Reanimated.ScrollView
         ref={scrollRef}
         style={styles.screen}
         contentContainerStyle={{ paddingBottom: insets.bottom + 120 }}
         showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={BRAND} />}
-        onScroll={handleScroll}
         scrollEventThrottle={16}
+        onScroll={scrollHandler}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={BRAND} />}
       >
         <View onLayout={onHeaderLayout}>
           <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
@@ -485,7 +488,7 @@ function LoyaltyContent() {
           </View>
 
         </Animated.View>
-      </ScrollView>
+      </Reanimated.ScrollView>
     </>
   );
 }

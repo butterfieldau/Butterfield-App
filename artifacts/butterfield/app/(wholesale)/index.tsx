@@ -4,7 +4,9 @@ import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
 import React from 'react';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import Reanimated from 'react-native-reanimated';
 import { useRefreshControl } from '@/hooks/useRefreshControl';
+import { useNavScrollHandler } from '@/hooks/useNavScroll';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/context/AuthContext';
 import { api } from '@/lib/api';
@@ -34,6 +36,7 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }
 
 export default function WholesaleDashboard() {
   const { user } = useAuth();
+  const scrollHandler = useNavScrollHandler();
   const { data: accountData }         = useQuery({ queryKey: ['wholesale-account'], queryFn: () => api.wholesale.account(), retry: 1 });
   const { data: ordersData, refetch } = useQuery({ queryKey: ['wholesale-orders'],  queryFn: () => api.wholesale.orders(),  retry: 1 });
   const { data: announcementsData }   = useQuery({ queryKey: ['announcements'],     queryFn: () => api.misc.announcements(), retry: 1 });
@@ -56,9 +59,11 @@ export default function WholesaleDashboard() {
 
   return (
     <View style={{ flex: 1, backgroundColor: BG }}>
-      <ScrollView
+      <Reanimated.ScrollView
         contentContainerStyle={{ paddingBottom: 120 }}
         showsVerticalScrollIndicator={false}
+        scrollEventThrottle={16}
+        onScroll={scrollHandler}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={BLUE} />}
       >
         {/* ── PAGE HEADER ────────────────────────────────────────────────────── */}
@@ -204,7 +209,7 @@ export default function WholesaleDashboard() {
             <Text style={s.footerText}>Account details, payment methods & support in the Account tab</Text>
           </Pressable>
         </View>
-      </ScrollView>
+      </Reanimated.ScrollView>
     </View>
   );
 }

@@ -24,6 +24,7 @@ import Reanimated, {
   withRepeat,
   withTiming,
 } from 'react-native-reanimated';
+import { useNavScrollHandler } from '@/hooks/useNavScroll';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRefreshControl } from '@/hooks/useRefreshControl';
 import { useCart } from '@/context/CartContext';
@@ -111,6 +112,7 @@ export default function MenuScreen() {
 
   const listRef = useRef(null);
   useScrollToTop(listRef);
+  const scrollHandler = useNavScrollHandler();
 
   const shimmerProgress = useSharedValue(0);
   const contentOpacity  = useSharedValue(isLoading ? 0 : 1);
@@ -235,7 +237,7 @@ export default function MenuScreen() {
         <MenuShimmerGrid shimmerProgress={shimmerProgress} numColumns={numColumns} hPad={hPad} />
       ) : (
         <Reanimated.View style={[{ flex: 1 }, contentAnimStyle]}>
-          <FlatList
+          <Reanimated.FlatList
             ref={listRef}
             key={numColumns}
             data={filtered}
@@ -244,6 +246,8 @@ export default function MenuScreen() {
             columnWrapperStyle={{ gap: tileGap }}
             contentContainerStyle={{ paddingHorizontal: hPad, paddingTop: hPad, gap: tileGap, paddingBottom: insets.bottom + 110 }}
             showsVerticalScrollIndicator={false}
+            scrollEventThrottle={16}
+            onScroll={scrollHandler}
             refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={BLUE} />}
             ListHeaderComponent={
               <>

@@ -3,6 +3,7 @@ import { Feather } from '@expo/vector-icons';
 import { Redirect, Tabs, useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import Reanimated, { useAnimatedStyle, withSpring } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '@/context/AuthContext';
 import { useCart } from '@/context/CartContext';
@@ -10,6 +11,7 @@ import { useColors } from '@/hooks/useColors';
 import { LoginRequiredModal } from '@/components/LoginRequiredModal';
 import { getHomeRouteForRole } from '@/lib/roleRoutes';
 import { AnimatedTabItem, GlassCircle, GlassPill } from '@/components/FloatingTabBar';
+import { navScale, snapNavScaleFull } from '@/hooks/useNavScroll';
 
 const BLUE      = '#1493FF';
 const CIRCLE_SZ = 62;
@@ -34,7 +36,12 @@ function FloatingCustomerTabBar({ state, navigation }: any) {
     (VISIBLE_ROUTES as readonly string[]).includes(r.name),
   );
 
+  const barAnimStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: withSpring(navScale.value, { damping: 20, stiffness: 180, mass: 0.8 }) }],
+  }));
+
   const makeOnPress = (route: any, focused: boolean) => () => {
+    snapNavScaleFull();
     const event = navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
     if (!focused && !event.defaultPrevented) {
       Haptics.selectionAsync();
@@ -43,6 +50,7 @@ function FloatingCustomerTabBar({ state, navigation }: any) {
   };
 
   const goToCart = () => {
+    snapNavScaleFull();
     if (!user) {
       setLoginTarget('/customer-cart');
       return;
@@ -57,7 +65,7 @@ function FloatingCustomerTabBar({ state, navigation }: any) {
         pointerEvents="box-none"
         style={[styles.wrap, { paddingBottom: Math.max(insets.bottom, 12) }]}
       >
-        <View style={styles.barRow}>
+        <Reanimated.View style={[styles.barRow, barAnimStyle]}>
           <GlassPill>
             {visibleRoutes.map((route: any) => {
               const routeIndex = state.routes.findIndex((r: any) => r.key === route.key);
@@ -92,7 +100,7 @@ function FloatingCustomerTabBar({ state, navigation }: any) {
               </View>
             )}
           </Pressable>
-        </View>
+        </Reanimated.View>
       </View>
 
       <LoginRequiredModal

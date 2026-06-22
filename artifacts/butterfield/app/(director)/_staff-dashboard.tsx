@@ -8,6 +8,8 @@ import {
   ActivityIndicator, Alert, Modal, Platform, Pressable, RefreshControl,
   ScrollView, StyleSheet, Text, View,
 } from 'react-native';
+import Reanimated from 'react-native-reanimated';
+import { useNavScrollHandler } from '@/hooks/useNavScroll';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/context/AuthContext';
@@ -89,6 +91,7 @@ export function StaffDashboard() {
   const { user, logout } = useAuth();
   const insets = useSafeAreaInsets();
   const qc = useQueryClient();
+  const scrollHandler = useNavScrollHandler();
 
   useEffect(() => {
     cancelClockInReminder();
@@ -373,11 +376,13 @@ export function StaffDashboard() {
         </View>
       </Modal>
 
-      <ScrollView
+      <Reanimated.ScrollView
         ref={scrollRef}
         style={{ flex: 1, backgroundColor: BG }}
         contentContainerStyle={{ paddingBottom: 120, paddingTop: 8 }}
         showsVerticalScrollIndicator={false}
+        scrollEventThrottle={16}
+        onScroll={scrollHandler}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={BLUE} />}
       >
         <View style={{ paddingHorizontal: 20, gap: 18 }}>
@@ -660,7 +665,7 @@ export function StaffDashboard() {
           )}
 
         </View>
-      </ScrollView>
+      </Reanimated.ScrollView>
     </View>
   );
 }

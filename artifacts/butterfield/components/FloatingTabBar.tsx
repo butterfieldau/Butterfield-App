@@ -15,8 +15,10 @@ import Reanimated, {
   useAnimatedStyle,
   withTiming,
   withSequence,
+  withSpring,
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { navScale, snapNavScaleFull } from '@/hooks/useNavScroll';
 
 export type TabCfg = { icon: string; title: string };
 
@@ -190,14 +192,18 @@ export function FloatingInternalTabBar({
 }) {
   const insets = useSafeAreaInsets();
 
+  const barAnimStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: withSpring(navScale.value, { damping: 20, stiffness: 180, mass: 0.8 }) }],
+  }));
+
   const visibleRoutes = visibleRouteNames
     .map((name) => state.routes.find((r: any) => r.name === name))
     .filter(Boolean);
 
   return (
-    <View
+    <Reanimated.View
       pointerEvents="box-none"
-      style={[ft.wrap, { paddingBottom: Math.max(insets.bottom, 12) }]}
+      style={[ft.wrap, { paddingBottom: Math.max(insets.bottom, 12) }, barAnimStyle]}
     >
       <GlassPill>
         {visibleRoutes.map((route: any) => {
@@ -206,6 +212,7 @@ export function FloatingInternalTabBar({
           const cfg        = tabConfig[route.name] ?? { icon: 'circle', title: route.name };
 
           const onPress = () => {
+            snapNavScaleFull();
             const event = navigation.emit({
               type: 'tabPress', target: route.key, canPreventDefault: true,
             });
@@ -226,7 +233,7 @@ export function FloatingInternalTabBar({
           );
         })}
       </GlassPill>
-    </View>
+    </Reanimated.View>
   );
 }
 

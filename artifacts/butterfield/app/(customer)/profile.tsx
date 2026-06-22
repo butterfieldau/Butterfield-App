@@ -8,6 +8,8 @@ import { useScrollStatusBar } from '@/hooks/useScrollStatusBar';
 import {
   Alert, Pressable, ScrollView, StatusBar, StyleSheet, Text, View,
 } from 'react-native';
+import Reanimated from 'react-native-reanimated';
+import { useNavScrollHandlerWithJS } from '@/hooks/useNavScroll';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/context/AuthContext';
@@ -32,6 +34,7 @@ export default function AccountScreen() {
   const scrollRef = useRef(null);
   useScrollToTop(scrollRef);
   const { barStyle, handleScroll, onHeaderLayout } = useScrollStatusBar('light-content');
+  const scrollHandler = useNavScrollHandlerWithJS(handleScroll);
   const { user, logout } = useAuth();
   const qc = useQueryClient();
 
@@ -128,13 +131,13 @@ export default function AccountScreen() {
       </View>
 
       {/* ── Scrollable content ─────────────────────────────────────────────── */}
-      <ScrollView
+      <Reanimated.ScrollView
         ref={scrollRef}
         style={{ flex: 1, backgroundColor: BG }}
         contentContainerStyle={{ paddingBottom: insets.bottom + 110 }}
         showsVerticalScrollIndicator={false}
-        onScroll={handleScroll}
         scrollEventThrottle={16}
+        onScroll={scrollHandler}
       >
       <View style={{ paddingTop: 16, paddingHorizontal: 16, gap: 16 }}>
 
@@ -219,7 +222,7 @@ export default function AccountScreen() {
         </View>
         <Text style={[styles.version, { color: MUTED }]}>Butterfield Cookies · Version {Constants.expoConfig?.version ?? '—'}</Text>
       </View>
-    </ScrollView>
+    </Reanimated.ScrollView>
     </View>
   );
 }
