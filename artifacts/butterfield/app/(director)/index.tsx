@@ -423,8 +423,9 @@ const BADGE_COLOR: Record<string, string> = {
 
 export default function DirectorHome() {
   const { user, logout } = useAuth();
-  useFocusStatusBar('light-content');
-  if (user?.role === 'staff' || user?.role === 'manager') {
+  const role = user?.role;
+  useFocusStatusBar(role === 'staff' || role === 'manager' ? 'dark-content' : 'light-content');
+  if (role === 'staff' || role === 'manager') {
     return <StaffDashboard />;
   }
   return (
