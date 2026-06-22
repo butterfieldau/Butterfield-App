@@ -2,7 +2,7 @@ import * as Haptics from 'expo-haptics';
 import { Feather } from '@expo/vector-icons';
 import { Redirect, Tabs, useRouter } from 'expo-router';
 import React, { useState } from 'react';
-import { Pressable, StatusBar, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '@/context/AuthContext';
 import { useCart } from '@/context/CartContext';
@@ -111,7 +111,6 @@ function ClassicCustomerTabs() {
 
   return (
     <>
-      <StatusBar barStyle="dark-content" />
       <Tabs
         tabBar={(props) => <FloatingCustomerTabBar {...props} />}
         screenOptions={{

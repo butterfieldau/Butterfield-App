@@ -2,6 +2,7 @@ import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router, useFocusEffect, useLocalSearchParams, useNavigation } from 'expo-router';
+import { useFocusStatusBar } from '@/hooks/useScrollStatusBar';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -79,6 +80,7 @@ export default function CartScreen() {
 
 function CartContent() {
   const insets     = useSafeAreaInsets();
+  useFocusStatusBar('light-content');
   const navigation = useNavigation();
   const { user }   = useAuth();
   const { items, totalPriceCents, totalItems, addItemToCart, updateItemQuantity, removeCartItem, clearCart, cartRestoredFromSession, dismissCartRestoredBanner } = useCart();
@@ -98,7 +100,6 @@ function CartContent() {
   });
 
   useFocusEffect(useCallback(() => {
-    StatusBar.setBarStyle('light-content', true);
     qc.invalidateQueries({ queryKey: ['delivery-config'] });
   }, [qc]));
 
@@ -443,7 +444,7 @@ function CartContent() {
   // ── Main render ───────────────────────────────────────────────────────────
   return (
     <View style={{ flex: 1, backgroundColor: BG }}>
-      <StatusBar barStyle="light-content" />
+      <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
 
       <LinearGradient colors={['#1493FF', '#3CBBEE']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
         style={[styles.header, { paddingTop: insets.top + 14 }]}>

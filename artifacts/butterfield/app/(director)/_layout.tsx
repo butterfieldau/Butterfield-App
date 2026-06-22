@@ -171,7 +171,6 @@ export default function DirectorLayout() {
   // ── Director / Master: standard tab bar ──────────────────────────────────────
   return (
     <View style={{ flex: 1 }}>
-      <StatusBar barStyle="dark-content" />
       <Tabs
         initialRouteName="index"
         screenOptions={{

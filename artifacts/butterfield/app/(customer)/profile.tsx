@@ -1,9 +1,10 @@
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
-import { router, useFocusEffect } from 'expo-router';
-import React, { useCallback, useRef } from 'react';
+import { router } from 'expo-router';
+import React, { useRef } from 'react';
 import { useScrollToTopCompat as useScrollToTop } from '@/hooks/useScrollToTopCompat';
+import { useFocusStatusBar } from '@/hooks/useScrollStatusBar';
 import {
   Alert, Pressable, ScrollView, StatusBar, StyleSheet, Text, View,
 } from 'react-native';
@@ -30,7 +31,7 @@ export default function AccountScreen() {
   const insets = useSafeAreaInsets();
   const scrollRef = useRef(null);
   useScrollToTop(scrollRef);
-  useFocusEffect(useCallback(() => { StatusBar.setBarStyle('light-content', true); }, []));
+  useFocusStatusBar('light-content');
   const { user, logout } = useAuth();
   const qc = useQueryClient();
 
@@ -91,7 +92,7 @@ export default function AccountScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: BG }}>
-      <StatusBar barStyle="light-content" />
+      <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
       {/* ── Frozen blue gradient header ────────────────────────────────────── */}
       <LinearGradient
         colors={['#1493FF', '#3CBBEE']}

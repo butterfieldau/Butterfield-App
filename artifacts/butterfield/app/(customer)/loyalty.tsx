@@ -3,9 +3,10 @@ import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
-import { router, useFocusEffect } from 'expo-router';
+import { router } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useScrollToTopCompat as useScrollToTop } from '@/hooks/useScrollToTopCompat';
+import { useFocusStatusBar } from '@/hooks/useScrollStatusBar';
 import {
   ActivityIndicator,
   Alert,
@@ -66,7 +67,7 @@ function LoyaltyContent() {
   const qc = useQueryClient();
   const scrollRef = useRef<ScrollView>(null);
   useScrollToTop(scrollRef);
-  useFocusEffect(useCallback(() => { StatusBar.setBarStyle('light-content', true); }, []));
+  useFocusStatusBar('light-content');
 
   const [showQR, setShowQR]                       = useState(false);
   const [redeeming, setRedeeming]                 = useState<string | null>(null);
@@ -254,7 +255,7 @@ function LoyaltyContent() {
 
   return (
     <>
-      <StatusBar barStyle="light-content" />
+      <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
       <TierCelebrateOverlay visible={!!celebrateTier} tier={celebrateTier} onClose={() => setCelebrateTier(null)} />
       <StampCelebrateOverlay visible={showStampCelebration} onClose={() => setShowStampCelebration(false)} />
       <CustomerQrModal

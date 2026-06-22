@@ -2,6 +2,7 @@ import React, { type ReactNode } from 'react';
 import { StatusBar, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLayoutHandledSafeArea } from '@/context/LayoutSafeAreaContext';
+import { useFocusStatusBar } from '@/hooks/useScrollStatusBar';
 
 const HEADER_BG  = '#EFF6FF';
 const CONTENT_BG = '#EFF6FF';
@@ -28,10 +29,11 @@ export function DirectorTabScreen({
 }: Props) {
   const insets = useSafeAreaInsets();
   const layoutHandledSA = useLayoutHandledSafeArea();
+  useFocusStatusBar('dark-content');
 
   return (
     <View style={{ flex: 1, backgroundColor }}>
-      <StatusBar barStyle="dark-content" />
+      <StatusBar barStyle="dark-content" translucent backgroundColor="transparent" />
 
       {/* Fills the status-bar height — skipped when the layout wrapper already did it */}
       {!layoutHandledSA && (

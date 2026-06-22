@@ -1,13 +1,14 @@
 import { Feather } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { router, useFocusEffect } from 'expo-router';
-import React, { useCallback } from 'react';
+import { router } from 'expo-router';
+import React from 'react';
 import {
   ActivityIndicator, Alert, Linking, Pressable, RefreshControl,
   ScrollView, StatusBar, StyleSheet, Text, View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRefreshControl } from '@/hooks/useRefreshControl';
+import { useScrollStatusBar } from '@/hooks/useScrollStatusBar';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useColors } from '@/hooks/useColors';
 import { api, type AuthProfile } from '@/lib/api';
@@ -176,7 +177,7 @@ export default function CustomerStoresScreen() {
   const qc = useQueryClient();
   const insets = useSafeAreaInsets();
   const colors = useColors();
-  useFocusEffect(useCallback(() => { StatusBar.setBarStyle('light-content', true); }, []));
+  const { barStyle, handleScroll, onHeaderLayout } = useScrollStatusBar('light-content');
   const { data, isLoading, refetch } = useQuery({
     queryKey: ['stores'],
     queryFn: () => api.stores.list(),
@@ -211,21 +212,25 @@ export default function CustomerStoresScreen() {
   };
   return (
     <>
-    <StatusBar barStyle="light-content" />
+    <StatusBar barStyle={barStyle} translucent backgroundColor="transparent" />
     <ScrollView
       style={{ flex: 1, backgroundColor: colors.background }}
       contentContainerStyle={{ paddingBottom: insets.bottom + 40 }}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#1493FF" />}
+      onScroll={handleScroll}
+      scrollEventThrottle={16}
     >
       {/* Header */}
-      <LinearGradient
-        colors={['#1493FF', '#3CBBEE']}
-        style={[cs.hero, { paddingTop: Math.max(insets.top, 20) + 16 }]}
-        start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
-      >
-        <Text style={cs.heroTitle}>Our Stores</Text>
-        <Text style={cs.heroSub}>Find your nearest Butterfield Cookies</Text>
-      </LinearGradient>
+      <View onLayout={onHeaderLayout}>
+        <LinearGradient
+          colors={['#1493FF', '#3CBBEE']}
+          style={[cs.hero, { paddingTop: Math.max(insets.top, 20) + 16 }]}
+          start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+        >
+          <Text style={cs.heroTitle}>Our Stores</Text>
+          <Text style={cs.heroSub}>Find your nearest Butterfield Cookies</Text>
+        </LinearGradient>
+      </View>
       <View style={{ paddingHorizontal: 16, paddingTop: 16, gap: 12 }}>
         {isLoading ? (
           <View style={{ paddingVertical: 60, alignItems: 'center' }}>

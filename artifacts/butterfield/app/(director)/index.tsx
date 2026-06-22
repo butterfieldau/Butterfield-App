@@ -16,6 +16,7 @@ import { StaffDashboard } from './_staff-dashboard';
 import { fmtAUD, timeAgo, fmtDateBox} from '@/components/director/dashboardHelpers';
 import { RevenueRangePicker, KpiTile, QuickBtn, DeltaBadge, AovCustomerRow, HourlyInsightsChart } from '@/components/director';
 import { BG, CARD, BLUE, NAVY, TEXT, MUTED, BORDER, GREEN, AMBER, RED, PURPLE, PINK, TEAL, ROSE, GOLD, GLASS_BG, GLASS_BORDER } from '@/components/director/directorColors';
+import { useFocusStatusBar } from '@/hooks/useScrollStatusBar';
 
 const GLASS_SHADOW = {
   shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
@@ -422,12 +423,13 @@ const BADGE_COLOR: Record<string, string> = {
 
 export default function DirectorHome() {
   const { user, logout } = useAuth();
+  useFocusStatusBar('light-content');
   if (user?.role === 'staff' || user?.role === 'manager') {
     return <StaffDashboard />;
   }
   return (
     <View style={{ flex: 1, backgroundColor: BG }}>
-      <StatusBar barStyle="light-content" />
+      <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
       <PortalHeader
         badge={BADGE_LABEL[user?.role ?? ''] ?? 'DIRECTOR'}
         badgeColor={BADGE_COLOR[user?.role ?? ''] ?? '#EF4444'}

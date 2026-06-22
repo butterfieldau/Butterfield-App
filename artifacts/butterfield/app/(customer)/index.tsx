@@ -2,9 +2,10 @@ import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
-import { router, useFocusEffect } from 'expo-router';
+import { router } from 'expo-router';
 import React, { useCallback, useRef, useState } from 'react';
 import { useScrollToTopCompat as useScrollToTop } from '@/hooks/useScrollToTopCompat';
+import { useFocusStatusBar } from '@/hooks/useScrollStatusBar';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   FlatList,
@@ -73,7 +74,7 @@ export default function CustomerHome() {
   const [showQR, setShowQR] = useState(false);
   const [loginTarget, setLoginTarget] = useState<string | null>(null);
 
-  useFocusEffect(useCallback(() => { StatusBar.setBarStyle('dark-content', true); }, []));
+  useFocusStatusBar('dark-content');
 
   const { width } = useWindowDimensions();
   const isTablet = width >= 768;
@@ -140,7 +141,7 @@ export default function CustomerHome() {
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
-      <StatusBar barStyle="dark-content" />
+      <StatusBar barStyle="dark-content" translucent backgroundColor="transparent" />
       <OfflineBanner />
       <StoreInfoSheet visible={storeSheetVisible} store={featuredStore} onClose={() => setStoreSheetVisible(false)} />
       <LoginRequiredModal visible={!!loginTarget} redirectTo={loginTarget ?? undefined} onCancel={() => setLoginTarget(null)} />

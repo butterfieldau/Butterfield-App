@@ -2,12 +2,14 @@ import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { router, useLocalSearchParams } from 'expo-router';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useFocusStatusBar } from '@/hooks/useScrollStatusBar';
 import { useScrollToTopCompat as useScrollToTop } from '@/hooks/useScrollToTopCompat';
 import {
   FlatList,
   Pressable,
   RefreshControl,
   ScrollView,
+  StatusBar,
   StyleSheet,
   Text,
   TextInput,
@@ -65,6 +67,7 @@ function parseArr(val: any): string[] {
 
 export default function MenuScreen() {
   const insets = useSafeAreaInsets();
+  useFocusStatusBar('dark-content');
   const { addItemToCart } = useCart();
   const params = useLocalSearchParams<{ category?: string }>();
   const [search, setSearch]                   = useState('');
@@ -187,6 +190,7 @@ export default function MenuScreen() {
 
   return (
     <View style={s.root}>
+      <StatusBar barStyle="dark-content" translucent backgroundColor="transparent" />
       <OfflineBanner />
 
       {/* ── Header ── */}
