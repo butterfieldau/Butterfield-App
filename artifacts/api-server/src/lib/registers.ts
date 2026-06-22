@@ -231,6 +231,19 @@ export async function ensureRegisterSchemaReady() {
           AND printed_at IS NULL
           AND starting_float_cents IS NULL
       `);
+
+      // Enforce at most one OPEN session per store per trading day.
+      // Two partial indexes cover the two cases: store_id present vs absent.
+      await db.execute(sql`
+        CREATE UNIQUE INDEX IF NOT EXISTS register_sessions_open_store_day_idx
+        ON register_sessions (store_id, trading_date)
+        WHERE closed_at IS NULL AND store_id IS NOT NULL
+      `);
+      await db.execute(sql`
+        CREATE UNIQUE INDEX IF NOT EXISTS register_sessions_open_nostore_day_idx
+        ON register_sessions (register_name, trading_date)
+        WHERE closed_at IS NULL AND store_id IS NULL
+      `);
     })().catch((error) => {
       registerSchemaReady = null;
       throw error;
@@ -329,17 +342,30 @@ export async function getOrCreateCurrentRegisterSession(userId: string) {
   const tradingDate = toTradingDate(getSydneyNow());
   const existing = await findOpenSessionForContext(context, tradingDate);
   if (existing) return existing;
-  const [created] = await db.insert(registerSessionsTable).values({
-    id: randomUUID(),
-    storeId: context.storeId,
-    registerName: context.registerName,
-    registerLocation: context.registerLocation,
-    tradingDate,
-    openedByUserId: userId,
-    openedAt: new Date(),
-    updatedAt: new Date(),
-  }).returning();
-  return created;
+  try {
+    const [created] = await db.insert(registerSessionsTable).values({
+      id: randomUUID(),
+      storeId: context.storeId,
+      registerName: context.registerName,
+      registerLocation: context.registerLocation,
+      tradingDate,
+      openedByUserId: userId,
+      openedAt: new Date(),
+      updatedAt: new Date(),
+    }).returning();
+    return created!;
+  } catch (err: unknown) {
+    // Unique constraint violation — another concurrent request already created the session.
+    // Fetch and return the winner.
+    const isUniqueViolation =
+      err instanceof Error &&
+      ((err as any).code === '23505' || /unique/i.test(err.message));
+    if (isUniqueViolation) {
+      const winner = await findOpenSessionForContext(context, tradingDate);
+      if (winner) return winner;
+    }
+    throw err;
+  }
 }
 
 export async function setRegisterStartingFloat(params: {
