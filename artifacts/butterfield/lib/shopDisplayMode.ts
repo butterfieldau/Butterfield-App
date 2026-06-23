@@ -52,3 +52,47 @@ export async function clearDisplayLockPin(): Promise<void> {
 export function verifyDisplayLockPin(entered: string, stored: string): boolean {
   return entered === stored;
 }
+
+// ── Screensaver settings (stored locally per device) ──────────────────────────
+const SCREENSAVER_ENABLED_KEY = '@butterfield/shop_display_screensaver_enabled';
+const SCREENSAVER_TIMEOUT_KEY = '@butterfield/shop_display_screensaver_timeout_mins';
+
+// Module-level listeners so settings.tsx can push changes directly to _layout.tsx
+// without requiring navigation. Each update carries only the field that changed.
+export type ScreensaverUpdate = { enabled?: boolean; timeoutMs?: number };
+type ScreensaverListener = (update: ScreensaverUpdate) => void;
+const _screensaverListeners = new Set<ScreensaverListener>();
+
+export function subscribeScreensaverSettings(listener: ScreensaverListener): () => void {
+  _screensaverListeners.add(listener);
+  return () => _screensaverListeners.delete(listener);
+}
+
+function _notifyScreensaver(update: ScreensaverUpdate) {
+  _screensaverListeners.forEach(l => l(update));
+}
+
+export async function getScreensaverEnabled(): Promise<boolean> {
+  const saved = await AsyncStorage.getItem(SCREENSAVER_ENABLED_KEY);
+  if (saved != null) return saved === 'true';
+  return true;
+}
+
+export async function setScreensaverEnabled(enabled: boolean): Promise<void> {
+  await AsyncStorage.setItem(SCREENSAVER_ENABLED_KEY, enabled ? 'true' : 'false');
+  _notifyScreensaver({ enabled });
+}
+
+export async function getScreensaverTimeout(): Promise<number> {
+  const saved = await AsyncStorage.getItem(SCREENSAVER_TIMEOUT_KEY);
+  if (saved != null) {
+    const mins = parseFloat(saved);
+    if (!isNaN(mins) && mins > 0) return mins;
+  }
+  return 2;
+}
+
+export async function setScreensaverTimeout(minutes: number): Promise<void> {
+  await AsyncStorage.setItem(SCREENSAVER_TIMEOUT_KEY, String(minutes));
+  _notifyScreensaver({ timeoutMs: minutes * 60_000 });
+}

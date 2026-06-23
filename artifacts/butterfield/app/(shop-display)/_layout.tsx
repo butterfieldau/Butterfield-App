@@ -9,7 +9,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/context/AuthContext';
 import { PortalHeader } from '@/components/PortalHeader';
 import { getHomeRouteForRole } from '@/lib/roleRoutes';
-import { useShopDisplayAwakeMode, getDisplayLockPin, verifyDisplayLockPin, clearDisplayLockPin, getShopDisplaySoundEnabled } from '@/lib/shopDisplayMode';
+import { useShopDisplayAwakeMode, getDisplayLockPin, verifyDisplayLockPin, clearDisplayLockPin, getShopDisplaySoundEnabled, getScreensaverEnabled, getScreensaverTimeout, subscribeScreensaverSettings } from '@/lib/shopDisplayMode';
 import { LayoutSafeAreaContext } from '@/context/LayoutSafeAreaContext';
 import { api } from '@/lib/api';
 import {
@@ -20,7 +20,6 @@ import {
 import { PosIdleScreen } from '@/components/PosIdleScreen';
 import PosPinModal from '@/components/PosPinModal';
 
-const IDLE_TIMEOUT_MS = 120_000;
 
 const BLUE  = '#1493FF';
 const NAVY  = '#1A2B4A';
@@ -364,6 +363,31 @@ export default function ShopDisplayLayout() {
   // ── Global screensaver ───────────────────────────────────────────────────────
   const lastIdleRef = useRef<number>(Date.now());
   const [isIdle, setIsIdle] = useState(false);
+  const screensaverEnabledRef = useRef(true);
+  const idleTimeoutMsRef = useRef(120_000);
+
+  // Load screensaver settings on mount and on navigation (belt-and-suspenders for restarts)
+  useEffect(() => {
+    Promise.all([getScreensaverEnabled(), getScreensaverTimeout()]).then(([enabled, mins]) => {
+      screensaverEnabledRef.current = enabled;
+      idleTimeoutMsRef.current = mins * 60_000;
+      if (!enabled) setIsIdle(false);
+    });
+  }, [pathname]);
+
+  // Subscribe to immediate in-session changes from the Settings tab so refs
+  // update the moment the toggle/preset is pressed — no navigation required.
+  useEffect(() => {
+    return subscribeScreensaverSettings(({ enabled, timeoutMs }) => {
+      if (enabled !== undefined) {
+        screensaverEnabledRef.current = enabled;
+        if (!enabled) setIsIdle(false);
+      }
+      if (timeoutMs !== undefined) {
+        idleTimeoutMsRef.current = timeoutMs;
+      }
+    });
+  }, []);
 
   const { data: idleProductsData } = useQuery({
     queryKey: ['shop-display-idle-products'],
@@ -383,7 +407,8 @@ export default function ShopDisplayLayout() {
 
   useEffect(() => {
     const interval = setInterval(() => {
-      if (Date.now() - lastIdleRef.current >= IDLE_TIMEOUT_MS) {
+      if (!screensaverEnabledRef.current) return;
+      if (Date.now() - lastIdleRef.current >= idleTimeoutMsRef.current) {
         setIsIdle(prev => prev ? prev : true);
       }
     }, 5_000);

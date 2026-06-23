@@ -24,6 +24,8 @@ import LinklyCloudSettingsCard from '@/components/LinklyCloudSettingsCard';
 import {
   getShopDisplaySoundEnabled, setShopDisplaySoundEnabled,
   getDisplayLockPin, setDisplayLockPin, clearDisplayLockPin,
+  getScreensaverEnabled, setScreensaverEnabled,
+  getScreensaverTimeout, setScreensaverTimeout,
 } from '@/lib/shopDisplayMode';
 
 const BG     = '#EFF6FF';
@@ -431,10 +433,14 @@ export default function ShopDisplaySettingsScreen() {
   const [lockPinInput, setLockPinInput] = useState('');
   const [lockPinSaving, setLockPinSaving] = useState(false);
   const [lockPinMsg, setLockPinMsg] = useState<string | null>(null);
+  const [screensaverOn, setScreensaverOn] = useState(true);
+  const [screensaverMins, setScreensaverMins] = useState(2);
 
   useEffect(() => {
     getShopDisplaySoundEnabled().then(setSoundEnabledState).catch(() => {});
     getDisplayLockPin().then(p => setLockPinSet(!!p)).catch(() => {});
+    getScreensaverEnabled().then(setScreensaverOn).catch(() => {});
+    getScreensaverTimeout().then(setScreensaverMins).catch(() => {});
   }, []);
 
   const { data: storeData, isLoading: storeLoading } = useQuery({
@@ -616,6 +622,58 @@ export default function ShopDisplaySettingsScreen() {
           )}
         </View>
 
+        {/* ── Screensaver ── */}
+        <View style={styles.sectionHeader}>
+          <Feather name="moon" size={15} color={NAVY} />
+          <Text style={styles.sectionTitle}>Screensaver</Text>
+        </View>
+        <View style={[styles.card, { gap: 14 }]}>
+          <View style={styles.row}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.title}>Enable Screensaver</Text>
+              <Text style={styles.sub}>Show an idle screen after a period of inactivity.</Text>
+            </View>
+            <Switch
+              value={screensaverOn}
+              onValueChange={async (v) => {
+                setScreensaverOn(v);
+                await setScreensaverEnabled(v);
+                Haptics.selectionAsync();
+              }}
+              trackColor={{ true: BLUE }}
+            />
+          </View>
+          <View style={{ height: 1, backgroundColor: BORDER, marginHorizontal: -16 }} />
+          <View style={{ opacity: screensaverOn ? 1 : 0.4 }}>
+            <Text style={[styles.title, { marginBottom: 8 }]}>Timeout</Text>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+              {([1, 2, 5, 10, 15, 30] as const).map((mins) => {
+                const active = screensaverMins === mins;
+                return (
+                  <Pressable
+                    key={mins}
+                    disabled={!screensaverOn}
+                    onPress={async () => {
+                      setScreensaverMins(mins);
+                      await setScreensaverTimeout(mins);
+                      Haptics.selectionAsync();
+                    }}
+                    style={({ pressed }) => [
+                      styles.screensaverPresetBtn,
+                      active && styles.screensaverPresetBtnActive,
+                      pressed && { opacity: 0.7 },
+                    ]}
+                  >
+                    <Text style={[styles.screensaverPresetText, active && styles.screensaverPresetTextActive]}>
+                      {mins === 1 ? '1 min' : `${mins} min`}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
+        </View>
+
         {/* ── Session info ── */}
         <View style={styles.sectionHeader}>
           <Feather name="user" size={15} color={NAVY} />
@@ -697,6 +755,10 @@ const styles = StyleSheet.create({
   logoutText:       { color: RED, fontSize: 15, fontWeight: '700' },
   lockCard:         { flexDirection: 'row', alignItems: 'center', gap: 14 },
   lockCardIcon:     { width: 40, height: 40, borderRadius: 12, backgroundColor: '#EEF2FF', alignItems: 'center', justifyContent: 'center' },
+  screensaverPresetBtn:      { paddingHorizontal: 14, paddingVertical: 9, borderRadius: 10, backgroundColor: '#F3F4F6', borderWidth: 1, borderColor: BORDER },
+  screensaverPresetBtnActive:{ backgroundColor: BLUE, borderColor: BLUE },
+  screensaverPresetText:     { fontSize: 14, fontWeight: '600', color: MUTED },
+  screensaverPresetTextActive:{ color: '#fff', fontWeight: '700' },
 });
 
 // ── PIN modal styles ──────────────────────────────────────────────────────────
