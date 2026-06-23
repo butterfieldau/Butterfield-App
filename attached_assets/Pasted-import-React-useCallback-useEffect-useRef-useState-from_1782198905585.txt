@@ -1,0 +1,208 @@
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import {
+  TextInput,
+  View,
+  Text,
+  Pressable,
+  StyleSheet,
+  Platform,
+} from "react-native";
+import { useFocusEffect } from "@react-navigation/native";
+
+export function POSCartScannerLayer({
+  attachCustomerToCart,
+  openCameraScanner,
+}: {
+  attachCustomerToCart: (qrValue: string) => Promise<void>;
+  openCameraScanner: () => void;
+}) {
+  const inputRef = useRef<TextInput>(null);
+  const debounceRef = useRef<NodeJS.Timeout | null>(null);
+  const scanningLockRef = useRef(false);
+  const lastScanRef = useRef<{ value: string; time: number } | null>(null);
+
+  const [scanValue, setScanValue] = useState("");
+  const [scannerReady, setScannerReady] = useState(false);
+
+  const focusScanner = useCallback(() => {
+    setTimeout(() => {
+      inputRef.current?.focus();
+      setScannerReady(true);
+    }, 80);
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      focusScanner();
+
+      return () => {
+        setScannerReady(false);
+      };
+    }, [focusScanner])
+  );
+
+  useEffect(() => {
+    focusScanner();
+  }, [focusScanner]);
+
+  const cleanQRValue = (value: string) => {
+    return value
+      .replace(/\n/g, "")
+      .replace(/\r/g, "")
+      .trim();
+  };
+
+  const looksLikeCustomerQR = (value: string) => {
+    const clean = cleanQRValue(value);
+
+    return (
+      clean.startsWith("butterfield://customer/") ||
+      clean.includes("/customer/") ||
+      clean.includes("/c/") ||
+      clean.length >= 8
+    );
+  };
+
+  const processScan = useCallback(
+    async (rawValue: string) => {
+      const qrValue = cleanQRValue(rawValue);
+
+      if (!qrValue) return;
+      if (!looksLikeCustomerQR(qrValue)) return;
+
+      const now = Date.now();
+      const lastScan = lastScanRef.current;
+
+      if (
+        lastScan &&
+        lastScan.value === qrValue &&
+        now - lastScan.time < 2000
+      ) {
+        setScanValue("");
+        focusScanner();
+        return;
+      }
+
+      if (scanningLockRef.current) return;
+
+      scanningLockRef.current = true;
+      lastScanRef.current = { value: qrValue, time: now };
+
+      try {
+        await attachCustomerToCart(qrValue);
+      } catch (error) {
+        console.log("Customer QR scan failed:", error);
+      } finally {
+        setScanValue("");
+
+        setTimeout(() => {
+          scanningLockRef.current = false;
+          focusScanner();
+        }, 400);
+      }
+    },
+    [attachCustomerToCart, focusScanner]
+  );
+
+  const handleChangeText = (text: string) => {
+    setScanValue(text);
+
+    if (debounceRef.current) {
+      clearTimeout(debounceRef.current);
+    }
+
+    // Backup for scanners that do not send Enter/Return
+    debounceRef.current = setTimeout(() => {
+      if (looksLikeCustomerQR(text)) {
+        processScan(text);
+      }
+    }, 80);
+  };
+
+  const handleSubmit = () => {
+    processScan(scanValue);
+  };
+
+  return (
+    <View style={styles.wrapper}>
+      <TextInput
+        ref={inputRef}
+        value={scanValue}
+        onChangeText={handleChangeText}
+        onSubmitEditing={handleSubmit}
+        autoCorrect={false}
+        autoCapitalize="none"
+        caretHidden
+        blurOnSubmit={false}
+        submitBehavior="submit"
+        showSoftInputOnFocus={false}
+        keyboardType="default"
+        style={styles.hiddenInput}
+      />
+
+      <View style={styles.statusRow}>
+        <View style={styles.statusDot} />
+        <Text style={styles.statusText}>
+          {scannerReady ? "Scanner Ready" : "Tap Scan QR"}
+        </Text>
+
+        <Pressable onPress={focusScanner} style={styles.scanButton}>
+          <Text style={styles.scanButtonText}>Scan QR</Text>
+        </Pressable>
+
+        <Pressable onPress={openCameraScanner} style={styles.cameraButton}>
+          <Text style={styles.cameraButtonText}>Camera Backup</Text>
+        </Pressable>
+      </View>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  wrapper: {
+    width: "100%",
+  },
+  hiddenInput: {
+    position: "absolute",
+    width: 1,
+    height: 1,
+    opacity: 0,
+    left: -100,
+    top: -100,
+  },
+  statusRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  statusDot: {
+    width: 9,
+    height: 9,
+    borderRadius: 99,
+    backgroundColor: "#22C55E",
+  },
+  statusText: {
+    fontSize: 13,
+    fontWeight: "600",
+  },
+  scanButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
+    backgroundColor: "#EEF2FF",
+  },
+  scanButtonText: {
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  cameraButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
+    backgroundColor: "#F3F4F6",
+  },
+  cameraButtonText: {
+    fontSize: 13,
+    fontWeight: "700",
+  },
+});

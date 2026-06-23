@@ -154,10 +154,9 @@ function PosScreenInner() {
   }, [activeIdx]);
 
   const {
-    scannerInputRef, scannerBufRef, scannerFlushTimerRef,
+    attachCustomerToCart,
     scannerBannerOpacity, scannerBannerSlide, scannerBanner,
-    flushScannerBuf, focusScannerInput,
-  } = usePosHidScanner({ activeIdx, tickets, updateTicket, anyModalOpen });
+  } = usePosHidScanner({ activeIdx, tickets, updateTicket });
 
   // ── Init effects ──────────────────────────────────────────────────────────
   useEffect(() => {
@@ -538,14 +537,6 @@ function PosScreenInner() {
         </View>
       )}
 
-      {/* ── Bluetooth HID scanner: invisible capture input ───────────────── */}
-      <TextInput
-        ref={scannerInputRef}
-        style={{ position: 'absolute', width: 0, height: 0, opacity: 0 }}
-        onChangeText={(text) => { scannerBufRef.current = text; if (scannerFlushTimerRef.current) clearTimeout(scannerFlushTimerRef.current); if (text.length > 0) scannerFlushTimerRef.current = setTimeout(flushScannerBuf, 500); }}
-        onSubmitEditing={flushScannerBuf}
-        blurOnSubmit={false} autoCorrect={false} autoCapitalize="none" keyboardType="default" inputMode="none" showSoftInputOnFocus={false} importantForAccessibility="no-hide-descendants"
-      />
 
       {/* ── HID scanner feedback banner ───────────────────────────────────── */}
       {!!scannerBanner && (
@@ -574,7 +565,7 @@ function PosScreenInner() {
       {showSearch && (
         <View style={styles.headerSearchRow}>
           <Feather name="search" size={15} color={MUTED} style={{ marginRight: 8 }} />
-          <TextInput style={[styles.searchInput, { flex: 1 }]} placeholder="Search products…" placeholderTextColor={MUTED} value={searchText} onChangeText={setSearchText} returnKeyType="search" autoFocus onBlur={() => setTimeout(focusScannerInput, 150)} />
+          <TextInput style={[styles.searchInput, { flex: 1 }]} placeholder="Search products…" placeholderTextColor={MUTED} value={searchText} onChangeText={setSearchText} returnKeyType="search" autoFocus />
           {searchText.length > 0 && <Pressable onPress={() => setSearchText('')} hitSlop={8}><Feather name="x" size={15} color={MUTED} /></Pressable>}
         </View>
       )}
@@ -622,11 +613,12 @@ function PosScreenInner() {
               onClear={clearTicket}
               onHold={tickets.length <= 6 ? holdTicket : undefined}
               onAttachCustomer={() => { setCustomerModalMode('search'); setShowCustomerModal(true); }}
-              onScanQR={() => { setCustomerModalMode('scan'); setShowCustomerModal(true); }}
               onCharge={() => setShowPayment(true)}
               onEditItem={(item) => { const cached = detailCache[item.productId]; if (cached) setCustomiseData({ product: cached, editItem: item }); }}
               discountPresets={discountPresets}
-              onInputBlur={focusScannerInput}
+              attachCustomerToCart={attachCustomerToCart}
+              openCameraScanner={() => { setCustomerModalMode('scan'); setShowCustomerModal(true); }}
+              anyModalOpen={anyModalOpen}
             />
           </View>
         )}

@@ -2,6 +2,7 @@ import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import React, { useRef } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import POSCartScannerLayer, { type POSCartScannerLayerRef } from './POSCartScannerLayer';
 import { Swipeable } from 'react-native-gesture-handler';
 import { api } from '@/lib/api';
 import TicketItemRow from './TicketItemRow';
@@ -11,8 +12,8 @@ import type { AppliedDiscount, AttachedCustomerClaimedReward, OrderType, Ticket,
 
 export default function TicketPanel({
   ticket, onUpdateTicket, onRemoveItem, onUpdateQty, onPriceOverride,
-  onClear, onHold, onAttachCustomer, onScanQR, onCharge, onEditItem,
-  discountPresets, onInputBlur,
+  onClear, onHold, onAttachCustomer, onCharge, onEditItem,
+  discountPresets, attachCustomerToCart, openCameraScanner, anyModalOpen,
 }: {
   ticket: Ticket;
   onUpdateTicket: (p: Partial<Ticket>) => void;
@@ -22,11 +23,12 @@ export default function TicketPanel({
   onClear: () => void;
   onHold?: () => void;
   onAttachCustomer: () => void;
-  onScanQR: () => void;
   onCharge: () => void;
   onEditItem: (item: TicketItem) => void;
   discountPresets: number[];
-  onInputBlur?: () => void;
+  attachCustomerToCart: (qrValue: string) => Promise<void>;
+  openCameraScanner: () => void;
+  anyModalOpen: boolean;
 }) {
   const subtotal = ticketSubtotal(ticket);
   const total = ticketTotal(ticket);
@@ -34,6 +36,7 @@ export default function TicketPanel({
   const discount = ticket.appliedDiscount;
 
   const openSwipeableRef = useRef<Swipeable | null>(null);
+  const scannerRef       = useRef<POSCartScannerLayerRef>(null);
 
   const [codeInput, setCodeInput] = React.useState('');
   const [validating, setValidating] = React.useState(false);
@@ -42,14 +45,14 @@ export default function TicketPanel({
 
   const prevShowCodeInputRef = React.useRef(showCodeInput);
   React.useEffect(() => {
-    if (prevShowCodeInputRef.current && !showCodeInput && onInputBlur) {
-      const t = setTimeout(onInputBlur, 150);
+    if (prevShowCodeInputRef.current && !showCodeInput) {
+      const t = setTimeout(() => scannerRef.current?.focus(), 150);
       prevShowCodeInputRef.current = false;
       return () => clearTimeout(t);
     }
     prevShowCodeInputRef.current = showCodeInput;
     return undefined;
-  }, [showCodeInput, onInputBlur]);
+  }, [showCodeInput]);
 
   const hasCoffeeItems = ticket.items.some(i => i.category.toLowerCase() === 'coffee');
   const canRedeemFreeCoffee = (ticket.customer?.freeCoffeeRewards ?? 0) > 0 && hasCoffeeItems && discount?.type !== 'free_coffee';
@@ -187,13 +190,16 @@ export default function TicketPanel({
             <Feather name="user" size={14} color={BLUE} />
             <Text style={styles.customerBtnText}>Attach Customer</Text>
           </Pressable>
-          <View style={styles.customerBtnDivider} />
-          <Pressable onPress={onScanQR} style={styles.customerBtn}>
-            <Feather name="maximize" size={14} color={MID} />
-            <Text style={[styles.customerBtnText, { color: MID }]}>Scan QR</Text>
-          </Pressable>
         </View>
       )}
+
+      {/* Always-on Bluetooth scanner layer */}
+      <POSCartScannerLayer
+        ref={scannerRef}
+        attachCustomerToCart={attachCustomerToCart}
+        openCameraScanner={openCameraScanner}
+        anyModalOpen={anyModalOpen}
+      />
 
       {/* Order type */}
       <View style={styles.orderTypeRow}>
@@ -221,7 +227,7 @@ export default function TicketPanel({
           onChangeText={v => onUpdateTicket({ notes: v })}
           returnKeyType="done"
           blurOnSubmit
-          onBlur={() => onInputBlur && setTimeout(onInputBlur, 150)}
+          onBlur={() => setTimeout(() => scannerRef.current?.focus(), 150)}
         />
         {ticket.notes.length > 0 && (
           <Pressable onPress={() => onUpdateTicket({ notes: '' })} hitSlop={8}>
@@ -304,7 +310,7 @@ export default function TicketPanel({
                     autoFocus
                     returnKeyType="done"
                     onSubmitEditing={applyCode}
-                    onBlur={() => onInputBlur && setTimeout(onInputBlur, 150)}
+                    onBlur={() => setTimeout(() => scannerRef.current?.focus(), 150)}
                   />
                   <Pressable
                     onPress={applyCode}
