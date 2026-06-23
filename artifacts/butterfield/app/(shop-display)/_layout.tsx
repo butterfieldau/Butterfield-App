@@ -263,7 +263,8 @@ export default function ShopDisplayLayout() {
     queryKey: ['shop-display-me'],
     queryFn: () => api.shopDisplay.me(),
     enabled: user?.role === 'shop_display',
-    staleTime: 60000,
+    staleTime: 30_000,
+    refetchInterval: 30_000,
   });
   const permissions: string[] = meData?.data?.permissions ?? [];
 
@@ -650,7 +651,7 @@ export default function ShopDisplayLayout() {
         options={{
           title: 'Products',
           tabBarIcon: ({ color, size }) => <Feather name="package" size={size} color={color} />,
-          tabBarButton: (!isWide && !permissions.includes('products')) ? () => null : undefined,
+          tabBarButton: !permissions.includes('products') ? () => null : undefined,
         }}
       />
       <Tabs.Screen
@@ -666,7 +667,7 @@ export default function ShopDisplayLayout() {
         options={{
           title: 'Customers',
           tabBarIcon: ({ color, size }) => <Feather name="users" size={size} color={color} />,
-          tabBarButton: (!isWide && !permissions.includes('customers')) ? () => null : undefined,
+          tabBarButton: !permissions.includes('customers') ? () => null : undefined,
         }}
       />
       <Tabs.Screen
