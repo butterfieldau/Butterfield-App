@@ -132,13 +132,12 @@ const POSCartScannerLayer = forwardRef<POSCartScannerLayerRef, Props>(
     }, [processScan, scanValue]);
 
     const handleBlur = useCallback(() => {
+      if (ignoreBlurRef.current) return;
+      // User tapped away — go grey. Do NOT auto-refocus here; that would steal
+      // focus from customer search fields and other intentional text inputs.
+      // The scanner re-arms automatically after a scan or when a modal closes.
       setScannerReady(false);
-      if (ignoreBlurRef.current || anyModalOpen) return;
-      // Gently reclaim focus after other inputs blur.
-      setTimeout(() => {
-        if (!ignoreBlurRef.current && !anyModalOpen) focusScanner({ skipModalCheck: false });
-      }, 250);
-    }, [anyModalOpen, focusScanner]);
+    }, []);
 
     useEffect(() => () => { if (debounceRef.current) clearTimeout(debounceRef.current); }, []);
 
