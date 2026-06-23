@@ -9,7 +9,7 @@ import React, {
   useRef,
   useState,
 } from 'react';
-import { Keyboard, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { BLUE, MID } from './types';
 
 const SCANNER_GREEN = '#22C55E';
@@ -46,9 +46,10 @@ const POSCartScannerLayer = forwardRef<POSCartScannerLayerRef, Props>(
       setScannerReady(true);
       // Delay focus by 50ms so the Pressable touch event fully settles first —
       // calling focus() synchronously in onPress can lose to the touch responder.
+      // Do NOT call Keyboard.dismiss() here — it blurs the input on iOS.
+      // showSoftInputOnFocus={false} already suppresses the software keyboard.
       setTimeout(() => {
         inputRef.current?.focus();
-        Keyboard.dismiss();
       }, 50);
       setTimeout(() => { ignoreBlurRef.current = false; }, 350);
     }, [anyModalOpen]);
