@@ -10,7 +10,7 @@ import {
   storeSettingsTable,
 } from '@workspace/db';
 import { and, asc, desc, eq, isNotNull, isNull, sql } from 'drizzle-orm';
-import { sydneyDateParts } from './sydneyTime.js';
+import { sydneyDateParts, sydneyStartOfDay } from './sydneyTime.js';
 
 const REGISTER_AUTO_CLOSE_KEY = 'auto_close_register_enabled';
 const DEFAULT_REGISTER_AUTO_CLOSE_ENABLED = true;
@@ -76,6 +76,21 @@ let autoCloseLoopStarted = false;
 function toTradingDate(ref: Date = new Date()): string {
   const p = sydneyDateParts(ref);
   return `${p.year}-${String(p.month + 1).padStart(2, '0')}-${String(p.day).padStart(2, '0')}`;
+}
+
+/**
+ * Returns the UTC Date equivalent of 23:59:59 Sydney time on the given trading date string.
+ * Used when auto-closing stale sessions so the recorded close time reflects the actual
+ * end of that trading day, not the current wall-clock time.
+ */
+function tradingDateEndUtc(tradingDate: string): Date {
+  const [year, month, day] = tradingDate.split('-').map(Number);
+  // Probe at noon UTC — always within the target calendar day regardless of DST.
+  const probe = new Date(Date.UTC(year!, month! - 1, day!, 12, 0, 0));
+  // Midnight Sydney time on that date, as UTC.
+  const startUtc = sydneyStartOfDay(probe);
+  // Add 23h 59m 59s to reach 23:59:59 Sydney time.
+  return new Date(startUtc.getTime() + (23 * 3600 + 59 * 60 + 59) * 1000);
 }
 
 function isManagerish(role: string | null | undefined): boolean {
@@ -335,7 +350,6 @@ export async function updateRegisterAutoCloseSetting(actorUserId: string, enable
 
 export async function getOrCreateCurrentRegisterSession(userId: string) {
   await ensureRegisterSchemaReady();
-  await ensureAutoClosedRegisterSessions();
   const context = await getRegisterContext(userId);
   const tradingDate = toTradingDate();
   const existing = await findOpenSessionForContext(context, tradingDate);
@@ -651,11 +665,16 @@ export async function ensureAutoClosedRegisterSessions() {
     const endOfDayReached = session.tradingDate === today && shouldCloseToday;
     if (!staleSession && !endOfDayReached) continue;
 
-    const summary = await computeRegisterSessionSummary(session.id);
+    // For stale sessions (previous trading days), back-date the close time to
+    // 23:59:59 Sydney on their actual trading date — not the current wall-clock
+    // time — so the Z-report shows a sensible end-of-day close rather than
+    // whatever time the server happened to sweep them up (e.g. 3:59 AM).
+    const closedAt = staleSession ? tradingDateEndUtc(session.tradingDate) : new Date();
+
     await db
       .update(registerSessionsTable)
       .set({
-        closedAt: new Date(),
+        closedAt,
         closeMethod: 'auto',
         actualCountedCashCents: null,
         varianceCents: null,
