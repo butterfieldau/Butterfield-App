@@ -47,8 +47,8 @@ type PrintableOrder = Partial<ApiOrder> & {
 };
 
 function toPrintableItem(item: ApiOrderItem): PrintJob['items'][number] {
-  const printableItem = item as ApiOrderItem & { notes?: string | null };
-  const quantity = Number(item.quantity ?? 1) || 1;
+  const printableItem = item as ApiOrderItem & { notes?: string | null; qty?: number | null };
+  const quantity = Number(item.quantity ?? printableItem.qty ?? 1) || 1;
   const unitPriceCents = Number(item.unitPriceCents ?? item.totalPriceCents ?? 0) || 0;
   const name = item.productName ?? 'Item';
   const variantName = item.variantName ?? undefined;

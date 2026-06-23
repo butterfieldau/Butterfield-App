@@ -156,13 +156,19 @@ export default function DirectorOrdersScreen() {
     const effectivePrinterIp = (orderStore?.printerIp ?? printerIp ?? '').trim();
     const effectivePrinterPort = orderStore?.printerPort ?? printerPort;
     const effectivePrinterBrand = (orderStore?.printerBrand ?? 'epson') as 'epson' | 'star';
+    const effectiveAutoDrawer = !!(orderStore?.autoDrawer);
+    const effectiveDrawerPin = ((orderStore?.drawerPin ?? 0) === 1 ? 1 : 0) as 0 | 1;
     if (!effectivePrinterIp) {
       Alert.alert('Printer Not Set', 'Set the printer details inside this store before printing orders for it.');
       return;
     }
     setPrintingOrderId(order.id);
     try {
-      await sendReceiptPrint(orderToPrintJob(order, effectivePrinterBrand), effectivePrinterIp, effectivePrinterPort);
+      await sendReceiptPrint(
+        { ...orderToPrintJob(order, effectivePrinterBrand), autoDrawer: effectiveAutoDrawer, drawerPin: effectiveDrawerPin },
+        effectivePrinterIp,
+        effectivePrinterPort,
+      );
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       Alert.alert('Printed', 'Receipt sent to the printer.');
     } catch (error) {
