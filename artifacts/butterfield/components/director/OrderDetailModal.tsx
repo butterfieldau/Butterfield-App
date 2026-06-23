@@ -108,7 +108,7 @@ export default function OrderDetailModal({ order, visible, onClose, onStatusChan
           <View style={{ flex: 1, alignItems: 'center' }}>
             <Text style={styles.modalTitle}>
               {isWholesale
-                ? `#${order.poReference ?? order.id.slice(0, 8).toUpperCase()}`
+                ? `#${order.orderNumber ?? order.poReference ?? order.id.slice(0, 8).toUpperCase()}`
                 : (order.orderNumber ?? `#${order.id.slice(0, 8).toUpperCase()}`)}
             </Text>
             <Text style={{ color: MUTED, fontWeight: '400', fontSize: 12 }}>
