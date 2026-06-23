@@ -64,6 +64,7 @@ export interface PrintItem {
 
 export interface PrintJob {
   orderId:             string;
+  orderNumber?:        string;
   customerName:        string;
   type:                'pickup' | 'delivery';
   items:               PrintItem[];
@@ -127,7 +128,7 @@ export function buildReceiptBytes(job: PrintJob): Buffer {
   const timeStr = sydney.toLocaleTimeString('en-AU', {
     hour: 'numeric', minute: '2-digit', hour12: true,
   });
-  const shortId = job.orderId.slice(0, 8).toUpperCase();
+  const shortId = job.orderNumber ?? job.orderId.slice(0, 8).toUpperCase();
 
   const parts: Buffer[] = [
     // Star MCP30: skip ESC @ (0x1B 0x40) and the opening line feed entirely.

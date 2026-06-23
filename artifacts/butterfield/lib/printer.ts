@@ -2,6 +2,7 @@ import { api, type ApiOrder, type ApiOrderItem } from './api';
 
 export interface PrintJob {
   orderId: string;
+  orderNumber?: string;
   customerName: string;
   type: 'pickup' | 'delivery';
   items: Array<{
@@ -63,6 +64,7 @@ export function orderToPrintJob(order: PrintableOrder, printerBrand?: 'epson' | 
   const items = Array.isArray(order?.items) ? order.items : [];
   return {
     orderId: order?.id ?? 'unknown-order',
+    orderNumber: order?.orderNumber ?? undefined,
     customerName: order?.customerName ?? order?.contactName ?? order?.email ?? 'Customer',
     type: (order?.type === 'delivery' || order?.deliveryType === 'delivery') ? 'delivery' : 'pickup',
     items: items.map(toPrintableItem),

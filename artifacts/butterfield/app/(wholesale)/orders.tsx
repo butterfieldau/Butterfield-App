@@ -173,7 +173,7 @@ function OrderDetailModal({
             <Feather name="x" size={20} color={TEXT} />
           </Pressable>
           <View style={{ flex: 1, alignItems: 'center' }}>
-            <Text style={mdl.title}>Order #{order.poReference ?? order.id.slice(0, 8).toUpperCase()}</Text>
+            <Text style={mdl.title}>Order #{order.orderNumber ?? order.poReference ?? order.id.slice(0, 8).toUpperCase()}</Text>
             <Text style={mdl.subtitle}>{new Date(order.createdAt).toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}</Text>
           </View>
           <View style={{ width: 36 }} />
@@ -483,7 +483,7 @@ export default function WholesaleOrdersScreen() {
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                   <View style={{ flex: 1, gap: 2 }}>
                     <Text style={{ color: TEXT, fontWeight: '700', fontSize: 15 }}>
-                      #{order.poReference ?? order.id.slice(0, 8).toUpperCase()}
+                      #{order.orderNumber ?? order.poReference ?? order.id.slice(0, 8).toUpperCase()}
                     </Text>
                     <Text style={{ color: MUTED, fontWeight: '400', fontSize: 11 }}>
                       {new Date(order.createdAt).toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}

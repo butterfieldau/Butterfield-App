@@ -26,7 +26,7 @@ export default function OrderCard({ order, onPress, onPrint, printing }: { order
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
               <Text style={styles.orderId}>
                 {isWholesale
-                  ? `#${order.poReference ?? order.id.slice(0, 8).toUpperCase()}`
+                  ? `#${order.orderNumber ?? order.poReference ?? order.id.slice(0, 8).toUpperCase()}`
                   : (order.orderNumber ?? `#${order.id.slice(0, 8).toUpperCase()}`)}
               </Text>
               {isWholesale ? (

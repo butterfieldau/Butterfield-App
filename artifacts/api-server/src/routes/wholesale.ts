@@ -18,6 +18,7 @@ import {
   syncWholesaleInvoiceStatuses,
 } from '../lib/stripeWholesaleInvoices.js';
 import { buildInvoiceHtml } from '../lib/invoiceTemplate.js';
+import { generateWholesaleOrderNumber } from '../lib/orderNumber.js';
 import {
   calculateWholesalePrice,
   canCustomerAccessProduct,
@@ -269,7 +270,9 @@ router.get('/orders/:id/invoice', async (req, res) => {
 
   const invoiceNumber = (rawOrder as any).invoiceNumber
     ? `INV-${(rawOrder as any).invoiceNumber}`
-    : `INV-${rawOrder.id.slice(0, 8).toUpperCase()}`;
+    : (rawOrder as any).orderNumber
+      ? `INV-${(rawOrder as any).orderNumber}`
+      : `INV-${rawOrder.id.slice(0, 8).toUpperCase()}`;
 
   const html = buildInvoiceHtml({
     invoiceNumber,
@@ -351,9 +354,11 @@ router.post('/orders', async (req, res) => {
     }
 
     let order;
+    const wsOrderNumber = await generateWholesaleOrderNumber();
     try {
       [order] = await db.insert(wholesaleOrdersTable).values({
         id: randomUUID(),
+        orderNumber: wsOrderNumber,
         accountId: account.id,
         userId: req.user!.id,
         status: 'pending',

@@ -4,6 +4,7 @@ import { z } from "zod/v4";
 
 export const wholesaleOrdersTable = pgTable("wholesale_orders", {
   id: text("id").primaryKey(),
+  orderNumber: text("order_number"),
   accountId: text("account_id").notNull(),
   userId: text("user_id").notNull(),
   status: text("status").notNull().default("pending"),
