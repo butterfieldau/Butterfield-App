@@ -13,7 +13,6 @@ import { Keyboard, Pressable, StyleSheet, Text, TextInput, View } from 'react-na
 import { BLUE, MID } from './types';
 
 const SCANNER_GREEN = '#22C55E';
-const SCANNER_GREY  = '#9CA3AF';
 const BLUE_BG       = '#EEF2FF';
 const GREY_BG       = '#F3F4F6';
 
@@ -24,11 +23,12 @@ export interface POSCartScannerLayerRef {
 interface Props {
   attachCustomerToCart: (qrValue: string) => Promise<void>;
   openCameraScanner: () => void;
+  onAttachCustomer: () => void;
   anyModalOpen: boolean;
 }
 
 const POSCartScannerLayer = forwardRef<POSCartScannerLayerRef, Props>(
-  function POSCartScannerLayer({ attachCustomerToCart, openCameraScanner, anyModalOpen }, ref) {
+  function POSCartScannerLayer({ attachCustomerToCart, openCameraScanner, onAttachCustomer, anyModalOpen }, ref) {
     const inputRef      = useRef<TextInput>(null);
     const debounceRef   = useRef<ReturnType<typeof setTimeout> | null>(null);
     const scanLockRef   = useRef(false);
@@ -43,10 +43,14 @@ const POSCartScannerLayer = forwardRef<POSCartScannerLayerRef, Props>(
     const focusScanner = useCallback((opts?: { skipModalCheck?: boolean }) => {
       if (anyModalOpen && !opts?.skipModalCheck) return;
       ignoreBlurRef.current = true;
-      inputRef.current?.focus();
-      Keyboard.dismiss();
       setScannerReady(true);
-      setTimeout(() => { ignoreBlurRef.current = false; }, 300);
+      // Delay focus by 50ms so the Pressable touch event fully settles first —
+      // calling focus() synchronously in onPress can lose to the touch responder.
+      setTimeout(() => {
+        inputRef.current?.focus();
+        Keyboard.dismiss();
+      }, 50);
+      setTimeout(() => { ignoreBlurRef.current = false; }, 350);
     }, [anyModalOpen]);
 
     useImperativeHandle(ref, () => ({ focus: () => focusScanner({ skipModalCheck: false }) }), [focusScanner]);
@@ -123,8 +127,6 @@ const POSCartScannerLayer = forwardRef<POSCartScannerLayerRef, Props>(
       setScannerReady(false);
       if (ignoreBlurRef.current || anyModalOpen) return;
       // Gently reclaim focus after other inputs blur.
-      // 250ms lets any newly-focused input settle — we won't steal from it
-      // because ignoreBlurRef won't be set (they don't use this guard).
       setTimeout(() => {
         if (!ignoreBlurRef.current && !anyModalOpen) focusScanner({ skipModalCheck: false });
       }, 250);
@@ -134,6 +136,9 @@ const POSCartScannerLayer = forwardRef<POSCartScannerLayerRef, Props>(
 
     return (
       <View style={styles.wrapper}>
+        {/* Zero-size on-screen input — captures Bluetooth HID scanner keystrokes.
+            Must stay within the visible frame; off-screen positioning (left:-300)
+            causes iOS to silently drop focus() calls. */}
         <TextInput
           ref={inputRef}
           value={scanValue}
@@ -148,23 +153,29 @@ const POSCartScannerLayer = forwardRef<POSCartScannerLayerRef, Props>(
           submitBehavior="submit"
           showSoftInputOnFocus={false}
           keyboardType="default"
-          importantForAccessibility="no-hide-descendants"
           style={styles.hiddenInput}
         />
         <View style={styles.statusRow}>
-          <View style={[styles.dot, { backgroundColor: scannerReady ? SCANNER_GREEN : SCANNER_GREY }]} />
-          <Text style={styles.statusText}>{scannerReady ? 'Scanner Ready' : 'Tap Scan QR'}</Text>
+          {/* Scan QR — turns green when the hidden input holds focus */}
           <Pressable
             onPress={() => focusScanner({ skipModalCheck: false })}
-            style={styles.scanBtn}
+            style={[styles.scanBtn, scannerReady && styles.scanBtnActive]}
             hitSlop={8}
           >
-            <Feather name="maximize" size={11} color={BLUE} />
-            <Text style={styles.scanBtnText}>Scan QR</Text>
+            <Feather name="maximize" size={11} color={scannerReady ? '#fff' : BLUE} />
+            <Text style={[styles.scanBtnText, scannerReady && styles.scanBtnTextActive]}>
+              Scan QR
+            </Text>
           </Pressable>
+
           <Pressable onPress={openCameraScanner} style={styles.cameraBtn} hitSlop={8}>
             <Feather name="camera" size={11} color={MID} />
             <Text style={styles.cameraBtnText}>Camera</Text>
+          </Pressable>
+
+          <Pressable onPress={onAttachCustomer} style={styles.attachBtn} hitSlop={8}>
+            <Feather name="user-plus" size={11} color={MID} />
+            <Text style={styles.attachBtnText}>Attach Customer</Text>
           </Pressable>
         </View>
       </View>
@@ -175,13 +186,15 @@ const POSCartScannerLayer = forwardRef<POSCartScannerLayerRef, Props>(
 export default POSCartScannerLayer;
 
 const styles = StyleSheet.create({
-  wrapper:       { width: '100%', paddingVertical: 5, paddingHorizontal: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#E5E7EB' },
-  hiddenInput:   { position: 'absolute', width: 1, height: 1, opacity: 0, left: -300, top: -300 },
-  statusRow:     { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  dot:           { width: 7, height: 7, borderRadius: 99 },
-  statusText:    { fontSize: 11, fontWeight: '600', color: MID, flex: 1 },
-  scanBtn:       { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 9, paddingVertical: 5, borderRadius: 8, backgroundColor: BLUE_BG },
-  scanBtnText:   { fontSize: 11, fontWeight: '700', color: BLUE },
-  cameraBtn:     { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 9, paddingVertical: 5, borderRadius: 8, backgroundColor: GREY_BG },
-  cameraBtnText: { fontSize: 11, fontWeight: '700', color: MID },
+  wrapper:           { width: '100%', paddingVertical: 5, paddingHorizontal: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#E5E7EB' },
+  hiddenInput:       { position: 'absolute', width: 0, height: 0, opacity: 0 },
+  statusRow:         { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  scanBtn:           { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 9, paddingVertical: 5, borderRadius: 8, backgroundColor: BLUE_BG },
+  scanBtnActive:     { backgroundColor: SCANNER_GREEN },
+  scanBtnText:       { fontSize: 11, fontWeight: '700', color: BLUE },
+  scanBtnTextActive: { color: '#fff' },
+  cameraBtn:         { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 9, paddingVertical: 5, borderRadius: 8, backgroundColor: GREY_BG },
+  cameraBtnText:     { fontSize: 11, fontWeight: '700', color: MID },
+  attachBtn:         { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 9, paddingVertical: 5, borderRadius: 8, backgroundColor: GREY_BG },
+  attachBtnText:     { fontSize: 11, fontWeight: '700', color: MID },
 });

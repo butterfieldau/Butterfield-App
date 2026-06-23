@@ -184,20 +184,14 @@ export default function TicketPanel({
             </Text>
           </View>
         </View>
-      ) : (
-        <View style={styles.customerBtnRow}>
-          <Pressable onPress={onAttachCustomer} style={styles.customerBtn}>
-            <Feather name="user" size={14} color={BLUE} />
-            <Text style={styles.customerBtnText}>Attach Customer</Text>
-          </Pressable>
-        </View>
-      )}
+      ) : null}
 
       {/* Always-on Bluetooth scanner layer */}
       <POSCartScannerLayer
         ref={scannerRef}
         attachCustomerToCart={attachCustomerToCart}
         openCameraScanner={openCameraScanner}
+        onAttachCustomer={onAttachCustomer}
         anyModalOpen={anyModalOpen}
       />
 
