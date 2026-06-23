@@ -272,6 +272,7 @@ export default function OrderDetailModal({ order, visible, onClose, onStatusChan
             <View style={{ gap: 6, marginTop: 6 }}>
               {discountCents > 0 && (<View style={{ flexDirection: 'row', justifyContent: 'space-between' }}><Text style={{ color: MUTED, fontWeight: '400', fontSize: 13 }}>Discount</Text><Text style={{ color: GREEN, fontWeight: '500', fontSize: 13 }}>−${(discountCents / 100).toFixed(2)}</Text></View>)}
               {loyaltyUsed > 0 && (<View style={{ flexDirection: 'row', justifyContent: 'space-between' }}><Text style={{ color: MUTED, fontWeight: '400', fontSize: 13 }}>Points redeemed</Text><Text style={{ color: GREEN, fontWeight: '500', fontSize: 13 }}>−{loyaltyUsed} pts</Text></View>)}
+              {isWholesale && (order.deliveryFeeCents ?? 0) > 0 && (<View style={{ flexDirection: 'row', justifyContent: 'space-between' }}><Text style={{ color: MUTED, fontWeight: '400', fontSize: 13 }}>Delivery fee</Text><Text style={{ color: TEXT, fontWeight: '500', fontSize: 13 }}>${((order.deliveryFeeCents ?? 0) / 100).toFixed(2)}</Text></View>)}
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingTop: 8, borderTopWidth: 1, borderTopColor: BORDER }}>
                 <Text style={{ color: TEXT, fontWeight: '700', fontSize: 15 }}>Total</Text>
                 <Text style={{ color: BLUE, fontWeight: '700', fontSize: 15 }}>AUD ${((order.totalCents ?? 0) / 100).toFixed(2)}</Text>

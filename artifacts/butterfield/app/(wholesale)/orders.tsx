@@ -98,13 +98,14 @@ function mapOrderToInvoice(order: any): Invoice {
 
 function getOrderLines(order: any): InvoiceLine[] {
   const items = normalizeOrderItems(order?.items);
+  const deliveryFee = order?.deliveryFeeCents ?? 0;
   const lines: InvoiceLine[] = items.length > 0
     ? items.map(item => ({
         description: item.name,
         qty:         item.quantity,
         unitPrice:   item.unitPriceCents / 100,
       }))
-    : [{ description: 'Wholesale Order', qty: 1, unitPrice: (order?.totalCents ?? 0) / 100 }];
+    : [{ description: 'Wholesale Order', qty: 1, unitPrice: ((order?.totalCents ?? 0) - deliveryFee) / 100 }];
   return lines;
 }
 

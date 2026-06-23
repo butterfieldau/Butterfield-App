@@ -1430,6 +1430,7 @@ export interface ApiOrder {
   contactName?: string | null;
   contactPhone?: string | null;
   isPaid?: boolean | null;
+  deliveryFeeCents?: number | null;
 }
 
 export interface PosTransaction {
