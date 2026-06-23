@@ -1363,15 +1363,19 @@ const handleCreatePosOrder: import('express').RequestHandler = async (req, res) 
 
       const newBalance = (profile.loyaltyPoints ?? 0) + pointsEarned;
       const detectedCoffeeStampCount = items.reduce((sum: number, item: any) => {
-        if ((item as any)?.freeCoffeeItem === true) return sum;
+        if ((item as any)?.freeCoffeeItem === true || (item as any)?.isFreeReward === true) return sum;
         if (String(item?.category ?? '').toLowerCase() !== 'coffee') return sum;
         return sum + Math.max(1, Math.floor(Number(item?.quantity ?? 1) || 1));
       }, 0);
       const requestedCoffeeStampCount = Math.max(0, Math.floor(Number(rawCoffeeItemCount) || 0));
       const totalItemCount = items.reduce((sum: number, item: any) => sum + Math.max(1, Math.floor(Number(item?.quantity ?? 1) || 1)), 0);
-      const coffeeStampCount = detectedCoffeeStampCount > 0
+      // When a free coffee was redeemed at POS, the cheapest coffee item is discounted in price
+      // but is not flagged on the item itself — subtract 1 stamp to ensure the free coffee
+      // does not earn a stamp. All other discount types (%, voucher) still earn stamps normally.
+      const rawCoffeeStampCount = detectedCoffeeStampCount > 0
         ? detectedCoffeeStampCount
         : Math.min(requestedCoffeeStampCount, totalItemCount);
+      const coffeeStampCount = freeCoffeeRedeemed ? Math.max(0, rawCoffeeStampCount - 1) : rawCoffeeStampCount;
       req.log.info({ orderId, customerId, detectedCoffeeStampCount, requestedCoffeeStampCount, coffeeStampCount }, 'POS loyalty coffee stamp count resolved');
       let stampsAdded = 0;
       let rewardUnlocked = false;

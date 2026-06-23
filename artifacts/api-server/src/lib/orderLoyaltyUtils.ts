@@ -44,7 +44,7 @@ export async function countCoffeeItemsFromOrderItems(items: unknown): Promise<nu
   );
 
   return orderItems.reduce((sum, item) => {
-    if ((item as any)?.freeCoffeeItem === true) return sum;
+    if ((item as any)?.freeCoffeeItem === true || (item as any)?.isFreeReward === true) return sum;
     const qty = Math.max(1, Math.floor(Number(item?.quantity ?? 1) || 1));
     const productId = item?.productId ?? '';
     // Primary: DB-resolved category (matches by local id or stripeProductId)
