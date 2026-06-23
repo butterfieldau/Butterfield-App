@@ -10,7 +10,7 @@ import {
   storeSettingsTable,
 } from '@workspace/db';
 import { and, asc, desc, eq, isNotNull, isNull, sql } from 'drizzle-orm';
-import { getSydneyNow } from './sydneyTime.js';
+import { sydneyDateParts } from './sydneyTime.js';
 
 const REGISTER_AUTO_CLOSE_KEY = 'auto_close_register_enabled';
 const DEFAULT_REGISTER_AUTO_CLOSE_ENABLED = true;
@@ -73,11 +73,9 @@ type SupervisorIdentity = { userId: string; name: string | null; role: string | 
 let registerSchemaReady: Promise<void> | null = null;
 let autoCloseLoopStarted = false;
 
-function toTradingDate(value: Date): string {
-  const year = value.getFullYear();
-  const month = String(value.getMonth() + 1).padStart(2, '0');
-  const day = String(value.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
+function toTradingDate(ref: Date = new Date()): string {
+  const p = sydneyDateParts(ref);
+  return `${p.year}-${String(p.month + 1).padStart(2, '0')}-${String(p.day).padStart(2, '0')}`;
 }
 
 function isManagerish(role: string | null | undefined): boolean {
@@ -339,7 +337,7 @@ export async function getOrCreateCurrentRegisterSession(userId: string) {
   await ensureRegisterSchemaReady();
   await ensureAutoClosedRegisterSessions();
   const context = await getRegisterContext(userId);
-  const tradingDate = toTradingDate(getSydneyNow());
+  const tradingDate = toTradingDate();
   const existing = await findOpenSessionForContext(context, tradingDate);
   if (existing) return existing;
   try {
@@ -637,9 +635,9 @@ export async function ensureAutoClosedRegisterSessions() {
   const { autoCloseEnabled } = await getRegisterSettings();
   if (!autoCloseEnabled) return 0;
 
-  const sydneyNow = getSydneyNow();
-  const today = toTradingDate(sydneyNow);
-  const shouldCloseToday = sydneyNow.getHours() > 23 || (sydneyNow.getHours() === 23 && sydneyNow.getMinutes() >= 59);
+  const syd = sydneyDateParts();
+  const today = toTradingDate();
+  const shouldCloseToday = syd.hour > 23 || (syd.hour === 23 && syd.minute >= 59);
 
   const sessions = await db
     .select()
