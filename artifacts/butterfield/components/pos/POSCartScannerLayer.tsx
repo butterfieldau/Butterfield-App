@@ -54,6 +54,13 @@ const POSCartScannerLayer = forwardRef<POSCartScannerLayerRef, Props>(
       setTimeout(() => { ignoreBlurRef.current = false; }, 350);
     }, [anyModalOpen]);
 
+    const blurScanner = useCallback(() => {
+      ignoreBlurRef.current = true;
+      setScannerReady(false);
+      inputRef.current?.blur();
+      setTimeout(() => { ignoreBlurRef.current = false; }, 350);
+    }, []);
+
     useImperativeHandle(ref, () => ({ focus: () => focusScanner({ skipModalCheck: false }) }), [focusScanner]);
 
     // Focus when the POS screen tab gets focus
@@ -159,7 +166,7 @@ const POSCartScannerLayer = forwardRef<POSCartScannerLayerRef, Props>(
         <View style={styles.statusRow}>
           {/* Scan QR — turns green when the hidden input holds focus */}
           <Pressable
-            onPress={() => focusScanner({ skipModalCheck: false })}
+            onPress={() => scannerReady ? blurScanner() : focusScanner({ skipModalCheck: false })}
             style={[styles.scanBtn, scannerReady && styles.scanBtnActive]}
             hitSlop={8}
           >
