@@ -74,9 +74,15 @@ const POSCartScannerLayer = forwardRef<POSCartScannerLayerRef, Props>(
       }, [focusScanner]),
     );
 
-    // Refocus when a modal closes
+    // Blur when a modal opens so its TextInputs can receive keystrokes,
+    // then re-arm the scanner when the modal closes.
     useEffect(() => {
-      if (!anyModalOpen) {
+      if (anyModalOpen) {
+        ignoreBlurRef.current = true;
+        setScannerReady(false);
+        inputRef.current?.blur();
+        setTimeout(() => { ignoreBlurRef.current = false; }, 350);
+      } else {
         const t = setTimeout(() => focusScanner({ skipModalCheck: true }), 150);
         return () => clearTimeout(t);
       }
