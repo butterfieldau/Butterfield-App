@@ -51,6 +51,17 @@ export default function HistoryModal({
 
   const allOrders: PosHistoryOrder[] = data?.pages.flatMap(p => p.data) ?? [];
 
+  const sydneyDateKey = (iso: string) =>
+    new Date(iso).toLocaleDateString('en-CA', { timeZone: 'Australia/Sydney' });
+
+  const todayKey = new Date(now).toLocaleDateString('en-CA', { timeZone: 'Australia/Sydney' });
+  const yesterdayKey = new Date(now - 86_400_000).toLocaleDateString('en-CA', { timeZone: 'Australia/Sydney' });
+
+  const fmtDayLabel = (dateKey: string): string => {
+    const [y, m, d] = dateKey.split('-').map(Number);
+    return new Date(y!, m! - 1, d!).toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
+  };
+
   const voidMutation = useMutation({
     mutationFn: (vars: { id: string; supervisorPin: string }) => api.pos.voidOrder(vars.id, vars.supervisorPin),
     onSuccess: (_, vars) => {
@@ -122,8 +133,6 @@ export default function HistoryModal({
     );
   };
 
-  const totalRevenue = allOrders.filter(o => o.status !== 'cancelled').reduce((s, o) => s + o.totalCents, 0);
-
   const filteredOrders = useMemo(() => {
     if (filter === 'active') return allOrders.filter(o => o.status !== 'cancelled');
     if (filter === 'voided') return allOrders.filter(o => o.status === 'cancelled');
@@ -134,6 +143,33 @@ export default function HistoryModal({
   const countActive = allOrders.filter(o => o.status !== 'cancelled').length;
   const countVoided = allOrders.filter(o => o.status === 'cancelled').length;
   const countFailedPrint = allOrders.filter(o => (printStatusMap?.[o.id] ?? 'pending') === 'failed').length;
+
+  const todayOrders = useMemo(() => allOrders.filter(o => sydneyDateKey(o.createdAt) === todayKey), [allOrders, todayKey]);
+  const todayRevenue = todayOrders.filter(o => o.status !== 'cancelled').reduce((s, o) => s + o.totalCents, 0);
+  const todayCountActive = todayOrders.filter(o => o.status !== 'cancelled').length;
+  const todayCountVoided = todayOrders.filter(o => o.status === 'cancelled').length;
+
+  type ListRow =
+    | { type: 'header'; dateKey: string; label: string; count: number; revenueCents: number }
+    | { type: 'item'; order: PosHistoryOrder };
+
+  const listData = useMemo((): ListRow[] => {
+    const groups = new Map<string, PosHistoryOrder[]>();
+    for (const order of filteredOrders) {
+      const key = sydneyDateKey(order.createdAt);
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key)!.push(order);
+    }
+    const rows: ListRow[] = [];
+    for (const [dateKey, orders] of groups) {
+      const label = dateKey === todayKey ? 'Today' : dateKey === yesterdayKey ? 'Yesterday' : fmtDayLabel(dateKey);
+      const count = orders.filter(o => o.status !== 'cancelled').length;
+      const revenueCents = orders.filter(o => o.status !== 'cancelled').reduce((s, o) => s + o.totalCents, 0);
+      rows.push({ type: 'header', dateKey, label, count, revenueCents });
+      for (const order of orders) rows.push({ type: 'item', order });
+    }
+    return rows;
+  }, [filteredOrders, todayKey, yesterdayKey]);
 
   const handleReprint = async (order: PosHistoryOrder) => {
     const store = storeData as any;
@@ -231,18 +267,18 @@ export default function HistoryModal({
 
         <View style={styles.historySummaryBar}>
           <View style={styles.historySummaryItem}>
-            <Text style={styles.historySummaryLabel}>Transactions</Text>
-            <Text style={styles.historySummaryValue}>{countActive}</Text>
+            <Text style={styles.historySummaryLabel}>Today's Sales</Text>
+            <Text style={styles.historySummaryValue}>{todayCountActive}</Text>
           </View>
           <View style={styles.historySummaryDivider} />
           <View style={styles.historySummaryItem}>
-            <Text style={styles.historySummaryLabel}>Revenue</Text>
-            <Text style={styles.historySummaryValue}>{fmtCents(totalRevenue)}</Text>
+            <Text style={styles.historySummaryLabel}>Today's Revenue</Text>
+            <Text style={styles.historySummaryValue}>{fmtCents(todayRevenue)}</Text>
           </View>
           <View style={styles.historySummaryDivider} />
           <View style={styles.historySummaryItem}>
-            <Text style={styles.historySummaryLabel}>Voided</Text>
-            <Text style={[styles.historySummaryValue, { color: CHERRY }]}>{countVoided}</Text>
+            <Text style={styles.historySummaryLabel}>Today's Voids</Text>
+            <Text style={[styles.historySummaryValue, { color: CHERRY }]}>{todayCountVoided}</Text>
           </View>
         </View>
 
@@ -295,13 +331,22 @@ export default function HistoryModal({
           </View>
         ) : (
           <FlatList
-            data={filteredOrders}
-            keyExtractor={item => item.id}
+            data={listData}
+            keyExtractor={row => row.type === 'header' ? `hdr-${row.dateKey}` : row.order.id}
             contentContainerStyle={{ padding: 12, gap: 0 }}
             showsVerticalScrollIndicator={false}
             onRefresh={refetch}
             refreshing={isRefetching}
-            renderItem={({ item }) => {
+            renderItem={({ item: row }) => {
+              if (row.type === 'header') {
+                return (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 4, paddingTop: 14, paddingBottom: 6 }}>
+                    <Text style={{ fontSize: 13, fontWeight: '700', color: MID, letterSpacing: 0.3 }}>{row.label}</Text>
+                    <Text style={{ fontSize: 12, color: MUTED }}>{row.count} sale{row.count !== 1 ? 's' : ''}  ·  {fmtCents(row.revenueCents)}</Text>
+                  </View>
+                );
+              }
+              const item = row.order;
               const expanded = expandedId === item.id;
               const voidable = canVoid(item);
               const isVoiding = voidMutation.isPending && voidMutation.variables?.id === item.id;

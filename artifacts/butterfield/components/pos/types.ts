@@ -142,6 +142,12 @@ export interface ProductDetail {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 export const fmtCents = (c: number) => `$${(c / 100).toFixed(2)}`;
+
+export function fmtTradingDate(yyyymmdd: string): string {
+  if (!yyyymmdd || !/^\d{4}-\d{2}-\d{2}$/.test(yyyymmdd)) return yyyymmdd;
+  const [y, m, d] = yyyymmdd.split('-');
+  return `${d}/${m}/${y}`;
+}
 export const uuid = () => Math.random().toString(36).slice(2) + Date.now().toString(36);
 export const blankTicket = (): Ticket => ({ id: uuid(), idempotencyKey: uuid(), items: [], customer: null, orderType: 'counter', notes: '', appliedDiscount: null });
 
@@ -172,7 +178,7 @@ export function buildRegisterSummaryPrintLines(report: RegisterSessionReport): s
   const variance = s.varianceCents === null ? 'Not calculated' : fmtCents(s.varianceCents);
   const notes = [report.closeNote, report.varianceNote].filter(Boolean).join(' | ');
   return [
-    'Date\t' + report.tradingDate,
+    'Date\t' + fmtTradingDate(report.tradingDate),
     'Register\t' + report.registerName,
     'Location\t' + (report.registerLocation ?? 'Butterfield'),
     'Staff\t' + staffLine,

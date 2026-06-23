@@ -9,7 +9,7 @@ import { ZReportContent } from '@/components/ZReportModal';
 import ZReportModal from '@/components/ZReportModal';
 import { saveSurchargesCache } from '@/lib/posCache';
 import styles from './posStyles';
-import { BLUE, CHERRY, DARK, MID, MUTED, WHITE, BORDER, fmtCents } from './types';
+import { BLUE, CHERRY, DARK, MID, MUTED, WHITE, BORDER, fmtCents, fmtTradingDate } from './types';
 
 const AUD_DENOMS = [
   { label: '$100', cents: 10000, note: true },
@@ -227,7 +227,7 @@ export default function RegisterModal({
                 <View style={{ flex: 1 }}>
                   <Text style={styles.registerHeroTitle}>{session?.registerName ?? 'Register'}</Text>
                   <Text style={styles.registerHeroSub}>{session?.registerLocation ?? 'Butterfield Cookies'}</Text>
-                  <Text style={styles.registerHeroMeta}>Trading day {session?.tradingDate}</Text>
+                  <Text style={styles.registerHeroMeta}>Trading day {session?.tradingDate ? fmtTradingDate(session.tradingDate) : '—'}</Text>
                 </View>
                 <View style={[styles.registerStatusPill, data?.cashEnabled ? styles.registerStatusOpen : styles.registerStatusNeedsFloat]}>
                   <Text style={[styles.registerStatusText, !data?.cashEnabled && { color: CHERRY }]}>{data?.cashEnabled ? 'Cash Ready' : 'Float Required'}</Text>
@@ -604,7 +604,7 @@ export default function RegisterModal({
                 pastSessions.map(ps => (
                   <Pressable key={ps.id} onPress={() => { setPastZReportId(ps.id); Haptics.selectionAsync(); }} style={({ pressed }) => [styles.regHistoryRow, pressed && { opacity: 0.7 }]}>
                     <View style={{ flex: 1 }}>
-                      <Text style={styles.regHistoryDate}>{ps.tradingDate}</Text>
+                      <Text style={styles.regHistoryDate}>{fmtTradingDate(ps.tradingDate)}</Text>
                       <Text style={styles.regHistoryMeta}>{ps.autoClosed ? 'Auto close' : `Closed by ${ps.closedByName ?? 'unknown'}`}{ps.summary.varianceCents !== null && ps.summary.varianceCents !== 0 ? ` · Variance ${ps.summary.varianceCents > 0 ? '+' : ''}${fmtCents(ps.summary.varianceCents)}` : ''}</Text>
                     </View>
                     <Text style={styles.regHistoryAmt}>{fmtCents(ps.summary.totalSalesCents)}</Text>
