@@ -29,30 +29,30 @@ interface Props {
 
 const POSCartScannerLayer = forwardRef<POSCartScannerLayerRef, Props>(
   function POSCartScannerLayer({ attachCustomerToCart, openCameraScanner, onAttachCustomer, anyModalOpen }, ref) {
-    const inputRef      = useRef<TextInput>(null);
-    const debounceRef   = useRef<ReturnType<typeof setTimeout> | null>(null);
-    const scanLockRef   = useRef(false);
-    const lastScanRef   = useRef<{ value: string; time: number } | null>(null);
-    // Prevents onBlur auto-refocus from stealing focus from notes/code inputs
-    const ignoreBlurRef = useRef(false);
+    const inputRef        = useRef<TextInput>(null);
+    const debounceRef     = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const scanLockRef     = useRef(false);
+    const lastScanRef     = useRef<{ value: string; time: number } | null>(null);
+    const ignoreBlurRef   = useRef(false);
+    // Keep anyModalOpen in a ref so focusScanner never needs it as a dep.
+    // This prevents useFocusEffect from re-running every time a modal opens/closes.
+    const anyModalOpenRef = useRef(anyModalOpen);
+    anyModalOpenRef.current = anyModalOpen;
 
     const [scanValue, setScanValue]       = useState('');
     const [scannerReady, setScannerReady] = useState(false);
 
     // ── Focus helpers ─────────────────────────────────────────────────────────
+    // Stable reference (no anyModalOpen dep) — reads the ref at call time.
     const focusScanner = useCallback((opts?: { skipModalCheck?: boolean }) => {
-      if (anyModalOpen && !opts?.skipModalCheck) return;
+      if (anyModalOpenRef.current && !opts?.skipModalCheck) return;
       ignoreBlurRef.current = true;
       setScannerReady(true);
-      // Delay focus by 50ms so the Pressable touch event fully settles first —
-      // calling focus() synchronously in onPress can lose to the touch responder.
-      // Do NOT call Keyboard.dismiss() here — it blurs the input on iOS.
-      // showSoftInputOnFocus={false} already suppresses the software keyboard.
       setTimeout(() => {
         inputRef.current?.focus();
       }, 50);
       setTimeout(() => { ignoreBlurRef.current = false; }, 350);
-    }, [anyModalOpen]);
+    }, []); // stable — intentionally no deps
 
     const blurScanner = useCallback(() => {
       ignoreBlurRef.current = true;
@@ -63,7 +63,8 @@ const POSCartScannerLayer = forwardRef<POSCartScannerLayerRef, Props>(
 
     useImperativeHandle(ref, () => ({ focus: () => focusScanner({ skipModalCheck: false }) }), [focusScanner]);
 
-    // Focus when the POS screen tab gets focus
+    // Arm scanner when the POS tab gains navigation focus.
+    // Stable focusScanner means this only runs once — not on every modal open/close.
     useFocusEffect(
       useCallback(() => {
         const t = setTimeout(() => focusScanner({ skipModalCheck: false }), 100);
@@ -74,8 +75,8 @@ const POSCartScannerLayer = forwardRef<POSCartScannerLayerRef, Props>(
       }, [focusScanner]),
     );
 
-    // Blur when a modal opens so its TextInputs can receive keystrokes,
-    // then re-arm the scanner when the modal closes.
+    // When a modal opens: hard-disarm the scanner so modal TextInputs get keystrokes.
+    // When a modal closes: re-arm after a short delay.
     useEffect(() => {
       if (anyModalOpen) {
         ignoreBlurRef.current = true;
@@ -83,10 +84,10 @@ const POSCartScannerLayer = forwardRef<POSCartScannerLayerRef, Props>(
         inputRef.current?.blur();
         setTimeout(() => { ignoreBlurRef.current = false; }, 350);
       } else {
-        const t = setTimeout(() => focusScanner({ skipModalCheck: true }), 150);
+        const t = setTimeout(() => focusScanner({ skipModalCheck: true }), 200);
         return () => clearTimeout(t);
       }
-    }, [anyModalOpen, focusScanner]);
+    }, [anyModalOpen]); // focusScanner is stable so no longer needed as dep
 
     // ── Scan processing ───────────────────────────────────────────────────────
     const clean = (v: string) => v.replace(/[\n\r]/g, '').trim();
@@ -96,7 +97,6 @@ const POSCartScannerLayer = forwardRef<POSCartScannerLayerRef, Props>(
       const value = clean(raw);
       if (!value || !looksLikeQR(value)) return;
 
-      // 2-second dedup — prevents duplicate scans from a single physical swipe
       const now  = Date.now();
       const last = lastScanRef.current;
       if (last && last.value === value && now - last.time < 2000) {
@@ -123,7 +123,6 @@ const POSCartScannerLayer = forwardRef<POSCartScannerLayerRef, Props>(
       }
     }, [attachCustomerToCart, focusScanner]);
 
-    // 80ms debounce — fallback for scanners that don't send Enter/Return
     const handleChangeText = useCallback((text: string) => {
       setScanValue(text);
       if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -139,9 +138,6 @@ const POSCartScannerLayer = forwardRef<POSCartScannerLayerRef, Props>(
 
     const handleBlur = useCallback(() => {
       if (ignoreBlurRef.current) return;
-      // User tapped away — go grey. Do NOT auto-refocus here; that would steal
-      // focus from customer search fields and other intentional text inputs.
-      // The scanner re-arms automatically after a scan or when a modal closes.
       setScannerReady(false);
     }, []);
 
@@ -150,8 +146,8 @@ const POSCartScannerLayer = forwardRef<POSCartScannerLayerRef, Props>(
     return (
       <View style={styles.wrapper}>
         {/* Zero-size on-screen input — captures Bluetooth HID scanner keystrokes.
-            Must stay within the visible frame; off-screen positioning (left:-300)
-            causes iOS to silently drop focus() calls. */}
+            editable={false} when any modal is open: hard gate so keystrokes always
+            reach modal TextInputs even if iOS somehow keeps this input focused. */}
         <TextInput
           ref={inputRef}
           value={scanValue}
@@ -159,6 +155,7 @@ const POSCartScannerLayer = forwardRef<POSCartScannerLayerRef, Props>(
           onSubmitEditing={handleSubmit}
           onFocus={() => setScannerReady(true)}
           onBlur={handleBlur}
+          editable={!anyModalOpen}
           autoCorrect={false}
           autoCapitalize="none"
           caretHidden
@@ -169,7 +166,6 @@ const POSCartScannerLayer = forwardRef<POSCartScannerLayerRef, Props>(
           style={styles.hiddenInput}
         />
         <View style={styles.statusRow}>
-          {/* Scan QR — turns green when the hidden input holds focus */}
           <Pressable
             onPress={() => scannerReady ? blurScanner() : focusScanner({ skipModalCheck: false })}
             style={[styles.scanBtn, scannerReady && styles.scanBtnActive]}
