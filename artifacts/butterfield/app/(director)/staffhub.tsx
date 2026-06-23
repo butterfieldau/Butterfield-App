@@ -23,7 +23,7 @@ import {
 } from '@/lib/api';
 import { INTERNAL_GLASS_BG, INTERNAL_GLASS_BORDER } from '@/components/InternalGlass';
 import { useRefreshControl } from '@/hooks/useRefreshControl';
-import { DirectorStandaloneScreen } from '@/components/DirectorStandaloneScreen';
+import { DirectorTabScreen } from '@/components/DirectorTabScreen';
 import { BG, CARD, BLUE, NAVY, TEXT, MUTED, BORDER, GREEN, AMBER, RED, PURPLE, PINK, TEAL, ROSE, GOLD } from '@/components/director/directorColors';
 
 // Glass card standard — uses InternalGlass (frosted effect, differs from default glass)
@@ -1433,6 +1433,119 @@ function FeedbackTab() {
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
+// HUB SUMMARY BAR — live at-a-glance stats pinned above the tab bar
+// ══════════════════════════════════════════════════════════════════════════════
+function HubSummaryBar({ isManagerView }: { isManagerView: boolean }) {
+  const { data: tasksData } = useQuery({
+    queryKey: isManagerView ? ['director-tasks'] : ['staff-tasks-all'],
+    queryFn:  isManagerView ? () => api.director.tasks() : () => api.staff.tasks(),
+    staleTime: 30_000,
+  });
+  // Only managers/directors can list all issues
+  const { data: issuesData } = useQuery({
+    queryKey: ['director-all-issues'],
+    queryFn:  () => api.director.allIssues(),
+    enabled:  isManagerView,
+    staleTime: 30_000,
+  });
+  const { data: leaveData } = useQuery({
+    queryKey: isManagerView ? ['director-all-leave'] : ['staff-my-leave'],
+    queryFn:  isManagerView ? () => api.director.allLeave() : () => api.staff.myLeave(),
+    staleTime: 30_000,
+  });
+
+  const tasks   = (tasksData?.data as StaffTask[] | undefined) ?? [];
+  const issues  = (issuesData?.data as (StaffIssue | ManagedIssue)[] | undefined) ?? [];
+  const leaves  = (leaveData?.data as StaffLeaveRequest[] | undefined) ?? [];
+
+  const totalTasks     = tasks.length;
+  const completedTasks = tasks.filter(t => t.isCompleted).length;
+  const openIssues     = issues.filter(i => i.status === 'open' || i.status === 'in_progress').length;
+  const pendingLeave   = isManagerView
+    ? leaves.filter(l => (l as StaffLeaveRequest).status === 'pending').length
+    : leaves.length;
+  const urgentIssues   = isManagerView
+    ? issues.filter(i => (i.priority === 'urgent' || i.priority === 'high') && i.status === 'open')
+    : [];
+
+  const allDone = totalTasks > 0 && completedTasks === totalTasks;
+  const taskColor = allDone ? GREEN : (completedTasks > 0 ? BLUE : MUTED);
+  const pct = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
+
+  return (
+    <View style={{ paddingHorizontal: 16, paddingTop: 12, gap: 10 }}>
+      {/* Urgent issue banner — manager view only, only when critical */}
+      {urgentIssues.length > 0 && (
+        <View style={s.alertBanner}>
+          <View style={[s.alertIconWrap, { backgroundColor: RED + '20' }]}>
+            <Feather name="alert-triangle" size={18} color={RED} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={s.alertLabel}>URGENT ISSUE</Text>
+            <Text style={s.alertTitle} numberOfLines={1}>{urgentIssues[0]?.title ?? 'High-priority issue open'}</Text>
+            {urgentIssues.length > 1 && (
+              <Text style={s.alertSub}>+{urgentIssues.length - 1} more open</Text>
+            )}
+          </View>
+          <Feather name="chevron-right" size={18} color={RED} />
+        </View>
+      )}
+
+      {/* Stat summary card */}
+      <View style={s.hubSummaryCard}>
+        {/* Tasks */}
+        <View style={s.hubStatItem}>
+          <Text style={[s.hubStatValue, { color: taskColor }]}>
+            {totalTasks > 0 ? `${completedTasks}/${totalTasks}` : '—'}
+          </Text>
+          <Text style={s.hubStatLabel}>Tasks</Text>
+        </View>
+
+        {/* Progress % */}
+        <View style={s.hubDivider} />
+        <View style={s.hubStatItem}>
+          <Text style={[s.hubStatValue, { color: allDone ? GREEN : NAVY }]}>
+            {totalTasks > 0 ? (allDone ? '✓' : `${pct}%`) : '—'}
+          </Text>
+          <Text style={s.hubStatLabel}>Done</Text>
+        </View>
+
+        {/* Open issues (manager) or pending leave (staff) */}
+        <View style={s.hubDivider} />
+        {isManagerView ? (
+          <View style={s.hubStatItem}>
+            <Text style={[s.hubStatValue, { color: openIssues > 0 ? AMBER : GREEN }]}>
+              {openIssues}
+            </Text>
+            <Text style={s.hubStatLabel}>Open Issues</Text>
+          </View>
+        ) : (
+          <View style={s.hubStatItem}>
+            <Text style={[s.hubStatValue, { color: NAVY }]}>
+              {pendingLeave}
+            </Text>
+            <Text style={s.hubStatLabel}>My Leave</Text>
+          </View>
+        )}
+
+        {/* Pending leave (manager) */}
+        {isManagerView && (
+          <>
+            <View style={s.hubDivider} />
+            <View style={s.hubStatItem}>
+              <Text style={[s.hubStatValue, { color: pendingLeave > 0 ? PURPLE : MUTED }]}>
+                {pendingLeave}
+              </Text>
+              <Text style={s.hubStatLabel}>Leave Reqs</Text>
+            </View>
+          </>
+        )}
+      </View>
+    </View>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
 // MAIN SCREEN
 // ══════════════════════════════════════════════════════════════════════════════
 export default function StaffHubScreen() {
@@ -1440,10 +1553,8 @@ export default function StaffHubScreen() {
   const params = useLocalSearchParams<{ tab?: Tab; initialTab?: Tab }>();
   const isManager = user?.role === 'manager' || user?.role === 'master' || user?.role === 'director';
 
-  // Always start on My Shift; user can switch to Manage via the toggle
   const [manageMode, setManageMode] = useState(false);
 
-  // Fetch manager permissions (only relevant for role=manager)
   const { data: mgrProfileData } = useQuery({
     queryKey: ['manager-profile'],
     queryFn:  () => api.manager.profile(),
@@ -1451,10 +1562,8 @@ export default function StaffHubScreen() {
     staleTime: 60_000,
   });
   const mgrPerms: string[] = (mgrProfileData?.data?.permissions as string[]) ?? [];
-  // Directors/masters always can edit tasks; managers need the 'tasks' permission
   const canEditTasks = user?.role !== 'manager' || mgrPerms.includes('tasks');
 
-  // Manager tabs: hide 'tasks' tab when manager doesn't have the tasks permission
   const managerTabs = canEditTasks ? MANAGER_TABS : MANAGER_TABS.filter(t => t.key !== 'tasks');
   const tabs = (isManager && manageMode) ? managerTabs : STAFF_TABS;
   const [activeTab, setActiveTab] = useState<Tab>('tasks');
@@ -1466,7 +1575,6 @@ export default function StaffHubScreen() {
     }
   }, [params.tab, params.initialTab]);
 
-  // When mode or permissions change, reset to a valid tab
   useEffect(() => {
     if (!tabs.some(t => t.key === activeTab)) {
       setActiveTab(tabs[0]?.key ?? 'issues');
@@ -1476,7 +1584,7 @@ export default function StaffHubScreen() {
   const showManagerContent = isManager && manageMode;
 
   return (
-    <DirectorStandaloneScreen
+    <DirectorTabScreen
       title="Staff Hub"
       subtitle={showManagerContent ? 'Manage your team' : 'Your shift tools'}
       headerRight={isManager ? (
@@ -1496,6 +1604,8 @@ export default function StaffHubScreen() {
         </View>
       ) : undefined}
     >
+      {/* ── Summary stats + alert banner ── */}
+      <HubSummaryBar isManagerView={showManagerContent} />
 
       {/* ── Tab bar (scrollable pills) ── */}
       <ScrollView
@@ -1519,7 +1629,7 @@ export default function StaffHubScreen() {
         })}
       </ScrollView>
 
-      {/* ── Content (KAV only here so keyboard never pushes the header/tabs) ── */}
+      {/* ── Content ── */}
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         {activeTab === 'tasks'    && (showManagerContent ? <ManagerTasksTab canEdit={canEditTasks} />   : <StaffTasksTab userId={user?.id} />)}
         {activeTab === 'issues'   && (showManagerContent ? <ManagerIssuesTab />  : <StaffIssuesTab />)}
@@ -1527,7 +1637,7 @@ export default function StaffHubScreen() {
         {activeTab === 'leave'    && (showManagerContent ? <ManagerLeaveTab />   : <StaffLeaveTab />)}
         {activeTab === 'feedback' && showManagerContent  && <FeedbackTab />}
       </KeyboardAvoidingView>
-    </DirectorStandaloneScreen>
+    </DirectorTabScreen>
   );
 }
 
@@ -1610,6 +1720,27 @@ const s = StyleSheet.create({
   metaLabel:    { fontSize: 12, fontWeight: '600', color: MUTED },
   progressTrack: { height: 4, backgroundColor: BORDER, borderRadius: 2, overflow: 'hidden' },
   progressFill:  { height: 4, backgroundColor: BLUE, borderRadius: 2 },
+
+  // Hub summary bar
+  hubSummaryCard: {
+    flexDirection: 'row', backgroundColor: CARD, borderRadius: 14,
+    borderWidth: 1, borderColor: BORDER, padding: 16,
+  },
+  hubStatItem:  { flex: 1, alignItems: 'center' },
+  hubStatValue: { fontSize: 18, fontWeight: '700', color: NAVY },
+  hubStatLabel: { fontSize: 11, color: MUTED, marginTop: 2 },
+  hubDivider:   { width: 1, backgroundColor: BORDER, marginVertical: 4 },
+
+  // Alert banner (urgent issues)
+  alertBanner: {
+    flexDirection: 'row', alignItems: 'center', gap: 14,
+    backgroundColor: CARD, borderRadius: 14, padding: 16,
+    borderWidth: 1, borderColor: RED + '40',
+  },
+  alertIconWrap: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
+  alertLabel:    { fontSize: 10, fontWeight: '700', color: RED, letterSpacing: 0.5 },
+  alertTitle:    { fontSize: 15, fontWeight: '700', color: NAVY, marginTop: 2 },
+  alertSub:      { fontSize: 12, color: MUTED, marginTop: 1 },
 
   // Empty state
   emptyState:  { alignItems: 'center', gap: 12, paddingVertical: 48 },
