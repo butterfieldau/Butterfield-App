@@ -550,7 +550,7 @@ function PosScreenInner() {
       <PosHeader
         isOnline={isOnline} pendingCount={pendingCount}
         printStatusMap={printStatusMap} heldCount={heldCount}
-        showSearch={showSearch} syncingAll={syncingAll} lastSyncedAt={lastSyncedAt}
+        showSearch={showSearch} syncingAll={syncingAll}
         cashEnabled={cashEnabled}
         onOpenHistory={() => setShowHistory(true)}
         onOpenFailedPrints={() => { setHistoryOpenAtFailed(true); setShowHistory(true); }}

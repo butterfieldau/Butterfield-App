@@ -1,7 +1,6 @@
 import { Feather } from '@expo/vector-icons';
 import React from 'react';
 import { Pressable, Text, View } from 'react-native';
-import { formatSyncTime } from '@/lib/posCache';
 import styles from './posStyles';
 import { BLUE, CHERRY, MID, MUTED, WHITE } from './types';
 
@@ -12,7 +11,6 @@ export default function PosHeader({
   heldCount,
   showSearch,
   syncingAll,
-  lastSyncedAt,
   cashEnabled,
   onOpenHistory,
   onOpenFailedPrints,
@@ -28,7 +26,6 @@ export default function PosHeader({
   heldCount: number;
   showSearch: boolean;
   syncingAll: boolean;
-  lastSyncedAt: Date | null;
   cashEnabled: boolean;
   onOpenHistory: () => void;
   onOpenFailedPrints: () => void;
@@ -39,7 +36,6 @@ export default function PosHeader({
   onOpenRegister: () => void;
 }) {
   const failedPrintCount = Object.values(printStatusMap).filter(s => s === 'failed').length;
-  const syncLabel = syncingAll ? 'Syncing…' : lastSyncedAt ? `Sync · ${formatSyncTime(lastSyncedAt).replace('Synced ', '')}` : 'Sync';
 
   return (
     <View style={styles.header}>
@@ -70,7 +66,6 @@ export default function PosHeader({
         </Pressable>
         <Pressable onPress={onSync} disabled={syncingAll} style={[styles.headerBtn, syncingAll && { opacity: 0.5 }]}>
           <Feather name="refresh-cw" size={16} color={syncingAll ? MUTED : MID} />
-          <Text style={styles.headerBtnText}>{syncLabel}</Text>
         </Pressable>
         <Pressable onPress={onOpenPrinter} style={styles.headerBtn}><Feather name="printer" size={16} color={MID} /><Text style={styles.headerBtnText}>Printer</Text></Pressable>
         <Pressable onPress={onOpenRegister} style={styles.headerBtn}>
