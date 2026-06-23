@@ -1,6 +1,5 @@
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
-import { useFocusEffect } from 'expo-router';
 import React, {
   forwardRef,
   useCallback,
@@ -34,60 +33,37 @@ const POSCartScannerLayer = forwardRef<POSCartScannerLayerRef, Props>(
     const scanLockRef     = useRef(false);
     const lastScanRef     = useRef<{ value: string; time: number } | null>(null);
     const ignoreBlurRef   = useRef(false);
-    // Keep anyModalOpen in a ref so focusScanner never needs it as a dep.
-    // This prevents useFocusEffect from re-running every time a modal opens/closes.
     const anyModalOpenRef = useRef(anyModalOpen);
     anyModalOpenRef.current = anyModalOpen;
 
     const [scanValue, setScanValue]       = useState('');
     const [scannerReady, setScannerReady] = useState(false);
 
-    // ── Focus helpers ─────────────────────────────────────────────────────────
-    // Stable reference (no anyModalOpen dep) — reads the ref at call time.
-    const focusScanner = useCallback((opts?: { skipModalCheck?: boolean }) => {
-      if (anyModalOpenRef.current && !opts?.skipModalCheck) return;
+    // ── Arm / disarm ─────────────────────────────────────────────────────────
+    const armScanner = useCallback(() => {
+      if (anyModalOpenRef.current) return;
       ignoreBlurRef.current = true;
       setScannerReady(true);
-      setTimeout(() => {
-        inputRef.current?.focus();
-      }, 50);
+      setTimeout(() => { inputRef.current?.focus(); }, 50);
       setTimeout(() => { ignoreBlurRef.current = false; }, 350);
-    }, []); // stable — intentionally no deps
+    }, []);
 
-    const blurScanner = useCallback(() => {
+    const disarmScanner = useCallback(() => {
       ignoreBlurRef.current = true;
       setScannerReady(false);
       inputRef.current?.blur();
       setTimeout(() => { ignoreBlurRef.current = false; }, 350);
     }, []);
 
-    useImperativeHandle(ref, () => ({ focus: () => focusScanner({ skipModalCheck: false }) }), [focusScanner]);
+    // External ref — TicketPanel can call this but we no longer use it for
+    // auto-arming after notes/code inputs blur.
+    useImperativeHandle(ref, () => ({ focus: armScanner }), [armScanner]);
 
-    // Arm scanner when the POS tab gains navigation focus.
-    // Stable focusScanner means this only runs once — not on every modal open/close.
-    useFocusEffect(
-      useCallback(() => {
-        const t = setTimeout(() => focusScanner({ skipModalCheck: false }), 100);
-        return () => {
-          clearTimeout(t);
-          setScannerReady(false);
-        };
-      }, [focusScanner]),
-    );
-
-    // When a modal opens: hard-disarm the scanner so modal TextInputs get keystrokes.
-    // When a modal closes: re-arm after a short delay.
+    // Hard-disarm whenever a modal opens. Do NOT re-arm when it closes —
+    // re-arming automatically was what was stealing focus from other inputs.
     useEffect(() => {
-      if (anyModalOpen) {
-        ignoreBlurRef.current = true;
-        setScannerReady(false);
-        inputRef.current?.blur();
-        setTimeout(() => { ignoreBlurRef.current = false; }, 350);
-      } else {
-        const t = setTimeout(() => focusScanner({ skipModalCheck: true }), 200);
-        return () => clearTimeout(t);
-      }
-    }, [anyModalOpen]); // focusScanner is stable so no longer needed as dep
+      if (anyModalOpen) disarmScanner();
+    }, [anyModalOpen, disarmScanner]);
 
     // ── Scan processing ───────────────────────────────────────────────────────
     const clean = (v: string) => v.replace(/[\n\r]/g, '').trim();
@@ -101,7 +77,7 @@ const POSCartScannerLayer = forwardRef<POSCartScannerLayerRef, Props>(
       const last = lastScanRef.current;
       if (last && last.value === value && now - last.time < 2000) {
         setScanValue('');
-        focusScanner({ skipModalCheck: false });
+        armScanner();
         return;
       }
       if (scanLockRef.current) return;
@@ -113,15 +89,17 @@ const POSCartScannerLayer = forwardRef<POSCartScannerLayerRef, Props>(
       try {
         await attachCustomerToCart(value);
       } catch {
-        // Banner is shown inside attachCustomerToCart
+        // Banner shown inside attachCustomerToCart
       } finally {
         setScanValue('');
+        // Re-arm after a scan so batch scanning works — the user explicitly
+        // put the scanner in scan mode so we keep it there.
         setTimeout(() => {
           scanLockRef.current = false;
-          focusScanner({ skipModalCheck: false });
+          armScanner();
         }, 400);
       }
-    }, [attachCustomerToCart, focusScanner]);
+    }, [attachCustomerToCart, armScanner]);
 
     const handleChangeText = useCallback((text: string) => {
       setScanValue(text);
@@ -146,8 +124,8 @@ const POSCartScannerLayer = forwardRef<POSCartScannerLayerRef, Props>(
     return (
       <View style={styles.wrapper}>
         {/* Zero-size on-screen input — captures Bluetooth HID scanner keystrokes.
-            editable={false} when any modal is open: hard gate so keystrokes always
-            reach modal TextInputs even if iOS somehow keeps this input focused. */}
+            editable={false} when any modal is open as a hard gate — even if iOS
+            somehow keeps this input focused it cannot swallow keystrokes. */}
         <TextInput
           ref={inputRef}
           value={scanValue}
@@ -166,8 +144,9 @@ const POSCartScannerLayer = forwardRef<POSCartScannerLayerRef, Props>(
           style={styles.hiddenInput}
         />
         <View style={styles.statusRow}>
+          {/* Tap to arm (green) / tap again to disarm (grey) */}
           <Pressable
-            onPress={() => scannerReady ? blurScanner() : focusScanner({ skipModalCheck: false })}
+            onPress={() => scannerReady ? disarmScanner() : armScanner()}
             style={[styles.scanBtn, scannerReady && styles.scanBtnActive]}
             hitSlop={8}
           >

@@ -43,16 +43,6 @@ export default function TicketPanel({
   const [codeError, setCodeError] = React.useState<string | null>(null);
   const [showCodeInput, setShowCodeInput] = React.useState(false);
 
-  const prevShowCodeInputRef = React.useRef(showCodeInput);
-  React.useEffect(() => {
-    if (prevShowCodeInputRef.current && !showCodeInput) {
-      const t = setTimeout(() => scannerRef.current?.focus(), 150);
-      prevShowCodeInputRef.current = false;
-      return () => clearTimeout(t);
-    }
-    prevShowCodeInputRef.current = showCodeInput;
-    return undefined;
-  }, [showCodeInput]);
 
   const hasCoffeeItems = ticket.items.some(i => i.category.toLowerCase() === 'coffee');
   const canRedeemFreeCoffee = (ticket.customer?.freeCoffeeRewards ?? 0) > 0 && hasCoffeeItems && discount?.type !== 'free_coffee';
@@ -221,7 +211,6 @@ export default function TicketPanel({
           onChangeText={v => onUpdateTicket({ notes: v })}
           returnKeyType="done"
           blurOnSubmit
-          onBlur={() => setTimeout(() => scannerRef.current?.focus(), 150)}
         />
         {ticket.notes.length > 0 && (
           <Pressable onPress={() => onUpdateTicket({ notes: '' })} hitSlop={8}>
@@ -304,7 +293,6 @@ export default function TicketPanel({
                     autoFocus
                     returnKeyType="done"
                     onSubmitEditing={applyCode}
-                    onBlur={() => setTimeout(() => scannerRef.current?.focus(), 150)}
                   />
                   <Pressable
                     onPress={applyCode}
