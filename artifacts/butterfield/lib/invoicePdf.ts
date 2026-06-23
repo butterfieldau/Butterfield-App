@@ -18,6 +18,7 @@ export interface InvoicePdfData {
   deliveryAddress?: string;
   accountNumber?: string;
   lines: InvoiceLine[];
+  deliveryFeeCents?: number;
 }
 
 function fmt(n: number) {
@@ -25,11 +26,15 @@ function fmt(n: number) {
 }
 
 export function generateInvoiceHtml(inv: InvoicePdfData): string {
-  const subtotalExGst = inv.lines.reduce((s, l) => {
+  const deliveryFee = (inv.deliveryFeeCents ?? 0) / 100;
+  const allLines = deliveryFee > 0
+    ? [...inv.lines, { description: 'Delivery fee', qty: 1, unitPrice: deliveryFee }]
+    : inv.lines;
+  const subtotalExGst = allLines.reduce((s, l) => {
     const lineTotal = l.qty * l.unitPrice * (1 - (l.discount ?? 0));
     return s + lineTotal / 1.1;
   }, 0);
-  const gst = inv.lines.reduce((s, l) => {
+  const gst = allLines.reduce((s, l) => {
     const lineTotal = l.qty * l.unitPrice * (1 - (l.discount ?? 0));
     return s + lineTotal - lineTotal / 1.1;
   }, 0);
@@ -40,7 +45,7 @@ export function generateInvoiceHtml(inv: InvoicePdfData): string {
   const statusColor =
     inv.status === 'paid' ? '#16A34A' : inv.status === 'overdue' ? '#DC2626' : '#D97706';
 
-  const rows = inv.lines
+  const rows = allLines
     .map((l) => {
       const lineTotal = l.qty * l.unitPrice * (1 - (l.discount ?? 0));
       return `

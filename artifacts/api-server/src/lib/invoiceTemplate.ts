@@ -53,7 +53,8 @@ export interface InvoiceData {
     qty:         number;
     unitCents:   number;
   }>;
-  totalCents:    number;
+  totalCents:       number;
+  deliveryFeeCents?: number;
   poReference:   string | null | undefined;
   notes:         string | null | undefined;
   paymentTerms:  string | null | undefined;
@@ -62,15 +63,16 @@ export interface InvoiceData {
 }
 
 export function buildInvoiceHtml(data: InvoiceData): string {
+  const deliveryFeeCents = data.deliveryFeeCents ?? 0;
   const subtotalCents = data.items.reduce((s, i) => s + i.qty * i.unitCents, 0);
   const gstCents      = Math.round(subtotalCents / 11);
   const exclGstCents  = subtotalCents - gstCents;
-  const totalCents    = data.totalCents || subtotalCents;
+  const totalCents    = data.totalCents || (subtotalCents + deliveryFeeCents);
   const invNum        = data.invoiceNumber ?? 'DRAFT';
   const terms         = data.paymentTerms ?? 'Net 30 days';
 
   const lineRows = data.items.map((item, idx) => {
-    const isLast = idx === data.items.length - 1;
+    const isLast = idx === data.items.length - 1 && !deliveryFeeCents;
     const border = isLast ? '' : 'border-bottom:1px solid #F0F2F5;';
     return `<tr>
       <td style="padding:8px 12px;font-size:12px;color:#1C1C1E;${border}">${item.description}</td>
@@ -78,7 +80,12 @@ export function buildInvoiceHtml(data: InvoiceData): string {
       <td style="padding:8px 12px;font-size:12px;color:#6B7280;text-align:right;${border}">${fmt(item.unitCents)}</td>
       <td style="padding:8px 12px;font-size:12px;font-weight:600;color:#1C1C1E;text-align:right;${border}">${fmt(item.qty * item.unitCents)}</td>
     </tr>`;
-  }).join('');
+  }).join('') + (deliveryFeeCents > 0 ? `<tr>
+      <td style="padding:8px 12px;font-size:12px;color:#1C1C1E;">Delivery fee</td>
+      <td style="padding:8px 12px;font-size:12px;color:#6B7280;text-align:center;">1</td>
+      <td style="padding:8px 12px;font-size:12px;color:#6B7280;text-align:right;">${fmt(deliveryFeeCents)}</td>
+      <td style="padding:8px 12px;font-size:12px;font-weight:600;color:#1C1C1E;text-align:right;">${fmt(deliveryFeeCents)}</td>
+    </tr>` : '');
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -229,6 +236,10 @@ export function buildInvoiceHtml(data: InvoiceData): string {
         <span style="font-size:11px;color:#6B7280;">GST (10%)</span>
         <span style="font-size:11px;font-weight:600;color:#1C1C1E;">${fmt(gstCents)}</span>
       </div>
+      ${deliveryFeeCents > 0 ? `<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid #F0F2F5;">
+        <span style="font-size:11px;color:#6B7280;">Delivery fee</span>
+        <span style="font-size:11px;font-weight:600;color:#1C1C1E;">${fmt(deliveryFeeCents)}</span>
+      </div>` : ''}
       <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;margin-top:8px;background:linear-gradient(135deg,#1A2B4A,#0D1A2E);border-radius:8px;">
         <span style="font-size:11px;font-weight:600;color:rgba(255,255,255,0.8);">Total Due (AUD)</span>
         <span style="font-size:20px;font-weight:800;color:#fff;">${fmt(totalCents)}</span>

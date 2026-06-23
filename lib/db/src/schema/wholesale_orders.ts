@@ -12,6 +12,7 @@ export const wholesaleOrdersTable = pgTable("wholesale_orders", {
   notes: text("notes"),
   totalCents: integer("total_cents").notNull(),
   originalTotalCents: integer("original_total_cents"),
+  deliveryFeeCents: integer("delivery_fee_cents").notNull().default(0),
   deliveryType: text("delivery_type").notNull().default("pickup"),
   scheduledDate: text("scheduled_date"),
   invoiceUrl: text("invoice_url"),

@@ -98,28 +98,29 @@ function mapOrderToInvoice(order: any): Invoice {
 
 function getOrderLines(order: any): InvoiceLine[] {
   const items = normalizeOrderItems(order?.items);
-  if (items.length > 0) {
-    return items.map(item => ({
-      description: item.name,
-      qty:         item.quantity,
-      unitPrice:   item.unitPriceCents / 100,
-    }));
-  }
-  return [{ description: 'Wholesale Order', qty: 1, unitPrice: (order?.totalCents ?? 0) / 100 }];
+  const lines: InvoiceLine[] = items.length > 0
+    ? items.map(item => ({
+        description: item.name,
+        qty:         item.quantity,
+        unitPrice:   item.unitPriceCents / 100,
+      }))
+    : [{ description: 'Wholesale Order', qty: 1, unitPrice: (order?.totalCents ?? 0) / 100 }];
+  return lines;
 }
 
-function buildInvoiceData(invoice: Invoice, lines: InvoiceLine[], account: any): InvoicePdfData {
+function buildInvoiceData(invoice: Invoice, lines: InvoiceLine[], account: any, order?: any): InvoicePdfData {
   return {
-    number:          invoice.number,
-    date:            invoice.date,
-    dueDate:         invoice.dueDate,
-    status:          invoice.status,
-    companyName:     account?.companyName ?? 'Wholesale Customer',
-    abn:             account?.abn ?? '',
-    contactEmail:    account?.accountsEmail ?? account?.email ?? '',
-    deliveryAddress: account?.deliveryAddress ?? '',
-    accountNumber:   account?.id?.slice(0, 8).toUpperCase() ?? '',
+    number:           invoice.number,
+    date:             invoice.date,
+    dueDate:          invoice.dueDate,
+    status:           invoice.status,
+    companyName:      account?.companyName ?? 'Wholesale Customer',
+    abn:              account?.abn ?? '',
+    contactEmail:     account?.accountsEmail ?? account?.email ?? '',
+    deliveryAddress:  account?.deliveryAddress ?? '',
+    accountNumber:    account?.id?.slice(0, 8).toUpperCase() ?? '',
     lines,
+    deliveryFeeCents: order?.deliveryFeeCents ?? 0,
   };
 }
 
@@ -230,6 +231,7 @@ function OrderDetailModal({
             <InfoRow label="GST (10%)"           value={`$${(gst / 100).toFixed(2)}`} />
             <InfoRow label="Total (AUD)"          value={`$${(subtotal / 100).toFixed(2)}`} valueColor={BLUE} />
             {order.deliveryType     && <InfoRow label="Delivery" value={order.deliveryType === 'pickup' ? 'In-store Pickup' : 'Delivery'} icon="truck" />}
+            {order.deliveryFeeCents > 0 && <InfoRow label="Delivery fee" value={`$${(order.deliveryFeeCents / 100).toFixed(2)}`} icon="package" />}
             {order.deliveryAddress  && <InfoRow label="Address"  value={order.deliveryAddress} icon="map-pin" />}
             {order.scheduledDate    && <InfoRow label="Scheduled" value={new Date(order.scheduledDate).toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short' })} icon="calendar" />}
           </View>
@@ -363,7 +365,7 @@ export default function WholesaleOrdersScreen() {
       }
       if (!html) {
         const lines = getOrderLines(order);
-        html = generateInvoiceHtml(buildInvoiceData(invoice, lines, account));
+        html = generateInvoiceHtml(buildInvoiceData(invoice, lines, account, order));
       }
       if (Platform.OS === 'web') {
         const win = window.open('', '_blank');
