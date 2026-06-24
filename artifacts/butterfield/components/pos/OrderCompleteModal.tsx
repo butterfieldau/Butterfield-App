@@ -80,7 +80,7 @@ export default function OrderCompleteModal({ order, customerEmail: initialEmail,
                 <View style={styles.loyaltyDivider} />
                 <View style={{ alignItems: 'center', flex: 1 }}>
                   <Text style={styles.loyaltyStatLabel}>Stamps</Text>
-                  <Text style={styles.loyaltyStatValue}>{lr.newStampCount}/{STAMP_GOAL}</Text>
+                  <Text style={styles.loyaltyStatValue}>{lr.newStampCount}/{lr.stampGoal ?? STAMP_GOAL}</Text>
                   <Text style={styles.loyaltyStatSub}>{lr.stampsAdded > 0 ? '+1 stamp' : 'no coffee'}</Text>
                 </View>
               </View>

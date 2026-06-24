@@ -160,7 +160,7 @@ export default function TicketPanel({
             <Feather name="chevron-right" size={14} color={MUTED} />
           </TouchableOpacity>
           <View style={styles.stampRow}>
-            {Array.from({ length: STAMP_GOAL }).map((_, i) => {
+            {Array.from({ length: ticket.customer.stampGoal ?? STAMP_GOAL }).map((_, i) => {
               const filled = i < (ticket.customer?.stampCount ?? 0);
               return (
                 <View key={i} style={[styles.stampCircle, filled && styles.stampCircleFilled]}>
@@ -168,7 +168,7 @@ export default function TicketPanel({
                 </View>
               );
             })}
-            <Text style={styles.stampLabel}>{ticket.customer.stampCount}/{STAMP_GOAL}</Text>
+            <Text style={styles.stampLabel}>{ticket.customer.stampCount}/{ticket.customer.stampGoal ?? STAMP_GOAL}</Text>
             <Text style={[styles.stampLabel, { marginLeft: 0, color: MUTED }]}>
               {hasCoffeeItems ? '— stamps apply automatically after payment' : '— add coffee to earn stamps'}
             </Text>

@@ -4,8 +4,6 @@ import React, { useEffect, useRef } from 'react';
 import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
 import { CoffeeStampIcon } from '@/components/CoffeeStampIcon';
 
-const STAMP_COUNT = 6;
-
 export type CelebrationTier = {
   key: string;
   label: string;
@@ -53,14 +51,17 @@ export function TierCelebrateOverlay({
 export function StampCelebrateOverlay({
   visible,
   onClose,
+  stampGoal = 6,
 }: {
   visible: boolean;
   onClose: () => void;
+  stampGoal?: number;
 }) {
   const scale      = useRef(new Animated.Value(0.88)).current;
   const opacity    = useRef(new Animated.Value(0)).current;
+  // Always init 9 slots to avoid hooks-count mismatch; only animate/show stampGoal of them
   const stampAnims = useRef(
-    Array.from({ length: STAMP_COUNT }, () => new Animated.Value(0)),
+    Array.from({ length: 9 }, () => new Animated.Value(0)),
   ).current;
 
   useEffect(() => {
@@ -93,9 +94,9 @@ export function StampCelebrateOverlay({
         <SparkleRow />
         <Text style={s.eyebrow}>COFFEE CLUB</Text>
         <Text style={s.title}>Free Coffee Unlocked! ☕</Text>
-        <Text style={s.body}>You've collected all 6 stamps. Your free coffee is ready to redeem.</Text>
+        <Text style={s.body}>You've collected all {stampGoal} stamps. Your free coffee is ready to redeem.</Text>
         <View style={s.stampRow}>
-          {stampAnims.map((anim, i) => (
+          {stampAnims.slice(0, stampGoal).map((anim, i) => (
             <Animated.View
               key={i}
               style={{

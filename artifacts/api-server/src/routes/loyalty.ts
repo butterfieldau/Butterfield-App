@@ -144,6 +144,7 @@ router.get('/profile', requireAuth, async (req, res) => {
         loyaltyTier: correctTier,
         coffeeStampCount: profile.coffeeStampCount ?? profile.stampCount ?? 0,
         freeCoffeeRewards: profile.freeCoffeeRewards ?? profile.freeCoffeesEarned ?? 0,
+        stampGoal: Number(profile.coffeeStampGoal ?? 6),
         stampCount: profile.coffeeStampCount ?? profile.stampCount ?? 0,
         freeCoffeesEarned: profile.freeCoffeeRewards ?? profile.freeCoffeesEarned ?? 0,
         loyaltyQrToken: profile.loyaltyQrToken ?? null,
@@ -169,6 +170,7 @@ router.get('/profile', requireAuth, async (req, res) => {
       customerEmail: req.user!.email ?? '',
       coffeeStampCount: profile.coffeeStampCount ?? profile.stampCount ?? 0,
       freeCoffeeRewards: profile.freeCoffeeRewards ?? profile.freeCoffeesEarned ?? 0,
+      stampGoal: Number(profile.coffeeStampGoal ?? 6),
       stampCount: profile.coffeeStampCount ?? profile.stampCount ?? 0,
       freeCoffeesEarned: profile.freeCoffeeRewards ?? profile.freeCoffeesEarned ?? 0,
       loyaltyQrToken: profile.loyaltyQrToken ?? null,
@@ -619,9 +621,6 @@ router.patch('/birthday', requireAuth, async (req, res) => {
   return res.json({ data: { birthday } });
 });
 
-// ── POST /loyalty/scan-stamp — staff scans customer QR to award a coffee stamp
-const STAMP_GOAL = 6;
-
 router.post('/lookup', requireRole('staff', 'director', 'manager', 'shop_display'), async (req, res) => {
   await ensureLoyaltySchemaReady();
   const { qrPayload, loyaltyQrToken } = req.body ?? {};
@@ -659,7 +658,8 @@ router.post('/lookup', requireRole('staff', 'director', 'manager', 'shop_display
       loyaltyPoints: profile.loyaltyPoints ?? 0,
       coffeeStampCount: profile.coffeeStampCount ?? profile.stampCount ?? 0,
       freeCoffeeRewards: profile.freeCoffeeRewards ?? profile.freeCoffeesEarned ?? 0,
-      stampsUntilNextFreeCoffee: Math.max(0, STAMP_GOAL - (profile.coffeeStampCount ?? profile.stampCount ?? 0)),
+      stampGoal: Number(profile.coffeeStampGoal ?? 6),
+      stampsUntilNextFreeCoffee: Math.max(0, Number(profile.coffeeStampGoal ?? 6) - (profile.coffeeStampCount ?? profile.stampCount ?? 0)),
       stampCount: profile.coffeeStampCount ?? profile.stampCount ?? 0,
       freeCoffeesEarned: profile.freeCoffeeRewards ?? profile.freeCoffeesEarned ?? 0,
       loyaltyQrToken: profile.loyaltyQrToken ?? null,
@@ -731,7 +731,8 @@ router.post('/scan-stamp', requireRole('staff', 'director', 'manager', 'shop_dis
       customerEmail: scanUserRow?.email ?? '',
       loyaltyPoints: profile.loyaltyPoints ?? 0,
       qrPayload: buildLoyaltyQrPayload(profile.loyaltyQrToken),
-      stampsUntilNextFreeCoffee: Math.max(0, STAMP_GOAL - (stampResult.stampCount ?? 0)),
+      stampGoal: Number(profile.coffeeStampGoal ?? 6),
+      stampsUntilNextFreeCoffee: Math.max(0, Number(profile.coffeeStampGoal ?? 6) - (stampResult.stampCount ?? 0)),
     },
   });
 });
@@ -813,7 +814,8 @@ router.post('/use-free-coffee', requireRole('staff', 'director', 'manager', 'sho
       freeCoffeeRewards:  updated.freeCoffeeRewards ?? 0,
       qrPayload:          buildLoyaltyQrPayload(profile.loyaltyQrToken),
       redeemedAt:         new Date().toISOString(),
-      stampsUntilNextFreeCoffee: Math.max(0, STAMP_GOAL - (updated.coffeeStampCount ?? updated.stampCount ?? 0)),
+      stampGoal: Number(profile.coffeeStampGoal ?? 6),
+      stampsUntilNextFreeCoffee: Math.max(0, Number(profile.coffeeStampGoal ?? 6) - (updated.coffeeStampCount ?? updated.stampCount ?? 0)),
     },
   });
 });

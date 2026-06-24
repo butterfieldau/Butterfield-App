@@ -15,7 +15,7 @@ const RED    = '#EF4444';
 const WHITE  = '#FFFFFF';
 const MUTED  = '#8E8E93';
 
-const STAMP_GOAL = 6;
+const DEFAULT_STAMP_GOAL = 6;
 const SCAN_COOLDOWN_MS = 2500;
 
 type ScanResult = {
@@ -24,6 +24,7 @@ type ScanResult = {
   customerEmail: string;
   loyaltyPoints: number;
   stampCount: number;
+  stampGoal?: number;
   freeCoffeeRewards: number;
   stampsUntilNextFreeCoffee?: number;
   recentActivity?: Array<{ id: string; description: string; createdAt: string }>;
@@ -80,6 +81,7 @@ export function StampScanScreen({ externalScanData = null, onExternalScanHandled
         customerEmail,
         loyaltyPoints,
         stampCount,
+        stampGoal: (res.data as any).stampGoal ?? DEFAULT_STAMP_GOAL,
         freeCoffeeRewards,
         qrPayload,
         stampsUntilNextFreeCoffee,
@@ -123,6 +125,7 @@ export function StampScanScreen({ externalScanData = null, onExternalScanHandled
         customerEmail:      updated.customerEmail,
         loyaltyPoints:      updated.loyaltyPoints,
         stampCount:         updated.stampCount,
+        stampGoal:          (updated as any).stampGoal ?? result?.stampGoal ?? DEFAULT_STAMP_GOAL,
         freeCoffeeRewards:  updated.freeCoffeeRewards,
         qrPayload:          updated.qrPayload ?? payload,
         stampsUntilNextFreeCoffee: updated.stampsUntilNextFreeCoffee,
@@ -180,6 +183,7 @@ export function StampScanScreen({ externalScanData = null, onExternalScanHandled
         customerEmail:      updated.customerEmail,
         loyaltyPoints:      updated.loyaltyPoints ?? 0,
         stampCount:         updated.stampCount,
+        stampGoal:          (updated as any).stampGoal ?? result?.stampGoal ?? DEFAULT_STAMP_GOAL,
         freeCoffeeRewards:  updated.freeCoffeeRewards,
         qrPayload:          updated.qrPayload ?? payload,
         stampsUntilNextFreeCoffee: updated.stampsUntilNextFreeCoffee,
@@ -212,7 +216,8 @@ export function StampScanScreen({ externalScanData = null, onExternalScanHandled
   }
 
   if (result) {
-    const displayCount  = result.earnedFree ? STAMP_GOAL : result.stampCount;
+    const stampGoal = result.stampGoal ?? DEFAULT_STAMP_GOAL;
+    const displayCount  = result.earnedFree ? stampGoal : result.stampCount;
     const busy          = scanning || redeeming;
 
     return (
@@ -244,7 +249,7 @@ export function StampScanScreen({ externalScanData = null, onExternalScanHandled
             </View>
             <View style={s.statChip}>
               <Text style={s.statLabel}>Stamps</Text>
-              <Text style={s.statValue}>{result.stampCount}/{STAMP_GOAL}</Text>
+              <Text style={s.statValue}>{result.stampCount}/{result.stampGoal ?? DEFAULT_STAMP_GOAL}</Text>
             </View>
             <View style={[s.statChip, result.freeCoffeeRewards > 0 && { borderColor: AMBER, borderWidth: 1 }]}>
               <Text style={s.statLabel}>Free coffees</Text>
@@ -254,7 +259,7 @@ export function StampScanScreen({ externalScanData = null, onExternalScanHandled
             </View>
             <View style={s.statChip}>
               <Text style={s.statLabel}>To next free</Text>
-              <Text style={s.statValue}>{result.stampsUntilNextFreeCoffee ?? Math.max(0, STAMP_GOAL - result.stampCount)}</Text>
+              <Text style={s.statValue}>{result.stampsUntilNextFreeCoffee ?? Math.max(0, (result.stampGoal ?? DEFAULT_STAMP_GOAL) - result.stampCount)}</Text>
             </View>
           </View>
 
@@ -286,7 +291,7 @@ export function StampScanScreen({ externalScanData = null, onExternalScanHandled
 
           {/* Stamp dots */}
           <View style={s.dotsRow}>
-            {Array.from({ length: STAMP_GOAL }).map((_, i) => (
+            {Array.from({ length: result.stampGoal ?? DEFAULT_STAMP_GOAL }).map((_, i) => (
               <View
                 key={i}
                 style={[
@@ -303,7 +308,7 @@ export function StampScanScreen({ externalScanData = null, onExternalScanHandled
 
           {!result.earnedFree && !result.justRedeemed && (
             <Text style={s.dotLabel}>
-              {result.stampCount} of {STAMP_GOAL} stamps · {result.stampsUntilNextFreeCoffee ?? Math.max(0, STAMP_GOAL - result.stampCount)} to go
+              {result.stampCount} of {result.stampGoal ?? DEFAULT_STAMP_GOAL} stamps · {result.stampsUntilNextFreeCoffee ?? Math.max(0, (result.stampGoal ?? DEFAULT_STAMP_GOAL) - result.stampCount)} to go
             </Text>
           )}
 

@@ -1205,6 +1205,7 @@ export interface PosCustomerResult {
   email?: string;
   loyaltyPoints: number;
   stampCount: number;
+  stampGoal?: number;
   loyaltyTier: string;
   freeCoffeeRewards: number;
   birthday?: string | null;
@@ -1231,6 +1232,7 @@ export interface PosLoyaltyResult {
   newBalance: number;
   stampsAdded: number;
   newStampCount: number;
+  stampGoal?: number;
   rewardUnlocked: boolean;
 }
 

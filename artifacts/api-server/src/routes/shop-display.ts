@@ -585,6 +585,7 @@ router.get('/customers', async (req, res) => {
       loyaltyPoints: p?.loyaltyPoints ?? 0,
       loyaltyTier: p?.loyaltyTier ?? 'bronze',
       stampCount: p?.coffeeStampCount ?? p?.stampCount ?? 0,
+      stampGoal: Number(p?.coffeeStampGoal ?? 6),
       freeCoffeeRewards: p?.freeCoffeeRewards ?? 0,
       totalVisits: p?.totalVisits ?? 0,
       totalSpentCents: p?.totalSpentCents ?? 0,

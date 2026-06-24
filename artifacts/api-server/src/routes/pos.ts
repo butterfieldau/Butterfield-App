@@ -400,6 +400,7 @@ router.get('/customer-search', async (req, res) => {
         email: user.email,
         loyaltyPoints: profile.loyaltyPoints ?? 0,
         stampCount: profile.coffeeStampCount ?? profile.stampCount ?? 0,
+        stampGoal: Number(profile.coffeeStampGoal ?? 6),
         loyaltyTier: profile.loyaltyTier ?? 'blue',
         freeCoffeeRewards: Number(profile.freeCoffeeRewards ?? profile.freeCoffeesEarned ?? 0),
         birthday: (profile as any).birthday ?? null,
@@ -424,6 +425,7 @@ router.get('/customer-search', async (req, res) => {
         email: user.email,
         loyaltyPoints: profile.loyaltyPoints ?? 0,
         stampCount: profile.coffeeStampCount ?? profile.stampCount ?? 0,
+        stampGoal: Number(profile.coffeeStampGoal ?? 6),
         loyaltyTier: profile.loyaltyTier ?? 'blue',
         freeCoffeeRewards: Number(profile.freeCoffeeRewards ?? profile.freeCoffeesEarned ?? 0),
         birthday: (profile as any).birthday ?? null,
@@ -441,6 +443,7 @@ router.get('/customer-search', async (req, res) => {
     SELECT u.id, u.name, u.email, u.phone,
       COALESCE(cp.loyalty_points, 0) AS loyalty_points,
       COALESCE(cp.coffee_stamp_count, cp.stamp_count, 0) AS stamp_count,
+      COALESCE(cp.coffee_stamp_goal, 6) AS stamp_goal,
       COALESCE(cp.loyalty_tier, 'blue') AS loyalty_tier,
       COALESCE(cp.free_coffee_rewards, cp.free_coffees_earned, 0) AS free_coffee_rewards,
       cp.birthday
@@ -459,7 +462,7 @@ router.get('/customer-search', async (req, res) => {
 
   const users = (rows.rows ?? rows as unknown as any[]) as Array<{
     id: string; name: string; email: string; phone: string | null;
-    loyalty_points: number; stamp_count: number; loyalty_tier: string;
+    loyalty_points: number; stamp_count: number; stamp_goal: number; loyalty_tier: string;
     free_coffee_rewards: number; birthday: string | null;
   }>;
 
@@ -475,6 +478,7 @@ router.get('/customer-search', async (req, res) => {
       email: u.email,
       loyaltyPoints: Number(u.loyalty_points),
       stampCount: Number(u.stamp_count),
+      stampGoal: Number(u.stamp_goal ?? 6),
       loyaltyTier: u.loyalty_tier,
       freeCoffeeRewards: Number(u.free_coffee_rewards),
       birthday: u.birthday ?? null,

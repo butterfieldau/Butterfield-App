@@ -94,6 +94,7 @@ export interface AttachedCustomer {
   email?: string;
   loyaltyPoints: number;
   stampCount: number;
+  stampGoal?: number;
   loyaltyTier: string;
   freeCoffeeRewards: number;
   birthday?: string | null;

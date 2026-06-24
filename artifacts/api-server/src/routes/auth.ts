@@ -9,10 +9,18 @@ import { sendEmail, buildPasswordResetEmail } from '../lib/emailService.js';
 import { sendSms, buildPasswordResetSms } from '../lib/smsService.js';
 import { ensureShopDisplaySchemaReady } from '../lib/ensureShopDisplaySchemaReady.js';
 import { ensureStoreConfigSchemaReady } from '../lib/ensureStoreConfigSchemaReady.js';
-import { getOrCreateCustomerLoyaltyProfile } from '../lib/loyaltyIdentity.js';
+import { getOrCreateCustomerLoyaltyProfile, ensureLoyaltySchemaReady } from '../lib/loyaltyIdentity.js';
 import { recordAuditLog } from '../lib/auditLog.js';
+import { sydneyDateParts } from '../lib/sydneyTime.js';
 
-const DEMO_EMAILS = ['customer@demo.com', 'staff@demo.com', 'wholesale@demo.com', 'director@demo.com', 'manager@demo.com'];
+const DEMO_EMAILS = ['customer@demo.com', 'staff@demo.com', 'wholesale@demo.com', 'director@demo.com', 'manager@demo.com', 'loyalty9@demo.com'];
+
+function getCoffeeStampGoalForNewUser(): number {
+  const { year, monthNum } = sydneyDateParts();
+  if (year > 2026) return 9;
+  if (year === 2026 && monthNum >= 7) return 9;
+  return 6;
+}
 
 const router = Router();
 
@@ -184,6 +192,7 @@ router.post('/register', async (req, res) => {
   await db.insert(customerProfilesTable).values({
     userId, loyaltyPoints: 0, loyaltyTier: 'blue',
     referralCode: generateReferralCode(name), birthday: birthday ?? null,
+    coffeeStampGoal: getCoffeeStampGoalForNewUser(),
   });
   await getOrCreateCustomerLoyaltyProfile(userId, name);
   const token = signToken({ id: userId, email: email.toLowerCase(), role: 'customer', name });
@@ -397,15 +406,18 @@ router.post('/seed-demo', async (req, res) => {
   if (process.env.NODE_ENV === 'production') {
     return res.status(404).json({ error: 'Not found' });
   }
+  // Ensure loyalty schema (including coffee_stamp_goal column) is up-to-date
+  await ensureLoyaltySchemaReady();
   const DEMO_PW = 'Demo1234!';
   const hash = await bcrypt.hash(DEMO_PW, 10);
 
   const demos = [
-    { email: 'customer@demo.com', role: 'customer' as const, name: 'Demo Customer' },
-    { email: 'staff@demo.com',    role: 'staff'    as const, name: 'Demo Staff' },
-    { email: 'wholesale@demo.com',role: 'wholesale' as const,name: 'Demo Wholesale' },
-    { email: 'director@demo.com', role: 'director' as const, name: 'Demo Director' },
-    { email: 'manager@demo.com',  role: 'manager'  as const, name: 'Demo Manager' },
+    { email: 'customer@demo.com',  role: 'customer' as const, name: 'Demo Customer' },
+    { email: 'staff@demo.com',     role: 'staff'    as const, name: 'Demo Staff' },
+    { email: 'wholesale@demo.com', role: 'wholesale' as const, name: 'Demo Wholesale' },
+    { email: 'director@demo.com',  role: 'director' as const, name: 'Demo Director' },
+    { email: 'manager@demo.com',   role: 'manager'  as const, name: 'Demo Manager' },
+    { email: 'loyalty9@demo.com',  role: 'customer' as const, name: 'Alex Chen' },
   ];
 
   const created: string[] = [];
@@ -427,9 +439,15 @@ router.post('/seed-demo', async (req, res) => {
     }
 
     if (demo.role === 'customer') {
-      await db.insert(customerProfilesTable)
-        .values({ userId, loyaltyPoints: 150, loyaltyTier: 'silver', referralCode: 'DEMO1234' })
-        .onConflictDoUpdate({ target: customerProfilesTable.userId, set: { loyaltyTier: 'silver' } });
+      if (demo.email === 'loyalty9@demo.com') {
+        await db.insert(customerProfilesTable)
+          .values({ userId, loyaltyPoints: 0, loyaltyTier: 'blue', referralCode: 'DEMO9999', coffeeStampGoal: 9, coffeeStampCount: 5, stampCount: 5, freeCoffeeRewards: 1, freeCoffeesEarned: 1 })
+          .onConflictDoUpdate({ target: customerProfilesTable.userId, set: { coffeeStampGoal: 9, coffeeStampCount: 5, stampCount: 5, freeCoffeeRewards: 1 } });
+      } else {
+        await db.insert(customerProfilesTable)
+          .values({ userId, loyaltyPoints: 150, loyaltyTier: 'silver', referralCode: 'DEMO1234' })
+          .onConflictDoUpdate({ target: customerProfilesTable.userId, set: { loyaltyTier: 'silver' } });
+      }
     } else if (demo.role === 'staff') {
       await db.insert(staffProfilesTable)
         .values({ userId, employeeId: 'EMP-DEMO-001', position: 'Senior Crew', department: 'floor', isManager: true, approvedByAdmin: true, hourlyRateCents: 2800 })
@@ -771,6 +789,7 @@ router.post('/social', async (req, res) => {
       loyaltyPoints: 0,
       loyaltyTier: 'blue',
       referralCode: generateReferralCode(userName),
+      coffeeStampGoal: getCoffeeStampGoalForNewUser(),
     });
     await getOrCreateCustomerLoyaltyProfile(userId, userName);
     const [newUser] = await db.select().from(usersTable).where(eq(usersTable.id, userId));

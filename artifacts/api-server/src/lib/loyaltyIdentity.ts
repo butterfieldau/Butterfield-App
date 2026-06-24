@@ -8,7 +8,6 @@ import {
   usersTable,
 } from '@workspace/db';
 
-const STAMP_GOAL = 6;
 export const LOYALTY_POINT_VALUE_CENTS = 5;
 
 export type LoyaltyTierKey = 'blue' | 'silver' | 'gold' | 'black';
@@ -127,6 +126,8 @@ export async function ensureLoyaltySchemaReady() {
           `CREATE INDEX IF NOT EXISTS claimed_rewards_status_idx ON claimed_rewards (status)`,
           // Claim expiry window per reward (task #46)
           `ALTER TABLE loyalty_rewards ADD COLUMN IF NOT EXISTS claim_expiry_days integer`,
+          // Per-customer coffee stamp goal (6 = legacy pre-July-2026; 9 = new from July 1 2026)
+          `ALTER TABLE customer_profiles ADD COLUMN IF NOT EXISTS coffee_stamp_goal integer NOT NULL DEFAULT 6`,
         ]);
 
         // Backfill: generate QR tokens for any profile that is missing one.
@@ -238,11 +239,12 @@ export async function applyCoffeeStamps(params: {
   }
 
   const profile = await getOrCreateCustomerLoyaltyProfile(params.userId);
+  const stampGoal = Number(profile.coffeeStampGoal ?? 6);
   const baseStampCount = Number(profile.coffeeStampCount ?? profile.stampCount ?? 0);
   const baseRewards = Number(profile.freeCoffeeRewards ?? profile.freeCoffeesEarned ?? 0);
   const totalStamps = baseStampCount + stampsToAdd;
-  const earnedFree = Math.floor(totalStamps / STAMP_GOAL);
-  const nextStampCount = totalStamps % STAMP_GOAL;
+  const earnedFree = Math.floor(totalStamps / stampGoal);
+  const nextStampCount = totalStamps % stampGoal;
   const nextRewards = baseRewards + earnedFree;
 
   const [userRow] = await db.select({ name: usersTable.name }).from(usersTable).where(eq(usersTable.id, params.userId));
@@ -308,12 +310,13 @@ export async function reverseCoffeeStamps(params: {
   }
 
   const profile = await getOrCreateCustomerLoyaltyProfile(params.userId);
+  const stampGoal = Number(profile.coffeeStampGoal ?? 6);
   const baseStampCount = Number(profile.coffeeStampCount ?? profile.stampCount ?? 0);
   const baseRewards = Number(profile.freeCoffeeRewards ?? profile.freeCoffeesEarned ?? 0);
-  const currentStampValue = baseStampCount + (baseRewards * STAMP_GOAL);
+  const currentStampValue = baseStampCount + (baseRewards * stampGoal);
   const nextStampValue = Math.max(0, currentStampValue - stampsToRemove);
-  const nextRewards = Math.floor(nextStampValue / STAMP_GOAL);
-  const nextStampCount = nextStampValue % STAMP_GOAL;
+  const nextRewards = Math.floor(nextStampValue / stampGoal);
+  const nextStampCount = nextStampValue % stampGoal;
   const removedFreeRewards = Math.max(0, baseRewards - nextRewards);
   const effectiveRemovedStamps = Math.min(stampsToRemove, currentStampValue);
 

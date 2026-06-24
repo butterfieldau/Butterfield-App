@@ -71,12 +71,13 @@ export default function CustomerModal({
         const customer: AttachedCustomer = {
           userId: c.userId, name: c.name, email: c.email,
           loyaltyPoints: c.loyaltyPoints, stampCount: c.stampCount,
+          stampGoal: c.stampGoal ?? STAMP_GOAL,
           loyaltyTier: c.loyaltyTier, freeCoffeeRewards: c.freeCoffeeRewards ?? 0,
           birthday: c.birthday ?? null,
           availableClaimedRewards: c.availableClaimedRewards ?? [],
         };
         onSelect(customer);
-        Alert.alert(`✓ ${c.name} attached`, `${c.loyaltyPoints} pts · ${c.stampCount}/${STAMP_GOAL} stamps`);
+        Alert.alert(`✓ ${c.name} attached`, `${c.loyaltyPoints} pts · ${c.stampCount}/${c.stampGoal ?? STAMP_GOAL} stamps`);
       } else {
         Alert.alert('Not Found', 'Customer not found for this QR code.');
       }
@@ -101,7 +102,7 @@ export default function CustomerModal({
             <View style={{ flex: 1 }}>
               <Text style={styles.customerName}>{currentCustomer.name}</Text>
               <Text style={styles.customerSub}>
-                {currentCustomer.loyaltyPoints} pts · {currentCustomer.stampCount}/{STAMP_GOAL} stamps
+                {currentCustomer.loyaltyPoints} pts · {currentCustomer.stampCount}/{currentCustomer.stampGoal ?? STAMP_GOAL} stamps
               </Text>
             </View>
             <Pressable onPress={onRemove} style={styles.removeCustomerBtn}>
@@ -166,6 +167,7 @@ export default function CustomerModal({
                             onSelect({
                               userId: live.userId, name: live.name, email: live.email,
                               loyaltyPoints: live.loyaltyPoints, stampCount: live.stampCount,
+                              stampGoal: live.stampGoal ?? STAMP_GOAL,
                               loyaltyTier: live.loyaltyTier,
                               freeCoffeeRewards: live.freeCoffeeRewards ?? 0,
                               birthday: live.birthday ?? null,
@@ -180,6 +182,7 @@ export default function CustomerModal({
                             userId: item.userId, name: item.name, email: item.email,
                             loyaltyPoints: recent?.loyaltyPoints ?? item.loyaltyPoints,
                             stampCount: recent?.stampCount ?? item.stampCount,
+                            stampGoal: item.stampGoal ?? STAMP_GOAL,
                             loyaltyTier: item.loyaltyTier,
                             freeCoffeeRewards: recent?.freeCoffeeRewards ?? item.freeCoffeeRewards ?? 0,
                             birthday: item.birthday ?? null,
@@ -222,6 +225,7 @@ export default function CustomerModal({
                     onPress={() => onSelect({
                       userId: item.userId, name: item.name, email: item.email,
                       loyaltyPoints: item.loyaltyPoints, stampCount: item.stampCount,
+                      stampGoal: item.stampGoal ?? STAMP_GOAL,
                       loyaltyTier: item.loyaltyTier, freeCoffeeRewards: item.freeCoffeeRewards ?? 0,
                       birthday: item.birthday ?? null,
                       availableClaimedRewards: item.availableClaimedRewards ?? [],

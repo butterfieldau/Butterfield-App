@@ -564,7 +564,7 @@ export function CrmCustomerDetailModal({ customerId, onClose, onDelete }: {
                     { label: 'Total orders',   value: String(orderStats?.orderCount ?? 0) },
                     { label: 'Avg order',      value: orderStats?.avgOrderCents ? fmtAUD(orderStats.avgOrderCents) : '—' },
                     { label: 'Loyalty points', value: String((customer as any).profile?.loyaltyPoints ?? 0) },
-                    { label: 'Coffee stamps',  value: `${(customer as any).profile?.coffeeStampCount ?? (customer as any).profile?.stampCount ?? 0} / 6` },
+                    { label: 'Coffee stamps',  value: `${(customer as any).profile?.coffeeStampCount ?? (customer as any).profile?.stampCount ?? 0} / ${(customer as any).profile?.coffeeStampGoal ?? 6}` },
                     { label: 'Preference',     value: totalOrders === 0 ? 'No orders yet' : preferDelivery ? `Delivery (${deliveryCount}/${totalOrders})` : `Pickup (${pickupCount}/${totalOrders})` },
                   ].map((r, i, arr) => (
                     <View key={r.label} style={[det.infoRow, i < arr.length - 1 && { borderBottomWidth: 1, borderBottomColor: BORDER }]}>

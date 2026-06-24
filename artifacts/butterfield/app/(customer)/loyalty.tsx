@@ -49,7 +49,6 @@ const TEXT_MUTED= 'rgba(191,202,224,0.68)';
 const BORDER    = 'rgba(148,163,184,0.18)';
 const BRAND     = '#40C0F2';
 const WHITE     = '#FFFFFF';
-const STAMP_COUNT = 6;
 const CELEBRATION_KEY_PREFIX = '@butterfield_rewards_celebrated';
 
 
@@ -64,7 +63,6 @@ function LoyaltyContent() {
   const { width: screenWidth } = useWindowDimensions();
   const STAMP_GAP     = screenWidth < 380 ? 4 : screenWidth < 430 ? 8 : 10;
   const stampRailPad  = screenWidth < 380 ? 10 : 12;
-  const stampSize     = Math.min(60, Math.max(38, Math.floor((screenWidth - 60 - stampRailPad * 2 - STAMP_GAP * 5) / 6)));
 
   const qc = useQueryClient();
   const scrollRef = useRef<ScrollView>(null);
@@ -86,7 +84,8 @@ function LoyaltyContent() {
   const prevFreeCoffeeRef = useRef<number | null>(null);
   const prevPointsRef     = useRef<number | null>(null);
   const prevStampCountRef = useRef<number | null>(null);
-  const stampScaleAnims   = useRef(Array.from({ length: STAMP_COUNT }, () => new Animated.Value(1))).current;
+  // Always init 9 slots to avoid hooks-count mismatch; only animate/show stampGoal of them
+  const stampScaleAnims   = useRef(Array.from({ length: 9 }, () => new Animated.Value(1))).current;
 
   const { data: profileData, isLoading, isRefetching, refetch } = useQuery({
     queryKey: ['loyalty-profile'],
@@ -116,6 +115,7 @@ function LoyaltyContent() {
   const points       = profile?.loyaltyPoints ?? 0;
   const spendCents   = profile?.totalSpentCents ?? 0;
   const stampCount   = profile?.stampCount ?? 0;
+  const stampGoal    = (profile as any)?.stampGoal ?? 6;
   const freeCoffeeRewards = profile?.freeCoffeeRewards ?? 0;
   const tierSettings = profileData?.data?.loyaltyTierSettings ?? null;
   const displayTier  = getDisplayTierByServerTier(getTierBySpendCents(spendCents, tierSettings)?.key);
@@ -159,7 +159,7 @@ function LoyaltyContent() {
   useEffect(() => {
     if (prevStampCountRef.current !== null && stampCount > prevStampCountRef.current) {
       const newIdx = stampCount - 1;
-      if (newIdx >= 0 && newIdx < STAMP_COUNT) {
+      if (newIdx >= 0 && newIdx < 9) {
         const anim = stampScaleAnims[newIdx];
         if (anim) {
           Animated.sequence([
@@ -260,7 +260,7 @@ function LoyaltyContent() {
     <>
       <StatusBar barStyle={barStyle} translucent backgroundColor="transparent" />
       <TierCelebrateOverlay visible={!!celebrateTier} tier={celebrateTier} onClose={() => setCelebrateTier(null)} />
-      <StampCelebrateOverlay visible={showStampCelebration} onClose={() => setShowStampCelebration(false)} />
+      <StampCelebrateOverlay visible={showStampCelebration} onClose={() => setShowStampCelebration(false)} stampGoal={stampGoal} />
       <CustomerQrModal
         visible={showQR}
         onClose={() => setShowQR(false)}
@@ -335,22 +335,35 @@ function LoyaltyContent() {
               <View style={styles.coffeeClubHeader}>
                 <View style={styles.freeCoffeeCopy}>
                   <Text style={styles.coffeeClubTitle}>Coffee Club</Text>
-                  <Text style={styles.freeCoffeeHint}>Every 6 coffee purchases unlocks 1 free coffee.</Text>
+                  <Text style={styles.freeCoffeeHint}>Every {stampGoal} coffee purchases unlocks 1 free coffee.</Text>
                 </View>
                 <View style={styles.freeCoffeeBadge}>
                   <Text style={styles.freeCoffeeBadgeCount}>{freeCoffeeRewards}</Text>
                   <Text style={styles.freeCoffeeBadgeLabel}>free</Text>
                 </View>
               </View>
-              <View style={[styles.coffeeStampRail, { paddingHorizontal: stampRailPad }]}>
-                <View style={[styles.coffeeStampRow, { columnGap: STAMP_GAP }]}>
-                  {[0, 1, 2, 3, 4, 5].map((idx) => (
-                    <Animated.View key={idx} style={{ transform: [{ scale: stampScaleAnims[idx] ?? 1 }] }}>
-                      <CoffeeStampToken size={stampSize} filled={idx < stampCount} />
-                    </Animated.View>
-                  ))}
-                </View>
-              </View>
+              {(() => {
+                const COLS = 3;
+                const ROWS = Math.ceil(stampGoal / COLS);
+                const stampSize = Math.min(56, Math.max(36, Math.floor((screenWidth - 60 - stampRailPad * 2 - STAMP_GAP * (COLS - 1)) / COLS)));
+                return (
+                  <View style={[styles.coffeeStampRail, { paddingHorizontal: stampRailPad }]}>
+                    {Array.from({ length: ROWS }).map((_, row) => (
+                      <View key={row} style={[styles.coffeeStampRow, { columnGap: STAMP_GAP, marginBottom: row < ROWS - 1 ? STAMP_GAP : 0 }]}>
+                        {Array.from({ length: COLS }).map((_, col) => {
+                          const idx = row * COLS + col;
+                          if (idx >= stampGoal) return <View key={col} style={{ width: stampSize }} />;
+                          return (
+                            <Animated.View key={col} style={{ transform: [{ scale: stampScaleAnims[idx] ?? 1 }] }}>
+                              <CoffeeStampToken size={stampSize} filled={idx < stampCount} />
+                            </Animated.View>
+                          );
+                        })}
+                      </View>
+                    ))}
+                  </View>
+                );
+              })()}
             </LinearGradient>
           </View>
 

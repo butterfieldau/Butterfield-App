@@ -13,6 +13,7 @@ export const customerProfilesTable = pgTable("customer_profiles", {
   stampCount: integer("stamp_count").notNull().default(0),
   freeCoffeesEarned: integer("free_coffees_earned").notNull().default(0),
   coffeeStampCount: integer("coffee_stamp_count").notNull().default(0),
+  coffeeStampGoal: integer("coffee_stamp_goal").notNull().default(6),
   freeCoffeeRewards: integer("free_coffee_rewards").notNull().default(0),
   totalVisits: integer("total_visits").notNull().default(0),
   totalSpentCents: integer("total_spent_cents").notNull().default(0),
