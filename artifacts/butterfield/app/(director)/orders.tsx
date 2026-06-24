@@ -155,7 +155,8 @@ export default function DirectorOrdersScreen() {
     const orderStore = stores.find((store) => store.id === order.storeId);
     const effectivePrinterIp = (orderStore?.printerIp ?? printerIp ?? '').trim();
     const effectivePrinterPort = orderStore?.printerPort ?? printerPort;
-    const effectivePrinterBrand = (orderStore?.printerBrand ?? 'epson') as 'epson' | 'star';
+    const fallbackBrand = settingsData?.data?.printer_brand === 'star' ? 'star' : 'epson';
+    const effectivePrinterBrand = (orderStore?.printerBrand ?? fallbackBrand) as 'epson' | 'star';
     const effectiveAutoDrawer = !!(orderStore?.autoDrawer);
     const effectiveDrawerPin = ((orderStore?.drawerPin ?? 0) === 1 ? 1 : 0) as 0 | 1;
     if (!effectivePrinterIp) {

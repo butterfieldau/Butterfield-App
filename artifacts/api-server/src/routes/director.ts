@@ -1989,6 +1989,7 @@ router.get('/settings', async (req, res) => {
     { key: 'order_cutoff_time',  value: '' },
     { key: 'printer_ip',         value: '' },
     { key: 'printer_port',       value: '9100' },
+    { key: 'printer_brand',      value: 'epson' },
   ]).onConflictDoNothing();
   const rows = await db.select().from(storeSettingsTable);
   return res.json({ data: Object.fromEntries(rows.map(r => [r.key, r.value])) });

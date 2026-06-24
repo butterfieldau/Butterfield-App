@@ -31,10 +31,13 @@ export function StoreTab() {
   const [saving,           setSaving]           = useState(false);
   const [welcomeBg,        setWelcomeBg]        = useState('');
   const [uploadingWelcome, setUploadingWelcome] = useState(false);
+  const [printerBrand,     setPrinterBrand]     = useState<'epson' | 'star'>('epson');
+  const [savingBrand,      setSavingBrand]      = useState(false);
 
   useEffect(() => {
     if (settings) {
       setWelcomeBg(settings.welcome_background ?? '');
+      setPrinterBrand(settings.printer_brand === 'star' ? 'star' : 'epson');
     }
   }, [data]);
 
@@ -64,6 +67,17 @@ export function StoreTab() {
     } finally { setUploadingWelcome(false); }
   };
 
+  const saveBrandFn = async (brand: 'epson' | 'star') => {
+    setSavingBrand(true);
+    try {
+      await api.director.updateSettings({ printer_brand: brand });
+      await qc.invalidateQueries({ queryKey: ['director-settings'] });
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch (e) {
+      Alert.alert('Error', getErrorMessage(e));
+    } finally { setSavingBrand(false); }
+  };
+
   const save = async () => {
     setSaving(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -91,6 +105,48 @@ export function StoreTab() {
             Store printers, opening hours, pickup settings, geofence, notes, and contact details now live inside each individual store editor.
           </Text>
         </View>
+      </View>
+
+      <Text style={styles.section}>DEFAULT PRINTER BRAND</Text>
+      <View style={styles.card}>
+        <View style={[styles.infoBanner, { backgroundColor: '#F0F4FF', borderColor: BLUE + '30' }]}>
+          <Feather name="printer" size={13} color={BLUE} />
+          <Text style={[styles.infoBannerText, { color: BLUE }]}>
+            Used when printing orders from the Director portal that are not assigned to a specific store. Must match the printer model used at your shop.
+          </Text>
+        </View>
+        <View style={{ flexDirection: 'row', gap: 10 }}>
+          {(['epson', 'star'] as const).map((brand) => (
+            <Pressable
+              key={brand}
+              onPress={() => {
+                if (savingBrand || printerBrand === brand) return;
+                setPrinterBrand(brand);
+                saveBrandFn(brand);
+              }}
+              style={{
+                flex: 1, paddingVertical: 12, borderRadius: 10, borderWidth: 1.5,
+                borderColor: printerBrand === brand ? BLUE : BORDER,
+                backgroundColor: printerBrand === brand ? '#EFF6FF' : '#FAFAFA',
+                alignItems: 'center', gap: 4,
+              }}
+            >
+              <Feather name="printer" size={16} color={printerBrand === brand ? BLUE : MUTED} />
+              <Text style={{ fontSize: 13, fontWeight: '600', color: printerBrand === brand ? BLUE : TEXT }}>
+                {brand === 'epson' ? 'Epson' : 'Star'}
+              </Text>
+              <Text style={{ fontSize: 11, fontWeight: '400', color: MUTED }}>
+                {brand === 'epson' ? 'ESC/POS (Epson TM)' : 'mC-Print3 / MCP30'}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
+        {savingBrand && (
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <ActivityIndicator size="small" color={BLUE} />
+            <Text style={{ fontSize: 12, color: MUTED }}>Saving…</Text>
+          </View>
+        )}
       </View>
 
       <Text style={styles.section}>WELCOME SCREEN</Text>
