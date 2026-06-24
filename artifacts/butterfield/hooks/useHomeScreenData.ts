@@ -86,6 +86,7 @@ export function useHomeScreenData() {
   const loyaltyPoints = loyaltyProfile?.loyaltyPoints ?? 0;
   const loyaltyTier   = loyaltyProfile?.loyaltyTier ?? 'blue';
   const stampCount    = loyaltyProfile?.coffeeStampCount ?? loyaltyProfile?.stampCount ?? 0;
+  const stampGoal     = loyaltyProfile?.stampGoal ?? 6;
   const banner: HomeBannerSlide[] = bannerData?.data ?? [];
   const preferredStoreId = meProfile?.preferredStoreId ?? loyaltyProfile?.preferredStoreId ?? null;
   const featuredStore = (preferredStoreId
@@ -231,6 +232,7 @@ export function useHomeScreenData() {
     loyaltyPoints,
     loyaltyTier,
     stampCount,
+    stampGoal,
     tierCfg,
     hasClaimableReward,
     loyaltyCustomerName,

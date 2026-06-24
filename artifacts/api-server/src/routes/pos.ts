@@ -698,6 +698,7 @@ router.post('/customers/:id/stamp', async (req, res) => {
     return res.json({
       data: {
         stampCount: stampRes.stampCount,
+        stampGoal: Number(profile.coffeeStampGoal ?? 6),
         rewardUnlocked: stampRes.earnedFree,
         freeCoffeeRewards: Number(profile.freeCoffeeRewards ?? profile.freeCoffeesEarned ?? 0),
       },
@@ -1331,6 +1332,7 @@ const handleCreatePosOrder: import('express').RequestHandler = async (req, res) 
     newBalance: number;
     stampsAdded: number;
     newStampCount: number;
+    stampGoal?: number;
     rewardUnlocked: boolean;
   } | null = null;
 
@@ -1400,7 +1402,7 @@ const handleCreatePosOrder: import('express').RequestHandler = async (req, res) 
         req.log.info({ orderId, customerId, stampsAdded, newStampCount, rewardUnlocked }, 'POS coffee stamps awarded');
       }
 
-      loyaltyResult = { pointsEarned, newBalance, stampsAdded, newStampCount, rewardUnlocked };
+      loyaltyResult = { pointsEarned, newBalance, stampsAdded, newStampCount, stampGoal: Number(profile.coffeeStampGoal ?? 6), rewardUnlocked };
     } catch (err: any) {
       req.log.error({ err, orderId }, 'POS loyalty update failed');
     }

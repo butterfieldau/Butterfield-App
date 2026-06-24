@@ -362,7 +362,7 @@ export function ShopifyCustomerDetailModal({ customerId, onClose, onDelete }: { 
                 { label: 'Last order',       value: customer.orderStats?.lastOrderAt ? fmtDate(customer.orderStats.lastOrderAt) : 'Never' },
                 { label: 'Total orders',     value: String(customer.orderStats?.orderCount ?? 0) },
                 { label: 'Avg order',        value: customer.orderStats?.avgOrderCents ? fmtAUD(customer.orderStats.avgOrderCents) : '—' },
-                { label: 'Stamps so far',    value: `${customer.profile?.stampCount ?? 0} / 6` },
+                { label: 'Stamps so far',    value: `${customer.profile?.stampCount ?? 0} / ${(customer.profile as any)?.coffeeStampGoal ?? 6}` },
                 { label: '☕ Free coffees',  value: String(customer.profile?.freeCoffeesEarned ?? 0) },
               ].map((r, i, arr) => (
                 <View key={r.label} style={[det.infoRow, i < arr.length - 1 && { borderBottomWidth: 1, borderBottomColor: BORDER }]}>
@@ -377,7 +377,7 @@ export function ShopifyCustomerDetailModal({ customerId, onClose, onDelete }: { 
               {[
                 { label: 'Current points',   value: String(customer.profile?.loyaltyPoints ?? 0) },
                 { label: 'Tier',             value: TIER_CFG[customer.profile?.loyaltyTier ?? '']?.label ?? 'Blue' },
-                { label: 'Stamps',           value: `${customer.profile?.stampCount ?? 0} / 6` },
+                { label: 'Stamps',           value: `${customer.profile?.stampCount ?? 0} / ${(customer.profile as any)?.coffeeStampGoal ?? 6}` },
                 { label: 'Points earned',    value: String(customer.loyaltyStats?.totalEarnedPoints ?? 0) },
                 { label: 'Points redeemed',  value: String(customer.loyaltyStats?.totalRedeemedPoints ?? 0) },
               ].map((r, i, arr) => (

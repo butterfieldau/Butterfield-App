@@ -71,6 +71,7 @@ router.get('/customers/insights', allowedRoles, requireUsers, async (req, res) =
       loyaltyPoints: customerProfilesTable.loyaltyPoints,
       coffeeStampCount: customerProfilesTable.coffeeStampCount,
       stampCount: customerProfilesTable.stampCount,
+      coffeeStampGoal: customerProfilesTable.coffeeStampGoal,
     }).from(customerProfilesTable),
   ]);
 

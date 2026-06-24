@@ -90,6 +90,7 @@ export default function CustomerHome() {
     usualItems,
     loyaltyPoints,
     stampCount,
+    stampGoal,
     tierCfg,
     loyaltyCustomerName,
     refetchLoyalty,
@@ -154,7 +155,7 @@ export default function CustomerHome() {
         qrValue={qrValue}
         customerName={loyaltyCustomerName}
         helperText="Show this to staff at Butterfield to collect coffee stamps."
-        statusText={stampCount >= 6 ? 'Free coffee ready to claim at the counter.' : `${stampCount} of 6 coffee stamps collected.`}
+        statusText={stampCount >= stampGoal ? 'Free coffee ready to claim at the counter.' : `${stampCount} of ${stampGoal} coffee stamps collected.`}
         isLoading={loyaltyRefreshing && !qrValue}
         onRetry={() => { void refetchLoyalty(); }}
       />

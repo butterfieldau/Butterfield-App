@@ -460,6 +460,26 @@ export default function LoginScreen() {
                   </Text>
                 </Pressable>
               )}
+              {process.env.NODE_ENV !== 'production' && mode === 'login' && (
+                <View style={{ gap: 6 }}>
+                  <Text style={[s.hearLabel, { color: MUTED, textAlign: 'center', fontSize: 11, letterSpacing: 0.5 }]}>DEMO ACCOUNTS</Text>
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, justifyContent: 'center' }}>
+                    {[
+                      { label: 'Customer',   email: 'customer@demo.com' },
+                      { label: 'Wholesale',  email: 'wholesale@demo.com' },
+                      { label: '9 Stamps',   email: 'loyalty9@demo.com' },
+                    ].map(d => (
+                      <Pressable
+                        key={d.email}
+                        onPress={() => { setEmail(d.email); setPassword('Demo1234!'); Haptics.selectionAsync(); }}
+                        style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, borderWidth: 1, borderColor: BORDER, backgroundColor: CARD }}
+                      >
+                        <Text style={{ fontSize: 12, color: MUTED, fontWeight: '500' }}>{d.label}</Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                </View>
+              )}
               <Pressable
                 onPress={() => { setShowInternal(true); setIError(''); setIEmail(''); setIPassword(''); Haptics.selectionAsync(); }}
                 style={{ alignItems: 'center', paddingVertical: 8 }}

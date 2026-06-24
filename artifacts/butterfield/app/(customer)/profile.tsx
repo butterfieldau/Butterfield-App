@@ -173,7 +173,7 @@ export default function AccountScreen() {
           {[
             { label: 'Points', value: String(profile?.loyaltyPoints ?? 0) },
             { label: 'Tier',   value: tierLabel },
-            { label: 'Stamps', value: `${profile?.stampCount ?? 0}/6` },
+            { label: 'Stamps', value: `${profile?.stampCount ?? 0}/${profile?.stampGoal ?? 6}` },
           ].map((stat, i, arr) => (
             <View
               key={stat.label}

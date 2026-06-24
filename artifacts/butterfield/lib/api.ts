@@ -1523,6 +1523,7 @@ export interface LoyaltyProfile {
   loyaltyTier: string;
   stampCount: number;
   coffeeStampCount?: number;
+  stampGoal?: number;
   freeCoffeeRewards?: number;
   totalVisits: number;
   totalSpentCents: number;
