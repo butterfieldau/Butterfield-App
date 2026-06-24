@@ -26,11 +26,21 @@ export default function TicketItemRow({
   const swipeableRef = useRef<Swipeable>(null);
   const rowHeightAnim = useRef(new Animated.Value(64)).current;
   const isCollapsing = useRef(false);
+  const priceInputRef = useRef<TextInput>(null);
 
   const [showPriceEdit, setShowPriceEdit] = React.useState(false);
   const [rawPrice, setRawPrice] = React.useState('');
   const [showPinCapture, setShowPinCapture] = React.useState(false);
   const [pendingPriceCents, setPendingPriceCents] = React.useState<number | null>(null);
+
+  // Delayed programmatic focus — autoFocus inside an animated Modal frequently
+  // fails on iOS because the keyboard request fires before the animation ends.
+  React.useEffect(() => {
+    if (showPriceEdit) {
+      const t = setTimeout(() => priceInputRef.current?.focus(), 150);
+      return () => clearTimeout(t);
+    }
+  }, [showPriceEdit]);
 
   const openPriceEdit = () => {
     setRawPrice((effectiveUnitPrice / 100).toFixed(2));
@@ -144,11 +154,11 @@ export default function TicketItemRow({
               <View style={styles.priceEditInputRow}>
                 <Text style={styles.priceEditDollar}>$</Text>
                 <TextInput
+                  ref={priceInputRef}
                   style={styles.priceEditInput}
                   value={rawPrice}
                   onChangeText={setRawPrice}
                   keyboardType="decimal-pad"
-                  autoFocus
                   selectTextOnFocus
                   returnKeyType="done"
                   onSubmitEditing={confirmPriceEdit}

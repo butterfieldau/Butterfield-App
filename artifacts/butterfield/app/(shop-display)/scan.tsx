@@ -22,23 +22,25 @@ export default function ShopDisplayScanScreen() {
 
   // Keep the hidden TextInput focused to capture Bluetooth HID scanner input.
   // BT scanners act as keyboards: they type barcode chars then send Return/Enter.
-  const refocusHid = useCallback(() => {
-    setTimeout(() => hidInputRef.current?.focus(), 200);
+  // We use a programmatic delayed focus (NOT autoFocus) to avoid iOS 18 showing
+  // the dictation/microphone bubble on tab entry.
+  const focusHid = useCallback(() => {
+    setTimeout(() => hidInputRef.current?.focus(), 350);
   }, []);
 
   useEffect(() => {
-    if (isFocused) refocusHid();
-  }, [isFocused, refocusHid]);
+    if (isFocused) focusHid();
+    // Do NOT refocus on blur — the constant focus-fighting is what triggers
+    // the iOS dictation bubble. If a system gesture steals focus briefly
+    // that is acceptable; the BT scanner refocuses on next keystroke anyway.
+  }, [isFocused, focusHid]);
 
-  // Once we pass the scan data in, clear it so StampScanScreen can reset
   const handleScanHandled = useCallback(() => {
     setExternalScanData(null);
     hidBuffer.current = '';
-    refocusHid();
-  }, [refocusHid]);
+    focusHid();
+  }, [focusHid]);
 
-  // Unmount the camera entirely when this tab is not visible.
-  // This releases the camera hardware and stops the preview on other tabs.
   if (!isFocused) return <View style={{ flex: 1 }} />;
 
   return (
@@ -48,16 +50,30 @@ export default function ShopDisplayScanScreen() {
         onExternalScanHandled={handleScanHandled}
       />
 
-      {/* Hidden TextInput that captures Bluetooth HID scanner keystrokes.
-          showSoftInputOnFocus={false} suppresses the iOS software keyboard
-          while still allowing Bluetooth HID (hardware) keyboard input. */}
+      {/*
+        Hidden TextInput that captures Bluetooth HID scanner keystrokes.
+        Props chosen to suppress all iOS keyboard/dictation UI:
+          showSoftInputOnFocus={false} — no software keyboard
+          keyboardType="ascii-capable" — disables dictation mic on iOS
+          textContentType="none"       — no autofill/suggestion bar
+          autoCorrect={false}          — no autocorrect bar
+          spellCheck={false}           — no spellcheck underlines
+          autoCapitalize="none"        — no shift
+        We do NOT use autoFocus (triggers iOS 18 dictation bubble) nor
+        onBlur-refocus loops (same problem). We focus programmatically
+        on tab entry only.
+      */}
       <TextInput
         ref={hidInputRef}
         style={{ position: 'absolute', opacity: 0, height: 0, width: 0, pointerEvents: 'none' }}
-        autoFocus
         showSoftInputOnFocus={false}
-        blurOnSubmit={false}
+        keyboardType="ascii-capable"
+        textContentType="none"
+        autoCorrect={false}
+        autoCapitalize="none"
+        spellCheck={false}
         caretHidden
+        blurOnSubmit={false}
         onChangeText={(t) => { hidBuffer.current = t; }}
         onSubmitEditing={() => {
           const val = hidBuffer.current.trim();
@@ -65,7 +81,6 @@ export default function ShopDisplayScanScreen() {
           hidBuffer.current = '';
           setTimeout(() => hidInputRef.current?.focus(), 600);
         }}
-        onBlur={refocusHid}
       />
     </>
   );
