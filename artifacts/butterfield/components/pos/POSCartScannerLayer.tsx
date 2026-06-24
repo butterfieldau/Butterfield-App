@@ -184,13 +184,13 @@ export default POSCartScannerLayer;
 const styles = StyleSheet.create({
   wrapper:           { width: '100%', paddingVertical: 5, paddingHorizontal: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#E5E7EB' },
   hiddenInput:       { position: 'absolute', width: 0, height: 0, opacity: 0 },
-  statusRow:         { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  scanBtn:           { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 9, paddingVertical: 5, borderRadius: 8, backgroundColor: BLUE_BG },
+  statusRow:         { flexDirection: 'row', alignItems: 'center', gap: 6, width: '100%' },
+  scanBtn:           { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, paddingHorizontal: 6, paddingVertical: 5, borderRadius: 8, backgroundColor: BLUE_BG },
   scanBtnActive:     { backgroundColor: SCANNER_GREEN },
   scanBtnText:       { fontSize: 11, fontWeight: '700', color: BLUE },
   scanBtnTextActive: { color: '#fff' },
-  cameraBtn:         { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 9, paddingVertical: 5, borderRadius: 8, backgroundColor: GREY_BG },
+  cameraBtn:         { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, paddingHorizontal: 6, paddingVertical: 5, borderRadius: 8, backgroundColor: GREY_BG },
   cameraBtnText:     { fontSize: 11, fontWeight: '700', color: MID },
-  attachBtn:         { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 9, paddingVertical: 5, borderRadius: 8, backgroundColor: GREY_BG },
+  attachBtn:         { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, paddingHorizontal: 6, paddingVertical: 5, borderRadius: 8, backgroundColor: GREY_BG },
   attachBtnText:     { fontSize: 11, fontWeight: '700', color: MID },
 });
