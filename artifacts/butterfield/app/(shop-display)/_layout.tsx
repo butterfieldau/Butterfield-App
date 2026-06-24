@@ -419,7 +419,11 @@ export default function ShopDisplayLayout() {
   // ── Product sync ──────────────────────────────────────────────────────────
   const queryClient = useQueryClient();
   const [syncing, setSyncing] = useState(false);
-  const [lastSyncedAt, setLastSyncedAt] = useState<Date | null>(null);
+  const { data: lastSyncedAt = null } = useQuery<Date | null>({
+    queryKey: ['pos-last-synced-at'],
+    queryFn: getPosLastSyncedAt,
+    staleTime: Infinity,
+  });
   // Gate: holds the Tabs from rendering until AsyncStorage cache is seeded into
   // QueryClient, so POS useQuery hooks see cached data on their first execution
   // and staleTime:Infinity suppresses the network fetch.
@@ -448,9 +452,6 @@ export default function ShopDisplayLayout() {
   const [forgotPinError, setForgotPinError] = useState('');
   const [showForgotPw, setShowForgotPw] = useState(false);
 
-  useEffect(() => {
-    getPosLastSyncedAt().then(d => setLastSyncedAt(d));
-  }, []);
 
   // Seed QueryClient from AsyncStorage BEFORE Tabs render so POS useQuery hooks
   // see cached data on their very first execution. cacheSeeded gates the Tabs.
@@ -561,8 +562,7 @@ export default function ShopDisplayLayout() {
       await queryClient.refetchQueries({ queryKey: ['pos-store-settings'], type: 'all' });
       await queryClient.refetchQueries({ queryKey: ['pos-surcharges'],     type: 'all' });
       await queryClient.refetchQueries({ queryKey: ['pos-loyalty-config'], type: 'all' });
-      const d = await getPosLastSyncedAt();
-      setLastSyncedAt(d ?? new Date());
+      queryClient.setQueryData(['pos-last-synced-at'], new Date());
     } finally {
       setSyncing(false);
     }

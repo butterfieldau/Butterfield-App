@@ -25,11 +25,12 @@ export function usePosQueries({
   setLastDrawerSuccessAt: (d: Date | null) => void;
 }) {
   const [syncingAll, setSyncingAll] = useState(false);
-  const [lastSyncedAt, setLastSyncedAt] = useState<Date | null>(null);
 
-  useEffect(() => {
-    getPosLastSyncedAt().then(setLastSyncedAt);
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  const { data: lastSyncedAt = null } = useQuery<Date | null>({
+    queryKey: ['pos-last-synced-at'],
+    queryFn: getPosLastSyncedAt,
+    staleTime: Infinity,
+  });
 
   const { data: productsData, isLoading: loadingProducts, refetch: refetchProducts } = useQuery({
     queryKey: ['pos-products'],
@@ -119,7 +120,7 @@ export function usePosQueries({
         queryClient.refetchQueries({ queryKey: ['pos-surcharges'],     type: 'all' }),
         queryClient.refetchQueries({ queryKey: ['pos-loyalty-config'], type: 'all' }),
       ]);
-      getPosLastSyncedAt().then(d => setLastSyncedAt(d ?? new Date()));
+      queryClient.setQueryData(['pos-last-synced-at'], new Date());
     } finally { setSyncingAll(false); }
   }, [syncingAll, refetchProducts, refetchCategories, refetchSummary, refetchRegister, queryClient, setDetailCache]);
 
