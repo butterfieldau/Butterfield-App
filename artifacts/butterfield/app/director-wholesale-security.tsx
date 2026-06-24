@@ -180,6 +180,9 @@ export default function DirectorWholesaleSecurityScreen() {
                   <Text style={styles.cardTime}>{fmtDate(item.acceptedAt as unknown as string)}</Text>
                 </View>
                 <Text style={styles.cardBiz}>{item.businessName ?? '—'}</Text>
+                {item.contactName ? (
+                  <Text style={styles.cardContact}>{item.contactName}</Text>
+                ) : null}
                 <Text style={styles.cardEmail}>{item.email ?? '—'}</Text>
                 <View style={styles.cardMeta}>
                   <Text style={styles.metaChip}>📄 {item.termsVersion}</Text>
@@ -224,6 +227,7 @@ const styles = StyleSheet.create({
   eventBadgeText:    { fontSize: 12, fontWeight: '700' },
   cardTime:          { fontSize: 11, color: MUTED },
   cardBiz:           { fontSize: 14, fontWeight: '700', color: TEXT },
+  cardContact:       { fontSize: 13, fontWeight: '500', color: TEXT, marginTop: 2 },
   cardEmail:         { fontSize: 12, color: MUTED, marginTop: 1, marginBottom: 8 },
   cardMeta:          { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   metaChip:          { fontSize: 11, color: MUTED, backgroundColor: '#F3F4F6', borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3 },

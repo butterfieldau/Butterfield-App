@@ -5,6 +5,7 @@ export const wholesaleTermsAcceptancesTable = pgTable("wholesale_terms_acceptanc
   userId:         text("user_id").notNull(),
   businessId:     text("business_id"),
   businessName:   text("business_name"),
+  contactName:    text("contact_name"),
   email:          text("email"),
   termsVersion:   text("terms_version").notNull(),
   acceptedAt:     timestamp("accepted_at").notNull().defaultNow(),
