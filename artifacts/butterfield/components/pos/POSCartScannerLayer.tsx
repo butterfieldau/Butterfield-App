@@ -171,7 +171,7 @@ const POSCartScannerLayer = forwardRef<POSCartScannerLayerRef, Props>(
 
           <Pressable onPress={onAttachCustomer} style={styles.attachBtn} hitSlop={8}>
             <Feather name="user-plus" size={11} color={MID} />
-            <Text style={styles.attachBtnText}>Attach Customer</Text>
+            <Text style={styles.attachBtnText}>Customer</Text>
           </Pressable>
         </View>
       </View>
