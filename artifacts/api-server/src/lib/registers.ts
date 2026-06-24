@@ -512,14 +512,14 @@ export async function computeRegisterSessionSummary(sessionId: string): Promise<
       WHERE register_session_id = ${sessionId}
         AND source = 'pos'
         AND status != 'cancelled'
-        AND created_at >= ${session.tradingDate}::date AT TIME ZONE 'Australia/Sydney'
+        AND created_at >= ${session.tradingDate}::date::timestamp AT TIME ZONE 'Australia/Sydney'
         AND created_at <  (${session.tradingDate}::date + INTERVAL '1 day') AT TIME ZONE 'Australia/Sydney'
     `),
     db.execute(sql`
       SELECT refund_amount_cents, refund_method, split_payments
       FROM pos_order_refunds
       WHERE register_session_id = ${sessionId}
-        AND created_at >= ${session.tradingDate}::date AT TIME ZONE 'Australia/Sydney'
+        AND created_at >= ${session.tradingDate}::date::timestamp AT TIME ZONE 'Australia/Sydney'
         AND created_at <  (${session.tradingDate}::date + INTERVAL '1 day') AT TIME ZONE 'Australia/Sydney'
     `),
     db.execute(sql`
