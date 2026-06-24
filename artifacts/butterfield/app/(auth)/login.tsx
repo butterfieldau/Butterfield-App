@@ -461,23 +461,22 @@ export default function LoginScreen() {
                 </Pressable>
               )}
               {process.env.NODE_ENV !== 'production' && mode === 'login' && (
-                <View style={{ gap: 6 }}>
-                  <Text style={[s.hearLabel, { color: MUTED, textAlign: 'center', fontSize: 11, letterSpacing: 0.5 }]}>DEMO ACCOUNTS</Text>
-                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, justifyContent: 'center' }}>
-                    {[
-                      { label: 'Customer',   email: 'customer@demo.com' },
-                      { label: 'Wholesale',  email: 'wholesale@demo.com' },
-                      { label: '9 Stamps',   email: 'loyalty9@demo.com' },
-                    ].map(d => (
-                      <Pressable
-                        key={d.email}
-                        onPress={() => { setEmail(d.email); setPassword('Demo1234!'); Haptics.selectionAsync(); }}
-                        style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, borderWidth: 1, borderColor: BORDER, backgroundColor: CARD }}
-                      >
-                        <Text style={{ fontSize: 12, color: MUTED, fontWeight: '500' }}>{d.label}</Text>
-                      </Pressable>
-                    ))}
-                  </View>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Text style={{ fontSize: 10, color: MUTED, fontWeight: '600', letterSpacing: 0.4, flexShrink: 0 }}>DEMO</Text>
+                  <View style={{ flex: 1, height: 1, backgroundColor: BORDER }} />
+                  {[
+                    { label: 'Customer',  email: 'customer@demo.com' },
+                    { label: 'Wholesale', email: 'wholesale@demo.com' },
+                    { label: '9 Stamps',  email: 'loyalty9@demo.com' },
+                  ].map(d => (
+                    <Pressable
+                      key={d.email}
+                      onPress={() => { setEmail(d.email); setPassword('Demo1234!'); Haptics.selectionAsync(); }}
+                      style={{ paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20, borderWidth: 1, borderColor: BORDER, backgroundColor: CARD }}
+                    >
+                      <Text style={{ fontSize: 11, color: MUTED, fontWeight: '500' }}>{d.label}</Text>
+                    </Pressable>
+                  ))}
                 </View>
               )}
               <Pressable
