@@ -191,7 +191,6 @@ function PrinterConfigCard() {
   const [autoDrawer, setAutoDrawer] = useState(false);
   const [drawerPin, setDrawerPin] = useState<0|1>(0);
   const [saving, setSaving] = useState(false);
-  const [copying, setCopying] = useState(false);
   const [testPrinting, setTestPrinting] = useState(false);
   const [drawerBusy, setDrawerBusy] = useState(false);
   const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null);
@@ -220,37 +219,12 @@ function PrinterConfigCard() {
         drawerPin,
       });
       await qc.invalidateQueries({ queryKey: ['shop-display-printer-config'] });
-      setMsg({ text: '✓ Printer configuration saved.', ok: true });
+      setMsg({ text: '✓ Printer settings saved for this store.', ok: true });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (e: any) {
       setMsg({ text: e?.message ?? 'Failed to save.', ok: false });
     } finally {
       setSaving(false);
-    }
-  };
-
-  const copyFromStore = async () => {
-    setCopying(true);
-    setMsg(null);
-    try {
-      const res = await api.shopDisplay.getStorePrinterConfig();
-      if (!res.data) {
-        setMsg({ text: 'No store printer config found. Ask a director to configure it first.', ok: false });
-        return;
-      }
-      const s = res.data;
-      setPrinterIp(s.printerIp ?? '');
-      setPrinterPort(String(s.printerPort ?? 9100));
-      setPrinterBrand(s.printerBrand === 'star' ? 'star' : 'epson');
-      setAutoPrint(s.autoPrint ?? false);
-      setAutoDrawer(s.autoDrawer ?? false);
-      setDrawerPin(((s.drawerPin ?? 0) === 1 ? 1 : 0) as 0|1);
-      setMsg({ text: '✓ Fields filled from store config. Tap Save to apply.', ok: true });
-      Haptics.selectionAsync();
-    } catch (e: any) {
-      setMsg({ text: e?.message ?? 'Could not fetch store config.', ok: false });
-    } finally {
-      setCopying(false);
     }
   };
 
@@ -299,7 +273,7 @@ function PrinterConfigCard() {
         </View>
         <View style={{ flex: 1 }}>
           <Text style={pc.cardTitle}>Printer Configuration</Text>
-          <Text style={pc.cardSub}>Local settings for this display device</Text>
+          <Text style={pc.cardSub}>Shared settings for this store's printer</Text>
         </View>
         <Feather name={expanded ? 'chevron-up' : 'chevron-down'} size={18} color={MUTED} />
       </Pressable>
@@ -807,6 +781,4 @@ const pc = StyleSheet.create({
   actionRow:     { flexDirection: 'row', gap: 10 },
   actionBtn:     { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, borderRadius: 12, paddingVertical: 11, backgroundColor: '#EFF6FF', borderWidth: 1, borderColor: BORDER },
   actionBtnText: { fontSize: 13, fontWeight: '700', color: BLUE },
-  copyBtn:       { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10, backgroundColor: '#EFF6FF' },
-  copyBtnText:   { fontSize: 12, fontWeight: '700', color: BLUE },
 });
