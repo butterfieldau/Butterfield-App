@@ -18,7 +18,6 @@ const BORDER = '#E5E7EB';
 const TEXT   = '#1C1C1E';
 
 const EVENT_COLORS: Record<string, { bg: string; text: string }> = {
-  pricing_viewed:                         { bg: '#EFF6FF', text: '#1D4ED8' },
   screenshot_detected:                    { bg: '#FEF3C7', text: '#92400E' },
   screen_recording_detected:              { bg: '#FEF3C7', text: '#92400E' },
   wholesale_terms_accepted:               { bg: '#F0FDF4', text: '#15803D' },
@@ -26,7 +25,6 @@ const EVENT_COLORS: Record<string, { bg: string; text: string }> = {
 };
 
 const EVENT_LABELS: Record<string, string> = {
-  pricing_viewed:                         'Pricing Viewed',
   screenshot_detected:                    '⚠ Screenshot',
   screen_recording_detected:              '⚠ Screen Recording',
   wholesale_terms_accepted:               '✓ Terms Accepted',
@@ -73,7 +71,7 @@ export default function DirectorWholesaleSecurityScreen() {
         </Pressable>
         <View style={{ flex: 1 }}>
           <Text style={styles.headerTitle}>Wholesale Security</Text>
-          <Text style={styles.headerSub}>Pricing views, screenshots & terms acceptances</Text>
+          <Text style={styles.headerSub}>Screenshots & terms acceptances</Text>
         </View>
       </View>
 

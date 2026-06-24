@@ -25,14 +25,6 @@ export function useWholesaleScreenSecurity({ screenName, enabled = true }: Optio
       if (loggedViewRef.current) return;
       loggedViewRef.current = true;
 
-      api.wholesale.logSecurityEvent({
-        eventType:      'pricing_viewed',
-        screenName,
-        termsVersion:   WHOLESALE_TERMS_VERSION,
-        devicePlatform: platform,
-        appVersion:     appVersion ?? undefined,
-      }).catch(() => {});
-
       if (Platform.OS === 'android') {
         try {
           await ScreenCapture.preventScreenCaptureAsync();
