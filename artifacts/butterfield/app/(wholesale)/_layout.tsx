@@ -7,6 +7,7 @@ import { useAuth } from '@/context/AuthContext';
 import { getHomeRouteForRole } from '@/lib/roleRoutes';
 import { FloatingInternalTabBar } from '@/components/FloatingTabBar';
 import { api } from '@/lib/api';
+import { useWholesaleScreenSecurity } from '@/hooks/useWholesaleScreenSecurity';
 import WholesaleTermsScreen from './terms';
 
 const BG   = '#EFF6FF';
@@ -26,6 +27,8 @@ export default function WholesaleLayout() {
   const { user } = useAuth();
   const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
+
+  useWholesaleScreenSecurity({ screenName: 'WholesalePortal', enabled: !!user && user.role === 'wholesale' });
 
   const { data: termsStatus, isLoading: termsLoading } = useQuery({
     queryKey: ['wholesale-terms-status'],

@@ -16,7 +16,6 @@ import { useQuery } from '@tanstack/react-query';
 import { generateInvoiceHtml, type InvoiceLine, type InvoicePdfData } from '@/lib/invoicePdf';
 import { api, getWholesaleInvoiceUrl } from '@/lib/api';
 import WholesaleConfidentialWatermark from '@/components/wholesale/WholesaleConfidentialWatermark';
-import { useWholesaleScreenSecurity } from '@/hooks/useWholesaleScreenSecurity';
 import type { Invoice } from '@/types';
 import { normalizeOrderItems } from '@/lib/orderItems';
 
@@ -335,7 +334,6 @@ export default function WholesaleOrdersScreen() {
   );
   const account = accountData?.data;
 
-  useWholesaleScreenSecurity({ screenName: 'WholesaleOrders' });
   const cards   = cardsData?.data ?? [];
   const defCard = cards.find((c: any) => c.isDefault) ?? cards[0];
 

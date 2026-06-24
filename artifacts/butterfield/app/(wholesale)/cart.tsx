@@ -17,7 +17,6 @@ import { AddressSearchInput } from '@/components/AddressSearchInput';
 import { useAuth } from '@/context/AuthContext';
 import { api, type ApiProduct } from '@/lib/api';
 import WholesaleConfidentialWatermark from '@/components/wholesale/WholesaleConfidentialWatermark';
-import { useWholesaleScreenSecurity } from '@/hooks/useWholesaleScreenSecurity';
 import {
   formatDateChip, formatTime, getDeliveryDates, getPickupDates,
   getPickupTimeMins, getSydneyNow, isSameDay,
@@ -158,7 +157,6 @@ function WholesaleCartScreenInner({ stripeReady }: { stripeReady: boolean }) {
   const account          = accountData?.data ?? null;
   const deliveryFeeCents = account?.deliveryFeeCents ?? 0;
 
-  useWholesaleScreenSecurity({ screenName: 'WholesaleCart' });
   const minOrderCents: number = (account?.minOrderCents ?? 0) > 0
     ? (account?.minOrderCents ?? 0)
     : (account?.tier?.minOrderCents ?? 0);

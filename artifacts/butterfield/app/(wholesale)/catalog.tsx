@@ -14,7 +14,6 @@ import { api, type ApiProduct } from '@/lib/api';
 import { WS_REORDER_KEY } from './orders';
 import { WS_CART_KEY, WS_OPEN_CHECKOUT_KEY } from './cart';
 import WholesaleConfidentialWatermark from '@/components/wholesale/WholesaleConfidentialWatermark';
-import { useWholesaleScreenSecurity } from '@/hooks/useWholesaleScreenSecurity';
 
 const BG         = '#EFF6FF';
 const CARD       = '#FFFFFF';
@@ -142,8 +141,6 @@ export default function WholesaleCatalog() {
   });
   const account = accountData?.data;
   const isPending = account?.status === 'pending';
-
-  useWholesaleScreenSecurity({ screenName: 'WholesaleCatalog' });
 
   const { data: pricingData } = useQuery({
     queryKey: ['wholesale-pricing-context'],
