@@ -343,10 +343,12 @@ function LoyaltyContent() {
                 </View>
               </View>
               {(() => {
-                const stampSize = Math.min(56, Math.max(28, Math.floor((screenWidth - 64 - STAMP_GAP * (stampGoal - 1)) / stampGoal)));
+                const availableWidth = screenWidth - 64;
+                const stampSize = Math.min(56, Math.max(24, Math.floor(availableWidth / (1.15 * stampGoal - 0.15))));
+                const gap = Math.round(stampSize * 0.15);
                 return (
                   <View style={styles.coffeeStampRail}>
-                    <View style={[styles.coffeeStampRow, { columnGap: STAMP_GAP }]}>
+                    <View style={[styles.coffeeStampRow, { columnGap: gap }]}>
                       {Array.from({ length: stampGoal }).map((_, idx) => (
                         <Animated.View key={idx} style={{ transform: [{ scale: stampScaleAnims[idx] ?? 1 }] }}>
                           <CoffeeStampToken size={stampSize} filled={idx < stampCount} />
