@@ -1,43 +1,51 @@
 import React, { useMemo } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Dimensions, Image, StyleSheet, Text, View } from 'react-native';
 
 interface Props {
   businessName?: string;
   email?: string;
 }
 
-function formatDate() {
-  return new Date().toLocaleDateString('en-AU', {
-    day: '2-digit', month: 'short', year: 'numeric',
-    timeZone: 'Australia/Sydney',
-  });
-}
+const LOGO = require('@/assets/images/logo-blue.png');
+const { width: SW, height: SH } = Dimensions.get('window');
+
+const CELL_W = 200;
+const CELL_H = 120;
+const ANGLE  = -22;
+
+const COLS = Math.ceil(SW / CELL_W) + 2;
+const ROWS = Math.ceil(SH / CELL_H) + 4;
 
 export default function WholesaleConfidentialWatermark({ businessName, email }: Props) {
-  const line = useMemo(() => {
+  const subLine = useMemo(() => {
     const parts: string[] = [];
     if (businessName) parts.push(businessName);
     if (email)        parts.push(email);
-    parts.push(formatDate());
-    parts.push('Confidential Wholesale Pricing');
     return parts.join('  ·  ');
   }, [businessName, email]);
-
-  const rows = Array.from({ length: 14 });
-  const cols = Array.from({ length: 3 });
 
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="none">
       <View style={styles.grid}>
-        {rows.map((_, r) =>
-          cols.map((__, c) => (
-            <Text
+        {Array.from({ length: ROWS }).map((_, r) =>
+          Array.from({ length: COLS }).map((__, c) => (
+            <View
               key={`${r}-${c}`}
-              style={[styles.mark, { marginTop: r * 80, marginLeft: c * 240 }]}
-              numberOfLines={1}
+              style={[
+                styles.cell,
+                {
+                  top:  r * CELL_H - 80,
+                  left: c * CELL_W - 40,
+                  transform: [{ rotate: `${ANGLE}deg` }],
+                },
+              ]}
             >
-              {line}
-            </Text>
+              <Image source={LOGO} style={styles.logo} resizeMode="contain" />
+              <Text style={styles.heading}>CONFIDENTIAL</Text>
+              {!!subLine && (
+                <Text style={styles.sub} numberOfLines={1}>{subLine}</Text>
+              )}
+            </View>
           ))
         )}
       </View>
@@ -50,13 +58,29 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     overflow: 'hidden',
   },
-  mark: {
-    position: 'absolute',
-    fontSize: 10,
-    fontWeight: '500',
-    color: 'rgba(0,0,0,0.055)',
-    transform: [{ rotate: '-22deg' }],
+  cell: {
+    position:   'absolute',
+    alignItems: 'center',
+    width:      CELL_W,
+  },
+  logo: {
+    width:   28,
+    height:  28,
+    opacity: 0.06,
+    marginBottom: 3,
+  },
+  heading: {
+    fontSize:    10,
+    fontWeight:  '700',
+    color:       'rgba(0,0,0,0.07)',
+    letterSpacing: 2.5,
+  },
+  sub: {
+    fontSize:    7.5,
+    fontWeight:  '400',
+    color:       'rgba(0,0,0,0.05)',
     letterSpacing: 0.3,
-    width: 360,
+    marginTop:   1,
+    maxWidth:    CELL_W - 10,
   },
 });

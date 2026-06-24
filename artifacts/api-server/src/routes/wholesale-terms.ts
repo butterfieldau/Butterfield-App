@@ -101,7 +101,7 @@ wholesaleTermsRouter.post('/security/event', requireRole('wholesale'), async (re
 });
 
 // ── DIRECTOR: list security events ───────────────────────────────────────────
-directorWholesaleSecurityRouter.get('/wholesale-security/events', requireRole('director', 'manager'), async (req, res) => {
+directorWholesaleSecurityRouter.get('/wholesale-security/events', requireRole('director', 'manager', 'master'), async (req, res) => {
   const { eventType, businessName, from, to, limit: limitParam } = req.query;
   const limit = Math.min(parseInt(limitParam as string) || 100, 500);
 
@@ -122,7 +122,7 @@ directorWholesaleSecurityRouter.get('/wholesale-security/events', requireRole('d
 });
 
 // ── DIRECTOR: list terms acceptances ─────────────────────────────────────────
-directorWholesaleSecurityRouter.get('/wholesale-security/acceptances', requireRole('director', 'manager'), async (req, res) => {
+directorWholesaleSecurityRouter.get('/wholesale-security/acceptances', requireRole('director', 'manager', 'master'), async (req, res) => {
   const rows = await db
     .select()
     .from(wholesaleTermsAcceptancesTable)
