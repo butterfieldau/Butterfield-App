@@ -275,6 +275,8 @@ export interface ZReportModalProps {
   onDone: () => void;
   onPrint?: () => void | Promise<void>;
   printing?: boolean;
+  onExportPdf?: () => void | Promise<void>;
+  exportingPdf?: boolean;
   editableNotes?: boolean;
   closeNote?: string;
   varianceNote?: string;
@@ -291,6 +293,8 @@ export default function ZReportModal({
   onDone,
   onPrint,
   printing,
+  onExportPdf,
+  exportingPdf,
   editableNotes,
   closeNote,
   varianceNote,
@@ -341,6 +345,21 @@ export default function ZReportModal({
         {/* Footer */}
         {!!report && (
           <View style={z.footer}>
+            {!!onExportPdf && (
+              <Pressable
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                  onExportPdf();
+                }}
+                style={[z.footerSecondary, exportingPdf && { opacity: 0.65 }]}
+                disabled={exportingPdf}
+              >
+                {exportingPdf
+                  ? <ActivityIndicator color={BLUE} size="small" />
+                  : <Feather name="download" size={15} color={BLUE} />}
+                <Text style={z.footerSecondaryText}>{exportingPdf ? 'Exporting…' : 'Export PDF'}</Text>
+              </Pressable>
+            )}
             {!!onPrint && (
               <Pressable
                 onPress={() => {

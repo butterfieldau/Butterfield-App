@@ -1,6 +1,7 @@
 import { Feather } from '@expo/vector-icons';
 import * as FileSystem from 'expo-file-system';
 import * as Haptics from 'expo-haptics';
+import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
@@ -15,7 +16,7 @@ import ZReportModal from '@/components/ZReportModal';
 import { sendRegisterSummaryPrint } from '@/lib/printer';
 import { s } from './reportStyles';
 import { BLUE, MUTED, GREEN, RED } from './directorColors';
-import { toYMD, fmtDisplayDate, fmtDateTime, csvCell, buildRegisterSummaryPrintLines } from './reportHelpers';
+import { toYMD, fmtDisplayDate, fmtDateTime, csvCell, buildRegisterSummaryPrintLines, buildZReportHtml } from './reportHelpers';
 import ReportDateRangePicker, { type DateRange, type RangePreset, getPresetRange } from './ReportDateRangePicker';
 import ReportSectionHeader from './ReportSectionHeader';
 import EmptyState from './EmptyState';
@@ -47,6 +48,7 @@ function RegisterReportDetailModal({
   const [closeNote, setCloseNote] = useState('');
   const [varianceNote, setVarianceNote] = useState('');
   const [printing, setPrinting] = useState(false);
+  const [exportingPdf, setExportingPdf] = useState(false);
 
   useEffect(() => {
     setCloseNote(report?.closeNote ?? '');
@@ -86,12 +88,50 @@ function RegisterReportDetailModal({
     }
   }, [report, settingsData?.data]);
 
+  const handleExportPdf = useCallback(async () => {
+    if (!report) return;
+    setExportingPdf(true);
+    try {
+      const html = buildZReportHtml(report);
+
+      if (Platform.OS === 'web') {
+        const win = window.open('', '_blank');
+        if (win) {
+          win.document.write(html);
+          win.document.close();
+          win.focus();
+          setTimeout(() => win.print(), 500);
+        } else {
+          Alert.alert('Blocked', 'Please allow pop-ups for this site to export Z-Reports.');
+        }
+      } else {
+        const { uri } = await Print.printToFileAsync({ html, base64: false });
+        if (await Sharing.isAvailableAsync()) {
+          await Sharing.shareAsync(uri, {
+            mimeType: 'application/pdf',
+            dialogTitle: `Z-Report — ${report.registerName} — ${report.tradingDate}`,
+            UTI: 'com.adobe.pdf',
+          });
+        } else {
+          Alert.alert('PDF Saved', `Saved to: ${uri}`);
+        }
+      }
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch (err: any) {
+      Alert.alert('Export Failed', err?.message ?? 'Could not export this Z-Report as PDF.');
+    } finally {
+      setExportingPdf(false);
+    }
+  }, [report]);
+
   return (
     <ZReportModal
       visible={!!reportId}
       report={report}
       loading={isLoading}
       onDone={onClose}
+      onExportPdf={handleExportPdf}
+      exportingPdf={exportingPdf}
       onPrint={handlePrint}
       printing={printing}
       editableNotes
