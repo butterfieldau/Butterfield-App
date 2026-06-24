@@ -343,24 +343,16 @@ function LoyaltyContent() {
                 </View>
               </View>
               {(() => {
-                const COLS = 3;
-                const ROWS = Math.ceil(stampGoal / COLS);
-                const stampSize = Math.min(56, Math.max(36, Math.floor((screenWidth - 60 - stampRailPad * 2 - STAMP_GAP * (COLS - 1)) / COLS)));
+                const stampSize = Math.min(48, Math.max(24, Math.floor((screenWidth - 60 - stampRailPad * 2 - STAMP_GAP * (stampGoal - 1)) / stampGoal)));
                 return (
                   <View style={[styles.coffeeStampRail, { paddingHorizontal: stampRailPad }]}>
-                    {Array.from({ length: ROWS }).map((_, row) => (
-                      <View key={row} style={[styles.coffeeStampRow, { columnGap: STAMP_GAP, marginBottom: row < ROWS - 1 ? STAMP_GAP : 0 }]}>
-                        {Array.from({ length: COLS }).map((_, col) => {
-                          const idx = row * COLS + col;
-                          if (idx >= stampGoal) return <View key={col} style={{ width: stampSize }} />;
-                          return (
-                            <Animated.View key={col} style={{ transform: [{ scale: stampScaleAnims[idx] ?? 1 }] }}>
-                              <CoffeeStampToken size={stampSize} filled={idx < stampCount} />
-                            </Animated.View>
-                          );
-                        })}
-                      </View>
-                    ))}
+                    <View style={[styles.coffeeStampRow, { columnGap: STAMP_GAP }]}>
+                      {Array.from({ length: stampGoal }).map((_, idx) => (
+                        <Animated.View key={idx} style={{ transform: [{ scale: stampScaleAnims[idx] ?? 1 }] }}>
+                          <CoffeeStampToken size={stampSize} filled={idx < stampCount} />
+                        </Animated.View>
+                      ))}
+                    </View>
                   </View>
                 );
               })()}
