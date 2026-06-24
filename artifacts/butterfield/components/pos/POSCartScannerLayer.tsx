@@ -35,6 +35,7 @@ const POSCartScannerLayer = forwardRef<POSCartScannerLayerRef, Props>(
     const ignoreBlurRef   = useRef(false);
     const anyModalOpenRef = useRef(anyModalOpen);
     anyModalOpenRef.current = anyModalOpen;
+    const currentTextRef  = useRef('');
 
     const [scanValue, setScanValue]       = useState('');
     const [scannerReady, setScannerReady] = useState(false);
@@ -67,7 +68,9 @@ const POSCartScannerLayer = forwardRef<POSCartScannerLayerRef, Props>(
 
     // ── Scan processing ───────────────────────────────────────────────────────
     const clean = (v: string) => v.replace(/[\n\r]/g, '').trim();
-    const looksLikeQR = (v: string) => clean(v).length >= 8;
+    // Require BUTTERFIELD: prefix — stops partial mid-stream payloads from
+    // reaching the API before the scanner has finished sending the full code.
+    const looksLikeQR = (v: string) => clean(v).startsWith('BUTTERFIELD:') && clean(v).length >= 20;
 
     const processScan = useCallback(async (raw: string) => {
       const value = clean(raw);
@@ -102,17 +105,20 @@ const POSCartScannerLayer = forwardRef<POSCartScannerLayerRef, Props>(
     }, [attachCustomerToCart, armScanner]);
 
     const handleChangeText = useCallback((text: string) => {
+      currentTextRef.current = text;
       setScanValue(text);
       if (debounceRef.current) clearTimeout(debounceRef.current);
       debounceRef.current = setTimeout(() => {
         if (looksLikeQR(text)) processScan(text);
-      }, 80);
+      }, 150);
     }, [processScan]);
 
+    // Use the ref, not the React state — avoids stale-closure bug where
+    // onSubmitEditing fires before the batched state update commits.
     const handleSubmit = useCallback(() => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
-      processScan(scanValue);
-    }, [processScan, scanValue]);
+      processScan(currentTextRef.current);
+    }, [processScan]);
 
     const handleBlur = useCallback(() => {
       if (ignoreBlurRef.current) return;
@@ -136,11 +142,13 @@ const POSCartScannerLayer = forwardRef<POSCartScannerLayerRef, Props>(
           editable={!anyModalOpen}
           autoCorrect={false}
           autoCapitalize="none"
+          spellCheck={false}
+          textContentType="none"
           caretHidden
           blurOnSubmit={false}
           submitBehavior="submit"
           showSoftInputOnFocus={false}
-          keyboardType="default"
+          keyboardType="ascii-capable"
           style={styles.hiddenInput}
         />
         <View style={styles.statusRow}>
