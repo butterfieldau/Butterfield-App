@@ -1,0 +1,255 @@
+I need you to build a secure wholesale terms + pricing protection system inside the existing app.
+
+Important: do not rebuild the app, do not redesign unrelated screens, do not break the existing wholesale approval flow. Wholesale approval already exists. Customers already cannot access wholesale unless approved. Your job is to add an extra layer after approval.
+
+Goal:
+Approved wholesale users must accept Wholesale Terms & Conditions before they can view wholesale pricing or place wholesale orders. Wholesale pricing screens must be watermarked, screenshot attempts should be logged to the backend where possible, and admins must be able to view these security logs.
+
+Please inspect the current project structure first and reuse existing patterns, components, auth, database client, API routes, styling, navigation, and admin/manager screens.
+
+Build this neatly and safely.
+
+Requirements:
+
+1. Wholesale Terms Gate
+
+After a wholesale customer is approved, check if they have accepted the latest wholesale terms version.
+
+If they are approved but have not accepted the latest terms:
+
+* Block access to wholesale pricing
+* Block access to wholesale ordering
+* Show a clean “Wholesale Terms & Conditions” screen/modal
+* User must scroll/read and tick a checkbox:
+  “I have read and agree to the Wholesale Terms, Confidentiality Terms and Privacy Notice.”
+* Then they press “Accept & Continue”
+* Save the acceptance to the backend
+
+Do not allow them to continue without ticking the checkbox.
+
+Store:
+
+* user_id
+* business/customer ID if available
+* business name if available
+* email
+* terms_version
+* accepted_at timestamp
+* device/platform if available
+* app version if available
+* IP address only if already available in the backend stack
+* pricing_version if available
+
+Use a constant for the current terms version, for example:
+WHOLESALE_TERMS_VERSION = "2026-06-24-v1"
+
+If we update the version later, users must accept again.
+
+2. Backend Database / Tables
+
+Add the required database migration or schema changes using the existing database system.
+
+Create or update tables for:
+
+A) wholesale_terms_acceptances
+Fields:
+
+* id
+* user_id
+* business_id nullable
+* business_name nullable
+* email nullable
+* terms_version
+* accepted_at
+* device_platform nullable
+* app_version nullable
+* ip_address nullable
+* created_at
+
+B) wholesale_security_events
+Fields:
+
+* id
+* user_id
+* business_id nullable
+* business_name nullable
+* email nullable
+* event_type
+* screen_name
+* terms_version nullable
+* pricing_version nullable
+* device_platform nullable
+* app_version nullable
+* metadata json nullable
+* created_at
+
+event_type examples:
+
+* pricing_viewed
+* screenshot_detected
+* screen_recording_detected
+* wholesale_terms_accepted
+* wholesale_access_blocked_terms_not_accepted
+
+Make sure all writes are secure and tied to the authenticated user. Do not allow normal users to read other users’ security logs.
+
+3. Wholesale Pricing Watermark
+
+On all wholesale pricing/product/order screens, add a subtle repeated watermark overlay.
+
+The watermark should include:
+
+* Business name if available
+* User email if available
+* Current date/time
+* “Confidential Wholesale Pricing”
+
+Example:
+“ABC Café • [user@email.com](mailto:user@email.com) • 24 Jun 2026 • Confidential Wholesale Pricing”
+
+It should be visible enough that screenshots can be traced, but not so heavy that it ruins the UI.
+
+Make the watermark reusable as a component:
+WholesaleConfidentialWatermark
+
+Apply it only to wholesale sensitive screens:
+
+* wholesale pricing
+* wholesale product list
+* wholesale product detail
+* wholesale cart/order screen
+* any screen where wholesale pricing is visible
+
+Do not apply it to normal customer screens.
+
+4. Screenshot / Screen Recording Protection
+
+Add screenshot and screen capture detection/protection where the platform supports it.
+
+Use the safest supported approach for the current app stack.
+
+If this is Expo/React Native, check whether expo-screen-capture is already installed.
+
+* If it is installed, use it.
+* If it is not installed, add it only if compatible with the current Expo SDK.
+* Do not add broken native dependencies.
+
+Expected behaviour:
+
+* On sensitive wholesale screens, enable screen capture protection where supported.
+* On Android, prevent screenshots where supported.
+* On iOS, detect screenshots where supported and log the event after the screenshot is taken.
+* If screen recording detection is possible, log it too.
+* If the platform does not support something, fail gracefully and do not crash the app.
+
+When a screenshot is detected:
+
+* Log to wholesale_security_events
+* event_type = screenshot_detected
+* screen_name = current screen name
+* Include metadata such as platform, route name, and any available device info
+* Show a subtle warning toast/modal:
+  “Screenshot detected. Wholesale pricing is confidential and must not be copied, shared or distributed.”
+
+Do not claim we can stop all screenshots on every platform. Just implement the best available protection.
+
+5. Log Pricing Views
+
+Whenever a wholesale user opens a screen where pricing is visible, log:
+event_type = pricing_viewed
+screen_name = current screen name
+
+Avoid spamming the backend every second. Only log once per screen visit or route focus.
+
+6. Admin / Manager View
+
+Add a clean admin screen called:
+“Wholesale Security Logs”
+
+Only admins/managers should access this screen.
+
+Show:
+
+* Customer/business name
+* Email
+* Event type
+* Screen name
+* Date/time
+* Platform
+* Terms version
+* Pricing version if available
+
+Add filters if easy:
+
+* event type
+* business/customer
+* date range
+
+Do not overcomplicate it. Clean table/list is enough.
+
+7. Terms Text
+
+Add the terms content in a clean maintainable file/component so I can edit it later.
+
+Use this draft text:
+
+Wholesale Terms & Conditions
+
+By accessing wholesale pricing inside this app, you agree that all wholesale pricing, discounts, product information, account-specific offers and ordering details are confidential and provided only to your approved business account.
+
+You must not copy, screenshot, screen record, download, publish, forward, share, disclose or make wholesale pricing or account information available to any third party without written approval.
+
+Wholesale access is for the approved business only. Account sharing, unauthorised access or use of another business account is not permitted.
+
+Any breach of these terms may result in immediate suspension or cancellation of wholesale access, cancellation of wholesale pricing privileges, refusal of future orders and legal action where necessary to protect our confidential information, business interests and losses.
+
+The app may record security-related activity on wholesale screens, including pricing views, screenshot detection where supported, device/platform details and acceptance of these terms. This information is used to protect confidential wholesale pricing and manage account security.
+
+By continuing, you confirm that you are authorised to accept these terms on behalf of the approved wholesale business.
+
+8. UX Requirements
+
+Keep the design high-end, simple and clean.
+Use the existing app design system.
+Do not make it look scary or messy.
+The flow should feel professional:
+
+Approved wholesale user → Terms screen → Accept → Wholesale access opens.
+
+If already accepted latest version:
+Go straight to wholesale as normal.
+
+If not approved:
+Keep the existing not-approved flow exactly as it is.
+
+9. Code Quality
+
+Please:
+
+* Reuse existing hooks/services/components where possible
+* Add clear TypeScript types
+* Add error handling
+* Avoid duplicate code
+* Do not break existing customer app flows
+* Do not change unrelated checkout/cart/rewards logic
+* Do not rename existing routes unless required
+* Make the new feature easy to find and maintain
+
+10. Testing Checklist
+
+After implementation, confirm:
+
+* Non-approved wholesale user still cannot access wholesale
+* Approved user without terms acceptance is blocked by terms screen
+* Checkbox must be ticked before acceptance
+* Acceptance saves correctly to backend
+* User with latest terms accepted can access wholesale
+* Updating WHOLESALE_TERMS_VERSION forces user to accept again
+* Watermark appears only on wholesale pricing screens
+* Pricing view events are logged
+* Screenshot events log where platform supports it
+* App does not crash on unsupported screenshot detection platforms
+* Admin can view wholesale security logs
+* Normal customer screens are unchanged
+
+Please implement this carefully and show me the files changed, database changes, and any package added.

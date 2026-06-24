@@ -15,6 +15,8 @@ import { useRefreshControl } from '@/hooks/useRefreshControl';
 import { useQuery } from '@tanstack/react-query';
 import { generateInvoiceHtml, type InvoiceLine, type InvoicePdfData } from '@/lib/invoicePdf';
 import { api, getWholesaleInvoiceUrl } from '@/lib/api';
+import WholesaleConfidentialWatermark from '@/components/wholesale/WholesaleConfidentialWatermark';
+import { useWholesaleScreenSecurity } from '@/hooks/useWholesaleScreenSecurity';
 import type { Invoice } from '@/types';
 import { normalizeOrderItems } from '@/lib/orderItems';
 
@@ -332,6 +334,8 @@ export default function WholesaleOrdersScreen() {
     rawInvoiceOrders.map(o => [o.id, mapOrderToInvoice(o)])
   );
   const account = accountData?.data;
+
+  useWholesaleScreenSecurity({ screenName: 'WholesaleOrders' });
   const cards   = cardsData?.data ?? [];
   const defCard = cards.find((c: any) => c.isDefault) ?? cards[0];
 
@@ -402,6 +406,7 @@ export default function WholesaleOrdersScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: BG }}>
+      <WholesaleConfidentialWatermark businessName={account?.companyName ?? undefined} email={account?.email ?? undefined} />
       <OrderDetailModal
         order={selectedOrder}
         invoice={selectedInvoice}

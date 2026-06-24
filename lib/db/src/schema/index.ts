@@ -31,3 +31,4 @@ export * from "./pos_surcharges";
 export * from "./registers";
 export * from "./pos_daily_summaries";
 export * from "./vault";
+export * from "./wholesale_terms";

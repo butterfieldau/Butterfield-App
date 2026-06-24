@@ -30,6 +30,7 @@ import invoicesRouter from "./invoices.js";
 import posRouter from "./pos.js";
 import linklyNotificationsRouter from "./linkly-notifications.js";
 import vaultRouter from "./vault.js";
+import { wholesaleTermsRouter, directorWholesaleSecurityRouter } from "./wholesale-terms.js";
 
 const router: IRouter = Router();
 
@@ -63,6 +64,8 @@ router.use("/linkly", linklyNotificationsRouter);
 router.use("/pos", posRouter);
 router.use(adminSeedRouter);
 router.use("/vault", vaultRouter);
+router.use("/wholesale", wholesaleTermsRouter);
+router.use("/director", directorWholesaleSecurityRouter);
 router.use(miscRouter);
 
 export default router;

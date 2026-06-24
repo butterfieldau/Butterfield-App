@@ -352,6 +352,12 @@ export const api = {
       request<{ data: WholesaleAccount }>('/wholesale/account/business-hours', { method: 'PATCH', body: JSON.stringify({ businessHours }) }),
     deliverySchedule: () =>
       request<{ data: { slots: WholesaleDeliverySlot[] } }>('/wholesale/delivery-schedule'),
+    termsStatus: () =>
+      request<{ accepted: boolean; currentVersion: string; acceptedVersion: string | null }>('/wholesale/terms/status'),
+    acceptTerms: (data: { devicePlatform?: string; appVersion?: string }) =>
+      request<{ success: boolean; termsVersion: string }>('/wholesale/terms/accept', { method: 'POST', body: JSON.stringify(data) }),
+    logSecurityEvent: (data: { eventType: string; screenName: string; termsVersion?: string; pricingVersion?: string; devicePlatform?: string; appVersion?: string; metadata?: Record<string, unknown> }) =>
+      request<{ success: boolean }>('/wholesale/security/event', { method: 'POST', body: JSON.stringify(data) }),
   },
   delivery: {
     config: () => request<{ data: RetailDeliveryConfig }>('/delivery-config'),
@@ -585,7 +591,16 @@ export const api = {
       request<{ data: { bytes: string } }>('/director/printer/bytes', { method: 'POST', body: JSON.stringify(job ? { job } : {}) }),
     homeBanner:          () => request<{ data: HomeBannerCarouselConfig }>('/director/home-banner'),
     updateHomeBanner:    (config: HomeBannerCarouselConfig) => request<{ data: HomeBannerCarouselConfig }>('/director/home-banner', { method: 'PATCH', body: JSON.stringify(config) }),
-    wholesale:           () => request<{ data: WholesaleAccount[] }>('/director/wholesale'),
+    wholesale:                 () => request<{ data: WholesaleAccount[] }>('/director/wholesale'),
+    wholesaleSecurityEvents:   (params?: { eventType?: string; businessName?: string }) => {
+      const qs = new URLSearchParams();
+      if (params?.eventType)    qs.set('eventType', params.eventType);
+      if (params?.businessName) qs.set('businessName', params.businessName);
+      const q = qs.toString();
+      return request<{ data: any[] }>(`/director/wholesale-security/events${q ? `?${q}` : ''}`);
+    },
+    wholesaleTermsAcceptances: () =>
+      request<{ data: any[] }>('/director/wholesale-security/acceptances'),
     wholesaleInvoicesList: () => request<{ data: any[] }>('/director/wholesale/invoices'),
     markWholesaleInvoicePaid: (orderId: string, paymentReference?: string) =>
       request<{ data: any }>(`/director/wholesale/invoices/${orderId}/mark-paid`, {

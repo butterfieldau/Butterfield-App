@@ -16,6 +16,8 @@ import { getPalette } from '@/constants/categoryColors';
 import { AddressSearchInput } from '@/components/AddressSearchInput';
 import { useAuth } from '@/context/AuthContext';
 import { api, type ApiProduct } from '@/lib/api';
+import WholesaleConfidentialWatermark from '@/components/wholesale/WholesaleConfidentialWatermark';
+import { useWholesaleScreenSecurity } from '@/hooks/useWholesaleScreenSecurity';
 import {
   formatDateChip, formatTime, getDeliveryDates, getPickupDates,
   getPickupTimeMins, getSydneyNow, isSameDay,
@@ -155,6 +157,8 @@ function WholesaleCartScreenInner({ stripeReady }: { stripeReady: boolean }) {
   });
   const account          = accountData?.data ?? null;
   const deliveryFeeCents = account?.deliveryFeeCents ?? 0;
+
+  useWholesaleScreenSecurity({ screenName: 'WholesaleCart' });
   const minOrderCents: number = (account?.minOrderCents ?? 0) > 0
     ? (account?.minOrderCents ?? 0)
     : (account?.tier?.minOrderCents ?? 0);
@@ -419,6 +423,7 @@ function WholesaleCartScreenInner({ stripeReady }: { stripeReady: boolean }) {
 
   return (
     <View style={{ flex: 1, backgroundColor: BG }}>
+      <WholesaleConfidentialWatermark businessName={account?.companyName ?? undefined} email={account?.email ?? undefined} />
       {/* ── PAGE HEADER ────────────────────────────────────────────────────── */}
       <View style={{ paddingHorizontal: 16, paddingTop: 14, paddingBottom: 10, flexDirection: 'row', alignItems: 'baseline', gap: 10 }}>
         <Text style={{ fontSize: 28, fontWeight: '700', color: TEXT }}>Cart</Text>

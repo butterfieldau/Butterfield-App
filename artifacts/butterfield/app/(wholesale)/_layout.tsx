@@ -1,10 +1,13 @@
 import { Redirect, Tabs } from 'expo-router';
-import React from 'react';
-import { StatusBar, View } from 'react-native';
+import React, { useCallback } from 'react';
+import { ActivityIndicator, StatusBar, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/context/AuthContext';
 import { getHomeRouteForRole } from '@/lib/roleRoutes';
 import { FloatingInternalTabBar } from '@/components/FloatingTabBar';
+import { api } from '@/lib/api';
+import WholesaleTermsScreen from './terms';
 
 const BG   = '#EFF6FF';
 const BLUE = '#1493FF';
@@ -22,9 +25,41 @@ const VISIBLE: string[] = ['index', 'catalog', 'cart', 'orders', 'profile'];
 export default function WholesaleLayout() {
   const { user } = useAuth();
   const insets = useSafeAreaInsets();
+  const queryClient = useQueryClient();
+
+  const { data: termsStatus, isLoading: termsLoading } = useQuery({
+    queryKey: ['wholesale-terms-status'],
+    queryFn:  () => api.wholesale.termsStatus(),
+    enabled:  !!user && user.role === 'wholesale',
+    staleTime: 5 * 60 * 1000,
+    retry: 2,
+  });
+
+  const handleTermsAccepted = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: ['wholesale-terms-status'] });
+  }, [queryClient]);
 
   if (!user) return <Redirect href="/(customer)" />;
   if (user.role !== 'wholesale') return <Redirect href={getHomeRouteForRole(user.role)} />;
+
+  if (termsLoading) {
+    return (
+      <View style={{ flex: 1, backgroundColor: BG, alignItems: 'center', justifyContent: 'center' }}>
+        <StatusBar barStyle="dark-content" backgroundColor={BG} />
+        <ActivityIndicator color={BLUE} size="large" />
+      </View>
+    );
+  }
+
+  if (termsStatus && !termsStatus.accepted) {
+    return (
+      <View style={{ flex: 1, backgroundColor: '#F8FAFF' }}>
+        <StatusBar barStyle="dark-content" backgroundColor="#F8FAFF" />
+        <View style={{ height: insets.top, backgroundColor: '#F8FAFF' }} />
+        <WholesaleTermsScreen onAccepted={handleTermsAccepted} />
+      </View>
+    );
+  }
 
   return (
     <View style={{ flex: 1, backgroundColor: BG }}>
@@ -54,6 +89,7 @@ export default function WholesaleLayout() {
         <Tabs.Screen name="profile"  options={{ title: 'Account'   }} />
         <Tabs.Screen name="invoices"  options={{ href: null }} />
         <Tabs.Screen name="addresses" options={{ href: null }} />
+        <Tabs.Screen name="terms"     options={{ href: null }} />
       </Tabs>
     </View>
   );

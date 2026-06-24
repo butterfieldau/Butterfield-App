@@ -189,6 +189,12 @@ const ALL_CATEGORIES: Category[] = [
           { icon: 'truck', label: 'Delivery Settings', sub: 'Cutoff times, delivery windows & order reminders', color: BLUE, directorOnly: true, onPress: () => router.push('/director-wholesale-delivery' as any) },
         ],
       },
+      {
+        label: 'Security & Compliance',
+        items: [
+          { icon: 'shield', label: 'Wholesale Security Logs', sub: 'Pricing views, screenshots & terms acceptances', color: BLUE, perm: 'users', onPress: () => router.push('/director-wholesale-security' as any) },
+        ],
+      },
     ],
   },
 
