@@ -9,7 +9,7 @@ import {
   saveStoreConfig, saveLoyaltyConfig, getPosLastSyncedAt,
 } from '@/lib/posCache';
 import { sendRegisterSummaryPrint, sendOpenDrawer } from '@/lib/printer';
-import { buildRegisterSummaryPrintLines, type ProductDetail } from '../types';
+import { buildRegisterSummaryPrintLines, type ProductDetail, type AllChannelsTodaySummary } from '../types';
 
 export function usePosQueries({
   queryClient,
@@ -127,8 +127,18 @@ export function usePosQueries({
     const store = storeData as any;
     if (!store?.printerIp) { Alert.alert('No Printer', 'Configure a printer IP in POS settings to print the daily register summary.'); return; }
     const fetchBytes = isShopDisplay ? api.shopDisplay.printerBytes : api.director.printerBytes;
-    await sendRegisterSummaryPrint({ title: 'Daily Register Summary', lines: buildRegisterSummaryPrintLines(report), printerBrand: store.printerBrand ?? 'epson' }, store.printerIp, store.printerPort ?? 9100, fetchBytes);
-  }, [isShopDisplay, storeData]);
+    const state = (registerData as any)?.data ?? null;
+    let channels: AllChannelsTodaySummary | undefined;
+    if (state) {
+      const posTotal = report.summary?.totalSalesCents ?? 0;
+      const inAppTotal = state.inAppOrders?.revenueCents ?? 0;
+      const inAppCount = state.inAppOrders?.count ?? 0;
+      const wholesaleTotal = state.wholesaleOrders?.revenueCents ?? 0;
+      const wsCount = state.wholesaleOrders?.count ?? 0;
+      channels = { posTotal, inAppTotal, inAppCount, wholesaleTotal, wsCount, grandTotal: posTotal + inAppTotal + wholesaleTotal };
+    }
+    await sendRegisterSummaryPrint({ title: 'Daily Register Summary', lines: buildRegisterSummaryPrintLines(report, channels), printerBrand: store.printerBrand ?? 'epson' }, store.printerIp, store.printerPort ?? 9100, fetchBytes);
+  }, [isShopDisplay, storeData, registerData]);
 
   const openDrawerWithTracking = useCallback(async () => {
     setPrinterDrawerBusy(true);

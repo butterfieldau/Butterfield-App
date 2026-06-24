@@ -171,14 +171,23 @@ export function ticketTotal(t: Ticket): number {
 
 import type { RegisterSessionReport } from '@/lib/api';
 
-export function buildRegisterSummaryPrintLines(report: RegisterSessionReport): string[] {
+export interface AllChannelsTodaySummary {
+  posTotal: number;
+  inAppTotal: number;
+  inAppCount: number;
+  wholesaleTotal: number;
+  wsCount: number;
+  grandTotal: number;
+}
+
+export function buildRegisterSummaryPrintLines(report: RegisterSessionReport, channels?: AllChannelsTodaySummary): string[] {
   const s = report.summary;
   const closeMethod = report.closeMethod === 'auto' ? 'Auto Close' : 'Manual Close';
   const staffLine = report.closedByName ?? report.openedByName ?? 'Not recorded';
   const actualCash = s.actualCountedCashCents === null ? 'Not entered' : fmtCents(s.actualCountedCashCents);
   const variance = s.varianceCents === null ? 'Not calculated' : fmtCents(s.varianceCents);
   const notes = [report.closeNote, report.varianceNote].filter(Boolean).join(' | ');
-  return [
+  const lines: string[] = [
     'Date\t' + fmtTradingDate(report.tradingDate),
     'Register\t' + report.registerName,
     'Location\t' + (report.registerLocation ?? 'Butterfield'),
@@ -200,6 +209,17 @@ export function buildRegisterSummaryPrintLines(report: RegisterSessionReport): s
     '---',
     'Notes\t' + (notes || 'None'),
   ];
+  if (channels) {
+    lines.push(
+      '===',
+      'ALL CHANNELS TODAY',
+      'POS\t' + fmtCents(channels.posTotal),
+      'Customer App\t' + fmtCents(channels.inAppTotal) + ' (' + channels.inAppCount + ' order' + (channels.inAppCount === 1 ? '' : 's') + ')',
+      'Wholesale\t' + fmtCents(channels.wholesaleTotal) + ' (' + channels.wsCount + ' order' + (channels.wsCount === 1 ? '' : 's') + ')',
+      'Grand Total\t' + fmtCents(channels.grandTotal),
+    );
+  }
+  return lines;
 }
 
 import type { PosOrderItem, PosLoyaltyResult } from '@/lib/api';
