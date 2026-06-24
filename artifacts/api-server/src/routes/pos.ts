@@ -1512,7 +1512,7 @@ router.get('/orders', async (req, res) => {
         o.id,
         o.order_number,
         o.created_at,
-        TO_CHAR(o.created_at, 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS created_at_iso,
+        TO_CHAR(o.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS created_at_iso,
         o.total_cents,
         o.status,
         o.payment_method,
