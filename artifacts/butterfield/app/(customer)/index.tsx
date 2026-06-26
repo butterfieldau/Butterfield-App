@@ -167,7 +167,7 @@ export default function CustomerHome() {
         showsVerticalScrollIndicator={false}
         scrollEventThrottle={16}
         onScroll={scrollHandler}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={BLUE} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={BLUE} progressViewOffset={insets.top} />}
       >
         {/* ── EDITORIAL HERO ── */}
         <View style={[s.heroCard, { marginHorizontal: hPad, marginTop: insets.top + 12, paddingTop: 22 }]}>
