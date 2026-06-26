@@ -53,6 +53,7 @@ export default function DirectorOrdersScreen() {
     drillMode?: string;
     drillValue?: string;
     tab?: string;
+    filterParam?: string;
   }>();
 
   const [channelTab, setChannelTab] = useState<'app' | 'pos'>('app');
@@ -119,10 +120,20 @@ export default function DirectorOrdersScreen() {
       // Handle tab deep-link param
       if (params.tab === 'pos' && !isStaff) {
         setChannelTab('pos');
+      } else if (params.tab === 'wholesale') {
+        setChannelTab('app');
+        setFilter('wholesale');
+        setViewMode('week');
+        setDrillHour(null);
+        setProductFilter(null);
       } else if (params.tab === 'app') {
         setChannelTab('app');
       }
-    }, [isStaff, params.drillMode, params.drillValue, params.tab]),
+      // Allow caller to override the status filter chip
+      if (params.filterParam && params.tab !== 'wholesale') {
+        setFilter(params.filterParam);
+      }
+    }, [isStaff, params.drillMode, params.drillValue, params.tab, params.filterParam]),
   );
 
   const { refreshing, onRefresh } = useRefreshControl(refetch);

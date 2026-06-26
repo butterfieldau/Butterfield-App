@@ -193,7 +193,7 @@ function DirectorDashboardInner({ onScroll }: { onScroll?: (e: any) => void }) {
                 <View style={{ flexDirection: 'row', gap: 10 }}>
                   {/* App */}
                   <Pressable
-                    onPress={() => { Haptics.selectionAsync(); router.push({ pathname: '/(director)/orders', params: { tab: 'app' } } as any); }}
+                    onPress={() => { Haptics.selectionAsync(); router.push({ pathname: '/(director)/orders', params: { tab: 'app', filterParam: 'all' } } as any); }}
                     style={[styles.channelCard, { flex: 1 }]}
                   >
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 }}>
@@ -223,7 +223,7 @@ function DirectorDashboardInner({ onScroll }: { onScroll?: (e: any) => void }) {
                   </Pressable>
                   {/* Wholesale */}
                   <Pressable
-                    onPress={() => { Haptics.selectionAsync(); router.push({ pathname: '/(director)/orders', params: { tab: 'app' } } as any); }}
+                    onPress={() => { Haptics.selectionAsync(); router.push({ pathname: '/(director)/orders', params: { tab: 'wholesale' } } as any); }}
                     style={[styles.channelCard, { flex: 1 }]}
                   >
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 }}>
@@ -325,7 +325,7 @@ function DirectorDashboardInner({ onScroll }: { onScroll?: (e: any) => void }) {
               <View style={styles.kpiGrid}>
                 {/* Tier 1 — requires immediate action */}
                 <KpiTile icon="zap"            label="Active orders"    value={s?.orders.active      ?? 0} color={GREEN}  alert={(s?.orders.active ?? 0) > 0}       onPress={() => router.navigate('/(director)/orders' as any)} />
-                <KpiTile icon="package"        label="WS pending"       value={s?.orders.wholesaleNew ?? 0} color={AMBER} alert={(s?.orders.wholesaleNew ?? 0) > 0}  onPress={() => router.navigate('/(director)/orders' as any)} />
+                <KpiTile icon="package"        label="WS pending"       value={s?.orders.wholesaleNew ?? 0} color={AMBER} alert={(s?.orders.wholesaleNew ?? 0) > 0}  onPress={() => { Haptics.selectionAsync(); router.push({ pathname: '/(director)/orders', params: { tab: 'wholesale' } } as any); }} />
                 <KpiTile icon="alert-octagon"  label="Open issues"      value={s?.issues.open        ?? 0} color={RED}    alert={(s?.issues.open ?? 0) > 0}          onPress={() => router.push({ pathname: '/(director)/staffhub', params: { tab: 'issues' } } as any)} />
                 <KpiTile icon="package"        label="Sold out"         value={s?.products.soldOut   ?? 0} color={RED}    alert={(s?.products.soldOut ?? 0) > 0}     onPress={() => router.navigate('/(director)/products' as any)} />
                 {/* Tier 2 — today's key metrics */}
