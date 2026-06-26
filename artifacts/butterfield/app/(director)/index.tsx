@@ -46,6 +46,14 @@ function DirectorDashboardInner({ onScroll }: { onScroll?: (e: any) => void }) {
     placeholderData: keepPreviousData,
   });
 
+  const { data: sparklinesData, refetch: refetchSparklines } = useQuery({
+    queryKey: ['director-sparklines'],
+    queryFn: () => api.director.sparklines(),
+    refetchInterval: 60000,
+    placeholderData: keepPreviousData,
+    staleTime: 5 * 60 * 1000,
+  });
+
   const [showRevPicker, setShowRevPicker]     = useState(false);
   const [customRevTotal, setCustomRevTotal]   = useState<number | null>(null);
   const [customRevRange, setCustomRevRange]   = useState<{ from: Date; to: Date } | null>(null);
@@ -71,7 +79,7 @@ function DirectorDashboardInner({ onScroll }: { onScroll?: (e: any) => void }) {
 
   const scrollRef = useRef(null);
   useScrollToTop(scrollRef);
-  const { refreshing, onRefresh } = useRefreshControl(refetch, refetchActivity, refetchInsights);
+  const { refreshing, onRefresh } = useRefreshControl(refetch, refetchActivity, refetchInsights, refetchSparklines);
 
   return (
     <ScrollView
@@ -248,6 +256,8 @@ function DirectorDashboardInner({ onScroll }: { onScroll?: (e: any) => void }) {
                 newCust={s.revenue.newCustomersToday ?? 0}
                 returningCust={s.revenue.returningCustomersToday ?? 0}
                 totalSessions={insights?.totalSessions ?? 0}
+                aovSparkline={sparklinesData?.data?.aov}
+                sessionsSparkline={sparklinesData?.data?.sessions}
               />
             )}
 

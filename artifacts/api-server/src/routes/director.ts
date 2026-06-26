@@ -71,7 +71,7 @@ function resolveDirectorPermission(method: string, path: string): ManagerPermiss
   if (path === '/shop-displays' || path.startsWith('/shop-displays/')) return 'director_only';
 
   // Dashboard stats + activity feed
-  if (path === '/stats' || path === '/stats/revenue' || path === '/stats/hourly-revenue' || path === '/stats/top-products' || path === '/stats/insights' || path === '/sessions') return 'dashboard';
+  if (path === '/stats' || path === '/stats/revenue' || path === '/stats/hourly-revenue' || path === '/stats/top-products' || path === '/stats/insights' || path === '/sessions' || path === '/sparklines') return 'dashboard';
   if (path === '/activity') return 'dashboard';
   // Deleted accounts — director/master only
   if (path.startsWith('/deleted-accounts')) return 'director_only';
@@ -553,6 +553,66 @@ router.get('/stats/insights', async (req, res) => {
   } catch (e) {
     req.log.error(e, 'insights error');
     return res.status(500).json({ error: 'Failed to load insights' });
+  }
+});
+
+// ── 7-day sparklines for AOV and Sessions tiles ──────────────────────────────
+router.get('/sparklines', async (req, res) => {
+  try {
+    const startOfToday = sydneyStartOfDay();
+    // Build 7 day window: index 0 = 6 days ago, index 6 = today
+    const dayStarts = Array.from({ length: 7 }, (_, i) =>
+      new Date(startOfToday.getTime() - (6 - i) * 24 * 60 * 60 * 1000),
+    );
+    const windowStart = dayStarts[0];
+    const windowEnd   = new Date(dayStarts[6].getTime() + 24 * 60 * 60 * 1000);
+
+    const [orderRows, loginRows] = await Promise.all([
+      db.select({ createdAt: ordersTable.createdAt, totalCents: ordersTable.totalCents })
+        .from(ordersTable)
+        .where(and(
+          gte(ordersTable.createdAt, windowStart),
+          lt(ordersTable.createdAt, windowEnd),
+          sql`${ordersTable.status} NOT IN ('cancelled','refunded','voided')`,
+        )),
+      db.select({ lastLogin: usersTable.lastLogin })
+        .from(usersTable)
+        .where(and(
+          isNotNull(usersTable.lastLogin),
+          gte(usersTable.lastLogin as any, windowStart),
+          lt(usersTable.lastLogin as any, windowEnd),
+        )),
+    ]);
+
+    // Partition by day (dayStarts are UTC timestamps = Sydney-midnight in UTC)
+    const aovCents: number[]   = [];
+    const sessions: number[]   = [];
+
+    for (let i = 0; i < 7; i++) {
+      const start = dayStarts[i].getTime();
+      const end   = start + 24 * 60 * 60 * 1000;
+
+      let rev = 0, cnt = 0, sess = 0;
+      for (const o of orderRows) {
+        const t = new Date(o.createdAt).getTime();
+        if (t >= start && t < end) { rev += Number(o.totalCents ?? 0); cnt++; }
+      }
+      for (const u of loginRows) {
+        if (u.lastLogin) {
+          const t = new Date(u.lastLogin).getTime();
+          if (t >= start && t < end) sess++;
+        }
+      }
+
+      aovCents.push(cnt > 0 ? Math.round(rev / cnt) : 0);
+      // sessions = unique app engagements proxy: logins + orders that day
+      sessions.push(sess + cnt);
+    }
+
+    return res.json({ data: { aov: aovCents, sessions } });
+  } catch (e) {
+    req.log.error(e, 'sparklines error');
+    return res.status(500).json({ error: 'Failed to load sparklines' });
   }
 });
 

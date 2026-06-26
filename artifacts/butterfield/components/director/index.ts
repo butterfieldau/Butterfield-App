@@ -6,6 +6,7 @@ export { default as SectionLoader }         from './SectionLoader';
 export { default as KpiTile }               from './KpiTile';
 export { default as QuickBtn }              from './QuickBtn';
 export { default as DeltaBadge }            from './DeltaBadge';
+export { default as Sparkline }             from './Sparkline';
 
 // ── Analytics / Reports ──────────────────────────────────────────────────────
 export { default as ReportSectionHeader }   from './ReportSectionHeader';
