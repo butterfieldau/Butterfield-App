@@ -496,7 +496,7 @@ export const api = {
     topProducts:         () => request<{ data: DirectorTopProduct[] }>('/director/stats/top-products'),
     activity:            () => request<{ data: DirectorActivityItem[] }>('/director/activity'),
     sessions:            () => request<{ data: { today: {hour:number;count:number}[]; lastWeek: {hour:number;count:number}[]; totalToday: number; totalLastWeek: number; pctChange: number|null; liveCount: number } }>('/director/sessions'),
-    insights:            () => request<{ data: { hourly: {hour:number;revenueCents:number}[]; sessions: {hour:number;count:number}[]; totalRevenueCents: number; totalSessions: number; liveCount: number } }>('/director/stats/insights'),
+    insights:            () => request<{ data: { hourly: {hour:number;revenueCents:number}[]; lastWeekHourly: {hour:number;revenueCents:number}[]; sessions: {hour:number;count:number}[]; totalRevenueCents: number; totalSessions: number; liveCount: number } }>('/director/stats/insights'),
     sparklines:          () => request<{ data: { aov: number[]; sessions: number[] } }>('/director/sparklines'),
     revenue:             (from: string, to: string) => request<{ data: { total: number; from: string; to: string } }>(`/director/stats/revenue?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`),
     deletedAccounts:     () => request<{ data: DeletedAccount[] }>('/director/deleted-accounts'),

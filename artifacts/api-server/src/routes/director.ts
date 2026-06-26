@@ -353,7 +353,7 @@ router.get('/stats', async (req, res) => {
         returningCustomersToday,
         dailyPacePct,
         projectedEodCents,
-        lastWeekCents: lastWeekTotalNum,
+        lastWeekCents: sameDayLastWeekNum,
       },
       staff: {
         clockedIn:  clockedIn.count,
@@ -511,7 +511,10 @@ router.get('/stats/insights', async (req, res) => {
     const startOfDay = sydneyStartOfDay(now);
     const endOfDay   = new Date(startOfDay.getTime() + 24 * 60 * 60 * 1000);
 
-    const [revenueResult, todayOrders, todayLogins] = await Promise.all([
+    const lastWeekStartOfDay = sydneyStartOfDay(new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000));
+    const lastWeekEndOfDay   = new Date(lastWeekStartOfDay.getTime() + 24 * 60 * 60 * 1000);
+
+    const [revenueResult, lastWeekRevenueResult, todayOrders, todayLogins] = await Promise.all([
       db.execute(sql`
         SELECT
           EXTRACT(HOUR FROM created_at::timestamptz AT TIME ZONE 'Australia/Sydney')::int AS hour,
@@ -524,19 +527,35 @@ router.get('/stats/insights', async (req, res) => {
         GROUP BY hour
         ORDER BY hour
       `),
+      db.execute(sql`
+        SELECT
+          EXTRACT(HOUR FROM created_at::timestamptz AT TIME ZONE 'Australia/Sydney')::int AS hour,
+          COALESCE(SUM(total_cents), 0)::bigint AS revenue_cents
+        FROM orders
+        WHERE created_at >= ${lastWeekStartOfDay}::timestamptz
+          AND created_at  < ${lastWeekEndOfDay}::timestamptz
+          AND status NOT IN ('cancelled','refunded','voided')
+        GROUP BY hour
+        ORDER BY hour
+      `),
       db.select({ createdAt: ordersTable.createdAt }).from(ordersTable)
         .where(gte(ordersTable.createdAt, startOfDay)),
       db.select({ lastLogin: usersTable.lastLogin }).from(usersTable)
         .where(and(isNotNull(usersTable.lastLogin), gte(usersTable.lastLogin as any, startOfDay))),
     ]);
 
-    // Revenue by hour
+    // Revenue by hour — today
     const revRows = ((revenueResult as any).rows ?? []) as Array<{ hour: number; revenue_cents: string | number }>;
     const revMap  = Object.fromEntries(revRows.map(r => [Number(r.hour), Number(r.revenue_cents)]));
     const hourly  = Array.from({ length: 24 }, (_, h) => ({ hour: h, revenueCents: revMap[h] ?? 0 }));
     const totalRevenueCents = hourly.reduce((a, h) => a + h.revenueCents, 0);
 
-    // Sessions by hour (orders + logins today)
+    // Revenue by hour — same day last week
+    const lwRevRows = ((lastWeekRevenueResult as any).rows ?? []) as Array<{ hour: number; revenue_cents: string | number }>;
+    const lwRevMap  = Object.fromEntries(lwRevRows.map(r => [Number(r.hour), Number(r.revenue_cents)]));
+    const lastWeekHourly = Array.from({ length: 24 }, (_, h) => ({ hour: h, revenueCents: lwRevMap[h] ?? 0 }));
+
+    // Sessions (kept for totalSessions tile)
     const sessByHour = new Array(24).fill(0);
     for (const o of todayOrders) sessByHour[sydneyHour(o.createdAt)]++;
     for (const u of todayLogins) if (u.lastLogin) sessByHour[sydneyHour(u.lastLogin)]++;
@@ -548,7 +567,7 @@ router.get('/stats/insights', async (req, res) => {
     ).length;
 
     return res.json({
-      data: { hourly, sessions, totalRevenueCents, totalSessions, liveCount },
+      data: { hourly, lastWeekHourly, sessions, totalRevenueCents, totalSessions, liveCount },
     });
   } catch (e) {
     req.log.error(e, 'insights error');

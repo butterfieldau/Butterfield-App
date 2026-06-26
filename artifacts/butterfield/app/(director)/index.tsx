@@ -176,7 +176,7 @@ function DirectorDashboardInner({ onScroll }: { onScroll?: (e: any) => void }) {
               {insights ? (
                 <HourlyInsightsChart
                   hours={insights.hourly}
-                  sessions={insights.sessions}
+                  lastWeekHourly={insights.lastWeekHourly ?? []}
                   totalRevenueCents={insights.totalRevenueCents}
                   lastWeekRevCents={s?.revenue.lastWeekCents ?? 0}
                 />

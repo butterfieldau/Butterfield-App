@@ -47,16 +47,15 @@ function fmtAUD(cents: number) {
 }
 
 interface InsightsHour { hour: number; revenueCents: number }
-interface InsightsSess { hour: number; count: number }
 
 export default function HourlyInsightsChart({
   hours,
-  sessions,
+  lastWeekHourly,
   totalRevenueCents,
   lastWeekRevCents,
 }: {
   hours: InsightsHour[];
-  sessions: InsightsSess[];
+  lastWeekHourly: InsightsHour[];
   totalRevenueCents: number;
   lastWeekRevCents: number;
 }) {
@@ -79,12 +78,13 @@ export default function HourlyInsightsChart({
   );
 
   const maxRev  = Math.max(...hours.filter(h => h.hour >= HOUR_START && h.hour <= HOUR_END).map(h => h.revenueCents), 1);
-  const maxSess = Math.max(...sessions.filter(s => s.hour >= HOUR_START && s.hour <= HOUR_END).map(s => s.count), 1);
+  const maxLW   = Math.max(...lastWeekHourly.filter(h => h.hour >= HOUR_START && h.hour <= HOUR_END).map(h => h.revenueCents), 1);
+  const maxBar  = Math.max(maxRev, maxLW);
 
-  const revMap:  Record<number, number> = {};
-  const sessMap: Record<number, number> = {};
-  hours.forEach(h    => { revMap[h.hour]  = h.revenueCents; });
-  sessions.forEach(s => { sessMap[s.hour] = s.count; });
+  const revMap: Record<number, number> = {};
+  const lwMap:  Record<number, number> = {};
+  hours.forEach(h         => { revMap[h.hour] = h.revenueCents; });
+  lastWeekHourly.forEach(h => { lwMap[h.hour]  = h.revenueCents; });
 
   return (
     <Pressable
@@ -104,7 +104,7 @@ export default function HourlyInsightsChart({
         </View>
         <View style={{ width: 1, height: 38, backgroundColor: BORDER, marginHorizontal: 14 }} />
         <View style={{ flex: 1 }}>
-          <Text style={{ fontSize: 9, fontWeight: '700', color: GREEN, letterSpacing: 1.5 }}>LAST WEEK'S REVENUE</Text>
+          <Text style={{ fontSize: 9, fontWeight: '700', color: GREEN, letterSpacing: 1.5 }}>SAME DAY LAST WEEK</Text>
           <Text style={{ fontSize: 22, fontWeight: '700', color: TEXT, letterSpacing: -0.5, marginTop: 2 }}>
             {fmtAUD(lastWeekRevCents)}
           </Text>
@@ -114,11 +114,11 @@ export default function HourlyInsightsChart({
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14, paddingHorizontal: 16, paddingBottom: 10 }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
           <View style={{ width: 8, height: 8, borderRadius: 2, backgroundColor: BLUE }} />
-          <Text style={{ fontSize: 10, color: MUTED, fontWeight: '500' }}>Revenue</Text>
+          <Text style={{ fontSize: 10, color: MUTED, fontWeight: '500' }}>Today</Text>
         </View>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
           <View style={{ width: 8, height: 8, borderRadius: 2, backgroundColor: GREEN }} />
-          <Text style={{ fontSize: 10, color: MUTED, fontWeight: '500' }}>Sessions</Text>
+          <Text style={{ fontSize: 10, color: MUTED, fontWeight: '500' }}>Last Week</Text>
         </View>
       </View>
 
@@ -139,17 +139,17 @@ export default function HourlyInsightsChart({
             <Line x1={0} y1={PAD_TOP + CHART_H} x2={SVG_W} y2={PAD_TOP + CHART_H} stroke={BORDER} strokeWidth={1} />
             {Array.from({ length: NUM_HOURS }, (_, i) => {
               const h          = HOUR_START + i;
-              const rev        = revMap[h]  ?? 0;
-              const sess       = sessMap[h] ?? 0;
+              const rev        = revMap[h] ?? 0;
+              const lw         = lwMap[h]  ?? 0;
               const isCurrent  = h === nowHour;
               const isPast     = h < nowHour;
               const isFuture   = !isCurrent && !isPast;
               const xRev       = GROUP_GAP / 2 + i * GROUP_W;
-              const xSess      = xRev + BAR_W + BAR_GAP;
-              const revH       = rev  > 0 ? Math.max((rev  / maxRev)  * CHART_H, 4) : isFuture ? 4 : 0;
-              const sessH      = sess > 0 ? Math.max((sess / maxSess) * CHART_H, 4) : isFuture ? 4 : 0;
+              const xLW        = xRev + BAR_W + BAR_GAP;
+              const revH       = rev > 0 ? Math.max((rev / maxBar) * CHART_H, 4) : isFuture ? 4 : 0;
+              const lwH        = lw  > 0 ? Math.max((lw  / maxBar) * CHART_H, 4) : isFuture ? 4 : 0;
               const revOp      = isCurrent ? 1 : isPast ? 0.85 : 0.15;
-              const sessOp     = isCurrent ? 1 : isPast ? 0.85 : 0.15;
+              const lwOp       = isCurrent ? 1 : isPast ? 0.85 : 0.15;
               const isSelected = selected === i;
               return (
                 <React.Fragment key={h}>
@@ -164,8 +164,8 @@ export default function HourlyInsightsChart({
                   {revH > 0 && (
                     <Rect x={xRev} y={PAD_TOP + CHART_H - revH} width={BAR_W} height={revH} rx={3} fill={BLUE} opacity={revOp} />
                   )}
-                  {sessH > 0 && (
-                    <Rect x={xSess} y={PAD_TOP + CHART_H - sessH} width={BAR_W} height={sessH} rx={3} fill={GREEN} opacity={sessOp} />
+                  {lwH > 0 && (
+                    <Rect x={xLW} y={PAD_TOP + CHART_H - lwH} width={BAR_W} height={lwH} rx={3} fill={GREEN} opacity={lwOp} />
                   )}
                 </React.Fragment>
               );
@@ -217,9 +217,9 @@ export default function HourlyInsightsChart({
       </ScrollView>
 
       {selected !== null && (() => {
-        const h    = HOUR_START + selected;
-        const rev  = revMap[h]  ?? 0;
-        const sess = sessMap[h] ?? 0;
+        const h   = HOUR_START + selected;
+        const rev = revMap[h] ?? 0;
+        const lw  = lwMap[h]  ?? 0;
         return (
           <Pressable
             onPress={() => {/* consume touch */}}
@@ -236,11 +236,11 @@ export default function HourlyInsightsChart({
             </Text>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
               <View style={{ width: 6, height: 6, borderRadius: 1, backgroundColor: BLUE }} />
-              <Text style={{ fontSize: 14, fontWeight: '700', color: '#fff' }}>{fmtAUD(rev)}</Text>
+              <Text style={{ fontSize: 13, fontWeight: '700', color: '#fff' }}>{fmtAUD(rev)}</Text>
             </View>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
               <View style={{ width: 6, height: 6, borderRadius: 1, backgroundColor: GREEN }} />
-              <Text style={{ fontSize: 14, fontWeight: '700', color: '#fff' }}>{sess} session{sess !== 1 ? 's' : ''}</Text>
+              <Text style={{ fontSize: 11, color: 'rgba(255,255,255,0.65)' }}>{fmtAUD(lw)} last wk</Text>
             </View>
           </Pressable>
         );
