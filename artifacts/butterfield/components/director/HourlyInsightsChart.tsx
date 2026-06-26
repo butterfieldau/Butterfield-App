@@ -53,14 +53,12 @@ export default function HourlyInsightsChart({
   hours,
   sessions,
   totalRevenueCents,
-  totalSessions,
-  liveCount,
+  lastWeekRevCents,
 }: {
   hours: InsightsHour[];
   sessions: InsightsSess[];
   totalRevenueCents: number;
-  totalSessions: number;
-  liveCount: number;
+  lastWeekRevCents: number;
 }) {
   const [selected, setSelected]   = useState<number | null>(null);
   const [scrollX, setScrollX]     = useState(0);
@@ -106,16 +104,10 @@ export default function HourlyInsightsChart({
         </View>
         <View style={{ width: 1, height: 38, backgroundColor: BORDER, marginHorizontal: 14 }} />
         <View style={{ flex: 1 }}>
-          <Text style={{ fontSize: 9, fontWeight: '700', color: GREEN, letterSpacing: 1.5 }}>SESSIONS TODAY</Text>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 }}>
-            <Text style={{ fontSize: 22, fontWeight: '700', color: TEXT, letterSpacing: -0.5 }}>{totalSessions}</Text>
-            {liveCount > 0 && (
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: GREEN + '22', borderRadius: 8, paddingHorizontal: 6, paddingVertical: 2 }}>
-                <View style={{ width: 5, height: 5, borderRadius: 3, backgroundColor: GREEN }} />
-                <Text style={{ fontSize: 9, fontWeight: '700', color: GREEN }}>{liveCount} LIVE</Text>
-              </View>
-            )}
-          </View>
+          <Text style={{ fontSize: 9, fontWeight: '700', color: GREEN, letterSpacing: 1.5 }}>LAST WEEK'S REVENUE</Text>
+          <Text style={{ fontSize: 22, fontWeight: '700', color: TEXT, letterSpacing: -0.5, marginTop: 2 }}>
+            {fmtAUD(lastWeekRevCents)}
+          </Text>
         </View>
       </View>
 

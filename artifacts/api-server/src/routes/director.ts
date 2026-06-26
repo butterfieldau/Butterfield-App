@@ -353,6 +353,7 @@ router.get('/stats', async (req, res) => {
         returningCustomersToday,
         dailyPacePct,
         projectedEodCents,
+        lastWeekCents: lastWeekTotalNum,
       },
       staff: {
         clockedIn:  clockedIn.count,

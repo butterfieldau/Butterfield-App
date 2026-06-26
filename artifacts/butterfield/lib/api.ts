@@ -2711,6 +2711,7 @@ export interface DirectorStats {
     returningCustomersToday?: number;
     dailyPacePct?: number | null;
     projectedEodCents?: number | null;
+    lastWeekCents?: number;
   };
   orders: {
     today: number;

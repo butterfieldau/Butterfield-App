@@ -1,14 +1,15 @@
 import React from 'react';
 import { View, Text } from 'react-native';
-import { CARD, BORDER, BLUE, AMBER, TEXT, MUTED, GLASS_SHADOW } from './directorColors';
+import { Feather } from '@expo/vector-icons';
+import { CARD, BORDER, BLUE, AMBER, TEAL, TEXT, MUTED, GLASS_SHADOW } from './directorColors';
 import DeltaBadge from './DeltaBadge';
 import { fmtAUD } from './dashboardHelpers';
 
 export default function AovCustomerRow({
-  aovCents, aovDelta, newCust, returningCust,
+  aovCents, aovDelta, newCust, returningCust, totalSessions,
 }: {
   aovCents: number; aovDelta: number | null | undefined;
-  newCust: number; returningCust: number;
+  newCust: number; returningCust: number; totalSessions: number;
 }) {
   const total  = newCust + returningCust;
   const newPct = total > 0 ? Math.round((newCust / total) * 100) : 0;
@@ -43,6 +44,16 @@ export default function AovCustomerRow({
             <View style={{ width: `${newPct}%` as any, height: '100%', backgroundColor: BLUE }} />
           </View>
         )}
+      </View>
+      <View style={cardStyle}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+          <View style={{ width: 26, height: 26, borderRadius: 8, backgroundColor: `${TEAL}18`, alignItems: 'center', justifyContent: 'center' }}>
+            <Feather name="activity" size={13} color={TEAL} />
+          </View>
+          <Text style={{ fontSize: 11, fontWeight: '700', color: MUTED, letterSpacing: 0.4 }}>SESSIONS</Text>
+        </View>
+        <Text style={{ fontSize: 20, fontWeight: '700', color: TEXT }}>{totalSessions}</Text>
+        <Text style={{ fontSize: 11, color: MUTED, fontWeight: '400', marginTop: 1 }}>today</Text>
       </View>
     </View>
   );

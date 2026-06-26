@@ -170,8 +170,7 @@ function DirectorDashboardInner({ onScroll }: { onScroll?: (e: any) => void }) {
                   hours={insights.hourly}
                   sessions={insights.sessions}
                   totalRevenueCents={insights.totalRevenueCents}
-                  totalSessions={insights.totalSessions}
-                  liveCount={insights.liveCount}
+                  lastWeekRevCents={s?.revenue.lastWeekCents ?? 0}
                 />
               ) : (
                 <View style={[styles.emptyCard, { paddingVertical: 28 }]}>
@@ -248,6 +247,7 @@ function DirectorDashboardInner({ onScroll }: { onScroll?: (e: any) => void }) {
                 aovDelta={s.revenue.aovDeltaPct}
                 newCust={s.revenue.newCustomersToday ?? 0}
                 returningCust={s.revenue.returningCustomersToday ?? 0}
+                totalSessions={insights?.totalSessions ?? 0}
               />
             )}
 
