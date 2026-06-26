@@ -36,6 +36,7 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }
   paid:    { label: 'Paid',    color: '#22C55E', bg: '#DCFCE7' },
   pending: { label: 'Pending', color: '#F59E0B', bg: '#FEF3C7' },
   overdue: { label: 'Overdue', color: '#DC2626', bg: '#FEE2E2' },
+  revised: { label: 'Revised', color: '#7C3AED', bg: '#EDE9FE' },
 };
 
 // ── Data helpers ─────────────────────────────────────────────────────────────
@@ -46,7 +47,11 @@ function mapOrderToInvoice(order: any): Invoice {
   const now       = new Date();
   let status: Invoice['status'];
   const normalizedInvoiceStatus = String(order.invoiceStatus ?? '').toLowerCase();
-  if (order.isPaid || String(order.stripePaymentStatus ?? '').toLowerCase() === 'paid' || normalizedInvoiceStatus === 'paid' || order.status === 'delivered') {
+  // 'revised' takes precedence over 'paid': a director may revise an invoice after
+  // payment (e.g. issued credit memo), and the badge must reflect the revision.
+  if (normalizedInvoiceStatus === 'revised') {
+    status = 'revised';
+  } else if (order.isPaid || String(order.stripePaymentStatus ?? '').toLowerCase() === 'paid' || normalizedInvoiceStatus === 'paid' || order.status === 'delivered') {
     status = 'paid';
   } else if (normalizedInvoiceStatus === 'voided' || normalizedInvoiceStatus === 'failed' || order.status === 'cancelled') {
     status = 'pending';
@@ -446,6 +451,10 @@ export default function WholesaleInvoices() {
           const isPdfLoading = loadingId === invoice.id;
           const isOverdue    = invoice.status === 'overdue';
           const lineCount    = getOrderLines(orderMap[invoice.id]).length;
+          const sourceOrder  = orderMap[invoice.id];
+          const isModified   = Array.isArray(sourceOrder?.editHistory) && sourceOrder.editHistory.length > 0;
+          const hasCreditMemo = (Array.isArray(sourceOrder?.creditMemos) && sourceOrder.creditMemos.length > 0)
+            || (Number(sourceOrder?.refundedCents ?? 0) > 0);
 
           return (
             <Pressable
@@ -459,6 +468,51 @@ export default function WholesaleInvoices() {
                   <Text style={ss.invoiceMeta}>
                     {invoice.date} · {lineCount} line{lineCount !== 1 ? 's' : ''}
                   </Text>
+                  {/* Modified / Credit badges — tap for dated change notes */}
+                  {(isModified || hasCreditMemo) && (
+                    <View style={{ flexDirection: 'row', gap: 5, marginTop: 4 }}>
+                      {isModified && (
+                        <Pressable
+                          onPress={(e) => {
+                            e.stopPropagation?.();
+                            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                            const history: any[] = sourceOrder?.editHistory ?? [];
+                            const itemEdits = history.filter((h: any) => h.type === 'item_edit' || (!h.type && h.itemsBefore));
+                            const lines = itemEdits.map((h: any) => {
+                              const d = new Date(h.editedAt).toLocaleDateString('en-AU', { day: '2-digit', month: 'short', year: 'numeric' });
+                              const by = h.editedBy ?? 'Director';
+                              const from = h.totalBefore != null ? `$${(h.totalBefore / 100).toFixed(2)}` : '?';
+                              const to   = h.totalAfter  != null ? `$${(h.totalAfter  / 100).toFixed(2)}` : '?';
+                              return `${d} by ${by}\n  ${from} → ${to}${h.reason ? `\n  "${h.reason}"` : ''}`;
+                            });
+                            Alert.alert('Order Modified', lines.length ? lines.join('\n\n') : 'Items were edited by a director.', [{ text: 'OK' }]);
+                          }}
+                          style={{ backgroundColor: '#EFF6FF', borderRadius: 5, paddingHorizontal: 6, paddingVertical: 2, borderWidth: 1, borderColor: '#BFDBFE' }}
+                        >
+                          <Text style={{ color: '#1D4ED8', fontWeight: '600', fontSize: 10 }}>MODIFIED</Text>
+                        </Pressable>
+                      )}
+                      {hasCreditMemo && (
+                        <Pressable
+                          onPress={(e) => {
+                            e.stopPropagation?.();
+                            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                            const memos: any[] = sourceOrder?.creditMemos ?? [];
+                            const lines = memos.map((m: any) => {
+                              const d = new Date(m.createdAt).toLocaleDateString('en-AU', { day: '2-digit', month: 'short', year: 'numeric' });
+                              const amt = `$${(m.amountCents / 100).toFixed(2)}`;
+                              const by = m.createdBy ?? 'Director';
+                              return `${d} — ${amt} by ${by}\n  "${m.reason ?? 'No reason given'}"`;
+                            });
+                            Alert.alert('Credit Notes', lines.length ? lines.join('\n\n') : 'A credit has been issued on this order.', [{ text: 'OK' }]);
+                          }}
+                          style={{ backgroundColor: '#FEF9C3', borderRadius: 5, paddingHorizontal: 6, paddingVertical: 2, borderWidth: 1, borderColor: '#FDE047' }}
+                        >
+                          <Text style={{ color: '#854D0E', fontWeight: '600', fontSize: 10 }}>CREDIT ISSUED</Text>
+                        </Pressable>
+                      )}
+                    </View>
+                  )}
                   <Text style={[ss.invoiceDue, isOverdue && { color: RED }]}>
                     Due {invoice.dueDate}
                   </Text>

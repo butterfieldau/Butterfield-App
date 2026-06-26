@@ -26,7 +26,7 @@ const NAVY   = '#1A2B4A';
 const RED    = '#DC2626';
 const TWO_WEEKS_MS = 14 * 24 * 60 * 60 * 1000;
 
-export default function OrderDetailModal({ order, visible, onClose, onStatusChange, onAcceptOrder, onPrintReceipt, onViewInvoice, printing, canCancelRefund }: {
+export default function OrderDetailModal({ order, visible, onClose, onStatusChange, onAcceptOrder, onPrintReceipt, onViewInvoice, printing, canCancelRefund, onEditWholesale, onAdjustWholesale, onSendRevisedInvoice }: {
   order: ApiOrder | null; visible: boolean; onClose: () => void;
   onStatusChange: (id: string, status: string, cancelReason?: string) => Promise<void>;
   onAcceptOrder: (id: string) => Promise<void>;
@@ -34,6 +34,9 @@ export default function OrderDetailModal({ order, visible, onClose, onStatusChan
   onViewInvoice: () => Promise<void>;
   printing: boolean;
   canCancelRefund: boolean;
+  onEditWholesale?: (order: ApiOrder) => void;
+  onAdjustWholesale?: (order: ApiOrder) => void;
+  onSendRevisedInvoice?: (order: ApiOrder) => void;
 }) {
   const insets = useSafeAreaInsets();
   const [updating, setUpdating] = useState(false);
@@ -43,7 +46,7 @@ export default function OrderDetailModal({ order, visible, onClose, onStatusChan
   const [pendingStatus, setPendingStatus] = useState('');
 
   if (!order) return null;
-  const isWholesale = order.orderSource === 'wholesale';
+  const isWholesale = order.orderSource === 'wholesale' || order.type === 'wholesale';
   const items = normalizeOrderItems(order.items);
   const colors = STATUS_COLORS[order.status] ?? { bg: '#F3F4F6', text: '#6B7280' };
   const label  = STATUS_LABEL[order.status] ?? order.status;
@@ -196,6 +199,45 @@ export default function OrderDetailModal({ order, visible, onClose, onStatusChan
               </>
             </Pressable>
           ) : null}
+          {isWholesale && (
+            <View style={{ flexDirection: 'row', gap: 8, marginTop: 2 }}>
+              {/* Edit Items: available for any unpaid wholesale order not yet dispatched/delivered/cancelled */}
+              {onEditWholesale && !order.isPaid && !['dispatched', 'delivered', 'cancelled', 'refunded', 'completed'].includes(order.status) && (
+                <Pressable
+                  onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); onEditWholesale(order); }}
+                  style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, height: 42, borderRadius: 12, backgroundColor: '#EFF6FF', borderWidth: 1, borderColor: BLUE + '50' }}
+                >
+                  <Feather name="edit-3" size={14} color={BLUE} />
+                  <Text style={{ color: BLUE, fontWeight: '600', fontSize: 13 }}>Edit Items</Text>
+                </Pressable>
+              )}
+              {/* Adjust / Credit: only for PAID wholesale orders (credit/refund against a paid invoice) */}
+              {onAdjustWholesale && order.isPaid && (
+                <Pressable
+                  onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); onAdjustWholesale(order); }}
+                  style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, height: 42, borderRadius: 12, backgroundColor: '#FEF2F2', borderWidth: 1, borderColor: '#FCA5A5' }}
+                >
+                  <Feather name="refresh-ccw" size={14} color={RED} />
+                  <Text style={{ color: RED, fontWeight: '600', fontSize: 13 }}>Adjust / Credit</Text>
+                </Pressable>
+              )}
+            </View>
+          )}
+          {isWholesale && onSendRevisedInvoice && ((order as any).editHistory?.length > 0 || (order as any).creditMemos?.length > 0) && (
+            <Pressable
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                Alert.alert('Send Revised Invoice', 'Resend an updated invoice email to the accounts email for this order?', [
+                  { text: 'Cancel', style: 'cancel' },
+                  { text: 'Send', onPress: () => onSendRevisedInvoice(order) },
+                ]);
+              }}
+              style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, height: 42, borderRadius: 12, backgroundColor: '#F5F3FF', borderWidth: 1, borderColor: '#C4B5FD', marginTop: 0 }}
+            >
+              <Feather name="send" size={14} color="#7C3AED" />
+              <Text style={{ color: '#7C3AED', fontWeight: '600', fontSize: 13 }}>Resend Revised Invoice</Text>
+            </Pressable>
+          )}
           <View style={styles.section}>
             <Text style={styles.sectionLabel}>{isWholesale ? 'Account' : 'Customer'}</Text>
             <View style={{ gap: 4, marginTop: 6 }}>

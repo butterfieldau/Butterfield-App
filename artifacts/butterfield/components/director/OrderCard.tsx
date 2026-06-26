@@ -13,13 +13,18 @@ const TEXT   = '#1C1C1E';
 const MUTED  = '#8E8E93';
 
 export default function OrderCard({ order, onPress, onPrint, printing }: { order: ApiOrder; onPress: () => void; onPrint: () => Promise<void> | void; printing: boolean }) {
-  const isWholesale = order.orderSource === 'wholesale';
+  const isWholesale = order.orderSource === 'wholesale' || order.type === 'wholesale';
   const colors = STATUS_COLORS[order.status] ?? { bg: '#F3F4F6', text: '#6B7280' };
   const label = STATUS_LABEL[order.status] ?? order.status;
   const items  = normalizeOrderItems(order.items);
   const itemSummary = summarizeOrderItems(items).replaceAll(' · ', ', ');
   return (
-    <Pressable onPress={onPress} style={({ pressed }) => [styles.orderCard, { opacity: pressed ? 0.92 : 1 }]}>
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={`Order ${order.orderNumber ?? order.id.slice(0, 8).toUpperCase()} ${order.customerName ?? ''} ${STATUS_LABEL[order.status] ?? order.status}`}
+      style={({ pressed }) => [styles.orderCard, { opacity: pressed ? 0.92 : 1 }]}
+    >
       <View style={[styles.orderCardAccent, { backgroundColor: colors.bg }]}>
         <View style={styles.orderCardTop}>
           <View style={{ flex: 1, gap: 2 }}>
@@ -78,6 +83,20 @@ export default function OrderCard({ order, onPress, onPrint, printing }: { order
           </View>
         )}
         <Text style={{ color: MUTED, fontWeight: '400', fontSize: 12, marginTop: 4 }} numberOfLines={1}>{itemSummary || 'No items'}</Text>
+        {isWholesale && (Array.isArray((order as any).editHistory) && (order as any).editHistory.length > 0 || Array.isArray((order as any).creditMemos) && (order as any).creditMemos.length > 0) && (
+          <View style={{ flexDirection: 'row', gap: 4, marginTop: 4, flexWrap: 'wrap' }}>
+            {Array.isArray((order as any).editHistory) && (order as any).editHistory.length > 0 && (
+              <View style={{ backgroundColor: '#EFF6FF', borderWidth: 1, borderColor: '#BFDBFE', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 }}>
+                <Text style={{ color: '#1D4ED8', fontWeight: '700', fontSize: 9 }}>MODIFIED</Text>
+              </View>
+            )}
+            {Array.isArray((order as any).creditMemos) && (order as any).creditMemos.length > 0 && (
+              <View style={{ backgroundColor: '#FEE2E2', borderWidth: 1, borderColor: '#FCA5A5', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 }}>
+                <Text style={{ color: '#991B1B', fontWeight: '700', fontSize: 9 }}>CREDIT ISSUED</Text>
+              </View>
+            )}
+          </View>
+        )}
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 6, gap: 8 }}>
           <Text style={{ color: MUTED, fontWeight: '400', fontSize: 11 }}>{fmtTime(order.createdAt)}</Text>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }}>

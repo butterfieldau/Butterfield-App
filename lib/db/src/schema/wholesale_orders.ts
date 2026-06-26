@@ -30,6 +30,9 @@ export const wholesaleOrdersTable = pgTable("wholesale_orders", {
   paymentMethodType: text("payment_method_type"),
   paymentReference: text("payment_reference"),
   refundedCents: integer("refunded_cents").notNull().default(0),
+  editHistory: jsonb("edit_history").notNull().default([]),
+  creditMemos: jsonb("credit_memos").notNull().default([]),
+  cancelReason: text("cancel_reason"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });

@@ -689,6 +689,16 @@ export const api = {
       request<{ data: WholesaleAccount }>(`/director/wholesale/${accountId}`, { method: 'PATCH', body: JSON.stringify(data) }),
     wholesaleCards:      (accountId: string) => request<{ data: WholesaleCard[] }>(`/director/wholesale/${accountId}/cards`),
 
+    // Wholesale order management (edit, adjust, resend invoice, create)
+    editWholesaleOrderItems: (id: string, data: { items: { productId: string; qty: number; unitPriceCents?: number; productName?: string }[]; notes?: string }) =>
+      request<{ data: WholesaleOrderRecord }>(`/director/wholesale/orders/${id}/items`, { method: 'PATCH', body: JSON.stringify(data) }),
+    adjustWholesaleOrder: (id: string, data: { amountCents: number; reason: string; type?: string; lineItems?: Array<{ productId?: string; productName?: string; qty?: number; amountCents: number }> }) =>
+      request<{ data: WholesaleOrderRecord & { creditEntry: any } }>(`/director/wholesale/orders/${id}/adjust`, { method: 'POST', body: JSON.stringify(data) }),
+    sendRevisedWholesaleInvoice: (id: string) =>
+      request<{ success: boolean; sentTo: string }>(`/director/wholesale/orders/${id}/send-revised-invoice`, { method: 'POST' }),
+    createWholesaleOrder: (data: { accountId: string; items: { productId: string; qty: number; unitPriceCents?: number; productName?: string }[]; poReference?: string; notes?: string; deliveryType?: string; scheduledDate?: string; deliveryAddress?: string }) =>
+      request<{ data: WholesaleOrderRecord }>('/director/wholesale/orders', { method: 'POST', body: JSON.stringify(data) }),
+
     // Product wholesale access
     setProductWholesaleAccess: (id: string, data: ProductWholesaleAccessInput) =>
       request<{ data: DirectorCatalogProduct }>(`/director/products/${id}/wholesale-access`, { method: 'PATCH', body: JSON.stringify(data) }),

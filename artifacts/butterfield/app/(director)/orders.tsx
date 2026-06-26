@@ -22,7 +22,7 @@ import {
   STATUS_COLORS, STATUS_LABEL, ACTION_LABEL, WHOLESALE_NEXT,
   getCustomerNextStatuses, ORDER_STATUS_SECTIONS, getOrderSectionKey,
 } from '@/lib/orderStatus';
-import { OrderDetailModal, CalendarModal, PosTabContent, OrderCard, OrdersSectionHeader } from '@/components/director';
+import { OrderDetailModal, CalendarModal, PosTabContent, OrderCard, OrdersSectionHeader, EditWholesaleOrderSheet, AdjustWholesaleOrderSheet, CreateWholesaleOrderSheet } from '@/components/director';
 import {
   sydneyDateStr, getErrorMessage, fmtHourLabel, sydDate, isSameDay,
   isThisMonth, isThisWeek, getOrderTimelineDate, fmtDateChip,
@@ -63,6 +63,10 @@ export default function DirectorOrdersScreen() {
   const [selectedOrder, setSelectedOrder] = useState<ApiOrder | null>(null);
   const [showCalendar, setShowCalendar] = useState(false);
   const [printingOrderId, setPrintingOrderId] = useState<string | null>(null);
+  const [editWholesaleOrder, setEditWholesaleOrder] = useState<ApiOrder | null>(null);
+  const [adjustWholesaleOrder, setAdjustWholesaleOrder] = useState<ApiOrder | null>(null);
+  const [showCreateWholesale, setShowCreateWholesale] = useState(false);
+  const [sendingRevisedInvoice, setSendingRevisedInvoice] = useState(false);
   const [drillHour, setDrillHour]     = useState<number | null>(null);
   const [productFilter, setProductFilter] = useState<string | null>(null);
   const drillModeRef = useRef<string | null>(null);
@@ -524,7 +528,60 @@ export default function DirectorOrdersScreen() {
         onViewInvoice={() => selectedOrder ? handleViewInvoice(selectedOrder) : Promise.resolve()}
         printing={printingOrderId === selectedOrder?.id}
         canCancelRefund={canCancelRefund}
+        onEditWholesale={(order) => { setSelectedOrder(null); setTimeout(() => setEditWholesaleOrder(order), 300); }}
+        onAdjustWholesale={(order) => { setSelectedOrder(null); setTimeout(() => setAdjustWholesaleOrder(order), 300); }}
+        onSendRevisedInvoice={async (order) => {
+          if (sendingRevisedInvoice) return;
+          setSendingRevisedInvoice(true);
+          try {
+            const result = await api.director.sendRevisedWholesaleInvoice(order.id);
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            Alert.alert('Invoice Sent', `Revised invoice emailed to ${result.sentTo}.`);
+          } catch (err: any) {
+            Alert.alert('Error', err?.message ?? 'Could not send invoice email.');
+          } finally {
+            setSendingRevisedInvoice(false);
+          }
+        }}
       />
+
+      {/* Wholesale order sheets */}
+      <EditWholesaleOrderSheet
+        order={editWholesaleOrder}
+        visible={!!editWholesaleOrder}
+        onClose={() => setEditWholesaleOrder(null)}
+        onSaved={() => { qc.invalidateQueries({ queryKey: ['director-orders'] }); }}
+      />
+      <AdjustWholesaleOrderSheet
+        order={adjustWholesaleOrder}
+        visible={!!adjustWholesaleOrder}
+        onClose={() => setAdjustWholesaleOrder(null)}
+        onSaved={() => { qc.invalidateQueries({ queryKey: ['director-orders'] }); }}
+      />
+      <CreateWholesaleOrderSheet
+        visible={showCreateWholesale}
+        onClose={() => setShowCreateWholesale(false)}
+        onCreated={(order: any) => {
+          qc.invalidateQueries({ queryKey: ['director-orders'] });
+          setShowCreateWholesale(false);
+          if (order) {
+            setSelectedOrder(order as any);
+          }
+        }}
+      />
+
+      {/* FAB: New Wholesale Order (director/master only) */}
+      {(filter === 'wholesale' || filter === 'all') && !isStaff && (
+        <Pressable
+          accessibilityLabel="New Wholesale Order"
+          accessibilityRole="button"
+          onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); setShowCreateWholesale(true); }}
+          style={{ position: 'absolute', bottom: 28, right: 20, flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#1A2B4A', paddingHorizontal: 18, paddingVertical: 13, borderRadius: 28, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.22, shadowRadius: 12, elevation: 8 }}
+        >
+          <Feather name="plus" size={18} color="#fff" />
+          <Text style={{ color: '#fff', fontWeight: '700', fontSize: 14 }}>New Wholesale Order</Text>
+        </Pressable>
+      )}
 
       {/* Calendar date picker */}
       <CalendarModal

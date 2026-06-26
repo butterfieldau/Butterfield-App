@@ -93,7 +93,7 @@ export interface Invoice {
   date: string;
   dueDate: string;
   amount: number;
-  status: 'paid' | 'pending' | 'overdue';
+  status: 'paid' | 'pending' | 'overdue' | 'revised';
 }
 
 export interface LoyaltyTransaction {

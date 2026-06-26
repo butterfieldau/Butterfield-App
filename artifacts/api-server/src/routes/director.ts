@@ -941,6 +941,414 @@ router.get('/wholesale/orders/:id/invoice', async (req, res) => {
   return res.send(html);
 });
 
+// ── Edit items on an open (pending/processing) wholesale order ─────────────
+// Director / master only — managers must not be able to mutate wholesale order items
+router.patch('/wholesale/orders/:id/items', async (req, res) => {
+  if (!req.user || !['director', 'master'].includes(req.user.role)) {
+    return res.status(403).json({ error: 'Forbidden: director access required for this action.' });
+  }
+  const { id } = req.params;
+  const { items, notes } = req.body ?? {};
+
+  if (!Array.isArray(items) || items.length === 0) {
+    return res.status(400).json({ error: 'items array is required.' });
+  }
+
+  const [order] = await db.select().from(wholesaleOrdersTable).where(eq(wholesaleOrdersTable.id, id));
+  if (!order) return res.status(404).json({ error: 'Wholesale order not found.' });
+
+  const editableStatuses = ['pending', 'processing'];
+  if (!editableStatuses.includes(order.status)) {
+    return res.status(400).json({ error: `Order in status '${order.status}' cannot be edited. Only pending or processing orders are editable.` });
+  }
+
+  if (order.isPaid) {
+    return res.status(400).json({ error: 'Paid orders cannot be edited. Use the adjust (credit memo) feature instead.' });
+  }
+
+  // Price items via wholesale pricing engine (respects tier/custom/qty-break rules).
+  // Directors may specify manualOverrideCents per line (explicit audit override).
+  const { priceAndValidateOrder } = await import('../lib/wholesalePricing.js');
+
+  let priced: Awaited<ReturnType<typeof priceAndValidateOrder>>;
+  try {
+    priced = await priceAndValidateOrder(
+      order.userId,
+      items.map((i: any) => ({
+        productId: String(i.productId ?? ''),
+        qty: Number(i.qty ?? i.quantity ?? 1),
+        manualOverrideCents: i.unitPriceCents != null ? Number(i.unitPriceCents) : null,
+      })),
+      { allowOverrides: true },
+    );
+  } catch (err: any) {
+    return res.status(400).json({ error: err?.message ?? 'Pricing validation failed.' });
+  }
+
+  // Build a name lookup from the original request (client-supplied names are informational only)
+  const itemNameMap: Record<string, string> = {};
+  for (const i of items) {
+    if (i.productId && i.productName) itemNameMap[String(i.productId)] = String(i.productName);
+  }
+
+  const pricedItems = priced.lines.map((line: any) => ({
+    productId: line.productId,
+    productName: itemNameMap[line.productId] ?? line.productId,
+    qty: line.qty,
+    quantity: line.qty,
+    unitPriceCents: line.unitCents,  // PriceResult uses unitCents
+    lineTotalCents: line.totalCents,
+    priceSource: line.source ?? 'catalog',
+  }));
+
+  // Append delivery fee if present
+  const deliveryFee = order.deliveryFeeCents ?? 0;
+  let newTotalCents = priced.subtotalCents + deliveryFee;
+
+  // Build edit history entry
+  const previousItems = order.items;
+  const previousTotal = order.totalCents;
+  const editEntry = {
+    type:          'item_edit',
+    editedAt:      new Date().toISOString(),
+    editedBy:      req.user!.name ?? req.user!.email ?? req.user!.id,
+    editedByUserId: req.user!.id,
+    itemsBefore:   previousItems,
+    itemsAfter:    pricedItems,
+    totalBefore:   previousTotal,
+    totalAfter:    newTotalCents,
+    reason:        typeof notes === 'string' ? notes.trim() : undefined,
+  };
+  const existingHistory = Array.isArray((order as any).editHistory) ? (order as any).editHistory : [];
+
+  const [updated] = await db.update(wholesaleOrdersTable).set({
+    items: pricedItems,
+    totalCents: newTotalCents,
+    notes: typeof notes === 'string' && notes.trim() ? notes.trim() : (order.notes ?? undefined),
+    editHistory: [...existingHistory, editEntry] as any,
+    updatedAt: new Date(),
+  }).where(eq(wholesaleOrdersTable.id, id)).returning();
+
+  await recordAuditLog({
+    actor: req.user,
+    entityType: 'wholesale_order',
+    entityId: id,
+    action: 'director.wholesale_order_edit',
+    before: { items: previousItems, totalCents: previousTotal },
+    after: { items: pricedItems, totalCents: newTotalCents },
+  });
+
+  notifyUser(order.userId, 'order_status', 'Butterfield Wholesale',
+    'Your wholesale order has been updated. Tap to review the changes.',
+    { orderId: id, screen: '/(wholesale)/orders' }).catch(() => {});
+
+  return res.json({ data: { ...updated, orderSource: 'wholesale' } });
+});
+
+// ── Partial refund / credit memo on a wholesale order ─────────────────────
+// Director / master only — financial mutations (refunds, credit memos, Stripe reversals)
+router.post('/wholesale/orders/:id/adjust', async (req, res) => {
+  if (!req.user || !['director', 'master'].includes(req.user.role)) {
+    return res.status(403).json({ error: 'Forbidden: director access required for financial adjustments.' });
+  }
+  const { id } = req.params;
+  const { amountCents, reason, type: memoType, lineItems } = req.body ?? {};
+
+  if (!Number.isInteger(amountCents) || amountCents <= 0) {
+    return res.status(400).json({ error: 'amountCents must be a positive integer.' });
+  }
+  if (!reason || typeof reason !== 'string' || !reason.trim()) {
+    return res.status(400).json({ error: 'reason is required.' });
+  }
+  // lineItems is optional — when provided, it must be an array of per-line breakdowns
+  if (lineItems !== undefined && !Array.isArray(lineItems)) {
+    return res.status(400).json({ error: 'lineItems must be an array when provided.' });
+  }
+
+  const [order] = await db.select().from(wholesaleOrdersTable).where(eq(wholesaleOrdersTable.id, id));
+  if (!order) return res.status(404).json({ error: 'Wholesale order not found.' });
+
+  // Credit/refund adjustments only apply to paid orders. Unpaid orders should be
+  // edited via the edit-items route or cancelled — credits on unpaid orders make no
+  // financial sense and are blocked here.
+  if (!order.isPaid) {
+    return res.status(400).json({ error: 'Adjustments can only be issued on paid orders. For unpaid orders, use Edit Items or cancel the order.' });
+  }
+
+  const maxRefundable = order.totalCents - (order.refundedCents ?? 0);
+  if (amountCents > maxRefundable) {
+    return res.status(400).json({ error: `Refund of $${(amountCents / 100).toFixed(2)} exceeds refundable balance of $${(maxRefundable / 100).toFixed(2)}.` });
+  }
+
+  const creditEntry: Record<string, any> = {
+    id: randomUUID(),
+    createdAt: new Date().toISOString(),
+    createdBy: req.user!.name ?? req.user!.email ?? req.user!.id,
+    createdByUserId: req.user!.id,
+    amountCents,
+    reason: reason.trim(),
+    type: memoType ?? 'credit_memo',
+    // Per-line breakdown stored for audit; optional
+    lineItems: Array.isArray(lineItems) ? lineItems : undefined,
+    stripeRefundResult: null,
+  };
+
+  // Attempt Stripe partial refund if order was paid via card
+  const isPaidByCard = order.stripePaymentIntentId && order.isPaid &&
+    order.stripePaymentStatus !== 'net_terms' && order.stripePaymentStatus !== 'pending';
+
+  if (isPaidByCard) {
+    // MUST complete Stripe refund before touching DB — failure returns a 502, DB unchanged.
+    let refundResult: any;
+    try {
+      const { refundStripePaymentIntentAmount } = await import('../lib/stripeRefunds.js');
+      refundResult = await refundStripePaymentIntentAmount({
+        paymentIntentId: order.stripePaymentIntentId!,
+        amountCents,
+        log: req.log,
+      });
+    } catch (err: any) {
+      req.log.warn({ err, orderId: id, amountCents }, 'Stripe partial refund failed — DB not updated');
+      return res.status(502).json({
+        error: `Stripe refund failed: ${err?.message ?? 'unknown error'}. No changes were saved — please retry or issue a manual refund from the Stripe dashboard.`,
+      });
+    }
+    creditEntry.stripeRefundResult = refundResult;
+  }
+
+  const existingMemos    = Array.isArray((order as any).creditMemos) ? (order as any).creditMemos : [];
+  const existingHistory  = Array.isArray((order as any).editHistory) ? (order as any).editHistory : [];
+  const newRefundedCents = (order.refundedCents ?? 0) + amountCents;
+
+  // Also record in editHistory so the full audit trail is in one place
+  const historyEntry = {
+    type:             'credit',
+    editedAt:         creditEntry.createdAt,
+    editedBy:         creditEntry.createdBy,
+    editedByUserId:   creditEntry.createdByUserId,
+    totalBefore:      order.totalCents,
+    totalAfter:       order.totalCents,          // order total unchanged; refundedCents tracks the credit
+    refundedCentsAfter: newRefundedCents,
+    amountCents,
+    reason:           creditEntry.reason,
+    creditMemoId:     creditEntry.id,
+  };
+
+  const [updated] = await db.update(wholesaleOrdersTable).set({
+    refundedCents: newRefundedCents,
+    creditMemos:  [...existingMemos,   creditEntry] as any,
+    editHistory:  [...existingHistory, historyEntry] as any,
+    updatedAt: new Date(),
+  }).where(eq(wholesaleOrdersTable.id, id)).returning();
+
+  // For net-terms orders the customer owes a balance tracked in currentBalanceCents.
+  // A credit memo reduces what they owe — decrement atomically, floored at 0.
+  const isNetTerms = !isPaidByCard && order.accountId;
+  if (isNetTerms) {
+    await db.update(wholesaleAccountsTable)
+      .set({
+        currentBalanceCents: sql`GREATEST(0, current_balance_cents - ${amountCents})`,
+        updatedAt: new Date(),
+      })
+      .where(eq(wholesaleAccountsTable.id, order.accountId));
+  }
+
+  await recordAuditLog({
+    actor: req.user,
+    entityType: 'wholesale_order',
+    entityId: id,
+    action: 'director.wholesale_order_adjust',
+    after: { amountCents, reason: reason.trim(), type: memoType ?? 'credit_memo', netTermsBalanceDecremented: isNetTerms },
+  });
+
+  notifyUser(order.userId, 'order_status', 'Butterfield Wholesale',
+    `A credit of $${(amountCents / 100).toFixed(2)} has been applied to your order.`,
+    { orderId: id, screen: '/(wholesale)/orders' }).catch(() => {});
+
+  return res.json({ data: { ...updated, orderSource: 'wholesale', creditEntry } });
+});
+
+// ── Send revised invoice email for a wholesale order ──────────────────────
+// Director / master only — invoice operations affect external customer communications
+router.post('/wholesale/orders/:id/send-revised-invoice', async (req, res) => {
+  if (!req.user || !['director', 'master'].includes(req.user.role)) {
+    return res.status(403).json({ error: 'Forbidden: director access required to send invoices.' });
+  }
+  const { id } = req.params;
+
+  const [order] = await db.select().from(wholesaleOrdersTable).where(eq(wholesaleOrdersTable.id, id));
+  if (!order) return res.status(404).json({ error: 'Wholesale order not found.' });
+
+  const [account] = await db.select().from(wholesaleAccountsTable).where(eq(wholesaleAccountsTable.id, order.accountId));
+  const [user]    = account ? await db.select({ name: usersTable.name, email: usersTable.email }).from(usersTable).where(eq(usersTable.id, account.userId)) : [null];
+
+  const recipientEmail = (account as any)?.accountsEmail ?? user?.email;
+  if (!recipientEmail) {
+    return res.status(400).json({ error: 'No email address found for this wholesale account. Please set an accounts email first.' });
+  }
+
+  const items = Array.isArray(order.items) ? (order.items as any[]).map((i: any) => ({
+    description: i.productName ?? i.name ?? i.description ?? 'Item',
+    qty:         Number(i.quantity ?? i.qty ?? 1),
+    unitCents:   Number(i.unitPriceCents ?? i.unitPrice ?? i.unit_price ?? i.unitCents ?? 0),
+  })) : [];
+
+  const paymentTermsMap: Record<string, string> = {
+    pay_on_order: 'Pay on order', net_7: '7 days from invoice date',
+    net_14: '14 days from invoice date', net_30: '30 days from invoice date',
+    net_60: '60 days from invoice date',
+  };
+  const paymentTerms = paymentTermsMap[(account as any)?.paymentTerms ?? ''] ?? (account as any)?.paymentTerms ?? '30 days from invoice date';
+  const invoiceNumber = (order as any).invoiceNumber
+    ? `INV-${(order as any).invoiceNumber}` : `INV-${order.id.slice(0, 8).toUpperCase()}`;
+
+  const html = buildInvoiceHtml({
+    invoiceNumber,
+    invoiceDate:  order.createdAt,
+    dueDate:      (order as any).dueDate ?? order.createdAt,
+    status:       (order as any).invoiceStatus ?? order.status,
+    companyName:  account?.companyName ?? user?.name ?? 'Customer',
+    abn:          account?.abn ?? null,
+    email:        user?.email ?? null,
+    address:      (account as any)?.deliveryAddress ?? null,
+    accountRef:   account?.id?.slice(0, 8).toUpperCase() ?? null,
+    items,
+    totalCents:   order.totalCents ?? 0,
+    poReference:  order.poReference ?? null,
+    notes:        order.notes ?? null,
+    paymentTerms,
+    payUrl:       null,
+  });
+
+  try {
+    const { sendEmail } = await import('../lib/emailService.js');
+    const { success } = await sendEmail({
+      to: recipientEmail,
+      subject: `Revised Invoice ${invoiceNumber} — Butterfield Cookies`,
+      html,
+    });
+    if (!success) {
+      return res.status(500).json({ error: 'Failed to send invoice email. Email service may not be configured.' });
+    }
+  } catch (err: any) {
+    req.log.warn({ err, orderId: id, recipientEmail }, 'Revised invoice email send failed');
+    return res.status(500).json({ error: 'Failed to send invoice email.' });
+  }
+
+  // Mark order as revised in DB so the wholesale portal shows the correct state.
+  await db.update(wholesaleOrdersTable).set({
+    invoiceStatus: 'revised',
+    updatedAt: new Date(),
+  }).where(eq(wholesaleOrdersTable.id, id));
+
+  await recordAuditLog({
+    actor: req.user,
+    entityType: 'wholesale_order',
+    entityId: id,
+    action: 'director.wholesale_order_resend_invoice',
+    after: { sentTo: recipientEmail },
+  });
+
+  return res.json({ success: true, sentTo: recipientEmail });
+});
+
+// ── Create a new wholesale order on behalf of an account (director) ────────
+// Director / master only — managers cannot create orders on behalf of wholesale accounts
+router.post('/wholesale/orders', async (req, res) => {
+  if (!req.user || !['director', 'master'].includes(req.user.role)) {
+    return res.status(403).json({ error: 'Forbidden: director access required to create wholesale orders.' });
+  }
+  const { accountId, items, poReference, notes, deliveryType, scheduledDate, deliveryAddress } = req.body ?? {};
+
+  if (!accountId || typeof accountId !== 'string') {
+    return res.status(400).json({ error: 'accountId is required.' });
+  }
+  if (!Array.isArray(items) || items.length === 0) {
+    return res.status(400).json({ error: 'items array is required.' });
+  }
+
+  const [account] = await db.select().from(wholesaleAccountsTable).where(eq(wholesaleAccountsTable.id, accountId));
+  if (!account) return res.status(404).json({ error: 'Wholesale account not found.' });
+  if (account.status !== 'approved') {
+    return res.status(400).json({ error: 'Account must be approved to create orders.' });
+  }
+
+  // Price items via wholesale pricing engine (respects tier/custom/qty-break rules).
+  // Directors may specify manualOverrideCents per line for explicit price adjustments.
+  const { priceAndValidateOrder: priceItems } = await import('../lib/wholesalePricing.js');
+
+  let pricedResult: Awaited<ReturnType<typeof priceItems>>;
+  try {
+    pricedResult = await priceItems(
+      account.userId,
+      items.map((i: any) => ({
+        productId: String(i.productId ?? ''),
+        qty: Number(i.qty ?? i.quantity ?? 1),
+        manualOverrideCents: i.unitPriceCents != null ? Number(i.unitPriceCents) : null,
+      })),
+      { allowOverrides: true },
+    );
+  } catch (err: any) {
+    return res.status(400).json({ error: err?.message ?? 'Pricing validation failed.' });
+  }
+
+  // Client-supplied product names are informational only
+  const itemNameMap: Record<string, string> = {};
+  for (const i of items) {
+    if (i.productId && i.productName) itemNameMap[String(i.productId)] = String(i.productName);
+  }
+
+  const pricedItems = pricedResult.lines.map((line: any) => ({
+    productId: line.productId,
+    productName: itemNameMap[line.productId] ?? line.productId,
+    qty: line.qty,
+    quantity: line.qty,
+    unitPriceCents: line.unitCents,  // PriceResult uses unitCents
+    lineTotalCents: line.totalCents,
+    priceSource: line.source ?? 'catalog',
+  }));
+
+  const deliveryFeeCents = deliveryType === 'delivery' ? (account.deliveryFeeCents ?? 0) : 0;
+  let totalCents = pricedResult.subtotalCents + deliveryFeeCents;
+
+  const orderId = randomUUID();
+  const orderNumber = `WS-D-${Date.now().toString(36).toUpperCase()}`;
+
+  const [created] = await db.insert(wholesaleOrdersTable).values({
+    id: orderId,
+    orderNumber,
+    accountId: account.id,
+    userId: account.userId,
+    status: 'pending',
+    poReference: typeof poReference === 'string' ? poReference.trim() || null : null,
+    items: pricedItems,
+    notes: typeof notes === 'string' ? notes.trim() || null : null,
+    totalCents,
+    originalTotalCents: totalCents,
+    deliveryFeeCents,
+    deliveryType: deliveryType ?? 'pickup',
+    scheduledDate: scheduledDate ?? null,
+    stripePaymentStatus: 'pending',
+    isPaid: false,
+    refundedCents: 0,
+    editHistory: [] as any,
+    creditMemos: [] as any,
+  }).returning();
+
+  await recordAuditLog({
+    actor: req.user,
+    entityType: 'wholesale_order',
+    entityId: orderId,
+    action: 'director.wholesale_order_create',
+    after: { accountId, totalCents, itemCount: pricedItems.length },
+  });
+
+  notifyUser(account.userId, 'order_status', 'Butterfield Wholesale',
+    `A new order (#${orderNumber}) has been created for your account.`,
+    { orderId, screen: '/(wholesale)/orders' }).catch(() => {});
+
+  return res.status(201).json({ data: { ...created, orderSource: 'wholesale' } });
+});
 
 // ── All users ────────────────────────────────────────────────────────────────
 router.get('/users', async (req, res) => {

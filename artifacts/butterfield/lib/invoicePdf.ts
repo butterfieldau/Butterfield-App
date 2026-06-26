@@ -11,7 +11,7 @@ export interface InvoicePdfData {
   number: string;
   date: string;
   dueDate: string;
-  status: 'paid' | 'pending' | 'overdue';
+  status: 'paid' | 'pending' | 'overdue' | 'revised';
   companyName: string;
   abn?: string;
   contactEmail?: string;

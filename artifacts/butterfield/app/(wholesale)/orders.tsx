@@ -502,7 +502,41 @@ export default function WholesaleOrdersScreen() {
                     <View style={{ backgroundColor: cfg.bg, borderColor: cfg.color, borderWidth: 1, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 }}>
                       <Text style={{ color: cfg.color, fontWeight: '600', fontSize: 11 }}>{cfg.label}</Text>
                     </View>
+                    <View style={{ flexDirection: 'row', gap: 4, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                      {Array.isArray(order.editHistory) && order.editHistory.length > 0 && (() => {
+                        const latest = order.editHistory[order.editHistory.length - 1];
+                        const dateStr = (latest?.editedAt ?? latest?.at) ? new Date(latest.editedAt ?? latest.at).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' }) : '';
+                        const note    = latest?.note ?? latest?.reason ?? 'Order items were updated by the team.';
+                        return (
+                          <Pressable
+                            onPress={(e) => { e.stopPropagation?.(); Haptics.selectionAsync(); Alert.alert('Order Modified', `${note}${dateStr ? `\n\n${dateStr}` : ''}`); }}
+                            style={{ backgroundColor: '#EFF6FF', borderWidth: 1, borderColor: '#BFDBFE', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 8 }}
+                          >
+                            <Text style={{ color: '#1D4ED8', fontWeight: '600', fontSize: 9 }}>MODIFIED ›</Text>
+                          </Pressable>
+                        );
+                      })()}
+                      {Array.isArray(order.creditMemos) && order.creditMemos.length > 0 && (() => {
+                        const latest = order.creditMemos[order.creditMemos.length - 1];
+                        const dateStr = latest?.createdAt ? new Date(latest.createdAt).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' }) : '';
+                        const amtStr  = latest?.amountCents ? ` · −$${(latest.amountCents / 100).toFixed(2)}` : '';
+                        const note    = latest?.reason ?? latest?.type ?? 'Credit memo issued.';
+                        return (
+                          <Pressable
+                            onPress={(e) => { e.stopPropagation?.(); Haptics.selectionAsync(); Alert.alert('Credit Issued', `${note}${amtStr}${dateStr ? `\n\n${dateStr}` : ''}`); }}
+                            style={{ backgroundColor: '#FEE2E2', borderWidth: 1, borderColor: '#FCA5A5', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 8 }}
+                          >
+                            <Text style={{ color: '#991B1B', fontWeight: '600', fontSize: 9 }}>CREDIT ISSUED ›</Text>
+                          </Pressable>
+                        );
+                      })()}
+                    </View>
                     <Text style={{ color: BLUE, fontWeight: '700', fontSize: 15 }}>${(order.totalCents / 100).toFixed(2)}</Text>
+                    {(order.refundedCents ?? 0) > 0 && (
+                      <Text style={{ color: '#EF4444', fontWeight: '500', fontSize: 11 }}>
+                        −${((order.refundedCents ?? 0) / 100).toFixed(2)} refunded
+                      </Text>
+                    )}
                   </View>
                 </View>
 
