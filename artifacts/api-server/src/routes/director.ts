@@ -1343,11 +1343,130 @@ router.post('/wholesale/orders', async (req, res) => {
     after: { accountId, totalCents, itemCount: pricedItems.length },
   });
 
+  // ── Auto-generate invoice ────────────────────────────────────────────────
+  const [orderUser] = await db
+    .select({ name: usersTable.name, email: usersTable.email })
+    .from(usersTable)
+    .where(eq(usersTable.id, account.userId));
+
+  const recipientEmail = (account as any).accountsEmail ?? orderUser?.email ?? null;
+
+  const netDays = parseNetTermDays((account as any).paymentTerms);
+  const dueDate = new Date(created.createdAt);
+  if (netDays > 0) dueDate.setDate(dueDate.getDate() + netDays);
+  const invoiceDueDateStr = dueDate.toISOString().slice(0, 10);
+
+  const baseUrl = process.env.REPLIT_DEV_DOMAIN
+    ? `https://${process.env.REPLIT_DEV_DOMAIN}`
+    : (process.env.REPLIT_DOMAINS?.split(',')[0]
+        ? `https://${process.env.REPLIT_DOMAINS.split(',')[0]}`
+        : '');
+  const invoiceUrl = baseUrl ? `${baseUrl}/api/invoices/w/${orderId}` : null;
+
+  const invoiceNumberLabel = `INV-${orderNumber}`;
+
+  await db.update(wholesaleOrdersTable).set({
+    invoiceUrl:    invoiceUrl ?? undefined,
+    invoiceStatus: 'pending',
+    invoiceDueDate: invoiceDueDateStr,
+    updatedAt: new Date(),
+  }).where(eq(wholesaleOrdersTable.id, orderId));
+
+  if (recipientEmail) {
+    const paymentTermsMap: Record<string, string> = {
+      pay_on_order: 'Pay on order', net_7: '7 days from invoice date',
+      net_14: '14 days from invoice date', net_30: '30 days from invoice date',
+      net_60: '60 days from invoice date',
+    };
+    const paymentTermsLabel =
+      paymentTermsMap[(account as any).paymentTerms ?? ''] ??
+      (account as any).paymentTerms ??
+      '30 days from invoice date';
+
+    const invoiceLineItems = pricedItems.map((i: any) => ({
+      description: i.productName ?? i.productId,
+      qty:         Number(i.qty),
+      unitCents:   Number(i.unitPriceCents),
+    }));
+
+    const invoiceHtml = buildInvoiceHtml({
+      invoiceNumber:   invoiceNumberLabel,
+      invoiceDate:     created.createdAt,
+      dueDate,
+      status:          'pending',
+      companyName:     account.companyName,
+      abn:             account.abn ?? null,
+      email:           orderUser?.email ?? null,
+      address:         (account as any).deliveryAddress ?? null,
+      accountRef:      account.id.slice(0, 8).toUpperCase(),
+      items:           invoiceLineItems,
+      totalCents,
+      deliveryFeeCents,
+      poReference:     typeof poReference === 'string' ? poReference.trim() || null : null,
+      notes:           typeof notes === 'string' ? notes.trim() || null : null,
+      paymentTerms:    paymentTermsLabel,
+      payUrl:          invoiceUrl,
+    });
+
+    const [{ sendEmail }, { generateInvoicePdf }] = await Promise.all([
+      import('../lib/emailService.js'),
+      import('../lib/invoicePdf.js'),
+    ]);
+
+    let pdfBuffer: Buffer | undefined;
+    try {
+      pdfBuffer = await generateInvoicePdf({
+        invoiceNumber:   invoiceNumberLabel,
+        invoiceDate:     created.createdAt,
+        dueDate,
+        status:          'pending',
+        companyName:     account.companyName,
+        abn:             account.abn ?? null,
+        email:           orderUser?.email ?? null,
+        address:         (account as any).deliveryAddress ?? null,
+        accountRef:      account.id.slice(0, 8).toUpperCase(),
+        items:           invoiceLineItems,
+        totalCents,
+        deliveryFeeCents,
+        poReference:     typeof poReference === 'string' ? poReference.trim() || null : null,
+        notes:           typeof notes === 'string' ? notes.trim() || null : null,
+        paymentTerms:    paymentTermsLabel,
+        invoiceUrl,
+      });
+    } catch (pdfErr: any) {
+      req.log.warn({ err: pdfErr, orderId }, 'Invoice PDF generation failed; sending HTML-only email');
+    }
+
+    const { success: emailSent } = await sendEmail({
+      to:      recipientEmail,
+      subject: `Invoice ${invoiceNumberLabel} — Butterfield Cookies Wholesale`,
+      html:    invoiceHtml,
+      ...(pdfBuffer
+        ? { attachments: [{ filename: `${invoiceNumberLabel}.pdf`, content: pdfBuffer, contentType: 'application/pdf' }] }
+        : {}),
+    });
+
+    if (!emailSent) {
+      req.log.warn({ orderId, recipientEmail }, 'Wholesale invoice email failed to send');
+    } else {
+      req.log.info({ orderId, recipientEmail, hasPdf: !!pdfBuffer }, 'Wholesale invoice email sent');
+    }
+  }
+  // ─────────────────────────────────────────────────────────────────────────
+
   notifyUser(account.userId, 'order_status', 'Butterfield Wholesale',
     `A new order (#${orderNumber}) has been created for your account.`,
     { orderId, screen: '/(wholesale)/orders' }).catch(() => {});
 
-  return res.status(201).json({ data: { ...created, orderSource: 'wholesale' } });
+  return res.status(201).json({
+    data: {
+      ...created,
+      invoiceUrl,
+      invoiceStatus: 'pending',
+      invoiceDueDate: invoiceDueDateStr,
+      orderSource: 'wholesale',
+    },
+  });
 });
 
 // ── All users ────────────────────────────────────────────────────────────────

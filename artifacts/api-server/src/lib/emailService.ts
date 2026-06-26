@@ -54,11 +54,18 @@ async function getResendClient(): Promise<{ client: Resend; fromEmail: string } 
   return null;
 }
 
+interface EmailAttachment {
+  filename: string;
+  content:  Buffer | string;
+  contentType?: string;
+}
+
 interface SendEmailOptions {
   to: string;
   subject: string;
   html: string;
   text?: string;
+  attachments?: EmailAttachment[];
 }
 
 export async function sendEmail(opts: SendEmailOptions): Promise<{ success: boolean }> {
@@ -76,6 +83,9 @@ export async function sendEmail(opts: SendEmailOptions): Promise<{ success: bool
       subject: opts.subject,
       html: opts.html,
       text: opts.text,
+      ...(opts.attachments && opts.attachments.length > 0
+        ? { attachments: opts.attachments.map(a => ({ filename: a.filename, content: a.content, contentType: a.contentType })) }
+        : {}),
     });
     if (error) {
       console.error('[emailService] Resend error:', error);
