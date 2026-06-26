@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { db, productsTable, productCategoriesTable, productVariantsTable, productOptionGroupsTable, productOptionsTable } from '@workspace/db';
-import { eq, asc, sql } from 'drizzle-orm';
+import { eq, asc, sql, max } from 'drizzle-orm';
 import { requireRole } from '../middlewares/auth.js';
 import { requireManagerPermission } from '../middlewares/managerPermission.js';
 import { randomUUID } from 'crypto';
@@ -272,8 +272,42 @@ router.delete('/products/:productId/variants/:id', allowedRoles, requireProducts
 // ══════════════════════════════════════════════════════════════════════════════
 
 router.get('/option-groups', allowedRoles, requireProducts, async (_req, res) => {
-  const groups = await db.select().from(productOptionGroupsTable).orderBy(asc(productOptionGroupsTable.sortOrder));
-  const options = await db.select().from(productOptionsTable).orderBy(asc(productOptionsTable.sortOrder));
+  let [groups, options] = await Promise.all([
+    db.select().from(productOptionGroupsTable).orderBy(asc(productOptionGroupsTable.sortOrder), asc(productOptionGroupsTable.createdAt)),
+    db.select().from(productOptionsTable).orderBy(asc(productOptionsTable.sortOrder), asc(productOptionsTable.createdAt)),
+  ]);
+
+  // Self-heal: if any two groups share the same sortOrder, reassign sequential values (10, 20, 30…)
+  const groupOrderValues = groups.map(g => g.sortOrder);
+  const hasGroupCollision = groupOrderValues.length > new Set(groupOrderValues).size;
+  if (hasGroupCollision) {
+    const updates = groups.map((g, i) => ({ id: g.id, sortOrder: (i + 1) * 10 }));
+    await Promise.all(updates.map(u =>
+      db.update(productOptionGroupsTable).set({ sortOrder: u.sortOrder }).where(eq(productOptionGroupsTable.id, u.id))
+    ));
+    groups = groups.map((g, i) => ({ ...g, sortOrder: (i + 1) * 10 }));
+  }
+
+  // Self-heal: same collision check per option group
+  const groupIds = [...new Set(options.map(o => o.groupId))];
+  let optionsNeedUpdate = false;
+  const optionUpdates: { id: string; sortOrder: number }[] = [];
+  for (const gid of groupIds) {
+    const groupOpts = options.filter(o => o.groupId === gid);
+    const orderVals = groupOpts.map(o => o.sortOrder);
+    if (orderVals.length > new Set(orderVals).size) {
+      optionsNeedUpdate = true;
+      groupOpts.forEach((o, i) => optionUpdates.push({ id: o.id, sortOrder: (i + 1) * 10 }));
+    }
+  }
+  if (optionsNeedUpdate) {
+    await Promise.all(optionUpdates.map(u =>
+      db.update(productOptionsTable).set({ sortOrder: u.sortOrder }).where(eq(productOptionsTable.id, u.id))
+    ));
+    const updMap = new Map(optionUpdates.map(u => [u.id, u.sortOrder]));
+    options = options.map(o => updMap.has(o.id) ? { ...o, sortOrder: updMap.get(o.id)! } : o);
+  }
+
   const data = groups.map(g => ({
     ...g,
     appliesToCategoryIds: parseJsonArr(g.appliesToCategoryIds),
@@ -295,11 +329,14 @@ router.post('/option-groups', allowedRoles, requireProducts, async (req, res) =>
     return res.status(400).json({ error: 'A product cannot appear in both the include and exclude lists', overlap });
   }
   const id = `og_${randomUUID().slice(0, 12)}`;
+  // Use MAX(sort_order) + 10 so new groups always land at the bottom with a unique order
+  const [maxRow] = await db.select({ val: max(productOptionGroupsTable.sortOrder) }).from(productOptionGroupsTable);
+  const nextOrder = sortOrder ?? ((maxRow?.val ?? 0) + 10);
   const [g] = await db.insert(productOptionGroupsTable).values({
     id, name: name.trim(), description: description?.trim() || null,
     selectionType: selectionType ?? 'single', isRequired: isRequired ?? false,
     minSelections: minSelections ?? 0, maxSelections: maxSelections ?? null,
-    sortOrder: sortOrder ?? 0, isActive: true,
+    sortOrder: nextOrder, isActive: true,
     appliesToCategoryIds: JSON.stringify(appliesToCategoryIds ?? []),
     appliesToProductIds:  JSON.stringify(appliesToProductIds ?? []),
     excludeProductIds:    JSON.stringify(excludeProductIds ?? []),
@@ -356,10 +393,15 @@ router.post('/option-groups/:groupId/options', allowedRoles, requireProducts, as
   const { name, priceAdjustmentCents, sortOrder, isDefault } = req.body;
   if (!name?.trim()) return res.status(400).json({ error: 'Name is required' });
   const id = `opt_${randomUUID().slice(0, 12)}`;
+  // Use MAX(sort_order) within this group + 10 so new options always land at the bottom
+  const [maxRow] = await db.select({ val: max(productOptionsTable.sortOrder) })
+    .from(productOptionsTable)
+    .where(eq(productOptionsTable.groupId, groupId));
+  const nextOrder = sortOrder ?? ((maxRow?.val ?? 0) + 10);
   const [opt] = await db.insert(productOptionsTable).values({
     id, groupId, name: name.trim(),
     priceAdjustmentCents: priceAdjustmentCents ?? 0,
-    sortOrder: sortOrder ?? 0, isActive: true, isDefault: isDefault ?? false,
+    sortOrder: nextOrder, isActive: true, isDefault: isDefault ?? false,
   }).returning();
   return res.json({ data: opt });
 });

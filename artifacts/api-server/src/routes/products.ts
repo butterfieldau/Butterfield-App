@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { db, productsTable, productVariantsTable, productOptionGroupsTable, productOptionsTable, ordersTable } from '@workspace/db';
+import { db, productsTable, productVariantsTable, productOptionGroupsTable, productOptionsTable, ordersTable, productCategoriesTable } from '@workspace/db';
 import { eq, and, asc, ne, sql } from 'drizzle-orm';
 
 const router = Router();
@@ -194,12 +194,19 @@ function mapProduct(p: typeof productsTable.$inferSelect) {
 
 // ── Resolve option groups applicable to a product ─────────────────────────
 async function getProductOptionGroups(productId: string, categoryId: string | null, category: string | null) {
-  const allGroups  = await db.select().from(productOptionGroupsTable)
-    .where(eq(productOptionGroupsTable.isActive, true))
-    .orderBy(asc(productOptionGroupsTable.sortOrder));
-  const allOptions = await db.select().from(productOptionsTable)
-    .where(eq(productOptionsTable.isActive, true))
-    .orderBy(asc(productOptionsTable.sortOrder));
+  const [allGroups, allOptions, allCategories] = await Promise.all([
+    db.select().from(productOptionGroupsTable)
+      .where(eq(productOptionGroupsTable.isActive, true))
+      .orderBy(asc(productOptionGroupsTable.sortOrder)),
+    db.select().from(productOptionsTable)
+      .where(eq(productOptionsTable.isActive, true))
+      .orderBy(asc(productOptionsTable.sortOrder)),
+    db.select({ id: productCategoriesTable.id, slug: productCategoriesTable.slug })
+      .from(productCategoriesTable),
+  ]);
+
+  // Build a slug-lookup so we can resolve UUID → slug without a per-group query
+  const catSlugById = new Map<string, string>(allCategories.map(c => [c.id, c.slug]));
 
   const applicable = allGroups.filter(g => {
     const catIds     = parseArr(g.appliesToCategoryIds);
@@ -210,10 +217,13 @@ async function getProductOptionGroups(productId: string, categoryId: string | nu
 
     // Matches product explicitly
     if (prodIds.includes(productId)) return true;
-    // Matches by categoryId
+    // Matches by categoryId UUID (product has a FK categoryId)
     if (categoryId && catIds.includes(categoryId)) return true;
-    // Matches by legacy category slug
+    // Matches by legacy category slug prefix
     if (category && catIds.some(id => id === `cat_${category}`)) return true;
+    // Matches by resolving any UUID in catIds to its slug and comparing with the product's category string
+    // This handles the case where the product's categoryId FK is null but its category slug field is set
+    if (category && catIds.some(id => catSlugById.get(id) === category)) return true;
 
     return false;
   });

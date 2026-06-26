@@ -194,11 +194,22 @@ export function OptionsTab() {
     if (!other || !current) return;
     Haptics.selectionAsync();
     try {
-      const aOrder = current.sortOrder ?? index * 10;
-      const bOrder = other.sortOrder ?? (index + dir) * 10;
+      // Normalize: assign sequential sortOrders if any two groups share the same value
+      const orderVals = groups.map(g => g.sortOrder);
+      const hasCollision = orderVals.length > new Set(orderVals).size;
+      const normalized = hasCollision
+        ? groups.map((g, i) => ({ ...g, sortOrder: (i + 1) * 10 }))
+        : groups;
+      const aOrder = normalized[index].sortOrder;
+      const bOrder = normalized[index + dir].sortOrder;
       await Promise.all([
         api.director.updateOptionGroup(current.id, { sortOrder: bOrder }),
         api.director.updateOptionGroup(other.id, { sortOrder: aOrder }),
+        // If we normalized, persist all other changed orders too
+        ...(hasCollision ? normalized
+          .filter((_, i) => i !== index && i !== index + dir)
+          .map(g => api.director.updateOptionGroup(g.id, { sortOrder: g.sortOrder }))
+          : []),
       ]);
       await qc.invalidateQueries({ queryKey: ['director-option-groups'] });
     } catch (e: any) { Alert.alert('Error', e.message); }
@@ -210,11 +221,22 @@ export function OptionsTab() {
     if (!other || !current) return;
     Haptics.selectionAsync();
     try {
-      const aOrder = current.sortOrder ?? index * 10;
-      const bOrder = other.sortOrder ?? (index + dir) * 10;
+      // Normalize: assign sequential sortOrders if any two options share the same value
+      const orderVals = options.map(o => o.sortOrder);
+      const hasCollision = orderVals.length > new Set(orderVals).size;
+      const normalized = hasCollision
+        ? options.map((o, i) => ({ ...o, sortOrder: (i + 1) * 10 }))
+        : options;
+      const aOrder = normalized[index].sortOrder;
+      const bOrder = normalized[index + dir].sortOrder;
       await Promise.all([
         api.director.updateOption(groupId, current.id, { sortOrder: bOrder }),
         api.director.updateOption(groupId, other.id, { sortOrder: aOrder }),
+        // If we normalized, persist all other changed orders too
+        ...(hasCollision ? normalized
+          .filter((_, i) => i !== index && i !== index + dir)
+          .map(o => api.director.updateOption(groupId, o.id, { sortOrder: o.sortOrder }))
+          : []),
       ]);
       await qc.invalidateQueries({ queryKey: ['director-option-groups'] });
     } catch (e: any) { Alert.alert('Error', e.message); }
