@@ -4,8 +4,9 @@ import { router } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import React, { useState } from 'react';
 import {
-  Alert, Linking, Pressable, ScrollView, StyleSheet, Text, View,
+  Alert, Linking, Pressable, ScrollView, StatusBar, StyleSheet, Text, View,
 } from 'react-native';
+import { useFocusStatusBar } from '@/hooks/useScrollStatusBar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/context/AuthContext';
@@ -32,6 +33,7 @@ function getErrorMessage(error: unknown, fallback = 'Something went wrong.'): st
 export default function HelpSupportScreen() {
   const insets = useSafeAreaInsets();
   const { user, logout } = useAuth();
+  useFocusStatusBar('dark-content');
   const qc = useQueryClient();
   const [deleting, setDeleting] = useState(false);
 
@@ -82,6 +84,7 @@ export default function HelpSupportScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: BG }}>
+      <StatusBar barStyle="dark-content" translucent backgroundColor="transparent" />
       <View style={[st.header, { paddingTop: insets.top + 12 }]}>
         <Pressable onPress={() => router.back()} style={st.backBtn} hitSlop={8}>
           <Feather name="arrow-left" size={20} color={TEXT} />

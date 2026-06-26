@@ -3,8 +3,9 @@ import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
-  ActivityIndicator, Pressable, ScrollView, StyleSheet, Switch, Text, View,
+  ActivityIndicator, Pressable, ScrollView, StatusBar, StyleSheet, Switch, Text, View,
 } from 'react-native';
+import { useFocusStatusBar } from '@/hooks/useScrollStatusBar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/context/AuthContext';
@@ -78,6 +79,7 @@ export default function NotificationPrefsScreen() {
 function NotificationPrefsContent() {
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
+  useFocusStatusBar('dark-content');
   const qc = useQueryClient();
   const prefConfig = getPrefConfig(user?.role);
 
@@ -152,6 +154,7 @@ function NotificationPrefsContent() {
 
   return (
     <View style={{ flex: 1, backgroundColor: BG }}>
+      <StatusBar barStyle="dark-content" translucent backgroundColor="transparent" />
       <View style={[s.header, { paddingTop: insets.top + 14, borderBottomColor: BORDER }]}>
         <Pressable onPress={() => router.back()} style={s.backBtn}>
           <Feather name="arrow-left" size={22} color={TEXT} />

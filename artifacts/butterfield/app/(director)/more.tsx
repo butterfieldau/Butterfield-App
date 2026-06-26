@@ -4,8 +4,9 @@ import { router } from 'expo-router';
 import React, { useMemo } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import {
-  Alert, Pressable, ScrollView, StyleSheet, Text, View,
+  Alert, Pressable, ScrollView, StatusBar, StyleSheet, Text, View,
 } from 'react-native';
+import { useFocusStatusBar } from '@/hooks/useScrollStatusBar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
 import { useLayoutHandledSafeArea } from '@/context/LayoutSafeAreaContext';
@@ -74,6 +75,7 @@ export default function MoreScreen() {
   const insets = useSafeAreaInsets();
   const layoutHandledSA = useLayoutHandledSafeArea();
   const { user, logout } = useAuth();
+  useFocusStatusBar('dark-content');
   const isManager  = user?.role === 'manager';
   const isDirector = !isManager;
 
@@ -97,6 +99,7 @@ export default function MoreScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: BG }}>
+      <StatusBar barStyle="dark-content" translucent backgroundColor="transparent" />
       <ScrollView
         style={{ flex: 1 }}
         contentContainerStyle={{ paddingBottom: insets.bottom + 32 }}

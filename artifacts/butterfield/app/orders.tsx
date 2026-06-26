@@ -9,10 +9,12 @@ import {
   Pressable,
   RefreshControl,
   ScrollView,
+  StatusBar,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
+import { useFocusStatusBar } from '@/hooks/useScrollStatusBar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRefreshControl } from '@/hooks/useRefreshControl';
 import { useQuery } from '@tanstack/react-query';
@@ -447,6 +449,7 @@ export default function CustomerOrdersScreen() {
 
 function CustomerOrdersContent() {
   const insets = useSafeAreaInsets();
+  useFocusStatusBar('dark-content');
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const { data, isLoading, refetch } = useQuery({
     queryKey: ['orders'],
@@ -464,6 +467,7 @@ function CustomerOrdersContent() {
   };
   return (
     <View style={{ flex: 1, backgroundColor: BG }}>
+      <StatusBar barStyle="dark-content" translucent backgroundColor="transparent" />
       <View style={[s.header, { paddingTop: insets.top + 14, backgroundColor: CARD, borderBottomColor: BORDER }]}>
         <Pressable onPress={handleExit} style={s.backBtn}>
           <Feather name="arrow-left" size={22} color={TEXT} />
