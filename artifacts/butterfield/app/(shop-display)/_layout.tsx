@@ -9,7 +9,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/context/AuthContext';
 import { PortalHeader } from '@/components/PortalHeader';
 import { getHomeRouteForRole } from '@/lib/roleRoutes';
-import { useShopDisplayAwakeMode, getDisplayLockPin, verifyDisplayLockPin, clearDisplayLockPin, getShopDisplaySoundEnabled, getScreensaverEnabled, getScreensaverTimeout, subscribeScreensaverSettings } from '@/lib/shopDisplayMode';
+import { useShopDisplayAwakeMode, getDisplayLockPin, verifyDisplayLockPin, clearDisplayLockPin, getShopDisplaySoundEnabled, getScreensaverEnabled, getScreensaverTimeout, subscribeScreensaverSettings, getShopDisplayIdle, setShopDisplayIdle } from '@/lib/shopDisplayMode';
 import { LayoutSafeAreaContext } from '@/context/LayoutSafeAreaContext';
 import { api } from '@/lib/api';
 import {
@@ -263,19 +263,33 @@ export default function ShopDisplayLayout() {
     queryKey: ['shop-display-me'],
     queryFn: () => api.shopDisplay.me(),
     enabled: user?.role === 'shop_display',
-    staleTime: 30_000,
-    refetchInterval: 30_000,
+    staleTime: 2 * 60_000,
+    refetchInterval: () => getShopDisplayIdle() ? false : 2 * 60_000,
+    gcTime: 0,
+    refetchIntervalInBackground: false,
+    refetchOnWindowFocus: false,
   });
   const permissions: string[] = meData?.data?.permissions ?? [];
 
   // ── New-order badge — counts orders in 'received' state (not yet acknowledged) ──
-  // refetchInterval matches App Sales (7 s) so notifications fire promptly on ANY tab,
-  // not only when the App Sales screen itself is open.
+  // Polls at 10 s when active, 60 s when screensaver is showing.
   const { data: ordersData } = useQuery({
     queryKey: ['shop-display-orders'],
     queryFn: () => api.shopDisplay.orders(),
     enabled: user?.role === 'shop_display',
-    refetchInterval: 7_000,
+    refetchInterval: () => getShopDisplayIdle() ? 60_000 : 10_000,
+    gcTime: 0,
+    refetchIntervalInBackground: false,
+    refetchOnWindowFocus: false,
+    select: (res: any) => ({
+      data: (res?.data ?? []).map((o: any) => ({
+        id: o.id,
+        status: o.status,
+        customerName: o.customerName ?? null,
+        orderNumber: o.orderNumber ?? null,
+        createdAt: o.createdAt ?? null,
+      })),
+    }),
   });
   const layoutRows: Array<{ id: string; status: string; customerName?: string | null; orderNumber?: string | null; createdAt?: string }> = ordersData?.data ?? [];
   const incomingOrderCount = layoutRows.filter((o) => NEW_ORDER_STATUSES.has(o.status)).length;
@@ -325,7 +339,10 @@ export default function ShopDisplayLayout() {
 
     if (!bootedRef.current) {
       if (layoutRows.length === 0) return;
-      seenRef.current = currentMap;
+      const bootEntries = Object.entries(currentMap);
+      seenRef.current = bootEntries.length > 500
+        ? Object.fromEntries(bootEntries.slice(bootEntries.length - 500))
+        : currentMap;
       bootedRef.current = true;
       const mountMs = mountTimeRef.current;
       const freshOnBoot = layoutRows.find(o => {
@@ -358,7 +375,10 @@ export default function ShopDisplayLayout() {
         return next;
       });
     }
-    seenRef.current = currentMap;
+    const seenEntries = Object.entries(currentMap);
+    seenRef.current = seenEntries.length > 500
+      ? Object.fromEntries(seenEntries.slice(seenEntries.length - 500))
+      : currentMap;
   }, [layoutRows]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Global screensaver ───────────────────────────────────────────────────────
@@ -402,7 +422,7 @@ export default function ShopDisplayLayout() {
     queryKey: ['shop-display-store'],
     queryFn: () => api.shopDisplay.store(),
     enabled: user?.role === 'shop_display',
-    staleTime: 60_000,
+    staleTime: 5 * 60_000,
   });
   const idleDailySpecial: string | null = (idleStoreData as any)?.data?.[0]?.dailySpecial ?? null;
 
@@ -415,6 +435,11 @@ export default function ShopDisplayLayout() {
     }, 5_000);
     return () => clearInterval(interval);
   }, []);
+
+  // Keep the module-level idle flag in sync so polling queries can read it synchronously.
+  useEffect(() => {
+    setShopDisplayIdle(isIdle);
+  }, [isIdle]);
 
   // ── Product sync ──────────────────────────────────────────────────────────
   const queryClient = useQueryClient();

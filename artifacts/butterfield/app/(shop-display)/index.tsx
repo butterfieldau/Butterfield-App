@@ -22,6 +22,7 @@ import { useScrollToTopCompat as useScrollToTop } from '@/hooks/useScrollToTopCo
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import type { LinklyTransactionStatus, ShopDisplayOrder } from '@/lib/api';
+import { getShopDisplayIdle } from '@/lib/shopDisplayMode';
 import { normalizeOrderItems } from '@/lib/orderItems';
 import { sendReceiptPrint, sendOpenDrawer, orderToPrintJob } from '@/lib/printer';
 import { isStoreOpenForAsap } from '@/lib/storeSchedule';
@@ -205,20 +206,23 @@ export default function ShopDisplayOrdersScreen() {
   const { data, isLoading, isRefetching, refetch } = useQuery({
     queryKey: ['shop-display-orders'],
     queryFn: () => api.shopDisplay.orders(),
-    refetchInterval: 7000,
+    refetchInterval: () => getShopDisplayIdle() ? 60_000 : 10_000,
+    gcTime: 0,
+    refetchIntervalInBackground: false,
+    refetchOnWindowFocus: false,
   });
 
   const { data: storeData } = useQuery({
     queryKey: ['shop-display-store'],
     queryFn: () => api.shopDisplay.store(),
-    staleTime: 60_000,
+    staleTime: 5 * 60_000,
   });
   const store = storeData?.data?.[0] ?? null;
 
   const { data: printerConfigData } = useQuery({
     queryKey: ['shop-display-printer-config'],
     queryFn: () => api.shopDisplay.getPrinterConfig(),
-    staleTime: 60_000,
+    staleTime: 10 * 60_000,
   });
   const printerConfig = printerConfigData?.data ?? null;
 

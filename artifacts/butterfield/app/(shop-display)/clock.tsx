@@ -8,6 +8,7 @@ import {
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import type { ShopDisplayShiftToday, ShopDisplayStaffMember } from '@/lib/api';
+import { getShopDisplayIdle } from '@/lib/shopDisplayMode';
 
 const BG     = '#EFF6FF';
 const CARD   = '#FFFFFF';
@@ -272,13 +273,19 @@ export default function ShopDisplayClockScreen() {
   const { data, isLoading, isRefetching, refetch } = useQuery({
     queryKey: ['shop-display-staff-assigned'],
     queryFn: () => api.shopDisplay.staffAssigned(),
-    refetchInterval: 30000,
+    refetchInterval: () => getShopDisplayIdle() ? 2 * 60_000 : 60_000,
+    gcTime: 0,
+    refetchIntervalInBackground: false,
+    refetchOnWindowFocus: false,
   });
 
   const { data: shiftsData } = useQuery({
     queryKey: ['shop-display-shifts-today'],
     queryFn: () => api.shopDisplay.shiftsToday(),
-    refetchInterval: 10000,
+    refetchInterval: () => getShopDisplayIdle() ? 2 * 60_000 : 60_000,
+    gcTime: 0,
+    refetchIntervalInBackground: false,
+    refetchOnWindowFocus: false,
   });
 
   useEffect(() => {

@@ -1,4 +1,6 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Feather } from '@expo/vector-icons';
+import { reloadAppAsync } from 'expo';
 import * as FileSystem from 'expo-file-system';
 import * as Haptics from 'expo-haptics';
 import * as Sharing from 'expo-sharing';
@@ -326,7 +328,10 @@ class DashboardErrorBoundary extends React.Component<{ children: React.ReactNode
           </Text>
           <TouchableOpacity
             style={{ marginTop: 24, backgroundColor: BLUE + '22', borderRadius: 12, paddingHorizontal: 28, paddingVertical: 13, borderWidth: 1, borderColor: BLUE + '44' }}
-            onPress={() => this.setState({ hasError: false })}
+            onPress={async () => {
+              try { await AsyncStorage.removeItem('BUTTERFIELD_QUERY_CACHE_V4'); } catch {}
+              try { await reloadAppAsync(); } catch { this.setState({ hasError: false }); }
+            }}
             activeOpacity={0.75}
           >
             <Text style={{ color: BLUE, fontSize: 15, fontWeight: '700' }}>Try Again</Text>
@@ -456,14 +461,14 @@ function DashboardScreenInner() {
   const { data: storesResp } = useQuery({
     queryKey: ['shop-display-stores'],
     queryFn: () => api.shopDisplay.store(),
-    staleTime: 300_000,
+    staleTime: 10 * 60_000,
   });
   const stores = storesResp?.data ?? [];
 
   const { data: resp, isLoading, isFetching, refetch } = useQuery({
     queryKey: ['shop-display-analytics', range, date, selectedStoreId],
     queryFn: () => api.shopDisplay.analytics(range, date, selectedStoreId),
-    staleTime: 60_000,
+    staleTime: 5 * 60_000,
   });
 
   const data = resp?.data;

@@ -42,7 +42,9 @@ async function loadPrefetchedUrls(): Promise<Set<string>> {
 
 async function savePrefetchedUrls(urls: Set<string>): Promise<void> {
   try {
-    await AsyncStorage.setItem(PREFETCHED_URLS_KEY, JSON.stringify([...urls]));
+    let arr = [...urls];
+    if (arr.length > 300) arr = arr.slice(arr.length - 300);
+    await AsyncStorage.setItem(PREFETCHED_URLS_KEY, JSON.stringify(arr));
   } catch {}
 }
 

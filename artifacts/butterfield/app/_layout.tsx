@@ -79,7 +79,7 @@ onlineManager.setEventListener((setOnline) => {
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      gcTime:      1000 * 60 * 60 * 24,
+      gcTime:      1000 * 60 * 60 * 2,
       staleTime:   1000 * 60 * 5,
       networkMode: "offlineFirst",
       retry: (failureCount, error: any) => {
@@ -90,9 +90,13 @@ const queryClient = new QueryClient({
   },
 });
 
+const PERSIST_ALLOW_LIST = new Set([
+  'pos-products', 'pos-store-settings', 'pos-surcharges', 'pos-loyalty-config',
+]);
+
 const persister = createAsyncStoragePersister({
   storage:      AsyncStorage,
-  key:          "BUTTERFIELD_QUERY_CACHE_V3",
+  key:          "BUTTERFIELD_QUERY_CACHE_V4",
   throttleTime: 3000,
 });
 
@@ -312,7 +316,13 @@ export default function RootLayout() {
           client={queryClient}
           persistOptions={{
             persister,
-            maxAge: 1000 * 60 * 60 * 24,
+            maxAge: 12 * 60 * 60 * 1000,
+            dehydrateOptions: {
+              shouldDehydrateQuery: (query) => {
+                const key = query.queryKey[0];
+                return typeof key === 'string' && PERSIST_ALLOW_LIST.has(key);
+              },
+            },
           }}
         >
           <AuthProvider>

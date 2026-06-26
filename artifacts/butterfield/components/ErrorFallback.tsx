@@ -1,3 +1,4 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Feather } from "@expo/vector-icons";
 import { reloadAppAsync } from "expo";
 import React, { useState } from "react";
@@ -25,11 +26,18 @@ export function ErrorFallback({ error, resetError }: ErrorFallbackProps) {
 
   const [isModalVisible, setIsModalVisible] = useState(false);
 
+  const [clearingCache, setClearingCache] = useState(false);
+
   const handleRestart = async () => {
+    setClearingCache(true);
+    try {
+      await AsyncStorage.removeItem("BUTTERFIELD_QUERY_CACHE_V4");
+    } catch {}
     try {
       await reloadAppAsync();
     } catch (restartError) {
       console.error("Failed to restart app:", restartError);
+      setClearingCache(false);
       resetError();
     }
   };
@@ -79,11 +87,12 @@ export function ErrorFallback({ error, resetError }: ErrorFallbackProps) {
 
         <Pressable
           onPress={handleRestart}
+          disabled={clearingCache}
           style={({ pressed }) => [
             styles.button,
             {
               backgroundColor: colors.primary,
-              opacity: pressed ? 0.9 : 1,
+              opacity: clearingCache ? 0.6 : pressed ? 0.9 : 1,
               transform: [{ scale: pressed ? 0.98 : 1 }],
             },
           ]}
@@ -94,7 +103,7 @@ export function ErrorFallback({ error, resetError }: ErrorFallbackProps) {
               { color: colors.primaryForeground },
             ]}
           >
-            Try Again
+            {clearingCache ? "Clearing cache…" : "Try Again"}
           </Text>
         </Pressable>
       </View>

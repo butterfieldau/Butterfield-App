@@ -96,3 +96,16 @@ export async function setScreensaverTimeout(minutes: number): Promise<void> {
   await AsyncStorage.setItem(SCREENSAVER_TIMEOUT_KEY, String(minutes));
   _notifyScreensaver({ timeoutMs: minutes * 60_000 });
 }
+
+// ── Screensaver idle state (module-level, synchronous) ────────────────────────
+// Updated by the shop display layout whenever isIdle changes.
+// Read synchronously by useQuery refetchInterval functions in polling screens.
+let _shopDisplayIdle = false;
+
+export function setShopDisplayIdle(idle: boolean): void {
+  _shopDisplayIdle = idle;
+}
+
+export function getShopDisplayIdle(): boolean {
+  return _shopDisplayIdle;
+}
