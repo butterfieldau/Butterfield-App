@@ -59,7 +59,7 @@ export default function DirectorOrdersScreen() {
   const [channelTab, setChannelTab] = useState<'app' | 'pos'>('app');
   const [posDayStr, setPosDayStr]   = useState<string>(sydneyDateStr());
   const [filter, setFilter]         = useState('all');
-  const [viewMode, setViewMode]     = useState<'today' | 'week' | 'month' | 'date'>('today');
+  const [viewMode, setViewMode]     = useState<'today' | 'week' | 'month' | 'date' | 'all'>('today');
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [selectedOrder, setSelectedOrder] = useState<ApiOrder | null>(null);
   const [showCalendar, setShowCalendar] = useState(false);
@@ -123,7 +123,7 @@ export default function DirectorOrdersScreen() {
       } else if (params.tab === 'wholesale') {
         setChannelTab('app');
         setFilter('wholesale');
-        setViewMode('week');
+        setViewMode('all');
         setDrillHour(null);
         setProductFilter(null);
       } else if (params.tab === 'app') {
@@ -403,6 +403,7 @@ export default function DirectorOrdersScreen() {
       {/* Date view selector */}
       <View style={[styles.dateBar, { backgroundColor: BG, borderBottomColor: BORDER }]}>
         {([
+          { key: 'all',   label: 'All' },
           { key: 'today', label: `Today (${totalToday})` },
           { key: 'week',  label: 'This Week' },
           { key: 'month', label: 'Month' },
@@ -451,6 +452,7 @@ export default function DirectorOrdersScreen() {
           {(() => {
             // Resolve the active date-range bucket
             const [orders, title, emptyMsg, needsTopGap] = (() => {
+              if (viewMode === 'all')    return [drillFiltered,    'All Orders',                                                                        'No orders found',              false] as const;
               if (viewMode === 'today')  return [todayOrders,     "Today's Orders",                                                                       'No orders today yet',          false] as const;
               if (viewMode === 'week')   return [isDrillActive ? weekDrillOrders : thisWeekOrders,
                                                 isDrillActive ? 'This Week (7 Days)' : (isStaff ? 'This Week' : 'Earlier This Week'),
