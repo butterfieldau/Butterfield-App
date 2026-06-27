@@ -683,6 +683,9 @@ export function PaymentStepWithStripe({
             borderRadius={14}
             style={psStyles.applePayBtn}
           />
+          {totalCents > 0 && (
+            <Text style={psStyles.applePayTotalLabel}>{`Pay ${totalLabel}`}</Text>
+          )}
           {cancelMessage ? (
             <View style={psStyles.cancelMessageRow}>
               <Feather name="info" size={13} color={MUTED} />
@@ -1127,6 +1130,7 @@ const psStyles = StyleSheet.create({
   continueBtn:     { height: 54, borderRadius: 999, alignItems: 'center', justifyContent: 'center' },
   continueBtnText: { color: '#fff', fontSize: 16, fontWeight: '600' },
   applePayBtn:     { width: '100%', height: 54 },
+  applePayTotalLabel: { fontSize: 12, color: MUTED, textAlign: 'center', marginTop: 2 },
   cancelMessageRow:{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 6, paddingHorizontal: 2 },
   cancelMessageText:{ fontSize: 12, color: MUTED, flex: 1 },
   dividerRow:      { flexDirection: 'row', alignItems: 'center', gap: 10, marginVertical: 2 },
