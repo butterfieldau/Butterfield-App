@@ -29,7 +29,11 @@
       }
     },
     "android": {
-      "package": "au.com.butterfieldcookies.app"
+      "package": "au.com.butterfieldcookies.app",
+      "blockedPermissions": [
+        "android.permission.READ_MEDIA_IMAGES",
+        "android.permission.READ_MEDIA_VIDEO"
+      ]
     },
     "web": {
       "favicon": "./assets/images/icon.png",
