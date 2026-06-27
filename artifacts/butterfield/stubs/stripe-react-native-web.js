@@ -53,6 +53,12 @@ const PlatformPay = {
     Setup: 'Setup',
     InStore: 'InStore',
   },
+  ButtonStyle: {
+    White: 'White',
+    WhiteOutline: 'WhiteOutline',
+    Black: 'Black',
+    Automatic: 'Automatic',
+  },
 };
 
 const PlatformPayButton = () => null;

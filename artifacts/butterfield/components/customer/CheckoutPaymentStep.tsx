@@ -12,7 +12,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { CardField, useStripe, usePlatformPay, PlatformPay } from '@stripe/stripe-react-native';
+import { CardField, useStripe, usePlatformPay, PlatformPay, PlatformPayButton } from '@stripe/stripe-react-native';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCart } from '@/context/CartContext';
 import { api, type ClaimedReward } from '@/lib/api';
@@ -119,9 +119,10 @@ export function PaymentStepWithStripe({
   const { confirmPayment, createPaymentMethod, handleNextAction } = useStripe();
   const { isPlatformPaySupported, confirmPlatformPayPayment } = usePlatformPay();
 
-  const defaultMethod: PayMethod = Platform.OS === 'ios' ? 'apple_pay' : Platform.OS === 'android' ? 'google_pay' : 'credit_card';
+  const defaultMethod: PayMethod = Platform.OS === 'android' ? 'google_pay' : 'credit_card';
   const [method, setMethod] = useState<PayMethod>(defaultMethod);
   const [platformPayAvailable, setPlatformPayAvailable] = useState(false);
+  const [altMethodSelected, setAltMethodSelected] = useState(false);
   const [showAddCardForm, setShowAddCardForm] = useState(false);
   const [selectedSavedPaymentMethodId, setSelectedSavedPaymentMethodId] = useState<string | null>(null);
   const [discountInput, setDiscountInput] = useState('');
@@ -181,7 +182,7 @@ export function PaymentStepWithStripe({
     (async () => {
       const ok = await isPlatformPaySupported();
       setPlatformPayAvailable(ok);
-      if (!ok && (method === 'apple_pay' || method === 'google_pay')) {
+      if (!ok && method === 'google_pay') {
         setMethod('credit_card');
       }
     })();
@@ -324,6 +325,92 @@ export function PaymentStepWithStripe({
     setDiscountApplied(null);
     setDiscountInput('');
     setDiscountError('');
+  };
+
+  const isIosApplePay = Platform.OS === 'ios' && platformPayAvailable && stripeReady;
+
+  const handleApplePay = async () => {
+    if (busy) return;
+
+    if (totalCents === 0) {
+      setBusy(true);
+      try {
+        await onSuccess({
+          paymentMethodType: 'free_reward',
+          discountCode: discountApplied?.code,
+          discountCodeId: discountApplied?.id,
+          discountAmountCents: discountApplied?.discountAmountCents,
+          claimedRewardId: selectedClaimedRewardId ?? undefined,
+          loyaltyPointsUsed: loyaltyPointsUsed || undefined,
+          useFreeCoffeeReward: useFreeCoffeeReward || undefined,
+        });
+      } finally {
+        setBusy(false);
+      }
+      return;
+    }
+
+    if (!stripeReady) {
+      Alert.alert('Payment unavailable', 'Payment processing is not available right now.');
+      return;
+    }
+
+    setBusy(true);
+    try {
+      const intent = await api.payment.createIntent({
+        items: items as any[],
+        orderType,
+        discountCode: discountApplied?.code,
+        claimedRewardId: selectedClaimedRewardId ?? undefined,
+        loyaltyPointsUsed: loyaltyPointsUsed || undefined,
+        savePaymentMethod: false,
+        useFreeCoffeeReward: useFreeCoffeeReward || undefined,
+      });
+
+      if (intent.amountCents === 0 || intent.paymentRequired === false) {
+        await onSuccess({
+          paymentMethodType: 'free_reward',
+          discountCode: discountApplied?.code,
+          discountCodeId: discountApplied?.id,
+          discountAmountCents: discountApplied?.discountAmountCents,
+          claimedRewardId: selectedClaimedRewardId ?? undefined,
+          loyaltyPointsUsed: loyaltyPointsUsed || undefined,
+          useFreeCoffeeReward: useFreeCoffeeReward || undefined,
+        });
+        return;
+      }
+
+      const displayItems = [
+        { label: 'Subtotal', amount: String(subtotalCents / 100), type: 'final' as const, isPending: false },
+        ...(deliveryCents > 0 ? [{ label: 'Delivery', amount: String(deliveryCents / 100), type: 'final' as const, isPending: false }] : []),
+        ...(discountCents > 0 ? [{ label: 'Discount', amount: String(-discountCents / 100), type: 'final' as const, isPending: false }] : []),
+        { label: 'Butterfield Cookies', amount: String(intent.amountCents / 100), type: 'final' as const, isPending: false },
+      ];
+
+      const { error: ppError } = await confirmPlatformPayPayment(intent.clientSecret!, {
+        applePay: {
+          cartItems: displayItems,
+          merchantCountryCode: 'AU',
+          currencyCode: 'AUD',
+        },
+      } as any);
+      if (ppError) throw new Error(ppError.message);
+
+      await onSuccess({
+        stripePaymentIntentId: intent.paymentIntentId ?? undefined,
+        paymentMethodType: 'apple_pay',
+        discountCode: discountApplied?.code,
+        discountCodeId: discountApplied?.id,
+        discountAmountCents: discountApplied?.discountAmountCents,
+        claimedRewardId: selectedClaimedRewardId ?? undefined,
+        loyaltyPointsUsed: loyaltyPointsUsed || undefined,
+        useFreeCoffeeReward: useFreeCoffeeReward || undefined,
+      });
+    } catch (e: any) {
+      Alert.alert('Payment failed', e?.message ?? 'Please try again.');
+    } finally {
+      setBusy(false);
+    }
   };
 
   const handlePay = async () => {
@@ -571,29 +658,33 @@ export function PaymentStepWithStripe({
     <View style={psStyles.wrap}>
       <Text style={psStyles.sectionTitle}>Payment method</Text>
 
-      {stripeReady && platformPayAvailable && (
+      {isIosApplePay && (
         <>
-          {Platform.OS === 'ios' && (
-            <PaymentMethodRow
-              method="apple_pay"
-              selected={method === 'apple_pay'}
-              label="Apple Pay"
-              subtitle="Touch ID or Face ID"
-              icon="smartphone"
-              onPress={() => setMethod('apple_pay')}
-            />
-          )}
-          {Platform.OS === 'android' && (
-            <PaymentMethodRow
-              method="google_pay"
-              selected={method === 'google_pay'}
-              label="Google Pay"
-              subtitle="Tap to pay"
-              icon="smartphone"
-              onPress={() => setMethod('google_pay')}
-            />
-          )}
+          <PlatformPayButton
+            onPress={handleApplePay}
+            type={PlatformPay.ButtonType.Buy}
+            appearance={PlatformPay.ButtonStyle.Black}
+            disabled={busy}
+            borderRadius={14}
+            style={psStyles.applePayBtn}
+          />
+          <View style={psStyles.dividerRow}>
+            <View style={psStyles.dividerLine} />
+            <Text style={psStyles.dividerText}>or pay another way</Text>
+            <View style={psStyles.dividerLine} />
+          </View>
         </>
+      )}
+
+      {stripeReady && platformPayAvailable && Platform.OS === 'android' && (
+        <PaymentMethodRow
+          method="google_pay"
+          selected={method === 'google_pay'}
+          label="Google Pay"
+          subtitle="Tap to pay"
+          icon="smartphone"
+          onPress={() => setMethod('google_pay')}
+        />
       )}
 
       {stripeReady && (
@@ -603,7 +694,10 @@ export function PaymentStepWithStripe({
           label="Credit or debit card"
           subtitle="Visa, Mastercard, Amex"
           icon="credit-card"
-          onPress={() => setMethod('credit_card')}
+          onPress={() => {
+            setMethod('credit_card');
+            setAltMethodSelected(true);
+          }}
         />
       )}
 
@@ -614,7 +708,10 @@ export function PaymentStepWithStripe({
           label="Pay at pickup"
           subtitle="Pay in store when you arrive"
           icon="map-pin"
-          onPress={() => setMethod('pay_at_pickup')}
+          onPress={() => {
+            setMethod('pay_at_pickup');
+            setAltMethodSelected(true);
+          }}
         />
       )}
 
@@ -927,26 +1024,28 @@ export function PaymentStepWithStripe({
         </View>
       </View>
 
-      <Pressable
-        onPress={handlePay}
-        disabled={busy || (!stripeReady && method !== 'pay_at_pickup' && totalCents > 0)}
-        style={[
-          psStyles.continueBtn,
-          {
-            backgroundColor: busy ? '#9CA3AF' : CHERRY,
-            opacity: busy ? 0.85 : 1,
-            marginTop: 4,
-          },
-        ]}
-      >
-        {busy ? (
-          <ActivityIndicator color="#fff" />
-        ) : (
-          <Text style={psStyles.continueBtnText}>
-            {method === 'pay_at_pickup' ? 'Place Order' : `Pay ${totalLabel}`}
-          </Text>
-        )}
-      </Pressable>
+      {(!isIosApplePay || altMethodSelected) && (
+        <Pressable
+          onPress={handlePay}
+          disabled={busy || (!stripeReady && method !== 'pay_at_pickup' && totalCents > 0)}
+          style={[
+            psStyles.continueBtn,
+            {
+              backgroundColor: busy ? '#9CA3AF' : CHERRY,
+              opacity: busy ? 0.85 : 1,
+              marginTop: 4,
+            },
+          ]}
+        >
+          {busy ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <Text style={psStyles.continueBtnText}>
+              {method === 'pay_at_pickup' ? 'Place Order' : `Pay ${totalLabel}`}
+            </Text>
+          )}
+        </Pressable>
+      )}
 
       <View style={[psStyles.secureRow]}>
         <Feather name="lock" size={11} color={MUTED} />
@@ -1006,4 +1105,8 @@ const psStyles = StyleSheet.create({
   freeCoffeeSub:   { marginTop: 2, fontSize: 12, color: MUTED },
   continueBtn:     { height: 54, borderRadius: 999, alignItems: 'center', justifyContent: 'center' },
   continueBtnText: { color: '#fff', fontSize: 16, fontWeight: '600' },
+  applePayBtn:     { width: '100%', height: 54 },
+  dividerRow:      { flexDirection: 'row', alignItems: 'center', gap: 10, marginVertical: 2 },
+  dividerLine:     { flex: 1, height: 1, backgroundColor: BORDER },
+  dividerText:     { fontSize: 11, fontWeight: '500', color: MUTED, letterSpacing: 0.2 },
 });
