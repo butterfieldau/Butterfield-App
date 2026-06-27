@@ -287,17 +287,50 @@ export function PaymentStepWithStripe({
     return 0;
   }, [selectedClaimed, cartItemsWithPrices, cheapestCookiePriceCents]);
 
-  const discountCents = (discountApplied?.discountAmountCents ?? 0) + claimedRewardDiscountCents + cheapestCoffeePriceCents;
-  const deliveryCents = orderType === 'delivery' ? deliveryFeeCents : 0;
-  const baseForFee = subtotalCents + deliveryCents - discountCents;
-  const stripeFee = method === 'pay_at_pickup' ? 0 : estimateStripeFeeCents(Math.max(0, baseForFee));
-  const totalBeforePointsCents = Math.max(0, baseForFee + stripeFee);
-  const maxUsablePoints = Math.min(availableLoyaltyPoints, Math.floor(totalBeforePointsCents / LOYALTY_POINT_VALUE_CENTS));
-  const requestedPointsToUse = Math.max(0, Math.floor(Number(pointsToUseInput.replace(/\D/g, '') || '0')));
-  const loyaltyPointsUsed = Math.min(requestedPointsToUse, maxUsablePoints);
-  const loyaltyPointsDiscountCents = loyaltyPointsUsed * LOYALTY_POINT_VALUE_CENTS;
-  const totalCents = Math.max(0, totalBeforePointsCents - loyaltyPointsDiscountCents);
-  const totalLabel = `AUD ${(totalCents / 100).toFixed(2)}`;
+  const {
+    discountCents,
+    deliveryCents,
+    stripeFee,
+    maxUsablePoints,
+    requestedPointsToUse,
+    loyaltyPointsUsed,
+    loyaltyPointsDiscountCents,
+    totalCents,
+    totalLabel,
+  } = useMemo(() => {
+    const discountCents = (discountApplied?.discountAmountCents ?? 0) + claimedRewardDiscountCents + cheapestCoffeePriceCents;
+    const deliveryCents = orderType === 'delivery' ? deliveryFeeCents : 0;
+    const baseForFee = subtotalCents + deliveryCents - discountCents;
+    const stripeFee = method === 'pay_at_pickup' ? 0 : estimateStripeFeeCents(Math.max(0, baseForFee));
+    const totalBeforePointsCents = Math.max(0, baseForFee + stripeFee);
+    const maxUsablePoints = Math.min(availableLoyaltyPoints, Math.floor(totalBeforePointsCents / LOYALTY_POINT_VALUE_CENTS));
+    const requestedPointsToUse = Math.max(0, Math.floor(Number(pointsToUseInput.replace(/\D/g, '') || '0')));
+    const loyaltyPointsUsed = Math.min(requestedPointsToUse, maxUsablePoints);
+    const loyaltyPointsDiscountCents = loyaltyPointsUsed * LOYALTY_POINT_VALUE_CENTS;
+    const totalCents = Math.max(0, totalBeforePointsCents - loyaltyPointsDiscountCents);
+    const totalLabel = `AUD ${(totalCents / 100).toFixed(2)}`;
+    return {
+      discountCents,
+      deliveryCents,
+      stripeFee,
+      maxUsablePoints,
+      requestedPointsToUse,
+      loyaltyPointsUsed,
+      loyaltyPointsDiscountCents,
+      totalCents,
+      totalLabel,
+    };
+  }, [
+    discountApplied,
+    claimedRewardDiscountCents,
+    cheapestCoffeePriceCents,
+    orderType,
+    deliveryFeeCents,
+    subtotalCents,
+    method,
+    availableLoyaltyPoints,
+    pointsToUseInput,
+  ]);
 
   useEffect(() => {
     if (requestedPointsToUse !== loyaltyPointsUsed) {
