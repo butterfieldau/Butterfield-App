@@ -216,7 +216,8 @@ function CartContent() {
         totalCents,
         deliveryAddress,
         deliveryPostcode:      orderType === 'delivery' ? postcode.trim() : undefined,
-        deliveryState:         orderType === 'delivery' ? 'NSW' : undefined,
+        // Fall back to 'NSW' when the saved address has no state (e.g. legacy addresses).
+        deliveryState:         orderType === 'delivery' ? (addrState || 'NSW') : undefined,
         paymentMethod:         opts.paymentMethodType === 'pay_at_pickup' ? 'pay_at_pickup' : 'card',
         stripePaymentIntentId: opts.stripePaymentIntentId,
         loyaltyPointsUsed:     opts.loyaltyPointsUsed,

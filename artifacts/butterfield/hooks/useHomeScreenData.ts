@@ -64,13 +64,13 @@ export function useHomeScreenData() {
     retry: 1,
   });
   const { data: storesData } = useStores();
-  const { data: topSellersData } = useQuery({
+  const { data: topSellersData, isError: isTopSellersError, refetch: refetchTopSellers } = useQuery({
     queryKey: ['top-sellers'],
     queryFn: () => api.products.topSellers(),
     staleTime: 5 * 60 * 1000,
     retry: 1,
   });
-  const { data: ordersData } = useQuery({
+  const { data: ordersData, isError: isOrdersError, refetch: refetchOrders } = useQuery({
     queryKey: ['orders'],
     queryFn: () => api.orders.list(),
     enabled: !!user,
@@ -85,7 +85,7 @@ export function useHomeScreenData() {
   const rewards: LoyaltyReward[] = rewardsData?.data ?? [];
   const loyaltyPoints = loyaltyProfile?.loyaltyPoints ?? 0;
   const loyaltyTier   = loyaltyProfile?.loyaltyTier ?? 'blue';
-  const stampCount    = loyaltyProfile?.coffeeStampCount ?? loyaltyProfile?.stampCount ?? 0;
+  const stampCount    = loyaltyProfile?.stampCount ?? 0;
   const stampGoal     = loyaltyProfile?.stampGoal ?? 6;
   const banner: HomeBannerSlide[] = bannerData?.data ?? [];
   const preferredStoreId = meProfile?.preferredStoreId ?? loyaltyProfile?.preferredStoreId ?? null;
@@ -245,7 +245,11 @@ export function useHomeScreenData() {
     featuredStore,
     banner,
     topSellers,
+    isTopSellersError,
+    refetchTopSellers,
     usualItems,
+    isOrdersError,
+    refetchOrders,
     greeting,
     freshName,
   };

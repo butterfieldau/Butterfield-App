@@ -40,9 +40,10 @@ import { SvgXml } from 'react-native-svg';
 import { EARN_POINTS_SVG, BIRTHDAY_TREAT_SVG } from '@/constants/benefit-icons';
 import { CoffeeStampIcon } from '@/components/CoffeeStampIcon';
 
-const HERO_TOP = '#0C1428';
-const HERO_BTM = '#162040';
-const BLUE     = '#40C0F2';
+const HERO_TOP    = '#0C1428';
+const HERO_BTM    = '#162040';
+const BLUE        = '#40C0F2';
+const MUTED_SECTION = '#8E8E93';
 
 const GUEST_BENEFITS: { key: string; title: string; desc: string; renderIcon: () => React.ReactNode }[] = [
   {
@@ -87,7 +88,11 @@ export default function CustomerHome() {
     products,
     refetch,
     topSellers,
+    isTopSellersError,
+    refetchTopSellers,
     usualItems,
+    isOrdersError,
+    refetchOrders,
     loyaltyPoints,
     stampCount,
     stampGoal,
@@ -102,7 +107,7 @@ export default function CustomerHome() {
     greeting,
   } = useHomeScreenData();
 
-  const { data: bannerData } = useQuery({
+  const { data: bannerData, isError: isBannerError, refetch: refetchBanner } = useQuery({
     queryKey: ['home-banner'],
     queryFn: () => api.misc.homeBanner(),
     staleTime: 5 * 60_000,
@@ -249,7 +254,21 @@ export default function CustomerHome() {
         )}
 
         {/* ── YOUR USUAL ── */}
-        {usualItems.length > 0 && (
+        {isOrdersError && user && (
+          <View style={{ marginTop: 28, paddingHorizontal: hPad }}>
+            <View style={[s.sectionHead]}>
+              <Text style={[s.sectionTitle, { color: colors.foreground }]}>Your usual</Text>
+            </View>
+            <View style={s.sectionErrorRow}>
+              <Feather name="wifi-off" size={14} color={MUTED_SECTION} />
+              <Text style={s.sectionErrorText}>Couldn't load your usual orders.</Text>
+              <Pressable onPress={() => refetchOrders()} hitSlop={8}>
+                <Text style={s.sectionRetryText}>Retry</Text>
+              </Pressable>
+            </View>
+          </View>
+        )}
+        {!isOrdersError && usualItems.length > 0 && (
           <View style={{ marginTop: 28 }}>
             <View style={[s.sectionHead, { paddingHorizontal: hPad }]}>
               <Text style={[s.sectionTitle, { color: colors.foreground }]}>Your usual</Text>
@@ -302,6 +321,20 @@ export default function CustomerHome() {
         )}
 
         {/* ── TODAY'S PICKS ── */}
+        {isTopSellersError && products.length === 0 && (
+          <View style={{ marginTop: 28, paddingHorizontal: hPad }}>
+            <View style={[s.sectionHead]}>
+              <Text style={[s.sectionTitle, { color: colors.foreground }]}>Today's Picks</Text>
+            </View>
+            <View style={s.sectionErrorRow}>
+              <Feather name="wifi-off" size={14} color={MUTED_SECTION} />
+              <Text style={s.sectionErrorText}>Couldn't load products right now.</Text>
+              <Pressable onPress={() => refetchTopSellers()} hitSlop={8}>
+                <Text style={s.sectionRetryText}>Retry</Text>
+              </Pressable>
+            </View>
+          </View>
+        )}
         {spotlightItems.length > 0 && (
           <View style={{ marginTop: 28 }}>
             <View style={[s.sectionHead, { paddingHorizontal: hPad }]}>
@@ -326,7 +359,21 @@ export default function CustomerHome() {
         )}
 
         {/* ── THE DROP ── */}
-        {bannerSlides.length > 0 && (
+        {isBannerError && (
+          <View style={{ marginTop: 28, marginBottom: 8, paddingHorizontal: hPad }}>
+            <View style={[s.sectionHead]}>
+              <Text style={[s.sectionTitle, { color: colors.foreground }]}>The Drop</Text>
+            </View>
+            <View style={s.sectionErrorRow}>
+              <Feather name="wifi-off" size={14} color={MUTED_SECTION} />
+              <Text style={s.sectionErrorText}>Couldn't load featured items.</Text>
+              <Pressable onPress={() => refetchBanner()} hitSlop={8}>
+                <Text style={s.sectionRetryText}>Retry</Text>
+              </Pressable>
+            </View>
+          </View>
+        )}
+        {!isBannerError && bannerSlides.length > 0 && (
           <View style={{ marginTop: 28, marginBottom: 8 }}>
             <View style={[s.sectionHead, { paddingHorizontal: hPad }]}>
               <Text style={[s.sectionTitle, { color: colors.foreground }]}>The Drop</Text>
@@ -456,4 +503,11 @@ const s = StyleSheet.create({
   },
   benefitTitle: { fontSize: 14, fontWeight: '700', letterSpacing: -0.2, textAlign: 'center', marginBottom: 4 },
   benefitDesc:  { fontSize: 12, fontWeight: '400', textAlign: 'center', lineHeight: 16 },
+  sectionErrorRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    backgroundColor: '#F2F2F7', borderRadius: 12,
+    paddingHorizontal: 14, paddingVertical: 12,
+  },
+  sectionErrorText: { flex: 1, fontSize: 13, fontWeight: '400', color: '#8E8E93' },
+  sectionRetryText: { fontSize: 13, fontWeight: '600', color: '#40C0F2' },
 });

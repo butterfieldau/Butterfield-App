@@ -84,8 +84,9 @@ function LoyaltyContent() {
   const prevFreeCoffeeRef = useRef<number | null>(null);
   const prevPointsRef     = useRef<number | null>(null);
   const prevStampCountRef = useRef<number | null>(null);
-  // Always init 9 slots to avoid hooks-count mismatch; only animate/show stampGoal of them
-  const stampScaleAnims   = useRef(Array.from({ length: 9 }, () => new Animated.Value(1))).current;
+  // Ref holds one Animated.Value per stamp slot. Initialised empty and extended
+  // lazily (see below, after stampGoal is derived from server data).
+  const stampScaleAnims = useRef<Animated.Value[]>([]).current;
 
   const { data: profileData, isLoading, isRefetching, refetch } = useQuery({
     queryKey: ['loyalty-profile'],
@@ -116,6 +117,11 @@ function LoyaltyContent() {
   const spendCents   = profile?.totalSpentCents ?? 0;
   const stampCount   = profile?.stampCount ?? 0;
   const stampGoal    = (profile as any)?.stampGoal ?? 6;
+  // Extend stampScaleAnims to match stampGoal. Existing Animated.Value instances
+  // are preserved so in-flight animations are never interrupted.
+  while (stampScaleAnims.length < stampGoal) {
+    stampScaleAnims.push(new Animated.Value(1));
+  }
   const freeCoffeeRewards = profile?.freeCoffeeRewards ?? 0;
   const tierSettings = profileData?.data?.loyaltyTierSettings ?? null;
   const displayTier  = getDisplayTierByServerTier(getTierBySpendCents(spendCents, tierSettings)?.key);
@@ -159,7 +165,7 @@ function LoyaltyContent() {
   useEffect(() => {
     if (prevStampCountRef.current !== null && stampCount > prevStampCountRef.current) {
       const newIdx = stampCount - 1;
-      if (newIdx >= 0 && newIdx < 9) {
+      if (newIdx >= 0 && newIdx < stampGoal && newIdx < stampScaleAnims.length) {
         const anim = stampScaleAnims[newIdx];
         if (anim) {
           Animated.sequence([

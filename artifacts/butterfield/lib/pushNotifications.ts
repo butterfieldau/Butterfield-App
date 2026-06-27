@@ -1,5 +1,6 @@
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
+import { api } from '@/lib/api';
 
 // Configure how notifications appear when the app is in the foreground
 Notifications.setNotificationHandler({
@@ -12,9 +13,6 @@ Notifications.setNotificationHandler({
   }),
 });
 
-const API_BASE = process.env.EXPO_PUBLIC_DOMAIN
-  ? `https://${process.env.EXPO_PUBLIC_DOMAIN}/api`
-  : '/api';
 const NOTIFICATION_SOUND = 'butterfield_push_tone.mp3';
 
 export async function clearAppBadge(): Promise<void> {
@@ -31,7 +29,7 @@ export async function clearAppBadge(): Promise<void> {
  * Safe to call multiple times — deduplication is handled server-side.
  * Returns the token string or null (on simulators / web / denied permission).
  */
-export async function registerPushToken(authToken: string): Promise<string | null> {
+export async function registerPushToken(_authToken?: string): Promise<string | null> {
   // Web doesn't support Expo push tokens
   if (Platform.OS === 'web') return null;
 
@@ -69,18 +67,8 @@ export async function registerPushToken(authToken: string): Promise<string | nul
     const tokenData = await Notifications.getExpoPushTokenAsync();
     const token = tokenData.data;
 
-    // Register with backend (best-effort, non-blocking)
-    await fetch(`${API_BASE}/notifications/register-token`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${authToken}`,
-      },
-      body: JSON.stringify({
-        token,
-        platform: Platform.OS,
-      }),
-    });
+    // Register with backend via centralised API client (best-effort, non-blocking)
+    await api.notifications.registerToken({ token, platform: Platform.OS });
 
     return token;
   } catch {
@@ -92,20 +80,13 @@ export async function registerPushToken(authToken: string): Promise<string | nul
 /**
  * Deregister the push token on logout so stale tokens are not targeted.
  */
-export async function deregisterPushToken(authToken: string): Promise<void> {
+export async function deregisterPushToken(_authToken?: string): Promise<void> {
   if (Platform.OS === 'web') return;
   try {
     await clearAppBadge();
     const tokenData = await Notifications.getExpoPushTokenAsync();
     const token = tokenData.data;
-    await fetch(`${API_BASE}/notifications/register-token`, {
-      method: 'DELETE',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${authToken}`,
-      },
-      body: JSON.stringify({ token }),
-    });
+    await api.notifications.unregisterToken({ token });
   } catch {
     // Ignore — token will expire naturally
   }

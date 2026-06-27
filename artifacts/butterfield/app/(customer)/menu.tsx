@@ -73,7 +73,6 @@ export default function MenuScreen() {
   const params = useLocalSearchParams<{ category?: string }>();
   const [search, setSearch]                   = useState('');
   const [activeCategory, setActiveCategory]   = useState(params.category ?? 'all');
-  const [userChangedCategory, setUserChangedCategory] = useState(false);
   const [selectedDietaryTags, setSelectedDietaryTags] = useState<string[]>([]);
 
   const { width, height } = useWindowDimensions();
@@ -104,7 +103,7 @@ export default function MenuScreen() {
   }, [categoriesData]);
 
   useEffect(() => {
-    if (!params.category && !userChangedCategory && categories.length > 1) {
+    if (!params.category && categories.length > 1) {
       setActiveCategory(categories[0].id);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -219,7 +218,6 @@ export default function MenuScreen() {
           categories={categories}
           activeCategory={activeCategory}
           onCategoryChange={(id) => {
-            setUserChangedCategory(true);
             setActiveCategory(id);
             setSearch('');
             setSelectedDietaryTags([]);

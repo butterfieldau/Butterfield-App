@@ -389,7 +389,6 @@ export const api = {
     unregisterToken: (data: { token: string }) =>
       request<{ ok: true }>('/notifications/register-token', { method: 'DELETE', body: JSON.stringify(data) }),
     getPreferences: () => request<{ data: Record<string, boolean> }>('/notifications/preferences'),
-    preferences: () => request<{ data: Record<string, boolean> }>('/notifications/preferences'),
     updatePreferences: (prefs: Record<string, boolean>) =>
       request<{ ok: boolean; data: Record<string, boolean> }>('/notifications/preferences', { method: 'PATCH', body: JSON.stringify(prefs) }),
     logs: () => request<{ data: NotificationLogRecord[] }>('/notifications/logs'),

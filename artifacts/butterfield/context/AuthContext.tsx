@@ -173,7 +173,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  const wholesaleApply = useCallback(async (data: any) => {
+  const wholesaleApply = useCallback(async (data: {
+    email: string; password: string; name: string; phone: string;
+    companyName: string; abn?: string; deliveryAddress: string; howDidYouHear?: string;
+  }) => {
     try {
       const res = await api.auth.wholesaleApply(data);
       return { success: true, message: res.message };

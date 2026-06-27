@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
-import type { CartItem, SelectedCartOption } from '@/types';
+import type { CartItem } from '@/types';
 
 const CART_STORAGE_KEY = '@butterfield_cart';
 
