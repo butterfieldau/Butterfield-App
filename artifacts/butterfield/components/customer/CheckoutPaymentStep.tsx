@@ -16,6 +16,7 @@ import { CardField, useStripe, usePlatformPay, PlatformPay, PlatformPayButton } 
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCart } from '@/context/CartContext';
 import { api, type ClaimedReward } from '@/lib/api';
+import { computeCheckoutTotals, LOYALTY_POINT_VALUE_CENTS } from '@/lib/checkoutTotals';
 
 const BLUE       = '#1493FF';
 const CARD       = '#FFFFFF';
@@ -25,16 +26,6 @@ const TEXT       = '#1C1C1E';
 const MUTED      = '#8E8E93';
 const BORDER     = '#E5E7EB';
 const LIGHT_BLUE = '#E6F0FF';
-
-const LOYALTY_POINT_VALUE_CENTS = 5;
-const STRIPE_CARD_RATE          = 0.017;
-const STRIPE_CARD_FIXED_FEE_CENTS = 30;
-
-function estimateStripeFeeCents(amountCents: number) {
-  return amountCents > 0
-    ? Math.max(0, Math.round(amountCents * STRIPE_CARD_RATE) + STRIPE_CARD_FIXED_FEE_CENTS)
-    : 0;
-}
 
 export type PayMethod = 'credit_card' | 'apple_pay' | 'google_pay' | 'pay_at_pickup';
 
@@ -297,30 +288,17 @@ export function PaymentStepWithStripe({
     loyaltyPointsDiscountCents,
     totalCents,
     totalLabel,
-  } = useMemo(() => {
-    const discountCents = (discountApplied?.discountAmountCents ?? 0) + claimedRewardDiscountCents + cheapestCoffeePriceCents;
-    const deliveryCents = orderType === 'delivery' ? deliveryFeeCents : 0;
-    const baseForFee = subtotalCents + deliveryCents - discountCents;
-    const stripeFee = method === 'pay_at_pickup' ? 0 : estimateStripeFeeCents(Math.max(0, baseForFee));
-    const totalBeforePointsCents = Math.max(0, baseForFee + stripeFee);
-    const maxUsablePoints = Math.min(availableLoyaltyPoints, Math.floor(totalBeforePointsCents / LOYALTY_POINT_VALUE_CENTS));
-    const requestedPointsToUse = Math.max(0, Math.floor(Number(pointsToUseInput.replace(/\D/g, '') || '0')));
-    const loyaltyPointsUsed = Math.min(requestedPointsToUse, maxUsablePoints);
-    const loyaltyPointsDiscountCents = loyaltyPointsUsed * LOYALTY_POINT_VALUE_CENTS;
-    const totalCents = Math.max(0, totalBeforePointsCents - loyaltyPointsDiscountCents);
-    const totalLabel = `AUD ${(totalCents / 100).toFixed(2)}`;
-    return {
-      discountCents,
-      deliveryCents,
-      stripeFee,
-      maxUsablePoints,
-      requestedPointsToUse,
-      loyaltyPointsUsed,
-      loyaltyPointsDiscountCents,
-      totalCents,
-      totalLabel,
-    };
-  }, [
+  } = useMemo(() => computeCheckoutTotals({
+    subtotalCents,
+    discountAppliedCents: discountApplied?.discountAmountCents ?? 0,
+    claimedRewardDiscountCents,
+    cheapestCoffeePriceCents,
+    orderType,
+    deliveryFeeCents,
+    method,
+    availableLoyaltyPoints,
+    pointsToUseInput,
+  }), [
     discountApplied,
     claimedRewardDiscountCents,
     cheapestCoffeePriceCents,

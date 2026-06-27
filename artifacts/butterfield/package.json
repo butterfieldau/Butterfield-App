@@ -11,6 +11,7 @@
     "postinstall": "node scripts/patch-stripe-ios.js",
     "serve": "node server/serve.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
     "android": "expo run:android",
     "ios": "expo run:ios"
   },
@@ -58,6 +59,7 @@
     "react-native-web": "~0.21.0",
     "react-native-worklets": "0.7.4",
     "typescript": "~5.9.2",
+    "vitest": "^4.1.9",
     "zod": "catalog:",
     "zod-validation-error": "^3.4.0"
   },
