@@ -131,6 +131,7 @@ export function PaymentStepWithStripe({
   const [discountError, setDiscountError] = useState('');
   const [validatingDiscount, setValidatingDiscount] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [cancelMessage, setCancelMessage] = useState<string | null>(null);
   const [selectedClaimedRewardId, setSelectedClaimedRewardId] = useState<string | null>(null);
   const selectedRewardRef = useRef<string | null>(null);
   const [freeRewardLine, setFreeRewardLine] = useState<{ productId: string; name: string } | null>(null);
@@ -331,6 +332,7 @@ export function PaymentStepWithStripe({
 
   const handleApplePay = async () => {
     if (busy) return;
+    setCancelMessage(null);
 
     if (totalCents === 0) {
       setBusy(true);
@@ -356,6 +358,7 @@ export function PaymentStepWithStripe({
     }
 
     setBusy(true);
+    let createdIntentId: string | null = null;
     try {
       const intent = await api.payment.createIntent({
         items: items as any[],
@@ -380,6 +383,8 @@ export function PaymentStepWithStripe({
         return;
       }
 
+      createdIntentId = intent.paymentIntentId ?? null;
+
       const displayItems = [
         { label: 'Subtotal', amount: String(subtotalCents / 100), type: 'final' as const, isPending: false },
         ...(deliveryCents > 0 ? [{ label: 'Delivery', amount: String(deliveryCents / 100), type: 'final' as const, isPending: false }] : []),
@@ -394,7 +399,17 @@ export function PaymentStepWithStripe({
           currencyCode: 'AUD',
         },
       } as any);
-      if (ppError) throw new Error(ppError.message);
+
+      if (ppError) {
+        if (ppError.code === 'Canceled') {
+          if (createdIntentId) {
+            api.payment.cancelIntent(createdIntentId).catch(() => {});
+          }
+          setCancelMessage('Payment cancelled. Tap to try again.');
+          return;
+        }
+        throw new Error(ppError.message);
+      }
 
       await onSuccess({
         stripePaymentIntentId: intent.paymentIntentId ?? undefined,
@@ -668,6 +683,12 @@ export function PaymentStepWithStripe({
             borderRadius={14}
             style={psStyles.applePayBtn}
           />
+          {cancelMessage ? (
+            <View style={psStyles.cancelMessageRow}>
+              <Feather name="info" size={13} color={MUTED} />
+              <Text style={psStyles.cancelMessageText}>{cancelMessage}</Text>
+            </View>
+          ) : null}
           <View style={psStyles.dividerRow}>
             <View style={psStyles.dividerLine} />
             <Text style={psStyles.dividerText}>or pay another way</Text>
@@ -1106,6 +1127,8 @@ const psStyles = StyleSheet.create({
   continueBtn:     { height: 54, borderRadius: 999, alignItems: 'center', justifyContent: 'center' },
   continueBtnText: { color: '#fff', fontSize: 16, fontWeight: '600' },
   applePayBtn:     { width: '100%', height: 54 },
+  cancelMessageRow:{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 6, paddingHorizontal: 2 },
+  cancelMessageText:{ fontSize: 12, color: MUTED, flex: 1 },
   dividerRow:      { flexDirection: 'row', alignItems: 'center', gap: 10, marginVertical: 2 },
   dividerLine:     { flex: 1, height: 1, backgroundColor: BORDER },
   dividerText:     { fontSize: 11, fontWeight: '500', color: MUTED, letterSpacing: 0.2 },

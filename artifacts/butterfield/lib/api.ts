@@ -488,6 +488,11 @@ export const api = {
         '/payment/confirm-intent',
         { method: 'POST', body: JSON.stringify({ paymentIntentId }) },
       ),
+    cancelIntent: (paymentIntentId: string) =>
+      request<{ cancelled: boolean; paymentIntentId: string }>(
+        '/payment/cancel-intent',
+        { method: 'POST', body: JSON.stringify({ paymentIntentId }) },
+      ),
   },
   director: {
     verifySettingsPin:   (pin: string) => request<{ granted: boolean }>('/director/verify-settings-pin', { method: 'POST', body: JSON.stringify({ pin }) }),

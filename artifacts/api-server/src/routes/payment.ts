@@ -367,4 +367,21 @@ router.post('/confirm-intent', async (req, res) => {
   }
 });
 
+router.post('/cancel-intent', async (req, res) => {
+  const { paymentIntentId } = req.body ?? {};
+  if (!paymentIntentId || typeof paymentIntentId !== 'string') {
+    return res.status(400).json({ error: 'paymentIntentId is required.' });
+  }
+
+  try {
+    const { getUncachableStripeClient } = await import('../stripeClient.js');
+    const stripe = await getUncachableStripeClient();
+    const intent = await stripe.paymentIntents.cancel(paymentIntentId);
+    return res.json({ cancelled: intent.status === 'canceled', paymentIntentId: intent.id });
+  } catch (err: any) {
+    req.log.warn({ err, paymentIntentId }, 'Could not cancel payment intent (may already be resolved)');
+    return res.json({ cancelled: false, paymentIntentId });
+  }
+});
+
 export default router;
