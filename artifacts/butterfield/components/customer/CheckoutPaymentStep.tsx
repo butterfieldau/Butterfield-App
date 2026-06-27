@@ -645,7 +645,16 @@ export function PaymentStepWithStripe({
             billingAddressConfig: { format: PlatformPay.BillingAddressFormat.Full },
           },
         } as any);
-        if (ppError) throw new Error(ppError.message);
+        if (ppError) {
+          if (ppError.code === 'Canceled') {
+            if (intent.paymentIntentId) {
+              api.payment.cancelIntent(intent.paymentIntentId).catch(() => {});
+            }
+            setCancelMessage('Payment cancelled. Tap to try again.');
+            return;
+          }
+          throw new Error(ppError.message);
+        }
         await onSuccess({
           stripePaymentIntentId: intent.paymentIntentId ?? undefined,
           paymentMethodType: method,
