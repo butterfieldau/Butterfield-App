@@ -362,6 +362,7 @@ export function PaymentStepWithStripe({
   };
 
   const isIosApplePay = Platform.OS === 'ios' && platformPayAvailable && stripeReady;
+  const isAndroidGooglePay = Platform.OS === 'android' && platformPayAvailable && stripeReady && method === 'google_pay';
 
   const handleApplePay = async () => {
     if (busy) return;
@@ -733,6 +734,33 @@ export function PaymentStepWithStripe({
         </>
       )}
 
+      {isAndroidGooglePay && (
+        <>
+          <PlatformPayButton
+            onPress={handlePay}
+            type={PlatformPay.ButtonType.Buy}
+            appearance={PlatformPay.ButtonStyle.Black}
+            disabled={busy}
+            borderRadius={14}
+            style={psStyles.applePayBtn}
+          />
+          {totalCents > 0 && (
+            <Text style={psStyles.applePayTotalLabel}>{`Pay ${totalLabel}`}</Text>
+          )}
+          {cancelMessage ? (
+            <View style={psStyles.cancelMessageRow}>
+              <Feather name="info" size={13} color={MUTED} />
+              <Text style={psStyles.cancelMessageText}>{cancelMessage}</Text>
+            </View>
+          ) : null}
+          <View style={psStyles.dividerRow}>
+            <View style={psStyles.dividerLine} />
+            <Text style={psStyles.dividerText}>or pay another way</Text>
+            <View style={psStyles.dividerLine} />
+          </View>
+        </>
+      )}
+
       {stripeReady && platformPayAvailable && Platform.OS === 'android' && (
         <PaymentMethodRow
           method="google_pay"
@@ -1081,7 +1109,7 @@ export function PaymentStepWithStripe({
         </View>
       </View>
 
-      {(!isIosApplePay || altMethodSelected) && (
+      {(!isIosApplePay || altMethodSelected) && !isAndroidGooglePay && (
         <Pressable
           onPress={handlePay}
           disabled={busy || (!stripeReady && method !== 'pay_at_pickup' && totalCents > 0)}
