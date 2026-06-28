@@ -24,8 +24,10 @@ function getAllowedOrigins(): string[] {
     .map((domain) => `https://${domain}`);
 
   const publicDomain = process.env.EXPO_PUBLIC_DOMAIN ? [`https://${process.env.EXPO_PUBLIC_DOMAIN}`] : [];
+  const expoDevDomain = process.env.REPLIT_EXPO_DEV_DOMAIN ? [`https://${process.env.REPLIT_EXPO_DEV_DOMAIN}`] : [];
+  const replitDevDomain = process.env.REPLIT_DEV_DOMAIN ? [`https://${process.env.REPLIT_DEV_DOMAIN}`] : [];
 
-  return Array.from(new Set([...configured, ...replitDomains, ...publicDomain]));
+  return Array.from(new Set([...configured, ...replitDomains, ...publicDomain, ...expoDevDomain, ...replitDevDomain]));
 }
 
 const allowedOrigins = getAllowedOrigins();
