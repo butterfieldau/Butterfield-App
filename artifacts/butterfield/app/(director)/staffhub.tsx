@@ -1498,7 +1498,7 @@ function HubSummaryBar({ isManagerView }: { isManagerView: boolean }) {
           <Text style={[s.hubStatValue, { color: taskColor }]}>
             {totalTasks > 0 ? `${completedTasks}/${totalTasks}` : '—'}
           </Text>
-          <Text style={s.hubStatLabel}>Tasks</Text>
+          <Text style={s.hubStatLabel} numberOfLines={1}>Tasks</Text>
         </View>
 
         {/* Progress % */}
@@ -1507,7 +1507,7 @@ function HubSummaryBar({ isManagerView }: { isManagerView: boolean }) {
           <Text style={[s.hubStatValue, { color: allDone ? GREEN : NAVY }]}>
             {totalTasks > 0 ? (allDone ? '✓' : `${pct}%`) : '—'}
           </Text>
-          <Text style={s.hubStatLabel}>Done</Text>
+          <Text style={s.hubStatLabel} numberOfLines={1}>Done</Text>
         </View>
 
         {/* Open issues (manager) or pending leave (staff) */}
@@ -1517,14 +1517,14 @@ function HubSummaryBar({ isManagerView }: { isManagerView: boolean }) {
             <Text style={[s.hubStatValue, { color: openIssues > 0 ? AMBER : GREEN }]}>
               {openIssues}
             </Text>
-            <Text style={s.hubStatLabel}>Open Issues</Text>
+            <Text style={s.hubStatLabel} numberOfLines={1}>Open Issues</Text>
           </View>
         ) : (
           <View style={s.hubStatItem}>
             <Text style={[s.hubStatValue, { color: NAVY }]}>
               {pendingLeave}
             </Text>
-            <Text style={s.hubStatLabel}>My Leave</Text>
+            <Text style={s.hubStatLabel} numberOfLines={1}>My Leave</Text>
           </View>
         )}
 
@@ -1536,7 +1536,7 @@ function HubSummaryBar({ isManagerView }: { isManagerView: boolean }) {
               <Text style={[s.hubStatValue, { color: pendingLeave > 0 ? PURPLE : MUTED }]}>
                 {pendingLeave}
               </Text>
-              <Text style={s.hubStatLabel}>Leave Reqs</Text>
+              <Text style={s.hubStatLabel} numberOfLines={1}>Leave Reqs</Text>
             </View>
           </>
         )}
@@ -1587,20 +1587,22 @@ export default function StaffHubScreen() {
     <DirectorTabScreen
       title="Staff Hub"
       subtitle={showManagerContent ? 'Manage your team' : 'Your shift tools'}
-      headerRight={isManager ? (
-        <View style={s.modeToggle}>
-          <Pressable
-            onPress={() => { Haptics.selectionAsync(); setManageMode(false); }}
-            style={[s.modeBtn, !manageMode && s.modeBtnActive]}
-          >
-            <Text style={[s.modeBtnText, !manageMode && { color: '#fff' }]}>My Shift</Text>
-          </Pressable>
-          <Pressable
-            onPress={() => { Haptics.selectionAsync(); setManageMode(true); }}
-            style={[s.modeBtn, manageMode && s.modeBtnActive]}
-          >
-            <Text style={[s.modeBtnText, manageMode && { color: '#fff' }]}>Manage</Text>
-          </Pressable>
+      headerBottom={isManager ? (
+        <View style={s.modeToggleBar}>
+          <View style={s.modeToggle}>
+            <Pressable
+              onPress={() => { Haptics.selectionAsync(); setManageMode(false); }}
+              style={[s.modeBtn, !manageMode && s.modeBtnActive]}
+            >
+              <Text style={[s.modeBtnText, !manageMode && { color: '#fff' }]}>My Shift</Text>
+            </Pressable>
+            <Pressable
+              onPress={() => { Haptics.selectionAsync(); setManageMode(true); }}
+              style={[s.modeBtn, manageMode && s.modeBtnActive]}
+            >
+              <Text style={[s.modeBtnText, manageMode && { color: '#fff' }]}>Manage</Text>
+            </Pressable>
+          </View>
         </View>
       ) : undefined}
     >
@@ -1651,6 +1653,7 @@ const s = StyleSheet.create({
   subtitle:   { fontSize: 13, color: MUTED, marginTop: 2, fontWeight: '400' },
 
   // Manager mode toggle
+  modeToggleBar: { backgroundColor: '#EFF6FF', paddingHorizontal: 12, paddingBottom: 10, alignItems: 'flex-end' },
   modeToggle:   { flexDirection: 'row', backgroundColor: BORDER, borderRadius: 20, padding: 3, gap: 2 },
   modeBtn:      { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 17 },
   modeBtnActive:{ backgroundColor: BLUE },
@@ -1728,7 +1731,7 @@ const s = StyleSheet.create({
   },
   hubStatItem:  { flex: 1, alignItems: 'center' },
   hubStatValue: { fontSize: 18, fontWeight: '700', color: NAVY },
-  hubStatLabel: { fontSize: 11, color: MUTED, marginTop: 2 },
+  hubStatLabel: { fontSize: 11, color: MUTED, marginTop: 2, textAlign: 'center' },
   hubDivider:   { width: 1, backgroundColor: BORDER, marginVertical: 4 },
 
   // Alert banner (urgent issues)

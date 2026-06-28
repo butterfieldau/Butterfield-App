@@ -78,9 +78,9 @@ export function PortalHeader({ badge, badgeColor = '#EF4444', backgroundColor = 
           </View>
         </View>
         <View style={styles.bottomRow}>
-          <View>
+          <View style={{ flex: 1, minWidth: 0, marginRight: 10 }}>
             <Text style={styles.date}>{todayStr}</Text>
-            <Text style={styles.welcome}>Welcome, {user?.name?.split(' ')[0] ?? 'there'}</Text>
+            <Text style={styles.welcome} numberOfLines={1}>Welcome, {user?.name?.split(' ')[0] ?? 'there'}</Text>
           </View>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
             <View style={styles.clockPill}>

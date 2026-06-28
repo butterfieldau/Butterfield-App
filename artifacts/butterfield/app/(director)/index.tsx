@@ -121,7 +121,7 @@ function DirectorDashboardInner({ onScroll }: { onScroll?: (e: any) => void }) {
                       router.push({ pathname: '/(director)/orders', params: { drillMode: r.drillMode } } as any);
                     }}
                   >
-                    <Text style={[styles.revAmount, { fontWeight: '700' }]}>{r.value}</Text>
+                    <Text style={[styles.revAmount, { fontWeight: '700' }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{r.value}</Text>
                     <Text style={[styles.revLabel,  { fontWeight: '400' }]}>{r.label}</Text>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 }}>
                       <DeltaBadge pct={r.delta} dark />

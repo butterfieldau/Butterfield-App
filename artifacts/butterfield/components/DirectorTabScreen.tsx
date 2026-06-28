@@ -74,8 +74,8 @@ const ss = StyleSheet.create({
     backgroundColor: HEADER_BG,
   },
   sideLeft:  { flex: 1, alignItems: 'flex-start' },
-  sideRight: { flex: 1, alignItems: 'flex-end' },
-  center:    { alignItems: 'center', paddingHorizontal: 4 },
+  sideRight: { flex: 1, alignItems: 'flex-end', minWidth: 0, flexShrink: 1 },
+  center:    { alignItems: 'center', paddingHorizontal: 4, flexShrink: 1, minWidth: 0 },
   title:     { fontSize: 16, fontWeight: '700', color: NAVY },
   subtitle:  { fontSize: 11, color: MUTED, marginTop: 2, textAlign: 'center' },
 });
