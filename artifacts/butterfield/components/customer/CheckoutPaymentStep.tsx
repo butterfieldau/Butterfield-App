@@ -160,7 +160,7 @@ export function PaymentStepWithStripe({
 
   const defaultMethod: PayMethod = Platform.OS === 'android' ? 'google_pay' : 'credit_card';
   const [method, setMethod] = useState<PayMethod>(defaultMethod);
-  const [platformPayAvailable, setPlatformPayAvailable] = useState(false);
+  const [platformPayAvailable, setPlatformPayAvailable] = useState<boolean | null>(null);
   const [altMethodSelected, setAltMethodSelected] = useState(false);
   const [showAddCardForm, setShowAddCardForm] = useState(false);
   const [selectedSavedPaymentMethodId, setSelectedSavedPaymentMethodId] = useState<string | null>(null);
@@ -175,6 +175,9 @@ export function PaymentStepWithStripe({
   const selectedRewardRef = useRef<string | null>(null);
   const [freeRewardLine, setFreeRewardLine] = useState<{ productId: string; name: string } | null>(null);
   const freeRewardLineRef = useRef<{ productId: string; name: string } | null>(null);
+  const applePayInFlightRef = useRef(false);
+  const pendingIntentRef = useRef<{ clientSecret: string; paymentIntentId: string; amountCents: number } | null>(null);
+  const pendingIntentFetchingRef = useRef(false);
   const qc = useQueryClient();
 
   const { data: claimedRewardsData } = useQuery({
@@ -364,6 +367,58 @@ export function PaymentStepWithStripe({
     }
   }, [loyaltyPointsUsed, requestedPointsToUse]);
 
+  // Eagerly pre-create a payment intent on iOS Apple Pay so the sheet opens instantly on tap.
+  // Re-runs whenever totalCents or the discount/reward state changes.
+  useEffect(() => {
+    const isIos = Platform.OS === 'ios';
+    if (!isIos || !stripeReady || platformPayAvailable !== true || totalCents === 0) {
+      // Not eligible — cancel any stale pre-fetch
+      const stale = pendingIntentRef.current;
+      if (stale) {
+        pendingIntentRef.current = null;
+        api.payment.cancelIntent(stale.paymentIntentId).catch(() => {});
+      }
+      return;
+    }
+    // Already have a valid cached intent for this exact amount — nothing to do
+    if (pendingIntentRef.current?.amountCents === totalCents) return;
+    // Cancel stale intent and fetch a fresh one
+    const stale = pendingIntentRef.current;
+    pendingIntentRef.current = null;
+    if (stale) api.payment.cancelIntent(stale.paymentIntentId).catch(() => {});
+    if (pendingIntentFetchingRef.current) return;
+    pendingIntentFetchingRef.current = true;
+    api.payment.createIntent({
+      items: items as any[],
+      orderType,
+      discountCode: discountApplied?.code,
+      claimedRewardId: selectedClaimedRewardId ?? undefined,
+      loyaltyPointsUsed: loyaltyPointsUsed || undefined,
+      savePaymentMethod: false,
+      useFreeCoffeeReward: useFreeCoffeeReward || undefined,
+    }).then((intent) => {
+      if (intent.clientSecret && intent.paymentIntentId && intent.amountCents > 0) {
+        pendingIntentRef.current = {
+          clientSecret: intent.clientSecret,
+          paymentIntentId: intent.paymentIntentId,
+          amountCents: intent.amountCents,
+        };
+      }
+    }).catch(() => { /* silent — handleApplePay creates fresh on tap if cache is empty */ })
+      .finally(() => { pendingIntentFetchingRef.current = false; });
+  }, [platformPayAvailable, stripeReady, totalCents, selectedClaimedRewardId, useFreeCoffeeReward]);
+
+  // Cancel any pre-fetched intent when the payment step unmounts (checkout abandoned or completed)
+  useEffect(() => {
+    return () => {
+      const stale = pendingIntentRef.current;
+      if (stale) {
+        pendingIntentRef.current = null;
+        api.payment.cancelIntent(stale.paymentIntentId).catch(() => {});
+      }
+    };
+  }, []);
+
   const applyDiscount = async () => {
     const code = discountInput.trim().toUpperCase();
     if (!code) return;
@@ -387,11 +442,12 @@ export function PaymentStepWithStripe({
     setDiscountError('');
   };
 
-  const isIosApplePay = Platform.OS === 'ios' && platformPayAvailable && stripeReady;
-  const isAndroidGooglePay = Platform.OS === 'android' && platformPayAvailable && stripeReady && method === 'google_pay';
+  const isIosApplePay = Platform.OS === 'ios' && platformPayAvailable === true && stripeReady;
+  const isAndroidGooglePay = Platform.OS === 'android' && platformPayAvailable === true && stripeReady && method === 'google_pay';
 
   const handleApplePay = async () => {
-    if (busy) return;
+    // Use a ref guard instead of busy state to avoid re-renders that cause button flicker
+    if (applePayInFlightRef.current) return;
     setCancelMessage(null);
 
     if (totalCents === 0) {
@@ -417,18 +473,31 @@ export function PaymentStepWithStripe({
       return;
     }
 
-    setBusy(true);
-    let createdIntentId: string | null = null;
+    applePayInFlightRef.current = true;
+    let usedIntentId: string | null = null;
     try {
-      const intent = await api.payment.createIntent({
-        items: items as any[],
-        orderType,
-        discountCode: discountApplied?.code,
-        claimedRewardId: selectedClaimedRewardId ?? undefined,
-        loyaltyPointsUsed: loyaltyPointsUsed || undefined,
-        savePaymentMethod: false,
-        useFreeCoffeeReward: useFreeCoffeeReward || undefined,
-      });
+      // Use the pre-fetched intent if it matches the current total — no network wait before sheet
+      const cached = pendingIntentRef.current;
+      let intent: { clientSecret: string | null; paymentIntentId: string | null; amountCents: number; paymentRequired?: boolean };
+      if (cached && cached.amountCents === totalCents) {
+        pendingIntentRef.current = null; // consume it
+        intent = cached;
+      } else {
+        // Cache miss (total changed after pre-fetch) — cancel stale and create fresh
+        if (cached) {
+          pendingIntentRef.current = null;
+          api.payment.cancelIntent(cached.paymentIntentId).catch(() => {});
+        }
+        intent = await api.payment.createIntent({
+          items: items as any[],
+          orderType,
+          discountCode: discountApplied?.code,
+          claimedRewardId: selectedClaimedRewardId ?? undefined,
+          loyaltyPointsUsed: loyaltyPointsUsed || undefined,
+          savePaymentMethod: false,
+          useFreeCoffeeReward: useFreeCoffeeReward || undefined,
+        });
+      }
 
       if (intent.amountCents === 0 || intent.paymentRequired === false) {
         await onSuccess({
@@ -443,7 +512,7 @@ export function PaymentStepWithStripe({
         return;
       }
 
-      createdIntentId = intent.paymentIntentId ?? null;
+      usedIntentId = intent.paymentIntentId ?? null;
 
       const displayItems = buildApplePayCartItems({
         subtotalCents,
@@ -462,8 +531,8 @@ export function PaymentStepWithStripe({
 
       if (ppError) {
         if (ppError.code === 'Canceled') {
-          if (createdIntentId) {
-            api.payment.cancelIntent(createdIntentId).catch(() => {});
+          if (usedIntentId) {
+            api.payment.cancelIntent(usedIntentId).catch(() => {});
           }
           setCancelMessage('Payment cancelled. Tap to try again.');
           return;
@@ -484,7 +553,7 @@ export function PaymentStepWithStripe({
     } catch (e: any) {
       Alert.alert('Payment failed', e?.message ?? 'Please try again.');
     } finally {
-      setBusy(false);
+      applePayInFlightRef.current = false;
     }
   };
 
@@ -742,12 +811,14 @@ export function PaymentStepWithStripe({
     <View style={psStyles.wrap}>
       <Text style={psStyles.sectionTitle}>Payment method</Text>
 
+      {/* Invisible same-height placeholder prevents layout shift while Apple Pay availability is being checked */}
+      {Platform.OS === 'ios' && stripeReady && platformPayAvailable === null && (
+        <View style={{ height: 54, marginBottom: 8 }} />
+      )}
+
       {isIosApplePay && (
         <>
-          <View
-            pointerEvents={busy ? 'none' : 'auto'}
-            style={psStyles.platformPayButtonWrap}
-          >
+          <View style={psStyles.platformPayButtonWrap}>
             <PlatformPayButton
               onPress={handleApplePay}
               type={PlatformPay.ButtonType.Buy}
