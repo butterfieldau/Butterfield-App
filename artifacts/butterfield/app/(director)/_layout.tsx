@@ -126,7 +126,7 @@ export default function DirectorLayout() {
           }}
         >
           <Tabs.Screen name="index"    options={{ title: 'Dashboard' }} />
-          <Tabs.Screen name="orders"   options={{ title: 'Orders' }} />
+          <Tabs.Screen name="orders"   options={{ title: 'Orders', href: isStaff && !canViewOrders ? null : undefined }} />
           <Tabs.Screen name="schedule" options={{ title: 'Schedule',  href: isStaff ? undefined : null }} />
           <Tabs.Screen name="scan"     options={{ title: 'Scan',      href: null }} />
           <Tabs.Screen name="tasks"    options={{ title: 'Staff Hub', href: null }} />

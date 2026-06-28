@@ -73,11 +73,22 @@ export default function DirectorOrdersScreen() {
   const drillModeRef = useRef<string | null>(null);
 
   const isStaff = user?.role === 'staff';
+
+  // For staff, check canViewOrders before fetching or rendering.
+  const { data: staffProfileData, isLoading: staffProfileLoading } = useQuery({
+    queryKey: ['staff-profile'],
+    queryFn: () => api.staff.profile(),
+    enabled: isStaff,
+    staleTime: 60_000,
+  });
+  const canViewOrders = isStaff ? (staffProfileData?.data as any)?.canViewOrders === true : true;
+
   const { data, isLoading, refetch } = useQuery({
     queryKey: isStaff ? ['staff-orders'] : ['director-orders'],
     queryFn: () => isStaff ? api.staff.allOrders() : api.director.orders(),
     refetchInterval: 20000,
     placeholderData: keepPreviousData,
+    enabled: !isStaff || canViewOrders,
   });
   const { data: posData, isLoading: posLoading, refetch: posRefetch } = useQuery({
     queryKey: ['director-pos-orders', posDayStr],
@@ -153,6 +164,26 @@ export default function DirectorOrdersScreen() {
   const stores = storesData?.data ?? [];
   const printerIp = (settingsData?.data?.printer_ip ?? '').trim();
   const printerPort = parseInt(settingsData?.data?.printer_port ?? '9100', 10);
+
+  // Access guard — shown after all hooks so hook call count stays stable.
+  if (isStaff && !canViewOrders) {
+    if (staffProfileLoading) {
+      return (
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: BG }}>
+          <ActivityIndicator color={BLUE} size="large" />
+        </View>
+      );
+    }
+    return (
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: BG, padding: 32, gap: 16 }}>
+        <Feather name="lock" size={40} color={MUTED} />
+        <Text style={{ fontSize: 18, fontWeight: '700', color: TEXT, textAlign: 'center' }}>Access Restricted</Text>
+        <Text style={{ fontSize: 14, color: MUTED, textAlign: 'center', lineHeight: 20 }}>
+          You don't have permission to view orders.{'\n'}Ask your manager to enable this for your account.
+        </Text>
+      </View>
+    );
+  }
 
   const isDrillActive = !!(params.drillMode);
   const drillLabel = (() => {

@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { randomUUID } from 'crypto';
-import { db, ordersTable, customerProfilesTable, storeSettingsTable, discountCodesTable, discountCodeUsagesTable, claimedRewardsTable, storesTable, usersTable } from '@workspace/db';
+import { db, ordersTable, customerProfilesTable, storeSettingsTable, discountCodesTable, discountCodeUsagesTable, claimedRewardsTable, storesTable, usersTable, staffProfilesTable } from '@workspace/db';
 import { eq, desc, sql, and, inArray, isNull } from 'drizzle-orm';
 import { requireAuth, requireRole } from '../middlewares/auth.js';
 import { sendNotification, notifyUser } from '../lib/notificationService.js';
@@ -17,14 +17,35 @@ import { getSydneyNow } from '../lib/sydneyTime.js';
 
 const router = Router();
 
-function sendNotificationToInternalTeam(
+async function sendNotificationToInternalTeam(
   type: string,
   title: string,
   body: string,
   data?: Record<string, unknown>,
 ) {
+  // Directors / managers / masters always receive order notifications.
+  const internalUsers = await db
+    .select({ id: usersTable.id })
+    .from(usersTable)
+    .where(inArray(usersTable.role, ['director', 'manager', 'master']));
+
+  // Staff: only those explicitly granted canViewOrders.
+  const authorisedStaff = await db
+    .select({ id: staffProfilesTable.userId })
+    .from(staffProfilesTable)
+    .where(eq(staffProfilesTable.canViewOrders, true));
+
+  const userIds = [
+    ...new Set([
+      ...internalUsers.map((u) => u.id),
+      ...authorisedStaff.map((u) => u.id),
+    ]),
+  ];
+
+  if (userIds.length === 0) return;
+
   return sendNotification({
-    roles: ['staff', 'manager', 'director', 'master'],
+    userIds,
     type,
     title,
     body,
