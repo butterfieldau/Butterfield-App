@@ -162,7 +162,7 @@ function RewardModal({ visible, reward, onClose, onSuccess }: {
     setError('');
     if (!name.trim()) { setError('Name is required.'); return; }
     const pointsCost = parseInt(pts, 10);
-    if (isNaN(pointsCost) || pointsCost < 1) { setError('Points cost must be a positive number.'); return; }
+    if (isNaN(pointsCost) || pointsCost < 0) { setError('Points cost must be 0 or a positive number.'); return; }
     if (rewardType === 'money_voucher') {
       const dollars = parseFloat(voucherDollars);
       if (isNaN(dollars) || dollars < 0.01) { setError('Voucher value must be at least $0.01.'); return; }
