@@ -29,6 +29,54 @@ const LIGHT_BLUE = '#E6F0FF';
 
 export type PayMethod = 'credit_card' | 'apple_pay' | 'google_pay' | 'pay_at_pickup';
 
+function buildApplePayCartItems({
+  subtotalCents,
+  deliveryCents,
+  discountCents,
+  totalCents,
+}: {
+  subtotalCents: number;
+  deliveryCents: number;
+  discountCents: number;
+  totalCents: number;
+}): PlatformPay.CartSummaryItem[] {
+  const items: PlatformPay.CartSummaryItem[] = [
+    {
+      label: 'Subtotal',
+      amount: (subtotalCents / 100).toFixed(2),
+      paymentType: PlatformPay.PaymentType.Immediate,
+      isPending: false,
+    },
+  ];
+
+  if (deliveryCents > 0) {
+    items.push({
+      label: 'Delivery',
+      amount: (deliveryCents / 100).toFixed(2),
+      paymentType: PlatformPay.PaymentType.Immediate,
+      isPending: false,
+    });
+  }
+
+  if (discountCents > 0) {
+    items.push({
+      label: 'Discount',
+      amount: (-discountCents / 100).toFixed(2),
+      paymentType: PlatformPay.PaymentType.Immediate,
+      isPending: false,
+    });
+  }
+
+  items.push({
+    label: 'Butterfield Cookies',
+    amount: (totalCents / 100).toFixed(2),
+    paymentType: PlatformPay.PaymentType.Immediate,
+    isPending: false,
+  });
+
+  return items;
+}
+
 interface ValidatedDiscount {
   id: string;
   code: string;
@@ -397,12 +445,12 @@ export function PaymentStepWithStripe({
 
       createdIntentId = intent.paymentIntentId ?? null;
 
-      const displayItems = [
-        { label: 'Subtotal', amount: String(subtotalCents / 100), type: 'final' as const, isPending: false },
-        ...(deliveryCents > 0 ? [{ label: 'Delivery', amount: String(deliveryCents / 100), type: 'final' as const, isPending: false }] : []),
-        ...(discountCents > 0 ? [{ label: 'Discount', amount: String(-discountCents / 100), type: 'final' as const, isPending: false }] : []),
-        { label: 'Butterfield Cookies', amount: String(intent.amountCents / 100), type: 'final' as const, isPending: false },
-      ];
+      const displayItems = buildApplePayCartItems({
+        subtotalCents,
+        deliveryCents,
+        discountCents,
+        totalCents: intent.amountCents,
+      });
 
       const { error: ppError } = await confirmPlatformPayPayment(intent.clientSecret!, {
         applePay: {
@@ -625,12 +673,12 @@ export function PaymentStepWithStripe({
       }
 
       if (method === 'apple_pay' || method === 'google_pay') {
-        const displayItems = [
-          { label: 'Subtotal', amount: String(subtotalCents / 100), type: 'final' as const, isPending: false },
-          ...(deliveryCents > 0 ? [{ label: 'Delivery', amount: String(deliveryCents / 100), type: 'final' as const, isPending: false }] : []),
-          ...(discountCents > 0 ? [{ label: 'Discount', amount: String(-discountCents / 100), type: 'final' as const, isPending: false }] : []),
-          { label: 'Butterfield Cookies', amount: String(intent.amountCents / 100), type: 'final' as const, isPending: false },
-        ];
+        const displayItems = buildApplePayCartItems({
+          subtotalCents,
+          deliveryCents,
+          discountCents,
+          totalCents: intent.amountCents,
+        });
         const { error: ppError } = await confirmPlatformPayPayment(intent.clientSecret!, {
           applePay: {
             cartItems: displayItems,
@@ -696,14 +744,18 @@ export function PaymentStepWithStripe({
 
       {isIosApplePay && (
         <>
-          <PlatformPayButton
-            onPress={handleApplePay}
-            type={PlatformPay.ButtonType.Buy}
-            appearance={PlatformPay.ButtonStyle.Black}
-            disabled={busy}
-            borderRadius={14}
-            style={psStyles.applePayBtn}
-          />
+          <View
+            pointerEvents={busy ? 'none' : 'auto'}
+            style={psStyles.platformPayButtonWrap}
+          >
+            <PlatformPayButton
+              onPress={handleApplePay}
+              type={PlatformPay.ButtonType.Buy}
+              appearance={PlatformPay.ButtonStyle.Black}
+              borderRadius={14}
+              style={psStyles.applePayBtn}
+            />
+          </View>
           {totalCents > 0 && (
             <Text style={psStyles.applePayTotalLabel}>{`Pay ${totalLabel}`}</Text>
           )}
@@ -723,14 +775,18 @@ export function PaymentStepWithStripe({
 
       {isAndroidGooglePay && (
         <>
-          <PlatformPayButton
-            onPress={handlePay}
-            type={PlatformPay.ButtonType.Buy}
-            appearance={PlatformPay.ButtonStyle.Black}
-            disabled={busy}
-            borderRadius={14}
-            style={psStyles.applePayBtn}
-          />
+          <View
+            pointerEvents={busy ? 'none' : 'auto'}
+            style={psStyles.platformPayButtonWrap}
+          >
+            <PlatformPayButton
+              onPress={handlePay}
+              type={PlatformPay.ButtonType.Buy}
+              appearance={PlatformPay.ButtonStyle.Black}
+              borderRadius={14}
+              style={psStyles.applePayBtn}
+            />
+          </View>
           {totalCents > 0 && (
             <Text style={psStyles.applePayTotalLabel}>{`Pay ${totalLabel}`}</Text>
           )}
@@ -1177,6 +1233,7 @@ const psStyles = StyleSheet.create({
   freeCoffeeSub:   { marginTop: 2, fontSize: 12, color: MUTED },
   continueBtn:     { height: 54, borderRadius: 999, alignItems: 'center', justifyContent: 'center' },
   continueBtnText: { color: '#fff', fontSize: 16, fontWeight: '600' },
+  platformPayButtonWrap: { width: '100%', height: 54 },
   applePayBtn:     { width: '100%', height: 54 },
   applePayTotalLabel: { fontSize: 12, color: MUTED, textAlign: 'center', marginTop: 2 },
   cancelMessageRow:{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 6, paddingHorizontal: 2 },
