@@ -1,0 +1,38 @@
+Fix the Apple Pay flicker on CheckoutPaymentStep properly.
+
+The Apple Pay button is flickering because CheckoutPaymentStep is too large and parent state changes are causing the native PlatformPayButton area to re-render/remount.
+
+Implement this fix:
+
+1. Create a new separate component:
+   components/checkout/StableApplePayButton.tsx
+
+2. Inside this component:
+   - Use React.memo.
+   - Render Stripe React Native PlatformPayButton only.
+   - Do not wrap PlatformPayButton in Pressable, TouchableOpacity, Animated.View, TouchableWithoutFeedback, or anything that changes opacity/scale.
+   - Do not conditionally render the button during payment processing.
+   - Do not change the key of the button.
+   - Do not replace the button with a spinner.
+   - Keep width, height and layout stable at all times.
+   - Use height 52, full width, borderRadius 12, black Apple Pay style.
+   - Use an internal useRef called processingRef to prevent double taps.
+   - Avoid setting React state immediately before opening Apple Pay.
+   - Only call parent callbacks after the Apple Pay sheet closes.
+
+3. In CheckoutPaymentStep:
+   - Remove Apple Pay JSX from the main component.
+   - Render <StableApplePayButton /> as a child.
+   - Pass only primitive props where possible, such as totalAmount, currency, merchantCountryCode, clientSecret.
+   - Wrap the Apple Pay handler in useCallback.
+   - Do not pass busy, cancelMessage, method, loyaltyPointsUsed, or unrelated state into StableApplePayButton unless absolutely required.
+   - Do not call setCancelMessage(null) inside handleApplePay before opening the Apple Pay sheet.
+   - If cancelMessage needs to be cleared, clear it after the Apple Pay flow finishes, or move messages into their own memoised component.
+   - Make sure the Apple Pay section has no dynamic key and is not inside a conditional block that changes when method/busy/cancelMessage changes.
+
+4. Add a console log temporarily inside StableApplePayButton:
+   console.log('Apple Pay button rendered');
+   Confirm it does not log every time cancelMessage, method, busy, or loyalty state changes.
+
+The goal:
+Apple Pay button should stay mounted and visually stable. Pressing it should instantly open the native Apple Pay sheet without disappearing, flashing, resizing, or remounting.

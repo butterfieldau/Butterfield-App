@@ -33,7 +33,7 @@ export function getSuggestedProductsForCart(
   cartProductIds: string[],
   cartCategories: string[],
   allProducts: ApiProduct[],
-  limit = 2,
+  limit = 4,
 ): ApiProduct[] {
   const cartIdSet = new Set(cartProductIds);
 

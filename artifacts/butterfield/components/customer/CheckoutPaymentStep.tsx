@@ -1,6 +1,6 @@
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -13,6 +13,7 @@ import {
   View,
 } from 'react-native';
 import { CardField, useStripe, usePlatformPay, PlatformPay, PlatformPayButton } from '@stripe/stripe-react-native';
+import { StableApplePayButton } from '@/components/checkout/StableApplePayButton';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCart } from '@/context/CartContext';
 import { api, type ClaimedReward } from '@/lib/api';
@@ -178,6 +179,15 @@ export function PaymentStepWithStripe({
   const applePayInFlightRef = useRef(false);
   const pendingIntentRef = useRef<{ clientSecret: string; paymentIntentId: string; amountCents: number } | null>(null);
   const pendingIntentFetchingRef = useRef(false);
+  const [applePayClientSecret, setApplePayClientSecret] = useState<string | null>(null);
+  const applePayParamsRef = useRef<{
+    discountCode?: string;
+    discountCodeId?: string;
+    discountAmountCents?: number;
+    claimedRewardId?: string;
+    loyaltyPointsUsed?: number;
+    useFreeCoffeeReward?: boolean;
+  }>({});
   const qc = useQueryClient();
 
   const { data: claimedRewardsData } = useQuery({
@@ -367,6 +377,18 @@ export function PaymentStepWithStripe({
     }
   }, [loyaltyPointsUsed, requestedPointsToUse]);
 
+  // Keep applePayParamsRef in sync so stable success callback always has fresh values
+  useEffect(() => {
+    applePayParamsRef.current = {
+      discountCode: discountApplied?.code,
+      discountCodeId: discountApplied?.id,
+      discountAmountCents: discountApplied?.discountAmountCents,
+      claimedRewardId: selectedClaimedRewardId ?? undefined,
+      loyaltyPointsUsed: loyaltyPointsUsed || undefined,
+      useFreeCoffeeReward: useFreeCoffeeReward || undefined,
+    };
+  }, [discountApplied, selectedClaimedRewardId, loyaltyPointsUsed, useFreeCoffeeReward]);
+
   // Eagerly pre-create a payment intent on iOS Apple Pay so the sheet opens instantly on tap.
   // Re-runs whenever totalCents or the discount/reward state changes.
   useEffect(() => {
@@ -376,6 +398,7 @@ export function PaymentStepWithStripe({
       const stale = pendingIntentRef.current;
       if (stale) {
         pendingIntentRef.current = null;
+        setApplePayClientSecret(null);
         api.payment.cancelIntent(stale.paymentIntentId).catch(() => {});
       }
       return;
@@ -385,6 +408,7 @@ export function PaymentStepWithStripe({
     // Cancel stale intent and fetch a fresh one
     const stale = pendingIntentRef.current;
     pendingIntentRef.current = null;
+    setApplePayClientSecret(null);
     if (stale) api.payment.cancelIntent(stale.paymentIntentId).catch(() => {});
     if (pendingIntentFetchingRef.current) return;
     pendingIntentFetchingRef.current = true;
@@ -403,6 +427,7 @@ export function PaymentStepWithStripe({
           paymentIntentId: intent.paymentIntentId,
           amountCents: intent.amountCents,
         };
+        setApplePayClientSecret(intent.clientSecret);
       }
     }).catch(() => { /* silent — handleApplePay creates fresh on tap if cache is empty */ })
       .finally(() => { pendingIntentFetchingRef.current = false; });
@@ -556,6 +581,28 @@ export function PaymentStepWithStripe({
       applePayInFlightRef.current = false;
     }
   };
+
+  // Stable callbacks for StableApplePayButton — never cause button to re-render
+  const handleApplePaySuccess = useCallback(async () => {
+    const params = applePayParamsRef.current;
+    await onSuccess({
+      stripePaymentIntentId: pendingIntentRef.current?.paymentIntentId ?? undefined,
+      paymentMethodType: 'apple_pay',
+      ...params,
+    });
+  }, [onSuccess]);
+
+  const handleApplePayError = useCallback((msg: string) => {
+    if (msg && (msg.toLowerCase().includes('cancel') || msg.toLowerCase().includes('dismiss'))) {
+      setCancelMessage('Payment cancelled. Tap to try again.');
+    } else {
+      Alert.alert('Payment failed', msg ?? 'Please try again.');
+    }
+  }, []);
+
+  const handleApplePayFinished = useCallback(() => {
+    // Processing ref guard is managed inside StableApplePayButton itself
+  }, []);
 
   const handlePay = async () => {
     if (busy) return;
@@ -811,22 +858,26 @@ export function PaymentStepWithStripe({
     <View style={psStyles.wrap}>
       <Text style={psStyles.sectionTitle}>Payment method</Text>
 
-      {/* Invisible same-height placeholder prevents layout shift while Apple Pay availability is being checked */}
+      {/* Placeholder while Apple Pay availability is determined */}
       {Platform.OS === 'ios' && stripeReady && platformPayAvailable === null && (
-        <View style={{ height: 54, marginBottom: 8 }} />
+        <View style={{ height: 52, marginBottom: 8 }} />
       )}
 
       {isIosApplePay && (
         <>
-          <View style={psStyles.platformPayButtonWrap}>
-            <PlatformPayButton
-              onPress={handleApplePay}
-              type={PlatformPay.ButtonType.Buy}
-              appearance={PlatformPay.ButtonStyle.Black}
-              borderRadius={14}
-              style={psStyles.applePayBtn}
+          {applePayClientSecret ? (
+            <StableApplePayButton
+              clientSecret={applePayClientSecret}
+              totalAmount={totalCents / 100}
+              merchantCountryCode="AU"
+              currencyCode="AUD"
+              onSuccess={handleApplePaySuccess}
+              onError={handleApplePayError}
+              onFinished={handleApplePayFinished}
             />
-          </View>
+          ) : (
+            <View style={{ height: 52, marginBottom: 8 }} />
+          )}
           {totalCents > 0 && (
             <Text style={psStyles.applePayTotalLabel}>{`Pay ${totalLabel}`}</Text>
           )}

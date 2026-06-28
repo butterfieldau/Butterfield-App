@@ -116,7 +116,7 @@ function CartContent() {
     return getSuggestedProductsForCart(
       items.map((i) => i.productId),
       items.map((i) => i.category ?? '').filter(Boolean),
-      all, 2,
+      all, 4,
     );
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cartProductIdsKey, allProductsData]);
