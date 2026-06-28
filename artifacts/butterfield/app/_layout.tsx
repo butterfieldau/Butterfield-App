@@ -230,6 +230,7 @@ function RootLayoutNav() {
       />
       <Stack.Screen name="(customer)" options={{ headerShown: false, animation: "slide_from_right", gestureEnabled: false }} />
       <Stack.Screen name="store" options={{ presentation: 'modal', headerShown: false, animation: 'slide_from_bottom' }} />
+      <Stack.Screen name="customer-stores" options={{ headerShown: false, animation: 'slide_from_right', gestureEnabled: true, fullScreenGestureEnabled: true, gestureDirection: 'horizontal' }} />
       <Stack.Screen name="edit-details" options={{ presentation: 'modal', headerShown: false, animation: 'slide_from_bottom' }} />
       <Stack.Screen name="product" options={{ presentation: 'modal', headerShown: false, animation: 'slide_from_bottom' }} />
       <Stack.Screen name="orders" options={{ headerShown: false, animation: "slide_from_right" }} />

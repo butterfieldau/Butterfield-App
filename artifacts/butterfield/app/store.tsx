@@ -83,7 +83,7 @@ export default function StoreScreen() {
         <View style={styles.center}>
           <Text style={[styles.emptyTitle, { color: colors.foreground }]}>No store selected yet</Text>
           <Text style={[styles.emptySub, { color: colors.mutedForeground }]}>Choose your preferred store to see pickup details here.</Text>
-          <Pressable style={styles.primaryBtn} onPress={() => router.push('/(customer)/stores')}>
+          <Pressable style={styles.primaryBtn} onPress={() => router.push('/customer-stores' as any)}>
             <Text style={styles.primaryBtnText}>Choose Store</Text>
           </Pressable>
         </View>
@@ -121,7 +121,7 @@ export default function StoreScreen() {
             )}
 
             <View style={styles.actions}>
-              <Pressable style={[styles.secondaryBtn, { borderColor: colors.border, backgroundColor: colors.card }]} onPress={() => router.push('/(customer)/stores')}>
+              <Pressable style={[styles.secondaryBtn, { borderColor: colors.border, backgroundColor: colors.card }]} onPress={() => router.push('/customer-stores' as any)}>
                 <Text style={[styles.secondaryBtnText, { color: colors.foreground }]}>Change Store</Text>
               </Pressable>
               {!!store.phone && (

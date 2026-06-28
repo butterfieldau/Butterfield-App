@@ -99,7 +99,7 @@ export default function StoreInfoSheet({ visible, store, onClose }: Props) {
 
   const handleAllStores = () => {
     onClose();
-    setTimeout(() => router.push('/(customer)/stores'), 250);
+    setTimeout(() => router.push('/customer-stores' as any), 250);
   };
 
   const todayDisplay = todayHours?.isClosed

@@ -89,7 +89,7 @@ export default function AccountScreen() {
     { icon: 'bell'        as const, label: 'Notifications',    onPress: () => router.push('/notifications') },
     { icon: 'map-pin'     as const, label: 'Saved addresses',  onPress: () => router.push('/addresses') },
     { icon: 'credit-card' as const, label: 'Payment methods',  onPress: () => router.push('/(customer)/payment-methods' as any) },
-    { icon: 'navigation'  as const, label: 'Find a store',     onPress: () => router.push('/(customer)/stores' as any) },
+    { icon: 'navigation'  as const, label: 'Find a store',     onPress: () => router.push('/customer-stores' as any) },
     { icon: 'help-circle' as const, label: 'Help & support',   onPress: () => router.push('/help-support') },
   ];
 
