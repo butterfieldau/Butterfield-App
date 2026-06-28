@@ -1,8 +1,9 @@
 import React, { memo, useCallback, useRef } from 'react';
+import { Alert } from 'react-native';
 import { PlatformPay, PlatformPayButton, usePlatformPay } from '@stripe/stripe-react-native';
 
 export type StableApplePayButtonProps = {
-  clientSecret: string;
+  clientSecret: string | null;
   totalAmount: number;
   merchantCountryCode?: string;
   currencyCode?: string;
@@ -23,10 +24,12 @@ function StableApplePayButtonBase({
   const { confirmPlatformPayPayment } = usePlatformPay();
   const processingRef = useRef(false);
 
-  console.log('Apple Pay button rendered');
-
   const handlePress = useCallback(async () => {
     if (processingRef.current) return;
+    if (!clientSecret) {
+      Alert.alert('Not ready', 'Payment is still loading. Please try again in a moment.');
+      return;
+    }
     processingRef.current = true;
 
     try {

@@ -4,6 +4,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { router, useFocusEffect, useLocalSearchParams, useNavigation } from 'expo-router';
 import { useScrollStatusBar } from '@/hooks/useScrollStatusBar';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { usePlatformPay } from '@stripe/stripe-react-native';
 import {
   ActivityIndicator,
   Alert,
@@ -83,6 +84,17 @@ function CartContent() {
   const { barStyle, handleScroll, onHeaderLayout } = useScrollStatusBar('light-content');
   const navigation = useNavigation();
   const { user }   = useAuth();
+  const { isPlatformPaySupported } = usePlatformPay();
+  const [applePaySupported, setApplePaySupported] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    if (Platform.OS !== 'ios') return;
+    let mounted = true;
+    isPlatformPaySupported().then((ok) => {
+      if (mounted) setApplePaySupported(ok);
+    });
+    return () => { mounted = false; };
+  }, []);
   const { items, totalPriceCents, totalItems, addItemToCart, updateItemQuantity, removeCartItem, clearCart, cartRestoredFromSession, dismissCartRestoredBanner } = useCart();
   const qc = useQueryClient();
   const openSwipeableRef = useRef<Swipeable | null>(null);
@@ -429,14 +441,14 @@ function CartContent() {
           <PaymentStepWithStripe
             items={items.map((i) => ({ productId: i.productId, variantId: i.variantId ?? null, quantity: i.quantity, selectedOptions: i.selectedOptions }))}
             orderType={orderType} subtotalCents={subtotalCents} deliveryFeeCents={deliveryFeeCents}
-            canPayAtPickup={canPayAtPickup} stripeReady onSuccess={handlePlaceOrder}
+            canPayAtPickup={canPayAtPickup} stripeReady applePaySupported={applePaySupported} onSuccess={handlePlaceOrder}
           />
         </StripeProvider>
       ) : (
         <PaymentStepWithStripe
           items={items.map((i) => ({ productId: i.productId, variantId: i.variantId ?? null, quantity: i.quantity, selectedOptions: i.selectedOptions }))}
           orderType={orderType} subtotalCents={subtotalCents} deliveryFeeCents={deliveryFeeCents}
-          canPayAtPickup={canPayAtPickup} stripeReady={false} onSuccess={handlePlaceOrder}
+          canPayAtPickup={canPayAtPickup} stripeReady={false} applePaySupported={applePaySupported} onSuccess={handlePlaceOrder}
         />
       )}
     </View>
