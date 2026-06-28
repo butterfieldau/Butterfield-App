@@ -85,7 +85,12 @@ export default function LoginScreen() {
     const redirectTo = Array.isArray(params.redirectTo) ? params.redirectTo[0] : params.redirectTo;
     router.dismissAll();
     if (redirectTo && (!role || role === 'customer')) {
-      router.replace(redirectTo as Href);
+      // Use push, not replace. dismissAll() has already removed the auth modal,
+      // so the /(customer)/ tab navigator is the current base. push() places the
+      // redirect target on top of the tabs — the user can swipe back to the store.
+      // replace() would make the redirect the sole root screen with no back destination,
+      // leaving new customers trapped with no tab bar and no way to navigate away.
+      router.push(redirectTo as any);
       return;
     }
     router.replace(getHomeRouteForRole(role));
