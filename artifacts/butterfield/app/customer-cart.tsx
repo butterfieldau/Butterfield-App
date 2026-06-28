@@ -1,7 +1,7 @@
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
-import { router, useFocusEffect, useLocalSearchParams, useNavigation } from 'expo-router';
+import { router, useFocusEffect, useNavigation } from 'expo-router';
 import { useScrollStatusBar } from '@/hooks/useScrollStatusBar';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { usePlatformPay } from '@stripe/stripe-react-native';
@@ -98,8 +98,6 @@ function CartContent() {
   const { items, totalPriceCents, totalItems, addItemToCart, updateItemQuantity, removeCartItem, clearCart, cartRestoredFromSession, dismissCartRestoredBanner } = useCart();
   const qc = useQueryClient();
   const openSwipeableRef = useRef<Swipeable | null>(null);
-  const routeParams = useLocalSearchParams<{ success?: string }>();
-
   const { data: allProductsData } = useQuery({
     queryKey: ['products'],
     queryFn:  () => api.products.list(),
@@ -164,11 +162,6 @@ function CartContent() {
   }, [orderType, defaultAddress]);
 
   const [confirmation, setConfirmation] = useState<Confirmation | null>(null);
-
-  // Replace URL with ?success=1 after order so a hard-refresh doesn't re-trigger.
-  useEffect(() => {
-    if (confirmation && routeParams.success !== '1') router.replace('/customer-cart?success=1');
-  }, [confirmation, routeParams.success]);
 
   const handlePlaceOrder = async (opts: {
     stripePaymentIntentId?: string;
