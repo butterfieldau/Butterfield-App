@@ -425,7 +425,7 @@ function CartContent() {
       </View>
 
       {stripePublishableKey ? (
-        <StripeProvider publishableKey={stripePublishableKey}>
+        <StripeProvider publishableKey={stripePublishableKey} merchantIdentifier="merchant.au.com.butterfieldcookies.app">
           <PaymentStepWithStripe
             items={items.map((i) => ({ productId: i.productId, variantId: i.variantId ?? null, quantity: i.quantity, selectedOptions: i.selectedOptions }))}
             orderType={orderType} subtotalCents={subtotalCents} deliveryFeeCents={deliveryFeeCents}
