@@ -591,8 +591,11 @@ export function PaymentStepWithStripe({
   // Stable callbacks for StableApplePayButton — never cause button to re-render.
   // Capture paymentIntentId synchronously before any await so we don't lose it
   // if the ref is cleared by a re-render while handlePlaceOrder is in flight.
+  // Also clears pendingIntentRef so the unmount cleanup does NOT try to cancel
+  // a payment intent that has already been confirmed and paid.
   const handleApplePaySuccess = useCallback(async () => {
     const paymentIntentId = pendingIntentRef.current?.paymentIntentId ?? undefined;
+    pendingIntentRef.current = null; // consumed — do not cancel on unmount
     const params = applePayParamsRef.current;
     await onSuccess({
       stripePaymentIntentId: paymentIntentId,

@@ -185,6 +185,11 @@ router.post('/', async (req, res) => {
     : paymentMethod === 'pay_at_pickup' ? 'pay_at_pickup'
     : 'pending';
 
+  // Reject card orders that omit a payment intent — prevents unpaid orders from being created.
+  if (resolvedPaymentMethod === 'card' && authorativeTotalCents > 0 && !stripePaymentIntentId) {
+    return res.status(400).json({ error: 'A Stripe payment intent is required for card payments.' });
+  }
+
   if (stripePaymentIntentId) {
     const [existingOrder] = await db
       .select({ id: ordersTable.id })
