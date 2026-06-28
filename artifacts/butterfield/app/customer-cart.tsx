@@ -75,11 +75,18 @@ interface Confirmation {
 
 export default function CartScreen() {
   const { user } = useAuth();
+  const { clearCart } = useCart();
+  const insets = useSafeAreaInsets();
+  const [confirmation, setConfirmation] = useState<Confirmation | null>(null);
+
+  if (confirmation) {
+    return <CheckoutConfirmation confirmation={confirmation} clearCart={clearCart} insets={insets} />;
+  }
   if (!user) return <LoggedOutAccountPrompt redirectTo="/customer-cart" compact />;
-  return <CartContent />;
+  return <CartContent onConfirm={setConfirmation} />;
 }
 
-function CartContent() {
+function CartContent({ onConfirm }: { onConfirm: (c: Confirmation) => void }) {
   const insets     = useSafeAreaInsets();
   const { barStyle, handleScroll, onHeaderLayout } = useScrollStatusBar('light-content');
   const navigation = useNavigation();
@@ -161,8 +168,6 @@ function CartContent() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orderType, defaultAddress]);
 
-  const [confirmation, setConfirmation] = useState<Confirmation | null>(null);
-
   const handlePlaceOrder = async (opts: {
     stripePaymentIntentId?: string;
     paymentMethodType: string;
@@ -238,7 +243,7 @@ function CartContent() {
       qc.invalidateQueries({ queryKey: ['loyalty-profile'] });
       qc.invalidateQueries({ queryKey: ['loyalty-claimed-rewards'] });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      setConfirmation({
+      onConfirm({
         orderId:           order.data.id,
         orderNumber:       order.data.orderNumber,
         totalCents:        order.data.totalCents ?? totalCents,
@@ -256,10 +261,6 @@ function CartContent() {
       setLoading(false);
     }
   };
-
-  if (confirmation) {
-    return <CheckoutConfirmation confirmation={confirmation} clearCart={clearCart} insets={insets} />;
-  }
 
   // ── Empty cart ────────────────────────────────────────────────────────────
   if (items.length === 0 && step !== 2) {
