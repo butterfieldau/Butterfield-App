@@ -3,7 +3,7 @@ import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
-import React, { useCallback, useRef, useState } from 'react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 import { useScrollToTopCompat as useScrollToTop } from '@/hooks/useScrollToTopCompat';
 import { useFocusStatusBar } from '@/hooks/useScrollStatusBar';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -145,7 +145,13 @@ export default function CustomerHome() {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   }, [addItemToCart]);
 
-  const spotlightItems = topSellers.length > 0 ? topSellers : products.slice(0, 10);
+  const spotlightItems = useMemo(() => {
+    const base = topSellers.length > 0 ? topSellers : products.slice(0, 10);
+    const featured = products.filter((p) => p.isFeatured);
+    const featuredIds = new Set(featured.map((p) => p.id));
+    const nonFeatured = base.filter((p) => !featuredIds.has(p.id));
+    return [...featured, ...nonFeatured];
+  }, [topSellers, products]);
   const tileWidth = isTablet ? 190 : 158;
 
   return (
