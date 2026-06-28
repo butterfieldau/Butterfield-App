@@ -872,15 +872,25 @@ export function PaymentStepWithStripe({
 
       {isIosApplePay && (
         <>
-          <StableApplePayButton
-            clientSecret={applePayClientSecret}
-            totalAmount={totalCents / 100}
-            merchantCountryCode="AU"
-            currencyCode="AUD"
-            onSuccess={handleApplePaySuccess}
-            onError={handleApplePayError}
-            onFinished={handleApplePayFinished}
-          />
+          {applePayClientSecret ? (
+            <StableApplePayButton
+              clientSecret={applePayClientSecret}
+              totalAmount={totalCents / 100}
+              merchantCountryCode="AU"
+              currencyCode="AUD"
+              onSuccess={handleApplePaySuccess}
+              onError={handleApplePayError}
+              onFinished={handleApplePayFinished}
+            />
+          ) : (
+            <View style={{
+              width: '100%', height: 52, borderRadius: 12,
+              backgroundColor: '#000',
+              alignItems: 'center', justifyContent: 'center',
+            }}>
+              <ActivityIndicator size="small" color="#fff" />
+            </View>
+          )}
           {totalCents > 0 && (
             <Text style={psStyles.applePayTotalLabel}>{`Pay ${totalLabel}`}</Text>
           )}
