@@ -54,12 +54,15 @@ export function getStorePickupSegments(store: Pick<StoreSummary, 'openingHours'>
   ].filter((segment) => segment.endMins > segment.startMins);
 }
 
+const ASAP_CLOSE_MINS = 21 * 60; // 9 pm hard cap for ASAP pickup regardless of store hours
+
 export function isStoreOpenForAsap(store: Pick<StoreSummary, 'openingHours' | 'status'> | null | undefined, sydNow: Date) {
   if (!store) return false;
   if (store.status === 'coming_soon' || store.status === 'temporarily_closed' || store.status === 'closed') {
     return false;
   }
   const nowMins = sydNow.getHours() * 60 + sydNow.getMinutes();
+  if (nowMins >= ASAP_CLOSE_MINS) return false;
   return getStorePickupSegments(store, sydNow).some((segment) => nowMins >= segment.startMins && nowMins < segment.endMins);
 }
 

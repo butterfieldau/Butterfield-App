@@ -66,7 +66,7 @@ export function getStatusMessage(
 
   if (isQuickPickup) {
     if (status === 'being_prepared') return "We're making your order now — won't be long! ☕";
-    if (status === 'completed')      return 'Your order is ready — come pick it up! 🎉';
+    if (status === 'completed')      return 'Thanks for collecting! Hope you enjoy 🍪';
   } else if (isDelivery) {
     if (status === 'accepted')         return "Your delivery is confirmed — we'll start preparing it on the day.";
     if (status === 'being_prepared')   return 'Your order is being prepared.';
