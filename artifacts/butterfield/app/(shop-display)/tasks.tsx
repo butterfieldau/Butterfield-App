@@ -22,13 +22,96 @@ const CATEGORIES = [
   { id: 'training', label: 'One-Off' },
 ] as const;
 
-function startOfWeek(date: Date) {
-  const copy = new Date(date);
-  const day = copy.getDay();
-  const diff = day === 0 ? -6 : 1 - day;
-  copy.setDate(copy.getDate() + diff);
-  copy.setHours(0, 0, 0, 0);
-  return copy;
+// Sydney timezone formatter — reused across helpers.
+const SYD_DATE_FMT = new Intl.DateTimeFormat('en-CA', {
+  timeZone: 'Australia/Sydney',
+  year: 'numeric', month: '2-digit', day: '2-digit',
+});
+
+// Display formatter that uses explicit UTC so the device's local timezone never
+// shifts the rendered day label away from the true Sydney calendar date.
+const LABEL_FMT = new Intl.DateTimeFormat('en-AU', {
+  timeZone: 'UTC', day: 'numeric', month: 'short',
+});
+
+/**
+ * Returns Monday–Sunday boundaries for the Sydney week that is `offsetWeeks`
+ * weeks in the past relative to now.
+ *
+ * - `startISO` / `endISO` are true UTC instants (Monday 00:00:00 Sydney and
+ *   Sunday 23:59:59.999 Sydney) suitable for passing directly to the API.
+ * - `mondayLabel` / `sundayLabel` are human-readable strings ("15 Jan") that
+ *   reflect the correct Sydney calendar dates on any device timezone.
+ */
+function getSydneyWeekBounds(offsetWeeks: number): {
+  startISO: string;
+  endISO: string;
+  mondayLabel: string;
+  sundayLabel: string;
+} {
+  // Get today's Sydney calendar date.  Using Intl avoids device-local date drift.
+  const todayParts = SYD_DATE_FMT.formatToParts(new Date());
+  const ty  = Number(todayParts.find(p => p.type === 'year')?.value);
+  const tmo = Number(todayParts.find(p => p.type === 'month')?.value);
+  const td  = Number(todayParts.find(p => p.type === 'day')?.value);
+
+  // Day-of-week for today's Sydney calendar date (0=Sun … 6=Sat).
+  // Constructing via Date.UTC is safe because weekday is timezone-independent
+  // for a given Y-M-D tuple.
+  const todayCalUTC = new Date(Date.UTC(ty, tmo - 1, td));
+  const dow = todayCalUTC.getUTCDay();
+  const mondayDelta = dow === 0 ? -6 : 1 - dow;
+
+  // Monday of the target week — pure calendar arithmetic (no ms subtraction),
+  // so DST transitions cannot shift us to the wrong Sydney day.
+  // Date.UTC handles month/year rollover when day < 1 or day > 28/30/31.
+  const mondayCalUTC = new Date(Date.UTC(ty, tmo - 1, td + mondayDelta - offsetWeeks * 7));
+  const sundayCalUTC = new Date(Date.UTC(
+    mondayCalUTC.getUTCFullYear(),
+    mondayCalUTC.getUTCMonth(),
+    mondayCalUTC.getUTCDate() + 6,
+  ));
+
+  // Convert a Sydney Y/M/D calendar date to the exact UTC instant that is
+  // midnight in Sydney on that date. Sydney is UTC+10 (AEST) or UTC+11 (AEDT);
+  // we probe both offsets and pick whichever one's Sydney date matches.
+  // Negative-hour Date.UTC rolls back correctly (e.g. hour=-11 → prev day 13:00 UTC).
+  const toSydneyMidnightUTC = (year: number, month: number, day: number): Date => {
+    for (const offsetH of [11, 10]) {
+      const candidate = new Date(Date.UTC(year, month - 1, day, -offsetH, 0, 0, 0));
+      const cp = SYD_DATE_FMT.formatToParts(candidate);
+      if (
+        Number(cp.find(p => p.type === 'year')?.value)  === year &&
+        Number(cp.find(p => p.type === 'month')?.value) === month &&
+        Number(cp.find(p => p.type === 'day')?.value)   === day
+      ) return candidate;
+    }
+    // Fallback: assume AEST (UTC+10).
+    return new Date(Date.UTC(year, month - 1, day, -10, 0, 0, 0));
+  };
+
+  const mondayMidnight = toSydneyMidnightUTC(
+    mondayCalUTC.getUTCFullYear(), mondayCalUTC.getUTCMonth() + 1, mondayCalUTC.getUTCDate(),
+  );
+
+  // End-of-Sunday = next Monday's Sydney midnight minus 1 ms.
+  // Never assume 24 h per day — DST days in Sydney are 23 h or 25 h.
+  const nextMondayCalUTC = new Date(Date.UTC(
+    mondayCalUTC.getUTCFullYear(),
+    mondayCalUTC.getUTCMonth(),
+    mondayCalUTC.getUTCDate() + 7,
+  ));
+  const nextMondayMidnight = toSydneyMidnightUTC(
+    nextMondayCalUTC.getUTCFullYear(), nextMondayCalUTC.getUTCMonth() + 1, nextMondayCalUTC.getUTCDate(),
+  );
+  const sundayEnd = new Date(nextMondayMidnight.getTime() - 1);
+
+  return {
+    startISO:    mondayMidnight.toISOString(),
+    endISO:      sundayEnd.toISOString(),
+    mondayLabel: LABEL_FMT.format(mondayCalUTC),
+    sundayLabel: LABEL_FMT.format(sundayCalUTC),
+  };
 }
 
 export default function ShopDisplayTasksScreen() {
@@ -41,22 +124,14 @@ export default function ShopDisplayTasksScreen() {
     queryFn: () => api.shopDisplay.tasks(category),
   });
 
-  const weekStart = useMemo(() => {
-    const start = startOfWeek(new Date());
-    start.setDate(start.getDate() - historyWeekOffset * 7);
-    return start;
-  }, [historyWeekOffset]);
-
-  const weekEnd = useMemo(() => {
-    const end = new Date(weekStart);
-    end.setDate(end.getDate() + 6);
-    end.setHours(23, 59, 59, 999);
-    return end;
-  }, [weekStart]);
+  const weekBounds = useMemo(
+    () => getSydneyWeekBounds(historyWeekOffset),
+    [historyWeekOffset],
+  );
 
   const historyQuery = useQuery({
-    queryKey: ['shop-display-task-history', weekStart.toISOString()],
-    queryFn: () => api.shopDisplay.taskHistory(weekStart.toISOString(), weekEnd.toISOString()),
+    queryKey: ['shop-display-task-history', weekBounds.startISO],
+    queryFn: () => api.shopDisplay.taskHistory(weekBounds.startISO, weekBounds.endISO),
   });
 
   const tasks = tasksQuery.data?.data ?? [];
@@ -123,7 +198,7 @@ export default function ShopDisplayTasksScreen() {
         </View>
       </View>
       <Text style={styles.historyRange}>
-        {weekStart.toLocaleDateString('en-AU', { day: 'numeric', month: 'short' })} - {weekEnd.toLocaleDateString('en-AU', { day: 'numeric', month: 'short' })}
+        {weekBounds.mondayLabel} - {weekBounds.sundayLabel}
       </Text>
 
       <View style={styles.card}>

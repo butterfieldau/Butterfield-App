@@ -44,14 +44,20 @@ function fmtAUD(cents: number) {
 
 function fmtAUDShort(cents: number) {
   if (cents >= 100_00000) return '$' + (cents / 100_000).toFixed(0) + 'k';
-  if (cents >= 10_00000)  return '$' + (cents / 100_000).toFixed(1) + 'k';
   if (cents >= 1_00000)   return '$' + (cents / 100_000).toFixed(1) + 'k';
   return fmtAUD(cents);
 }
 
 function todayString() {
-  const now = new Date();
-  const y = now.getFullYear(), m = String(now.getMonth() + 1).padStart(2, '0'), d = String(now.getDate()).padStart(2, '0');
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Australia/Sydney',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(new Date());
+  const y = parts.find(p => p.type === 'year')?.value ?? '2000';
+  const m = parts.find(p => p.type === 'month')?.value ?? '01';
+  const d = parts.find(p => p.type === 'day')?.value ?? '01';
   return `${y}-${m}-${d}`;
 }
 

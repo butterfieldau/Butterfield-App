@@ -223,7 +223,6 @@ const sAlert = StyleSheet.create({
   // Shared container for both web and native paths — full-fill, dimmed background,
   // centres the card. Backdrop Pressable uses absoluteFill inside this view.
   overlayWrap:  { flex: 1, backgroundColor: 'rgba(20,43,74,0.72)', alignItems: 'center', justifyContent: 'center', padding: 32 },
-  backdrop:     { flex: 1, backgroundColor: 'rgba(20,43,74,0.72)', alignItems: 'center', justifyContent: 'center', padding: 32 },
   card:         { backgroundColor: SOFT_BLUE, borderRadius: 28, padding: 36, alignItems: 'center', gap: 10, width: '100%', maxWidth: 360, borderWidth: 3, borderColor: BLUE, shadowColor: BLUE, shadowOpacity: 0.18, shadowRadius: 22, shadowOffset: { width: 0, height: 12 }, elevation: 10 },
   iconWrap:    { width: 88, height: 88, borderRadius: 44, backgroundColor: '#DBEAFE', alignItems: 'center', justifyContent: 'center', marginBottom: 4, borderWidth: 2, borderColor: '#93C5FD' },
   title:       { fontSize: 30, fontWeight: '900', color: BLUE },
@@ -609,6 +608,7 @@ export default function ShopDisplayLayout() {
       // type:'all' ensures inactive (unmounted) queries are also refreshed — critical
       // for the 4am auto-sync where the POS screen may not currently be open.
       await queryClient.refetchQueries({ queryKey: ['pos-products'],       type: 'all' });
+      await queryClient.refetchQueries({ queryKey: ['pos-categories'],     type: 'all' });
       await queryClient.refetchQueries({ queryKey: ['pos-store-settings'], type: 'all' });
       await queryClient.refetchQueries({ queryKey: ['pos-surcharges'],     type: 'all' });
       await queryClient.refetchQueries({ queryKey: ['pos-loyalty-config'], type: 'all' });
