@@ -11,6 +11,7 @@ import { PortalHeader } from '@/components/PortalHeader';
 import { getHomeRouteForRole } from '@/lib/roleRoutes';
 import { useShopDisplayAwakeMode, getDisplayLockPin, verifyDisplayLockPin, clearDisplayLockPin, getShopDisplaySoundEnabled, getScreensaverEnabled, getScreensaverTimeout, subscribeScreensaverSettings, getShopDisplayIdle, setShopDisplayIdle } from '@/lib/shopDisplayMode';
 import { LayoutSafeAreaContext } from '@/context/LayoutSafeAreaContext';
+import { PosModalContext } from '@/context/PosModalContext';
 import { api } from '@/lib/api';
 import {
   getPosLastSyncedAt, getMsUntil4amSydney, formatSyncTime,
@@ -259,6 +260,21 @@ export default function ShopDisplayLayout() {
   const pathname = usePathname();
   useShopDisplayAwakeMode(user?.role === 'shop_display');
 
+  // ── POS modal state — tracks whether the OrderCompleteModal inside pos.tsx ──
+  // is currently open. Used to defer NewOrderAlertOverlay so two native Modals
+  // never stack simultaneously (which freezes the iOS tab bar on dismiss).
+  const [isPosModalOpen, setIsPosModalOpen] = useState(false);
+  const isPosModalOpenRef = useRef(false);
+  useEffect(() => { isPosModalOpenRef.current = isPosModalOpen; }, [isPosModalOpen]);
+
+  // One-shot audio player for the deferred case — plays a single beep when a
+  // new order arrives while the POS modal is blocking the overlay.
+  const deferredAlertPlayer = useAudioPlayer(
+    Platform.OS !== 'web'
+      ? require('@/assets/sounds/app-sales-order-alert.wav')
+      : null,
+  );
+
   const { data: meData } = useQuery({
     queryKey: ['shop-display-me'],
     queryFn: () => api.shopDisplay.me(),
@@ -374,6 +390,15 @@ export default function ShopDisplayLayout() {
         }
         return next;
       });
+      // When the POS Payment Complete modal is blocking the overlay, play a
+      // one-shot audio cue immediately so staff hear the alert — the visual
+      // overlay will appear once the POS modal is dismissed.
+      if (isPosModalOpenRef.current && Platform.OS !== 'web') {
+        setAudioModeAsync({ playsInSilentMode: true, allowsRecording: false }).catch(() => {});
+        deferredAlertPlayer.loop = false;
+        deferredAlertPlayer.seekTo(0);
+        deferredAlertPlayer.play();
+      }
     }
     const seenEntries = Object.entries(currentMap);
     seenRef.current = seenEntries.length > 500
@@ -709,6 +734,7 @@ export default function ShopDisplayLayout() {
   // Single return keeps <Tabs> at the same tree position on every render,
   // so rotating the device never unmounts the navigator or clears app state.
   return (
+    <PosModalContext.Provider value={{ isPosModalOpen, setIsPosModalOpen }}>
     <View
       style={{ flex: 1, flexDirection: 'row', backgroundColor: NAVY }}
       onStartShouldSetResponderCapture={() => { lastIdleRef.current = Date.now(); return false; }}
@@ -931,9 +957,14 @@ export default function ShopDisplayLayout() {
       </Modal>
 
       {/* ── New order alert — layout-level so it fires on any tab ─── */}
-      {/* Queue: first item is shown; onDismiss shifts it off so the next appears */}
+      {/* When the POS Payment Complete modal is open we suppress this overlay   */}
+      {/* so two native Modals never stack simultaneously on iOS — which would   */}
+      {/* corrupt the tab-bar gesture state and freeze the App Orders tab after  */}
+      {/* both modals are dismissed. The queue is still built and the one-shot   */}
+      {/* audio fires immediately (above); this overlay appears the moment the   */}
+      {/* POS modal closes (isPosModalOpen → false) because alertQueue.length>0. */}
       <NewOrderAlertOverlay
-        visible={alertQueue.length > 0}
+        visible={alertQueue.length > 0 && !isPosModalOpen}
         order={alertQueue[0] ?? null}
         onDismiss={() => setAlertQueue(q => q.slice(1))}
         soundEnabled={soundEnabled}
@@ -957,6 +988,7 @@ export default function ShopDisplayLayout() {
         />
       )}
     </View>
+    </PosModalContext.Provider>
   );
 }
 

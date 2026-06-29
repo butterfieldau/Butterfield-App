@@ -21,6 +21,7 @@ import {
 } from '@/lib/posCache';
 import { sendReceiptPrint as _sendReceiptPrint, sendLinklyReceiptPrint, sendTaxInvoicePrint } from '@/lib/printer';
 import { OfflineProvider, useOffline } from '@/context/OfflineContext';
+import { usePosModal } from '@/context/PosModalContext';
 import ZReportModal from '@/components/ZReportModal';
 import PosPinModal from '@/components/PosPinModal';
 import type { RegisterSessionReport } from '@/lib/api';
@@ -77,6 +78,7 @@ function PosScreenInner() {
   const queryClient = useQueryClient();
   const { isOnline, pendingCount, syncToast, enqueueOrder } = useOffline();
   const isShopDisplay = user?.role === 'shop_display';
+  const { setIsPosModalOpen } = usePosModal();
 
   // ── Ticket state ──────────────────────────────────────────────────────────
   const [tickets, setTickets] = useState<Ticket[]>([blankTicket()]);
@@ -157,6 +159,15 @@ function PosScreenInner() {
     attachCustomerToCart,
     scannerBannerOpacity, scannerBannerSlide, scannerBanner,
   } = usePosHidScanner({ activeIdx, tickets, updateTicket });
+
+  // ── Notify layout when Payment Complete modal opens/closes ────────────────
+  // This prevents NewOrderAlertOverlay in _layout.tsx from mounting a second
+  // native Modal on top of OrderCompleteModal, which corrupts the iOS tab-bar
+  // gesture state and leaves the App Orders tab frozen after both dismiss.
+  useEffect(() => {
+    setIsPosModalOpen(!!completedOrder);
+    return () => setIsPosModalOpen(false);
+  }, [completedOrder, setIsPosModalOpen]);
 
   // ── Init effects ──────────────────────────────────────────────────────────
   useEffect(() => {
