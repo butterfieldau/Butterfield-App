@@ -205,7 +205,6 @@ export function buildWholesaleInvoiceEmail(opts: WholesaleInvoiceEmailOpts): str
       .wrapper{padding:12px !important;}
       .card{border-radius:18px !important;padding:18px !important;}
       .total-amount{font-size:38px !important;}
-      .detail-grid td{display:block;width:100% !important;padding-right:0 !important;margin-bottom:10px;}
     }
   </style>
 </head>
