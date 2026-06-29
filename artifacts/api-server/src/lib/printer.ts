@@ -228,16 +228,16 @@ export function buildReceiptBytes(job: PrintJob): Buffer {
     CMD_BOLD_OFF,
     Buffer.from('butterfieldcookies.com.au\n', 'utf-8'),
     divider('='),
+    // Feed 3 plain line-feeds (~12 mm) before the cut on ALL brands.
+    // Using lf(3) instead of brand-specific feed commands (ESC d 3 / ESC J 40)
+    // guarantees the Star MCP30 auto-cutter engages even if the wrong brand is
+    // temporarily stored in the DB (e.g. defaulted to 'epson' before save).
+    // Both Epson and Star honour plain LF bytes for paper advance.
+    // Cash drawer pulse is embedded BEFORE the cut — one TCP write.
+    // Star uses DLE DC4 (0x10 0x14 0x01) — not ESC p (Epson-only).
     lf(3),
-    // Star MCP30 (ESC/POS mode): ESC d 3 feeds 3 lines then GS V 0 cuts.
-    // The CMD_STAR_FEED already handles paper advance, so CMD_FEED_5MM is skipped.
-    // Epson: CMD_FEED_5MM gives a clean 5mm gap then GS V 0 cuts.
-    // Cash drawer pulse (if requested) is embedded BEFORE the cut — one TCP write.
-    // Star uses DLE DC4 (real-time command, 0x10 0x14 0x01) — not ESC p (Epson-only).
-    ...(isStar
-      ? [CMD_STAR_FEED, ...(job.autoDrawer ? [buildStarOpenDrawerBytes(job.drawerPin ?? 0)] : []), CMD_STAR_CUT]
-      : [CMD_FEED_5MM,  ...(job.autoDrawer ? [buildOpenDrawerBytes(job.drawerPin ?? 0)] : []), CMD_EPSON_CUT]
-    ),
+    ...(job.autoDrawer ? [isStar ? buildStarOpenDrawerBytes(job.drawerPin ?? 0) : buildOpenDrawerBytes(job.drawerPin ?? 0)] : []),
+    CMD_EPSON_CUT,  // GS V 0 (0x1D 0x56 0x00) — confirmed working on both Epson and Star MCP30
   );
 
   return Buffer.concat(parts);
@@ -345,12 +345,11 @@ export function buildTaxInvoiceBytes(job: PrintJob): Buffer {
     Buffer.from('Thank you for your purchase!\n', 'utf-8'),
     Buffer.from('Please retain for your records.\n', 'utf-8'),
     divider('='),
+    // Feed 3 plain line-feeds (~12 mm) before the cut on ALL brands (see buildReceiptBytes).
+    // Star DLE DC4 (0x10 0x14 0x01) for drawer; ESC p for Epson.
     lf(3),
-    // Star uses DLE DC4 (real-time command, 0x10 0x14 0x01) — not ESC p (Epson-only).
-    ...(isStar
-      ? [CMD_STAR_FEED, ...(job.autoDrawer ? [buildStarOpenDrawerBytes(job.drawerPin ?? 0)] : []), CMD_STAR_CUT]
-      : [CMD_FEED_5MM,  ...(job.autoDrawer ? [buildOpenDrawerBytes(job.drawerPin ?? 0)] : []), CMD_EPSON_CUT]
-    ),
+    ...(job.autoDrawer ? [isStar ? buildStarOpenDrawerBytes(job.drawerPin ?? 0) : buildOpenDrawerBytes(job.drawerPin ?? 0)] : []),
+    CMD_EPSON_CUT,  // GS V 0 — works on both brands
   );
 
   return Buffer.concat(parts);
@@ -399,8 +398,9 @@ export function buildRegisterSummaryBytes(job: RegisterSummaryPrintJob): Buffer 
     divider('='),
     CMD_ALIGN_CTR,
     Buffer.from('Butterfield POS\n', 'utf-8'),
+    // Feed 3 plain line-feeds (~12 mm) before the cut on ALL brands (see buildReceiptBytes).
     lf(3),
-    ...(isStar ? [CMD_STAR_FEED, CMD_STAR_CUT] : [CMD_FEED_5MM, CMD_EPSON_CUT]),
+    CMD_EPSON_CUT,  // GS V 0 — works on both brands
   );
 
   return Buffer.concat(parts);
@@ -436,8 +436,9 @@ export function buildLinklyReceiptBytes(job: LinklyReceiptPrintJob): Buffer {
     divider('='),
     CMD_ALIGN_CTR,
     Buffer.from('Butterfield POS\n', 'utf-8'),
+    // Feed 3 plain line-feeds (~12 mm) before the cut on ALL brands (see buildReceiptBytes).
     lf(3),
-    ...(isStar ? [CMD_STAR_FEED, CMD_STAR_CUT] : [CMD_FEED_5MM, CMD_EPSON_CUT]),
+    CMD_EPSON_CUT,  // GS V 0 — works on both brands
   );
 
   return Buffer.concat(parts);

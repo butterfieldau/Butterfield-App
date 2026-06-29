@@ -181,6 +181,15 @@ function StoreEditorModal({
   const [hours,            setHours]             = useState<HourRow[]>(defaultHours());
   const [activeTab,        setActiveTab]         = useState<(typeof STORE_EDITOR_TABS)[number]>('Details');
 
+  // Derived: are any printer fields changed from the last saved value?
+  // Test print uses current form state; order printing uses what's in the DB.
+  // If these differ, orders will print with the old (saved) brand until the director saves.
+  const printerHasUnsavedChanges = store != null && (
+    printerBrand  !== ((store.printerBrand as 'epson' | 'star') ?? 'epson') ||
+    printerIp     !== (store.printerIp ?? '') ||
+    printerPort   !== (store.printerPort != null ? String(store.printerPort) : '9100')
+  );
+
   // Populate from existing store
   useEffect(() => {
     if (!visible) return;
@@ -740,6 +749,19 @@ function StoreEditorModal({
                   </View>
                   <Text style={{ fontSize: 11, color: MUTED, marginTop: 6 }}>
                     Most printers use Pin 0. Use Pin 1 only if your drawer is on the second port.
+                  </Text>
+                </View>
+              )}
+              {printerHasUnsavedChanges && (
+                <View style={{
+                  flexDirection: 'row', alignItems: 'flex-start', gap: 8,
+                  marginHorizontal: 14, marginBottom: 8, padding: 10, borderRadius: 8,
+                  backgroundColor: '#FFFBEB', borderWidth: 1, borderColor: '#FCD34D',
+                }}>
+                  <Feather name="alert-triangle" size={14} color={AMBER} style={{ marginTop: 1 }} />
+                  <Text style={{ flex: 1, fontSize: 12, color: '#92400E', lineHeight: 17 }}>
+                    <Text style={{ fontWeight: '600' }}>Unsaved changes</Text>
+                    {' — Test Print uses the current form settings. Order printing uses the last saved values. Tap Save to apply your changes.'}
                   </Text>
                 </View>
               )}

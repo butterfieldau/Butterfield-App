@@ -217,7 +217,8 @@ export default function DirectorOrdersScreen() {
         effectivePrinterPort,
       );
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      Alert.alert('Printed', 'Receipt sent to the printer.');
+      const brandLabel = effectivePrinterBrand === 'star' ? 'Star' : 'Epson';
+      Alert.alert('Printed', `Receipt sent to the printer (${brandLabel} mode).`);
     } catch (error) {
       Alert.alert('Print Failed', getErrorMessage(error) || 'Could not send the receipt to the printer.');
     } finally {
