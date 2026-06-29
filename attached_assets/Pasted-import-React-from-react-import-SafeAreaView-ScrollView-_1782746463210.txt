@@ -1,0 +1,589 @@
+import React from "react";
+import {
+  SafeAreaView,
+  ScrollView,
+  View,
+  Text,
+  StyleSheet,
+  Pressable,
+  Linking,
+} from "react-native";
+
+type InvoiceItem = {
+  name: string;
+  qty: number;
+  unitPrice: number;
+};
+
+type InvoiceData = {
+  invoiceNumber: string;
+  status: "Draft" | "Due" | "Paid" | "Overdue";
+  issueDate: string;
+  dueDate: string;
+  terms: string;
+  customerName: string;
+  customerEmail: string;
+  customerABN?: string;
+  subtotal: number;
+  gst: number;
+  total: number;
+  items: InvoiceItem[];
+  notes?: string;
+};
+
+const invoice: InvoiceData = {
+  invoiceNumber: "INV-0C1B371E",
+  status: "Draft",
+  issueDate: "06 June 2026",
+  dueDate: "06 June 2026",
+  terms: "NET 7",
+  customerName: "Demo Wholesale Co.",
+  customerEmail: "wholesale@demo.com",
+  customerABN: "98 765 432 100",
+  subtotal: 25.45,
+  gst: 2.55,
+  total: 40,
+  items: [
+    {
+      name: "M&Ms Cookie",
+      qty: 7,
+      unitPrice: 4,
+    },
+  ],
+  notes: "Jane Smith | 0411 222 333",
+};
+
+const formatMoney = (amount: number) => {
+  return new Intl.NumberFormat("en-AU", {
+    style: "currency",
+    currency: "AUD",
+  }).format(amount);
+};
+
+export default function WholesaleInvoiceScreen() {
+  const openEmail = () => {
+    Linking.openURL("mailto:accounts@butterfieldcookies.com.au");
+  };
+
+  return (
+    <SafeAreaView style={styles.safeArea}>
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Header */}
+        <View style={styles.headerCard}>
+          <View>
+            <Text style={styles.brand}>Butterfield</Text>
+            <Text style={styles.tagline}>Cookies · Coffee · Desserts</Text>
+          </View>
+
+          <View style={styles.statusPill}>
+            <Text style={styles.statusText}>{invoice.status}</Text>
+          </View>
+        </View>
+
+        {/* Total Due */}
+        <View style={styles.totalCard}>
+          <Text style={styles.totalLabel}>Total Due</Text>
+          <Text style={styles.totalAmount}>{formatMoney(invoice.total)}</Text>
+          <Text style={styles.invoiceNumber}>{invoice.invoiceNumber}</Text>
+        </View>
+
+        {/* Customer */}
+        <View style={styles.card}>
+          <Text style={styles.sectionTitle}>Billed To</Text>
+
+          <Text style={styles.customerName}>{invoice.customerName}</Text>
+
+          {invoice.customerABN && (
+            <Text style={styles.mutedText}>ABN: {invoice.customerABN}</Text>
+          )}
+
+          <Text style={styles.linkText}>{invoice.customerEmail}</Text>
+        </View>
+
+        {/* Invoice Details */}
+        <View style={styles.detailsGrid}>
+          <View style={styles.detailBox}>
+            <Text style={styles.detailLabel}>Issue Date</Text>
+            <Text style={styles.detailValue}>{invoice.issueDate}</Text>
+          </View>
+
+          <View style={styles.detailBox}>
+            <Text style={styles.detailLabel}>Due Date</Text>
+            <Text style={styles.detailValue}>{invoice.dueDate}</Text>
+          </View>
+
+          <View style={styles.detailBox}>
+            <Text style={styles.detailLabel}>Terms</Text>
+            <Text style={styles.detailValue}>{invoice.terms}</Text>
+          </View>
+        </View>
+
+        {/* Items */}
+        <View style={styles.card}>
+          <Text style={styles.sectionTitle}>Order Summary</Text>
+
+          {invoice.items.map((item, index) => {
+            const lineTotal = item.qty * item.unitPrice;
+
+            return (
+              <View
+                key={`${item.name}-${index}`}
+                style={[
+                  styles.itemRow,
+                  index !== invoice.items.length - 1 && styles.itemBorder,
+                ]}
+              >
+                <View style={styles.itemLeft}>
+                  <Text style={styles.itemName}>{item.name}</Text>
+                  <Text style={styles.itemMeta}>
+                    Qty {item.qty} × {formatMoney(item.unitPrice)}
+                  </Text>
+                </View>
+
+                <Text style={styles.itemTotal}>{formatMoney(lineTotal)}</Text>
+              </View>
+            );
+          })}
+        </View>
+
+        {/* Totals */}
+        <View style={styles.card}>
+          <View style={styles.summaryRow}>
+            <Text style={styles.summaryLabel}>Subtotal excl. GST</Text>
+            <Text style={styles.summaryValue}>{formatMoney(invoice.subtotal)}</Text>
+          </View>
+
+          <View style={styles.summaryRow}>
+            <Text style={styles.summaryLabel}>GST 10%</Text>
+            <Text style={styles.summaryValue}>{formatMoney(invoice.gst)}</Text>
+          </View>
+
+          <View style={styles.divider} />
+
+          <View style={styles.summaryRow}>
+            <Text style={styles.grandTotalLabel}>Total Due</Text>
+            <Text style={styles.grandTotalValue}>{formatMoney(invoice.total)}</Text>
+          </View>
+        </View>
+
+        {/* Bank Details */}
+        <View style={styles.bankCard}>
+          <Text style={styles.bankTitle}>Bank Transfer</Text>
+
+          <View style={styles.bankLine}>
+            <Text style={styles.bankLabel}>Account Name</Text>
+            <Text style={styles.bankValue}>Butterfield Cookies PTY LTD</Text>
+          </View>
+
+          <View style={styles.bankLine}>
+            <Text style={styles.bankLabel}>BSB</Text>
+            <Text style={styles.bankValue}>067 873</Text>
+          </View>
+
+          <View style={styles.bankLine}>
+            <Text style={styles.bankLabel}>Account Number</Text>
+            <Text style={styles.bankValue}>1465 8181</Text>
+          </View>
+
+          <View style={styles.referenceBox}>
+            <Text style={styles.referenceLabel}>Payment Reference</Text>
+            <Text style={styles.referenceValue}>{invoice.invoiceNumber}</Text>
+          </View>
+        </View>
+
+        {/* Notes */}
+        {invoice.notes && (
+          <View style={styles.notesCard}>
+            <Text style={styles.notesLabel}>Notes</Text>
+            <Text style={styles.notesText}>{invoice.notes}</Text>
+          </View>
+        )}
+
+        {/* Footer */}
+        <View style={styles.footer}>
+          <Text style={styles.footerBrand}>Butterfield Cookies PTY LTD</Text>
+          <Text style={styles.footerText}>
+            2 Main Lane, Merrylands NSW 2160
+          </Text>
+          <Text style={styles.footerText}>ABN: 24 680 761 166</Text>
+
+          <Pressable onPress={openEmail}>
+            <Text style={styles.footerLink}>
+              accounts@butterfieldcookies.com.au
+            </Text>
+          </Pressable>
+
+          <Text style={styles.footerText}>0480 769 995</Text>
+
+          <Text style={styles.thankYou}>
+            Thank you for your continued partnership.
+          </Text>
+        </View>
+      </ScrollView>
+    </SafeAreaView>
+  );
+}
+
+const NAVY = "#12213A";
+const BLUE = "#2F80ED";
+const BG = "#F6F8FB";
+const TEXT = "#172033";
+const MUTED = "#7A8496";
+const BORDER = "#E4E8F0";
+const WHITE = "#FFFFFF";
+
+const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: BG,
+  },
+
+  container: {
+    flex: 1,
+  },
+
+  content: {
+    padding: 18,
+    paddingBottom: 40,
+  },
+
+  headerCard: {
+    backgroundColor: NAVY,
+    borderRadius: 24,
+    padding: 22,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    marginBottom: 16,
+  },
+
+  brand: {
+    color: WHITE,
+    fontSize: 28,
+    fontWeight: "700",
+    letterSpacing: -0.5,
+  },
+
+  tagline: {
+    color: "rgba(255,255,255,0.62)",
+    fontSize: 12,
+    fontWeight: "600",
+    letterSpacing: 2,
+    textTransform: "uppercase",
+    marginTop: 8,
+  },
+
+  statusPill: {
+    backgroundColor: "rgba(255,255,255,0.12)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.22)",
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 999,
+  },
+
+  statusText: {
+    color: WHITE,
+    fontSize: 12,
+    fontWeight: "700",
+    textTransform: "uppercase",
+    letterSpacing: 0.8,
+  },
+
+  totalCard: {
+    backgroundColor: WHITE,
+    borderRadius: 24,
+    padding: 22,
+    marginBottom: 14,
+    borderWidth: 1,
+    borderColor: BORDER,
+  },
+
+  totalLabel: {
+    color: MUTED,
+    fontSize: 13,
+    fontWeight: "700",
+    textTransform: "uppercase",
+    letterSpacing: 1.2,
+  },
+
+  totalAmount: {
+    color: NAVY,
+    fontSize: 42,
+    fontWeight: "800",
+    letterSpacing: -1.2,
+    marginTop: 8,
+  },
+
+  invoiceNumber: {
+    color: BLUE,
+    fontSize: 15,
+    fontWeight: "700",
+    marginTop: 4,
+  },
+
+  card: {
+    backgroundColor: WHITE,
+    borderRadius: 22,
+    padding: 18,
+    marginBottom: 14,
+    borderWidth: 1,
+    borderColor: BORDER,
+  },
+
+  sectionTitle: {
+    color: NAVY,
+    fontSize: 13,
+    fontWeight: "800",
+    textTransform: "uppercase",
+    letterSpacing: 1.2,
+    marginBottom: 14,
+  },
+
+  customerName: {
+    color: TEXT,
+    fontSize: 20,
+    fontWeight: "800",
+    marginBottom: 8,
+  },
+
+  mutedText: {
+    color: MUTED,
+    fontSize: 15,
+    lineHeight: 22,
+  },
+
+  linkText: {
+    color: BLUE,
+    fontSize: 15,
+    fontWeight: "600",
+    marginTop: 6,
+  },
+
+  detailsGrid: {
+    flexDirection: "row",
+    gap: 10,
+    marginBottom: 14,
+  },
+
+  detailBox: {
+    flex: 1,
+    backgroundColor: WHITE,
+    borderRadius: 18,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: BORDER,
+  },
+
+  detailLabel: {
+    color: MUTED,
+    fontSize: 11,
+    fontWeight: "800",
+    textTransform: "uppercase",
+    letterSpacing: 0.8,
+    marginBottom: 8,
+  },
+
+  detailValue: {
+    color: TEXT,
+    fontSize: 14,
+    fontWeight: "800",
+    lineHeight: 20,
+  },
+
+  itemRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    gap: 14,
+    paddingVertical: 14,
+  },
+
+  itemBorder: {
+    borderBottomWidth: 1,
+    borderBottomColor: BORDER,
+  },
+
+  itemLeft: {
+    flex: 1,
+  },
+
+  itemName: {
+    color: TEXT,
+    fontSize: 17,
+    fontWeight: "800",
+  },
+
+  itemMeta: {
+    color: MUTED,
+    fontSize: 14,
+    marginTop: 5,
+  },
+
+  itemTotal: {
+    color: TEXT,
+    fontSize: 17,
+    fontWeight: "800",
+  },
+
+  summaryRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 9,
+  },
+
+  summaryLabel: {
+    color: MUTED,
+    fontSize: 15,
+    fontWeight: "600",
+  },
+
+  summaryValue: {
+    color: TEXT,
+    fontSize: 15,
+    fontWeight: "800",
+  },
+
+  divider: {
+    height: 1,
+    backgroundColor: BORDER,
+    marginVertical: 10,
+  },
+
+  grandTotalLabel: {
+    color: NAVY,
+    fontSize: 18,
+    fontWeight: "900",
+  },
+
+  grandTotalValue: {
+    color: NAVY,
+    fontSize: 26,
+    fontWeight: "900",
+    letterSpacing: -0.5,
+  },
+
+  bankCard: {
+    backgroundColor: NAVY,
+    borderRadius: 24,
+    padding: 20,
+    marginBottom: 14,
+  },
+
+  bankTitle: {
+    color: WHITE,
+    fontSize: 15,
+    fontWeight: "900",
+    textTransform: "uppercase",
+    letterSpacing: 1.2,
+    marginBottom: 16,
+  },
+
+  bankLine: {
+    marginBottom: 14,
+  },
+
+  bankLabel: {
+    color: "rgba(255,255,255,0.55)",
+    fontSize: 11,
+    fontWeight: "800",
+    textTransform: "uppercase",
+    letterSpacing: 1,
+    marginBottom: 5,
+  },
+
+  bankValue: {
+    color: WHITE,
+    fontSize: 17,
+    fontWeight: "800",
+    lineHeight: 23,
+  },
+
+  referenceBox: {
+    backgroundColor: "rgba(255,255,255,0.1)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.16)",
+    borderRadius: 18,
+    padding: 14,
+    marginTop: 4,
+  },
+
+  referenceLabel: {
+    color: "rgba(255,255,255,0.55)",
+    fontSize: 11,
+    fontWeight: "800",
+    textTransform: "uppercase",
+    letterSpacing: 1,
+    marginBottom: 6,
+  },
+
+  referenceValue: {
+    color: WHITE,
+    fontSize: 20,
+    fontWeight: "900",
+  },
+
+  notesCard: {
+    backgroundColor: "#FFF8E8",
+    borderRadius: 20,
+    padding: 16,
+    marginBottom: 14,
+    borderWidth: 1,
+    borderColor: "#F0D99A",
+  },
+
+  notesLabel: {
+    color: "#9B5D18",
+    fontSize: 12,
+    fontWeight: "900",
+    textTransform: "uppercase",
+    letterSpacing: 1,
+    marginBottom: 6,
+  },
+
+  notesText: {
+    color: "#6F4212",
+    fontSize: 15,
+    fontWeight: "700",
+  },
+
+  footer: {
+    alignItems: "center",
+    paddingVertical: 24,
+    paddingHorizontal: 10,
+  },
+
+  footerBrand: {
+    color: NAVY,
+    fontSize: 17,
+    fontWeight: "900",
+    marginBottom: 8,
+  },
+
+  footerText: {
+    color: MUTED,
+    fontSize: 14,
+    textAlign: "center",
+    lineHeight: 22,
+  },
+
+  footerLink: {
+    color: BLUE,
+    fontSize: 14,
+    fontWeight: "700",
+    marginTop: 4,
+    marginBottom: 4,
+  },
+
+  thankYou: {
+    color: TEXT,
+    fontSize: 15,
+    fontWeight: "700",
+    textAlign: "center",
+    marginTop: 18,
+  },
+});

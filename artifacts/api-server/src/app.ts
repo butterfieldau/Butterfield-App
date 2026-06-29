@@ -2,6 +2,8 @@ import express, { type Express } from "express";
 import cors from "cors";
 import pinoHttp from "pino-http";
 import cookieParser from "cookie-parser";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import router from "./routes/index.js";
 import shareRouter from "./routes/share.js";
 import { logger } from "./lib/logger.js";
@@ -95,6 +97,10 @@ app.use(cors({
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
+
+// Serve brand assets (logo etc.) publicly so email clients can fetch them
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+app.use("/api/static", express.static(path.join(__dirname, "../public"), { maxAge: "7d" }));
 
 app.use("/s", shareRouter);
 app.use("/api", router);

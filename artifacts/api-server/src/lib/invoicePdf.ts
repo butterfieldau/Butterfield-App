@@ -1,4 +1,7 @@
-import PDFDocument from 'pdfkit';
+import PDFDocumentCJS from 'pdfkit';
+// esbuild wraps CJS modules — the actual constructor may land on .default
+const PDFDocument: typeof PDFDocumentCJS =
+  ((PDFDocumentCJS as any).default ?? PDFDocumentCJS) as typeof PDFDocumentCJS;
 
 export interface InvoicePdfData {
   invoiceNumber: string;

@@ -1,57 +1,32 @@
-import { Resend } from 'resend';
 // @replit/connectors-sdk — proxies Resend API with automatic auth/token refresh
 import { ReplitConnectors } from '@replit/connectors-sdk';
+import { Resend } from 'resend';
 
-// Replit Resend connector — fetches API key via connectors-sdk proxy each call (never cached)
-async function getResendClient(): Promise<{ client: Resend; fromEmail: string } | null> {
-  // Try connectors-sdk first (preferred: handles token refresh automatically)
-  try {
-    const connectors = new ReplitConnectors();
-    const res = await connectors.proxy('resend', '/api-keys', { method: 'GET' });
-    // If the proxy responds successfully, fetch the key via the v2 secrets endpoint
-    // (connectors-sdk proxy doesn't surface the raw key directly; fall through to secrets fetch)
-  } catch (_) {
-    // connectors-sdk not available in this environment
-  }
+const FALLBACK_FROM = 'Butterfield Cookies <onboarding@resend.dev>';
 
-  // Fetch raw API key from the Replit connector secrets proxy
+/** Fetch the verified from_email configured in the Resend connector settings. */
+async function getConnectorFromEmail(): Promise<string | null> {
   const hostname = process.env.REPLIT_CONNECTORS_HOSTNAME;
   const xReplitToken = process.env.REPL_IDENTITY
     ? 'repl ' + process.env.REPL_IDENTITY
     : process.env.WEB_REPL_RENEWAL
     ? 'depl ' + process.env.WEB_REPL_RENEWAL
     : null;
-
-  if (hostname && xReplitToken) {
-    try {
-      const res = await fetch(
-        `https://${hostname}/api/v2/connection?include_secrets=true&connector_names=resend`,
-        {
-          headers: {
-            'Accept': 'application/json',
-            'X-Replit-Token': xReplitToken,
-          },
-        }
-      );
-      const data = await res.json() as { items?: Array<{ settings?: { api_key?: string } }> };
-      const apiKey = data.items?.[0]?.settings?.api_key;
-      if (apiKey) {
-        const fromEmail = process.env.EMAIL_FROM ?? 'onboarding@resend.dev';
-        return { client: new Resend(apiKey), fromEmail };
-      }
-    } catch (e) {
-      console.error('[emailService] Connector proxy fetch failed:', e);
-    }
+  if (!hostname || !xReplitToken) return null;
+  try {
+    const url = new URL(`https://${hostname}/api/v2/connection`);
+    url.searchParams.set('include_secrets', 'true');
+    url.searchParams.set('connector_names', 'resend');
+    const res = await fetch(url.toString(), {
+      headers: { 'Accept': 'application/json', 'X-Replit-Token': xReplitToken },
+      signal: AbortSignal.timeout(5_000),
+    });
+    if (!res.ok) return null;
+    const data = await res.json() as { items?: Array<{ settings?: { from_email?: string } }> };
+    return data.items?.[0]?.settings?.from_email ?? null;
+  } catch {
+    return null;
   }
-
-  // Final fallback: direct RESEND_API_KEY env var (dev/CI)
-  const apiKey = process.env.RESEND_API_KEY;
-  if (apiKey) {
-    const fromEmail = process.env.EMAIL_FROM ?? 'Butterfield Cookies <onboarding@resend.dev>';
-    return { client: new Resend(apiKey), fromEmail };
-  }
-
-  return null;
 }
 
 interface EmailAttachment {
@@ -69,16 +44,68 @@ interface SendEmailOptions {
 }
 
 export async function sendEmail(opts: SendEmailOptions): Promise<{ success: boolean }> {
-  const resend = await getResendClient();
+  // Connector from_email is authoritative when using the proxy; env var is for the SDK fallback.
+  const connectorFrom = await getConnectorFromEmail();
 
-  if (!resend) {
-    console.warn('[emailService] Resend not configured — email not sent.');
+  // ── Primary: Replit Resend connector proxy (handles auth/token refresh automatically) ──
+  // connectors.proxy() returns a Fetch Response — must check .ok and parse .json().
+  // Only fall through to the SDK path when the connector is entirely unavailable (ENOTFOUND /
+  // thrown exception), NOT when the connector responds with an HTTP error (that is a real failure).
+  let connectorUnavailable = false;
+  try {
+    const fromEmail = connectorFrom ?? process.env.EMAIL_FROM ?? FALLBACK_FROM;
+    const connectors = new ReplitConnectors();
+    const body: Record<string, unknown> = {
+      from: fromEmail,
+      to: [opts.to],
+      subject: opts.subject,
+      html: opts.html,
+    };
+    if (opts.text) body.text = opts.text;
+    if (opts.attachments && opts.attachments.length > 0) {
+      body.attachments = opts.attachments.map(a => ({
+        filename: a.filename,
+        content: Buffer.isBuffer(a.content)
+          ? a.content.toString('base64')
+          : (typeof a.content === 'string' ? a.content : String(a.content)),
+        ...(a.contentType ? { type: a.contentType } : {}),
+      }));
+    }
+    const response = await connectors.proxy('resend', '/emails', {
+      method: 'POST',
+      body,
+    }) as unknown as Response;
+
+    let data: Record<string, unknown> = {};
+    try { data = await response.json() as Record<string, unknown>; } catch { /* non-JSON body */ }
+
+    if (response.ok && data && 'id' in data) {
+      return { success: true };
+    }
+    // HTTP error from Resend (e.g. 403 bad sender, 422 invalid payload) — real failure, do not fall through.
+    console.error('[emailService] Resend connector HTTP error', response.status, data);
     return { success: false };
+  } catch (connectorErr: any) {
+    // Connector infrastructure not reachable — fall through to RESEND_API_KEY SDK path.
+    connectorUnavailable = true;
+    const msg: string = connectorErr?.message ?? '';
+    if (!msg.includes('ENOTFOUND') && !msg.includes('not connected') && !msg.includes('not found')) {
+      console.error('[emailService] Resend connector proxy threw:', msg || connectorErr);
+    }
   }
 
+  // ── Fallback: direct RESEND_API_KEY env var (local dev / CI only) ─────────
+  if (!connectorUnavailable) return { success: false };
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey) {
+    console.warn('[emailService] Resend not configured — email not sent (no connector or RESEND_API_KEY).');
+    return { success: false };
+  }
   try {
-    const { error } = await resend.client.emails.send({
-      from: resend.fromEmail,
+    const fromEmail = process.env.EMAIL_FROM ?? FALLBACK_FROM;
+    const client = new Resend(apiKey);
+    const { error } = await client.emails.send({
+      from: fromEmail,
       to: [opts.to],
       subject: opts.subject,
       html: opts.html,
@@ -88,14 +115,264 @@ export async function sendEmail(opts: SendEmailOptions): Promise<{ success: bool
         : {}),
     });
     if (error) {
-      console.error('[emailService] Resend error:', error);
+      console.error('[emailService] Resend SDK error:', error);
       return { success: false };
     }
     return { success: true };
   } catch (e) {
-    console.error('[emailService] Failed to send email:', e);
+    console.error('[emailService] Resend SDK send failed:', e);
     return { success: false };
   }
+}
+
+// ── Wholesale invoice email (used for initial send + revised resend) ──────────
+export interface WholesaleInvoiceEmailOpts {
+  invoiceNumber: string;
+  status: string;
+  invoiceDate: Date | string;
+  dueDate: Date | string;
+  paymentTerms: string;
+  companyName: string;
+  abn: string | null | undefined;
+  email: string | null | undefined;
+  items: Array<{ description: string; qty: number; unitCents: number }>;
+  totalCents: number;
+  deliveryFeeCents?: number;
+  poReference: string | null | undefined;
+  notes: string | null | undefined;
+  isRevised?: boolean;
+  logoUrl?: string;
+}
+
+function fmtCents(cents: number): string {
+  return new Intl.NumberFormat('en-AU', { style: 'currency', currency: 'AUD' }).format(cents / 100);
+}
+
+function fmtEmailDate(d: Date | string | null | undefined): string {
+  if (!d) return '—';
+  const date = typeof d === 'string' ? new Date(d) : d;
+  return date.toLocaleDateString('en-AU', { day: '2-digit', month: 'short', year: 'numeric' });
+}
+
+export function buildWholesaleInvoiceEmail(opts: WholesaleInvoiceEmailOpts): string {
+  const {
+    invoiceNumber, status, invoiceDate, dueDate, paymentTerms,
+    companyName, abn, email, items, totalCents, deliveryFeeCents = 0,
+    poReference, notes, isRevised = false, logoUrl,
+  } = opts;
+
+  const subtotalCents = items.reduce((s, i) => s + i.qty * i.unitCents, 0) + deliveryFeeCents;
+  const gstCents      = Math.round(subtotalCents / 11);
+  const exclGstCents  = subtotalCents - gstCents;
+  const total         = totalCents || subtotalCents;
+
+  const statusMap: Record<string, { bg: string; color: string }> = {
+    paid:      { bg: 'rgba(16,185,129,0.18)', color: '#D1FAE5' },
+    overdue:   { bg: 'rgba(220,38,38,0.18)',  color: '#FEE2E2' },
+    draft:     { bg: 'rgba(255,255,255,0.12)', color: 'rgba(255,255,255,0.9)' },
+    revised:   { bg: 'rgba(47,128,237,0.22)', color: '#BFDBFE' },
+    pending:   { bg: 'rgba(245,158,11,0.18)', color: '#FDE68A' },
+  };
+  const sc = statusMap[(status ?? 'draft').toLowerCase()] ?? statusMap['draft'];
+  const statusLabel = isRevised ? 'REVISED' : (status ?? 'INVOICE').toUpperCase();
+
+  const itemRows = items.map(i => {
+    const lineTotal = i.qty * i.unitCents;
+    return `
+      <tr>
+        <td style="padding:14px 0;border-bottom:1px solid #E4E8F0;vertical-align:top;">
+          <div style="color:#172033;font-size:16px;font-weight:800;font-family:Arial,sans-serif;">${i.description}</div>
+          <div style="color:#7A8496;font-size:14px;margin-top:4px;font-family:Arial,sans-serif;">Qty ${i.qty} × ${fmtCents(i.unitCents)}</div>
+        </td>
+        <td style="padding:14px 0;border-bottom:1px solid #E4E8F0;text-align:right;vertical-align:top;">
+          <div style="color:#172033;font-size:16px;font-weight:800;font-family:Arial,sans-serif;">${fmtCents(lineTotal)}</div>
+        </td>
+      </tr>`;
+  }).join('');
+
+  const detailBoxStyle = 'display:inline-block;background:#ffffff;border:1px solid #E4E8F0;border-radius:14px;padding:14px 18px;margin:0 6px 10px 0;min-width:120px;vertical-align:top;';
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>${invoiceNumber}</title>
+  <style>
+    @media only screen and (max-width:600px){
+      .wrapper{padding:12px !important;}
+      .card{border-radius:18px !important;padding:18px !important;}
+      .total-amount{font-size:38px !important;}
+      .detail-grid td{display:block;width:100% !important;margin-bottom:10px;}
+    }
+  </style>
+</head>
+<body style="margin:0;padding:0;background:#F6F8FB;font-family:Arial,sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#F6F8FB;">
+<tr><td align="center" class="wrapper" style="padding:32px 16px;">
+<table width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;">
+
+  <!-- Header card -->
+  <tr><td style="background:#12213A;border-radius:24px;padding:24px 28px;margin-bottom:14px;" class="card">
+    <table width="100%" cellpadding="0" cellspacing="0"><tr>
+      <td>
+        <div style="color:#ffffff;font-size:28px;font-weight:900;letter-spacing:-0.5px;font-family:Arial,sans-serif;">Butterfield</div>
+        <div style="color:rgba(255,255,255,0.6);font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;margin-top:8px;font-family:Arial,sans-serif;">Cookies · Coffee · Desserts</div>
+      </td>
+      <td align="right" valign="top">
+        <span style="background:${sc.bg};color:${sc.color};font-size:11px;font-weight:800;letter-spacing:1px;text-transform:uppercase;padding:7px 14px;border-radius:999px;font-family:Arial,sans-serif;">${statusLabel}</span>
+      </td>
+    </tr></table>
+  </td></tr>
+
+  <tr><td height="14"></td></tr>
+
+  <!-- Total due card -->
+  <tr><td style="background:#ffffff;border:1px solid #E4E8F0;border-radius:24px;padding:24px 28px;" class="card">
+    <div style="color:#7A8496;font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:1.5px;font-family:Arial,sans-serif;">Total Due</div>
+    <div class="total-amount" style="color:#12213A;font-size:44px;font-weight:900;letter-spacing:-1.5px;margin-top:8px;font-family:Arial,sans-serif;">${fmtCents(total)}</div>
+    <div style="color:#2F80ED;font-size:15px;font-weight:700;margin-top:6px;font-family:Arial,sans-serif;">${invoiceNumber}</div>
+  </td></tr>
+
+  <tr><td height="14"></td></tr>
+
+  <!-- Billed To -->
+  <tr><td style="background:#ffffff;border:1px solid #E4E8F0;border-radius:22px;padding:20px 24px;" class="card">
+    <div style="color:#12213A;font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:1.2px;margin-bottom:14px;font-family:Arial,sans-serif;">Billed To</div>
+    <div style="color:#172033;font-size:19px;font-weight:800;margin-bottom:8px;font-family:Arial,sans-serif;">${companyName}</div>
+    ${abn ? `<div style="color:#7A8496;font-size:14px;font-family:Arial,sans-serif;">ABN: ${abn}</div>` : ''}
+    ${email ? `<div style="color:#2F80ED;font-size:14px;font-weight:600;margin-top:6px;font-family:Arial,sans-serif;">${email}</div>` : ''}
+  </td></tr>
+
+  <tr><td height="14"></td></tr>
+
+  <!-- Invoice details (3 boxes, wrap on mobile) -->
+  <tr><td style="padding:0;">
+    <table width="100%" cellpadding="0" cellspacing="0" class="detail-grid"><tr>
+      <td style="width:33%;padding-right:6px;vertical-align:top;">
+        <div style="${detailBoxStyle}width:calc(100% - 40px);">
+          <div style="color:#7A8496;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;font-family:Arial,sans-serif;">Issue Date</div>
+          <div style="color:#172033;font-size:14px;font-weight:800;font-family:Arial,sans-serif;">${fmtEmailDate(invoiceDate)}</div>
+        </div>
+      </td>
+      <td style="width:33%;padding-right:6px;vertical-align:top;">
+        <div style="${detailBoxStyle}width:calc(100% - 40px);">
+          <div style="color:#7A8496;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;font-family:Arial,sans-serif;">Due Date</div>
+          <div style="color:#172033;font-size:14px;font-weight:800;font-family:Arial,sans-serif;">${fmtEmailDate(dueDate)}</div>
+        </div>
+      </td>
+      <td style="width:33%;vertical-align:top;">
+        <div style="${detailBoxStyle}width:calc(100% - 22px);">
+          <div style="color:#7A8496;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;font-family:Arial,sans-serif;">Terms</div>
+          <div style="color:#172033;font-size:14px;font-weight:800;font-family:Arial,sans-serif;">${paymentTerms}</div>
+        </div>
+      </td>
+    </tr></table>
+  </td></tr>
+
+  <tr><td height="14"></td></tr>
+
+  <!-- Order summary -->
+  <tr><td style="background:#ffffff;border:1px solid #E4E8F0;border-radius:22px;padding:20px 24px;" class="card">
+    <div style="color:#12213A;font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:1.2px;margin-bottom:4px;font-family:Arial,sans-serif;">Order Summary</div>
+    <table width="100%" cellpadding="0" cellspacing="0">
+      ${itemRows}
+    </table>
+  </td></tr>
+
+  <tr><td height="14"></td></tr>
+
+  <!-- Totals -->
+  <tr><td style="background:#ffffff;border:1px solid #E4E8F0;border-radius:22px;padding:20px 24px;" class="card">
+    <table width="100%" cellpadding="0" cellspacing="0">
+      <tr>
+        <td style="color:#7A8496;font-size:15px;font-weight:600;padding:9px 0;font-family:Arial,sans-serif;">Subtotal excl. GST</td>
+        <td style="color:#172033;font-size:15px;font-weight:800;text-align:right;padding:9px 0;font-family:Arial,sans-serif;">${fmtCents(exclGstCents)}</td>
+      </tr>
+      <tr>
+        <td style="color:#7A8496;font-size:15px;font-weight:600;padding:9px 0;font-family:Arial,sans-serif;">GST 10%</td>
+        <td style="color:#172033;font-size:15px;font-weight:800;text-align:right;padding:9px 0;font-family:Arial,sans-serif;">${fmtCents(gstCents)}</td>
+      </tr>
+      ${deliveryFeeCents > 0 ? `<tr>
+        <td style="color:#7A8496;font-size:15px;font-weight:600;padding:9px 0;font-family:Arial,sans-serif;">Delivery fee</td>
+        <td style="color:#172033;font-size:15px;font-weight:800;text-align:right;padding:9px 0;font-family:Arial,sans-serif;">${fmtCents(deliveryFeeCents)}</td>
+      </tr>` : ''}
+      <tr><td colspan="2" style="padding:0;"><div style="height:1px;background:#E4E8F0;margin:8px 0;"></div></td></tr>
+      <tr>
+        <td style="color:#12213A;font-size:18px;font-weight:900;padding:8px 0;font-family:Arial,sans-serif;">Total Due</td>
+        <td style="color:#12213A;font-size:26px;font-weight:900;letter-spacing:-0.5px;text-align:right;padding:8px 0;font-family:Arial,sans-serif;">${fmtCents(total)}</td>
+      </tr>
+    </table>
+  </td></tr>
+
+  <tr><td height="14"></td></tr>
+
+  <!-- Bank details -->
+  <tr><td style="background:#12213A;border-radius:24px;padding:24px 28px;" class="card">
+    <div style="color:#ffffff;font-size:14px;font-weight:900;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:18px;font-family:Arial,sans-serif;">Bank Transfer</div>
+    <table width="100%" cellpadding="0" cellspacing="0">
+      <tr>
+        <td style="padding-bottom:14px;vertical-align:top;">
+          <div style="color:rgba(255,255,255,0.55);font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:1px;margin-bottom:5px;font-family:Arial,sans-serif;">Account Name</div>
+          <div style="color:#ffffff;font-size:16px;font-weight:800;font-family:Arial,sans-serif;">Butterfield Cookies PTY LTD</div>
+        </td>
+      </tr>
+      <tr>
+        <td style="padding-bottom:14px;">
+          <table width="100%" cellpadding="0" cellspacing="0"><tr>
+            <td style="width:50%;vertical-align:top;">
+              <div style="color:rgba(255,255,255,0.55);font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:1px;margin-bottom:5px;font-family:Arial,sans-serif;">BSB</div>
+              <div style="color:#ffffff;font-size:16px;font-weight:800;font-family:Arial,sans-serif;">067 873</div>
+            </td>
+            <td style="width:50%;vertical-align:top;">
+              <div style="color:rgba(255,255,255,0.55);font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:1px;margin-bottom:5px;font-family:Arial,sans-serif;">Account Number</div>
+              <div style="color:#ffffff;font-size:16px;font-weight:800;font-family:Arial,sans-serif;">1465 8181</div>
+            </td>
+          </tr></table>
+        </td>
+      </tr>
+      <tr><td>
+        <div style="background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.16);border-radius:16px;padding:16px 18px;margin-top:4px;">
+          <div style="color:rgba(255,255,255,0.55);font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;font-family:Arial,sans-serif;">Payment Reference</div>
+          <div style="color:#ffffff;font-size:20px;font-weight:900;letter-spacing:-0.3px;font-family:Arial,sans-serif;">${invoiceNumber}</div>
+        </div>
+      </td></tr>
+    </table>
+  </td></tr>
+
+  ${notes ? `
+  <tr><td height="14"></td></tr>
+  <tr><td style="background:#FFF8E8;border:1px solid #F0D99A;border-radius:20px;padding:18px 22px;" class="card">
+    <div style="color:#9B5D18;font-size:12px;font-weight:900;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;font-family:Arial,sans-serif;">Notes</div>
+    <div style="color:#6F4212;font-size:15px;font-weight:700;font-family:Arial,sans-serif;">${notes}</div>
+  </td></tr>` : ''}
+
+  ${poReference ? `
+  <tr><td height="14"></td></tr>
+  <tr><td style="background:#EFF6FF;border:1px solid #BFDBFE;border-radius:20px;padding:16px 22px;" class="card">
+    <div style="color:#1E40AF;font-size:12px;font-weight:900;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;font-family:Arial,sans-serif;">PO Reference</div>
+    <div style="color:#1E3A8A;font-size:15px;font-weight:800;font-family:Arial,sans-serif;">${poReference}</div>
+  </td></tr>` : ''}
+
+  <tr><td height="32"></td></tr>
+
+  <!-- Footer -->
+  <tr><td style="text-align:center;padding:0 10px 8px;">
+    <div style="color:#12213A;font-size:16px;font-weight:900;margin-bottom:10px;font-family:Arial,sans-serif;">Butterfield Cookies PTY LTD</div>
+    <div style="color:#7A8496;font-size:13px;line-height:22px;font-family:Arial,sans-serif;">2 Main Lane, Merrylands NSW 2160</div>
+    <div style="color:#7A8496;font-size:13px;line-height:22px;font-family:Arial,sans-serif;">ABN: 24 680 761 166</div>
+    <div style="margin:4px 0;"><a href="mailto:accounts@butterfieldcookies.com.au" style="color:#2F80ED;font-size:13px;font-weight:700;text-decoration:none;font-family:Arial,sans-serif;">accounts@butterfieldcookies.com.au</a></div>
+    <div style="color:#7A8496;font-size:13px;line-height:22px;font-family:Arial,sans-serif;">0480 769 995</div>
+    <div style="color:#172033;font-size:14px;font-weight:700;margin-top:18px;font-family:Arial,sans-serif;">Thank you for your continued partnership.</div>
+  </td></tr>
+
+  <tr><td height="24"></td></tr>
+
+</table>
+</td></tr>
+</table>
+</body>
+</html>`;
 }
 
 export function buildInvoiceReminderEmail(opts: {

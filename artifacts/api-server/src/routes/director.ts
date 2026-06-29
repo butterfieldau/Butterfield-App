@@ -1282,28 +1282,37 @@ router.post('/wholesale/orders/:id/send-revised-invoice', async (req, res) => {
   const invoiceNumber = (order as any).invoiceNumber
     ? `INV-${(order as any).invoiceNumber}` : `INV-${order.id.slice(0, 8).toUpperCase()}`;
 
-  const html = buildInvoiceHtml({
+  const { sendEmail, buildWholesaleInvoiceEmail } = await import('../lib/emailService.js');
+
+  const invoiceDate = order.createdAt instanceof Date ? order.createdAt : new Date(order.createdAt);
+  const dueDateRaw  = (order as any).invoiceDueDate ?? (order as any).dueDate;
+  const dueDateTime = dueDateRaw ? new Date(dueDateRaw) : invoiceDate;
+
+  const proto   = (req.headers['x-forwarded-proto'] as string | undefined)?.split(',')[0]?.trim() ?? 'https';
+  const host    = req.headers.host ?? 'localhost';
+  const logoUrl = `${proto}://${host}/api/static/butterfield-logo.png`;
+
+  const html = buildWholesaleInvoiceEmail({
     invoiceNumber,
-    invoiceDate:  order.createdAt,
-    dueDate:      (order as any).dueDate ?? order.createdAt,
-    status:       (order as any).invoiceStatus ?? order.status,
+    status:       (order as any).invoiceStatus ?? order.status ?? 'pending',
+    invoiceDate,
+    dueDate:      dueDateTime,
+    paymentTerms,
     companyName:  account?.companyName ?? user?.name ?? 'Customer',
     abn:          account?.abn ?? null,
     email:        user?.email ?? null,
-    address:      (account as any)?.deliveryAddress ?? null,
-    accountRef:   account?.id?.slice(0, 8).toUpperCase() ?? null,
     items,
     totalCents:   order.totalCents ?? 0,
+    deliveryFeeCents: (order as any).deliveryFeeCents ?? 0,
     poReference:  order.poReference ?? null,
     notes:        order.notes ?? null,
-    paymentTerms,
-    payUrl:       null,
+    isRevised:    true,
+    logoUrl,
   });
 
   try {
-    const { sendEmail } = await import('../lib/emailService.js');
     const { success } = await sendEmail({
-      to: recipientEmail,
+      to:      recipientEmail,
       subject: `Revised Invoice ${invoiceNumber} — Butterfield Cookies`,
       html,
     });
