@@ -13,14 +13,9 @@ const CMD_BOLD_ON     = Buffer.from([ESC, 0x45, 0x01]);
 const CMD_BOLD_OFF    = Buffer.from([ESC, 0x45, 0x00]);
 const CMD_DBL_SIZE    = Buffer.from([ESC, 0x21, 0x30]);
 const CMD_NORMAL_SIZE = Buffer.from([ESC, 0x21, 0x00]);
-const CMD_FEED_5MM    = Buffer.from([ESC, 0x4A, 0x28]); // 40 dots ≈ 5mm on 203dpi printers
-// Epson / ESC-POS: GS V 0 — full cut
+// GS V 0 — universal ESC/POS full cut; all receipt builders use lf(3) + CMD_EPSON_CUT.
+// Confirmed working on Epson and Star mC-Print3 / MCP30 in ESC/POS mode.
 const CMD_EPSON_CUT   = Buffer.from([GS,  0x56, 0x00]);
-// Star mC-Print3 / MCP30 in ESC/POS mode: ESC d 3 (feed 3 lines) then GS V 0 (full cut)
-// ESC m (0x1B 0x6D) is StarPRNT-only and does NOT cut in ESC/POS mode.
-// GS V 0 (0x1D 0x56 0x00) is the standard ESC/POS full-cut command — confirmed working on MCP30.
-const CMD_STAR_FEED   = Buffer.from([ESC, 0x64, 0x03]);
-const CMD_STAR_CUT    = Buffer.from([GS,  0x56, 0x00]);
 
 const COL = 42; // chars per line on 80mm paper
 
