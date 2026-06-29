@@ -248,28 +248,30 @@ export function buildWholesaleInvoiceEmail(opts: WholesaleInvoiceEmailOpts): str
 
   <tr><td height="16"></td></tr>
 
-  <!-- Invoice details (3 equal boxes, wrap on mobile) -->
-  <tr><td style="padding:0;">
-    <table width="100%" cellpadding="0" cellspacing="0" class="detail-grid"><tr>
-      <td style="width:33.33%;padding-right:8px;vertical-align:top;">
-        <div style="${CARD}display:block;">
+  <!-- Invoice details (single card with separators) -->
+  <tr><td style="${CARD}" class="card">
+    <table width="100%" cellpadding="0" cellspacing="0">
+      <tr>
+        <td style="padding:0 0 14px;vertical-align:top;">
           <div style="${LABEL}">Issue Date</div>
-          <div style="${VALUE}">${fmtEmailDate(invoiceDate)}</div>
-        </div>
-      </td>
-      <td style="width:33.33%;padding-right:8px;vertical-align:top;">
-        <div style="${CARD}display:block;">
+          <div style="${VALUE}font-size:15px;">${fmtEmailDate(invoiceDate)}</div>
+        </td>
+      </tr>
+      <tr><td style="padding:0;"><div style="height:1px;background:#E4E8F0;margin-bottom:14px;"></div></td></tr>
+      <tr>
+        <td style="padding:0 0 14px;vertical-align:top;">
           <div style="${LABEL}">Due Date</div>
-          <div style="${VALUE}">${fmtEmailDate(dueDate)}</div>
-        </div>
-      </td>
-      <td style="width:33.33%;vertical-align:top;">
-        <div style="${CARD}display:block;">
+          <div style="${VALUE}font-size:15px;">${fmtEmailDate(dueDate)}</div>
+        </td>
+      </tr>
+      <tr><td style="padding:0;"><div style="height:1px;background:#E4E8F0;margin-bottom:14px;"></div></td></tr>
+      <tr>
+        <td style="padding:0;vertical-align:top;">
           <div style="${LABEL}">Terms</div>
-          <div style="${VALUE}">${paymentTerms}</div>
-        </div>
-      </td>
-    </tr></table>
+          <div style="${VALUE}font-size:15px;">${paymentTerms}</div>
+        </td>
+      </tr>
+    </table>
   </td></tr>
 
   <tr><td height="16"></td></tr>
