@@ -190,7 +190,9 @@ export function buildWholesaleInvoiceEmail(opts: WholesaleInvoiceEmailOpts): str
       </tr>`;
   }).join('');
 
-  const detailBoxStyle = 'display:inline-block;background:#ffffff;border:1px solid #E4E8F0;border-radius:14px;padding:14px 18px;margin:0 6px 10px 0;min-width:120px;vertical-align:top;';
+  const CARD  = 'background:#ffffff;border:1px solid #E4E8F0;border-radius:24px;padding:24px 28px;';
+  const LABEL = 'color:#7A8496;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;font-family:Arial,sans-serif;';
+  const VALUE = 'color:#172033;font-size:14px;font-weight:800;font-family:Arial,sans-serif;';
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -203,7 +205,7 @@ export function buildWholesaleInvoiceEmail(opts: WholesaleInvoiceEmailOpts): str
       .wrapper{padding:12px !important;}
       .card{border-radius:18px !important;padding:18px !important;}
       .total-amount{font-size:38px !important;}
-      .detail-grid td{display:block;width:100% !important;margin-bottom:10px;}
+      .detail-grid td{display:block;width:100% !important;padding-right:0 !important;margin-bottom:10px;}
     }
   </style>
 </head>
@@ -213,7 +215,7 @@ export function buildWholesaleInvoiceEmail(opts: WholesaleInvoiceEmailOpts): str
 <table width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;">
 
   <!-- Header card -->
-  <tr><td style="background:#12213A;border-radius:24px;padding:24px 28px;margin-bottom:14px;" class="card">
+  <tr><td style="background:#12213A;border-radius:24px;padding:24px 28px;" class="card">
     <table width="100%" cellpadding="0" cellspacing="0"><tr>
       <td>
         <div style="color:#ffffff;font-size:28px;font-weight:900;letter-spacing:-0.5px;font-family:Arial,sans-serif;">Butterfield</div>
@@ -225,65 +227,65 @@ export function buildWholesaleInvoiceEmail(opts: WholesaleInvoiceEmailOpts): str
     </tr></table>
   </td></tr>
 
-  <tr><td height="14"></td></tr>
+  <tr><td height="16"></td></tr>
 
   <!-- Total due card -->
-  <tr><td style="background:#ffffff;border:1px solid #E4E8F0;border-radius:24px;padding:24px 28px;" class="card">
+  <tr><td style="${CARD}" class="card">
     <div style="color:#7A8496;font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:1.5px;font-family:Arial,sans-serif;">Total Due</div>
     <div class="total-amount" style="color:#12213A;font-size:44px;font-weight:900;letter-spacing:-1.5px;margin-top:8px;font-family:Arial,sans-serif;">${fmtCents(total)}</div>
     <div style="color:#2F80ED;font-size:15px;font-weight:700;margin-top:6px;font-family:Arial,sans-serif;">${invoiceNumber}</div>
   </td></tr>
 
-  <tr><td height="14"></td></tr>
+  <tr><td height="16"></td></tr>
 
   <!-- Billed To -->
-  <tr><td style="background:#ffffff;border:1px solid #E4E8F0;border-radius:22px;padding:20px 24px;" class="card">
+  <tr><td style="${CARD}" class="card">
     <div style="color:#12213A;font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:1.2px;margin-bottom:14px;font-family:Arial,sans-serif;">Billed To</div>
     <div style="color:#172033;font-size:19px;font-weight:800;margin-bottom:8px;font-family:Arial,sans-serif;">${companyName}</div>
     ${abn ? `<div style="color:#7A8496;font-size:14px;font-family:Arial,sans-serif;">ABN: ${abn}</div>` : ''}
     ${email ? `<div style="color:#2F80ED;font-size:14px;font-weight:600;margin-top:6px;font-family:Arial,sans-serif;">${email}</div>` : ''}
   </td></tr>
 
-  <tr><td height="14"></td></tr>
+  <tr><td height="16"></td></tr>
 
-  <!-- Invoice details (3 boxes, wrap on mobile) -->
+  <!-- Invoice details (3 equal boxes, wrap on mobile) -->
   <tr><td style="padding:0;">
     <table width="100%" cellpadding="0" cellspacing="0" class="detail-grid"><tr>
-      <td style="width:33%;padding-right:6px;vertical-align:top;">
-        <div style="${detailBoxStyle}width:calc(100% - 40px);">
-          <div style="color:#7A8496;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;font-family:Arial,sans-serif;">Issue Date</div>
-          <div style="color:#172033;font-size:14px;font-weight:800;font-family:Arial,sans-serif;">${fmtEmailDate(invoiceDate)}</div>
+      <td style="width:33.33%;padding-right:8px;vertical-align:top;">
+        <div style="${CARD}display:block;">
+          <div style="${LABEL}">Issue Date</div>
+          <div style="${VALUE}">${fmtEmailDate(invoiceDate)}</div>
         </div>
       </td>
-      <td style="width:33%;padding-right:6px;vertical-align:top;">
-        <div style="${detailBoxStyle}width:calc(100% - 40px);">
-          <div style="color:#7A8496;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;font-family:Arial,sans-serif;">Due Date</div>
-          <div style="color:#172033;font-size:14px;font-weight:800;font-family:Arial,sans-serif;">${fmtEmailDate(dueDate)}</div>
+      <td style="width:33.33%;padding-right:8px;vertical-align:top;">
+        <div style="${CARD}display:block;">
+          <div style="${LABEL}">Due Date</div>
+          <div style="${VALUE}">${fmtEmailDate(dueDate)}</div>
         </div>
       </td>
-      <td style="width:33%;vertical-align:top;">
-        <div style="${detailBoxStyle}width:calc(100% - 22px);">
-          <div style="color:#7A8496;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;font-family:Arial,sans-serif;">Terms</div>
-          <div style="color:#172033;font-size:14px;font-weight:800;font-family:Arial,sans-serif;">${paymentTerms}</div>
+      <td style="width:33.33%;vertical-align:top;">
+        <div style="${CARD}display:block;">
+          <div style="${LABEL}">Terms</div>
+          <div style="${VALUE}">${paymentTerms}</div>
         </div>
       </td>
     </tr></table>
   </td></tr>
 
-  <tr><td height="14"></td></tr>
+  <tr><td height="16"></td></tr>
 
   <!-- Order summary -->
-  <tr><td style="background:#ffffff;border:1px solid #E4E8F0;border-radius:22px;padding:20px 24px;" class="card">
+  <tr><td style="${CARD}" class="card">
     <div style="color:#12213A;font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:1.2px;margin-bottom:4px;font-family:Arial,sans-serif;">Order Summary</div>
     <table width="100%" cellpadding="0" cellspacing="0">
       ${itemRows}
     </table>
   </td></tr>
 
-  <tr><td height="14"></td></tr>
+  <tr><td height="16"></td></tr>
 
   <!-- Totals -->
-  <tr><td style="background:#ffffff;border:1px solid #E4E8F0;border-radius:22px;padding:20px 24px;" class="card">
+  <tr><td style="${CARD}" class="card">
     <table width="100%" cellpadding="0" cellspacing="0">
       <tr>
         <td style="color:#7A8496;font-size:15px;font-weight:600;padding:9px 0;font-family:Arial,sans-serif;">Subtotal excl. GST</td>
@@ -305,7 +307,7 @@ export function buildWholesaleInvoiceEmail(opts: WholesaleInvoiceEmailOpts): str
     </table>
   </td></tr>
 
-  <tr><td height="14"></td></tr>
+  <tr><td height="16"></td></tr>
 
   <!-- Bank details -->
   <tr><td style="background:#12213A;border-radius:24px;padding:24px 28px;" class="card">
@@ -341,15 +343,15 @@ export function buildWholesaleInvoiceEmail(opts: WholesaleInvoiceEmailOpts): str
   </td></tr>
 
   ${notes ? `
-  <tr><td height="14"></td></tr>
-  <tr><td style="background:#FFF8E8;border:1px solid #F0D99A;border-radius:20px;padding:18px 22px;" class="card">
+  <tr><td height="16"></td></tr>
+  <tr><td style="background:#FFF8E8;border:1px solid #F0D99A;border-radius:24px;padding:24px 28px;" class="card">
     <div style="color:#9B5D18;font-size:12px;font-weight:900;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;font-family:Arial,sans-serif;">Notes</div>
     <div style="color:#6F4212;font-size:15px;font-weight:700;font-family:Arial,sans-serif;">${notes}</div>
   </td></tr>` : ''}
 
   ${poReference ? `
-  <tr><td height="14"></td></tr>
-  <tr><td style="background:#EFF6FF;border:1px solid #BFDBFE;border-radius:20px;padding:16px 22px;" class="card">
+  <tr><td height="16"></td></tr>
+  <tr><td style="background:#EFF6FF;border:1px solid #BFDBFE;border-radius:24px;padding:24px 28px;" class="card">
     <div style="color:#1E40AF;font-size:12px;font-weight:900;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;font-family:Arial,sans-serif;">PO Reference</div>
     <div style="color:#1E3A8A;font-size:15px;font-weight:800;font-family:Arial,sans-serif;">${poReference}</div>
   </td></tr>` : ''}
