@@ -140,7 +140,7 @@ function WholesaleProductTile({ product, cartEntry, onAdd, pricingCtx, tileWidth
 
       {/* Stepper */}
       <View style={styles.stepperRow}>
-        <Pressable onPress={decrement} style={styles.stepBtn} hitSlop={6}>
+        <Pressable onPress={decrement} style={styles.stepBtn} hitSlop={8}>
           <Text style={styles.stepBtnText}>−</Text>
         </Pressable>
         <TextInput
@@ -150,7 +150,7 @@ function WholesaleProductTile({ product, cartEntry, onAdd, pricingCtx, tileWidth
           keyboardType="number-pad"
           selectTextOnFocus
         />
-        <Pressable onPress={increment} style={styles.stepBtn} hitSlop={6}>
+        <Pressable onPress={increment} style={styles.stepBtn} hitSlop={8}>
           <Text style={styles.stepBtnText}>+</Text>
         </Pressable>
       </View>
@@ -392,10 +392,10 @@ const styles = StyleSheet.create({
   tilePrice: { fontSize: 14, fontWeight: '700', color: BLUE },
   breakTag:  { fontSize: 10, fontWeight: '600', paddingHorizontal: 5, paddingVertical: 2, borderRadius: 5, backgroundColor: `${BLUE}12` },
 
-  stepperRow: { flexDirection: 'row', alignItems: 'center', borderRadius: 10, borderWidth: 1, borderColor: BORDER, backgroundColor: BG, overflow: 'hidden', height: 34, width: '100%' },
-  stepBtn:    { width: 34, height: 34, alignItems: 'center', justifyContent: 'center' },
-  stepBtnText:{ fontSize: 18, color: TEXT, fontWeight: '400', lineHeight: 22 },
-  stepQty:    { flex: 1, height: 34, textAlign: 'center', fontSize: 13, fontWeight: '700', color: TEXT },
+  stepperRow: { flexDirection: 'row', alignItems: 'center', gap: 6, width: '100%' },
+  stepBtn:    { width: 34, height: 34, borderRadius: 17, backgroundColor: BLUE, alignItems: 'center', justifyContent: 'center' },
+  stepBtnText:{ fontSize: 20, color: '#fff', fontWeight: '600', lineHeight: 24 },
+  stepQty:    { flex: 1, height: 34, textAlign: 'center', fontSize: 14, fontWeight: '700', color: TEXT, borderRadius: 8, borderWidth: 1, borderColor: BORDER, backgroundColor: BG },
 
   addBtn:     { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, height: 36, borderRadius: 10, backgroundColor: BLUE, width: '100%' },
   addBtnAdded:{ backgroundColor: '#22C55E' },
