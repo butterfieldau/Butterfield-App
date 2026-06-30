@@ -284,6 +284,8 @@ export default function WholesaleCatalog() {
   );
   const hasSelection = selectedItems.length > 0;
 
+  const [justAdded, setJustAdded] = useState(false);
+
   const addToCart = useCallback(() => {
     if (!hasSelection) return;
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -304,16 +306,22 @@ export default function WholesaleCatalog() {
       for (const p of selectedItems) next[p.id] = '';
       return next;
     });
+    setJustAdded(true);
   }, [hasSelection, selectedItems, qtys]);
+
+  // When user starts selecting again, flip back to Add to Cart mode
+  useEffect(() => {
+    if (hasSelection) setJustAdded(false);
+  }, [hasSelection]);
 
   const pricingCtx = (pricingData?.data ?? null) as PricingContext | null;
   const totalCartQty = cart.reduce((s, e) => s + e.quantity, 0);
 
-  // Floating bar animation
+  // Floating bar animation — stays up for "View Cart" too
   const floatY = useSharedValue(100);
   useEffect(() => {
-    floatY.value = withSpring(hasSelection ? 0 : 100, { damping: 18, stiffness: 200 });
-  }, [hasSelection]);
+    floatY.value = withSpring((hasSelection || justAdded) ? 0 : 100, { damping: 18, stiffness: 200 });
+  }, [hasSelection, justAdded]);
   const floatStyle = useAnimatedStyle(() => ({ transform: [{ translateY: floatY.value }] }));
 
   // Tab bar = 46px pill + Math.max(insets.bottom, 12) padding, positioned at bottom:0
@@ -416,22 +424,40 @@ export default function WholesaleCatalog() {
         />
       )}
 
-      {/* ── Floating Add to Cart bar ─────────────────────────────────── */}
+      {/* ── Floating Add to Cart / View Cart bar ────────────────────── */}
       <Reanimated.View style={[
         styles.floatBar,
         { bottom: TAB_BAR_H + 25 },
         floatStyle,
       ]}>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.floatTitle}>
-            {selectedItems.length} product{selectedItems.length !== 1 ? 's' : ''} selected
-          </Text>
-          <Text style={styles.floatSub}>{totalSelectedUnits} units total</Text>
-        </View>
-        <Pressable onPress={addToCart} style={styles.floatBtn}>
-          <Feather name="shopping-cart" size={16} color="#fff" />
-          <Text style={styles.floatBtnText}>Add to Cart</Text>
-        </Pressable>
+        {justAdded && !hasSelection ? (
+          <>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.floatTitle}>Added to cart 🎉</Text>
+              <Text style={styles.floatSub}>{totalCartQty} unit{totalCartQty !== 1 ? 's' : ''} in cart</Text>
+            </View>
+            <Pressable
+              onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.navigate('/(wholesale)/cart' as any); }}
+              style={styles.floatBtn}
+            >
+              <Feather name="shopping-cart" size={16} color="#fff" />
+              <Text style={styles.floatBtnText}>View Cart</Text>
+            </Pressable>
+          </>
+        ) : (
+          <>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.floatTitle}>
+                {selectedItems.length} product{selectedItems.length !== 1 ? 's' : ''} selected
+              </Text>
+              <Text style={styles.floatSub}>{totalSelectedUnits} units total</Text>
+            </View>
+            <Pressable onPress={addToCart} style={styles.floatBtn}>
+              <Feather name="shopping-cart" size={16} color="#fff" />
+              <Text style={styles.floatBtnText}>Add to Cart</Text>
+            </Pressable>
+          </>
+        )}
       </Reanimated.View>
     </KeyboardAvoidingView>
   );
