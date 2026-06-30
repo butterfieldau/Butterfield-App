@@ -1,8 +1,9 @@
 import { Feather } from '@expo/vector-icons';
 import React from 'react';
-import { Pressable, Text, View } from 'react-native';
+import { Image, Pressable, Text, View } from 'react-native';
 import styles from './posStyles';
 import { BLUE, CHERRY, MID, MUTED, WHITE } from './types';
+import { useSidebarCollapsed } from '@/context/SidebarCollapsedContext';
 
 export default function PosHeader({
   isOnline,
@@ -35,12 +36,21 @@ export default function PosHeader({
   onOpenPrinter: () => void;
   onOpenRegister: () => void;
 }) {
+  const sidebarCollapsed = useSidebarCollapsed();
   const failedPrintCount = Object.values(printStatusMap).filter(s => s === 'failed').length;
 
   return (
     <View style={styles.header}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-        <Feather name="monitor" size={20} color={BLUE} />
+        {sidebarCollapsed ? (
+          <Image
+            source={require('@/assets/images/logo-blue.png')}
+            style={{ width: 110, height: 28 }}
+            resizeMode="contain"
+          />
+        ) : (
+          <Feather name="monitor" size={20} color={BLUE} />
+        )}
         <Text style={styles.headerTitle}>Point of Sale</Text>
         {!isOnline && (
           <View style={styles.offlineBadge}>

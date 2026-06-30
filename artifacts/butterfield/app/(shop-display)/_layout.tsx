@@ -12,6 +12,7 @@ import { PortalHeader } from '@/components/PortalHeader';
 import { getHomeRouteForRole } from '@/lib/roleRoutes';
 import { useShopDisplayAwakeMode, getDisplayLockPin, verifyDisplayLockPin, clearDisplayLockPin, getShopDisplaySoundEnabled, getScreensaverEnabled, getScreensaverTimeout, subscribeScreensaverSettings, getShopDisplayIdle, setShopDisplayIdle } from '@/lib/shopDisplayMode';
 import { LayoutSafeAreaContext } from '@/context/LayoutSafeAreaContext';
+import { SidebarCollapsedContext } from '@/context/SidebarCollapsedContext';
 import { PosModalContext } from '@/context/PosModalContext';
 import { api } from '@/lib/api';
 import {
@@ -868,9 +869,11 @@ export default function ShopDisplayLayout() {
             onLock={lockPin ? doLock : undefined}
           />
         )}
-        <LayoutSafeAreaContext.Provider value={isWide}>
-          {tabScreens}
-        </LayoutSafeAreaContext.Provider>
+        <SidebarCollapsedContext.Provider value={sidebarCollapsed}>
+          <LayoutSafeAreaContext.Provider value={isWide}>
+            {tabScreens}
+          </LayoutSafeAreaContext.Provider>
+        </SidebarCollapsedContext.Provider>
       </View>
 
       {/* ── Global screensaver overlay ────────────────────────────── */}
