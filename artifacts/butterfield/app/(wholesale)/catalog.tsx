@@ -392,7 +392,7 @@ const styles = StyleSheet.create({
   tilePrice: { fontSize: 14, fontWeight: '700', color: BLUE },
   breakTag:  { fontSize: 10, fontWeight: '600', paddingHorizontal: 5, paddingVertical: 2, borderRadius: 5, backgroundColor: `${BLUE}12` },
 
-  stepperRow: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'stretch' },
+  stepperRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, alignSelf: 'stretch' },
   stepBtn:    { width: 30, height: 30, borderRadius: 15, backgroundColor: BLUE, alignItems: 'center', justifyContent: 'center' },
   stepBtnText:{ fontSize: 18, color: '#fff', fontWeight: '600', lineHeight: 22 },
   stepQty:    { width: 44, height: 30, textAlign: 'center', fontSize: 13, fontWeight: '700', color: TEXT, borderRadius: 8, borderWidth: 1, borderColor: BORDER, backgroundColor: BG },
