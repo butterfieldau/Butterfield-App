@@ -115,84 +115,18 @@ export async function sendLinklyReceiptPrint(job: LinklyReceiptPrintJob, printer
 }
 
 /**
- * Opens the cash drawer via the official StarXpand SDK (react-native-star-io10).
+ * Opens the cash drawer by sending DLE DC4 bytes (Star) or ESC p (Epson) via
+ * TCP socket directly from the device to the printer on the local LAN.
  *
- * Uses dynamic import so the module is never evaluated at screen-load time.
- * If the SDK is unavailable (Expo Go, non-POS build, iOS 26 init failure caught
- * by the ObjC shim), the caller should catch the thrown error and fall back to
- * the TCP-bytes path.
+ * The server builds the correct byte sequence for each brand:
+ *   Star MCP30 → buildStarOpenDrawerBytes  (DLE DC4 = 0x10 0x14 0x01 [pin] 0x02)
+ *   Epson      → buildOpenDrawerBytes       (ESC p   = 0x1B 0x70 [pin] 0x19 0xFA)
+ *
+ * The StarXpand SDK path was tried previously but resolved without error on the
+ * JS side while silently failing to pulse the hardware — making the TCP+DLE DC4
+ * approach the only confirmed-working method for the Star MCP30/mC-Print3.
  */
-async function sendOpenDrawerViaStarXpand(ip: string, drawerPin: 0 | 1): Promise<void> {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let StarIO: any;
-  try {
-    StarIO = await import('react-native-star-io10');
-  } catch {
-    throw new Error(
-      'StarXpand SDK is unavailable in this build — falling back to TCP drawer command.',
-    );
-  }
-
-  const {
-    StarConnectionSettings,
-    InterfaceType,
-    StarPrinter,
-    StarXpandCommand,
-  } = StarIO;
-
-  if (!StarPrinter || !StarConnectionSettings || !StarXpandCommand) {
-    throw new Error('StarXpand SDK loaded but expected exports are missing.');
-  }
-
-  const {
-    StarXpandCommandBuilder,
-    DocumentBuilder,
-    DrawerBuilder,
-    Drawer,
-  } = StarXpandCommand;
-
-  if (!StarXpandCommandBuilder || !DocumentBuilder || !DrawerBuilder || !Drawer) {
-    throw new Error('StarXpand SDK command builders not found — check SDK version.');
-  }
-
-  const settings = new StarConnectionSettings();
-  settings.interfaceType = InterfaceType.Lan;
-  settings.identifier = ip;
-
-  const printer = new StarPrinter(settings);
-  try {
-    await printer.open();
-
-    const channel =
-      drawerPin === 1
-        ? Drawer.Channel.No2
-        : Drawer.Channel.No1;
-
-    const builder = new StarXpandCommandBuilder();
-    builder.addDocument(
-      new DocumentBuilder().addDrawer(
-        new DrawerBuilder().actionOpen(
-          new Drawer.OpenParameter().setChannel(channel),
-        ),
-      ),
-    );
-    const commands = await builder.getCommands();
-    await printer.print(commands);
-  } finally {
-    try { await printer.close(); } catch {}
-  }
-}
-
 export async function sendOpenDrawer(printerIp: string, printerPort = 9100, fetchBytes: BytesFetcher = api.director.printerBytes, drawerPin: 0 | 1 = 0, printerBrand?: 'epson' | 'star'): Promise<void> {
-  if (printerBrand === 'star') {
-    try {
-      await sendOpenDrawerViaStarXpand(printerIp, drawerPin);
-      return;
-    } catch (sdkErr: unknown) {
-      const msg = sdkErr instanceof Error ? sdkErr.message : String(sdkErr);
-      console.warn('[sendOpenDrawer] StarXpand SDK path failed, falling back to TCP bytes:', msg);
-    }
-  }
   return sendPrinterBytes(printerIp, printerPort, await fetchBytes({ jobType: 'open_drawer', drawerPin, printerBrand }));
 }
 
