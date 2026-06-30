@@ -18,8 +18,8 @@ function BuildABoxTile({ onPress }: { onPress: () => void }) {
     >
       <View style={local.inner}>
         <View style={local.left}>
-          <Text style={local.eyebrow}>SPECIAL ORDER</Text>
-          <Text style={local.heading}>Build Your Box</Text>
+          <Text style={local.eyebrow}>PACK PRICES</Text>
+          <Text style={local.heading}>Build a Box</Text>
           <Text style={local.sub}>Mix & match to order</Text>
         </View>
         <View style={local.iconWrap}>
