@@ -37,10 +37,14 @@ const styles = StyleSheet.create({
   searchRow:          { padding: 12, paddingBottom: 6 },
   searchInputWrap:    { flexDirection: 'row', alignItems: 'center', backgroundColor: WHITE, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, borderWidth: StyleSheet.hairlineWidth, borderColor: BORDER },
   searchInput:        { flex: 1, fontSize: 15, color: DARK },
-  categoryScrollWrap: { height: 84, flexShrink: 0 },
-  categoryScroll: { flex: 1 },
   catTile:        { width: 72, height: 68, borderRadius: 12, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 6 },
   catTileLabel:   { fontSize: 12, fontWeight: '700', textAlign: 'center', lineHeight: 16 },
+
+  catColumn:          { width: 92, backgroundColor: '#F5F6FA', borderRightWidth: StyleSheet.hairlineWidth, borderRightColor: '#D1D5DB' },
+  catColumnScroll:    { flex: 1 },
+  catColumnContent:   { paddingVertical: 8, paddingHorizontal: 6, gap: 6 },
+  catColumnTile:      { height: 56, borderRadius: 12, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4 },
+  catColumnLabel:     { fontSize: 11, fontWeight: '700', textAlign: 'center', lineHeight: 14 },
 
   productCard:        { backgroundColor: WHITE, borderRadius: 10, overflow: 'hidden', margin: 0, borderWidth: StyleSheet.hairlineWidth, borderColor: BORDER },
   productCardImage:   { width: '100%', aspectRatio: 1.2, backgroundColor: '#F8FAFC' },

@@ -36,22 +36,25 @@ export default function PosProductBrowser({
 }) {
   return (
     <View style={[styles.menuPane, isWide && { flex: 3 }]}>
-      <View style={styles.categoryScrollWrap}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.categoryScroll} contentContainerStyle={{ gap: 8, paddingHorizontal: 12, paddingVertical: 6 }}>
-          {orderedCategories.map(cat => {
-            const active = selCategory === cat.slug;
-            const color = customCatColors[cat.slug.toLowerCase()] ?? getDefaultCatColor(cat.slug, cat.color);
-            return (
-              <Pressable key={cat.slug} onPress={() => onCategorySelect(cat.slug)} onLongPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); onCategoryLongPress(cat.slug); }} delayLongPress={400} style={[styles.catTile, active ? { backgroundColor: color, borderColor: color } : { backgroundColor: `${color}18`, borderColor: `${color}45` }]}>
-                <Text style={[styles.catTileLabel, { color: active ? '#fff' : color }]} numberOfLines={2}>{cat.name}</Text>
-              </Pressable>
-            );
-          })}
-          <Pressable onPress={() => onCategorySelect('all')} style={[styles.catTile, selCategory === 'all' ? { backgroundColor: BLUE, borderColor: BLUE } : { backgroundColor: `${BLUE}15`, borderColor: `${BLUE}40` }]}>
-            <Text style={[styles.catTileLabel, { color: selCategory === 'all' ? '#fff' : BLUE }]}>All</Text>
-          </Pressable>
-        </ScrollView>
-      </View>
+      {/* Horizontal category scroll — narrow screens only; wide screens use the vertical CategoryColumn */}
+      {!isWide && (
+        <View style={{ height: 84, flexShrink: 0 }}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flex: 1 }} contentContainerStyle={{ gap: 8, paddingHorizontal: 12, paddingVertical: 6 }}>
+            {orderedCategories.map(cat => {
+              const active = selCategory === cat.slug;
+              const color = customCatColors[cat.slug.toLowerCase()] ?? getDefaultCatColor(cat.slug, cat.color);
+              return (
+                <Pressable key={cat.slug} onPress={() => onCategorySelect(cat.slug)} onLongPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); onCategoryLongPress(cat.slug); }} delayLongPress={400} style={[styles.catTile, active ? { backgroundColor: color, borderColor: color } : { backgroundColor: `${color}18`, borderColor: `${color}45` }]}>
+                  <Text style={[styles.catTileLabel, { color: active ? '#fff' : color }]} numberOfLines={2}>{cat.name}</Text>
+                </Pressable>
+              );
+            })}
+            <Pressable onPress={() => onCategorySelect('all')} style={[styles.catTile, selCategory === 'all' ? { backgroundColor: BLUE, borderColor: BLUE } : { backgroundColor: `${BLUE}15`, borderColor: `${BLUE}40` }]}>
+              <Text style={[styles.catTileLabel, { color: selCategory === 'all' ? '#fff' : BLUE }]}>All</Text>
+            </Pressable>
+          </ScrollView>
+        </View>
+      )}
       {loadingProducts ? (
         <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}><ActivityIndicator color={BLUE} /></View>
       ) : (

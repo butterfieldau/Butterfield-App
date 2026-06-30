@@ -2,6 +2,7 @@ import { Feather } from '@expo/vector-icons';
 import { useAudioPlayer, setAudioModeAsync } from 'expo-audio';
 import { Redirect, router, Tabs, usePathname } from 'expo-router';
 import * as Haptics from 'expo-haptics';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Alert, Animated, Image, KeyboardAvoidingView, Modal, Platform, Pressable, StatusBar, StyleSheet, Text, TextInput, TouchableOpacity, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -501,6 +502,33 @@ export default function ShopDisplayLayout() {
   const [forgotPinError, setForgotPinError] = useState('');
   const [showForgotPw, setShowForgotPw] = useState(false);
 
+  // ── Sidebar collapse ──────────────────────────────────────────────────────
+  const SIDEBAR_COLLAPSED_KEY = 'pos_sidebar_collapsed';
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const sidebarWidthAnim = useRef(new Animated.Value(220)).current;
+
+  useEffect(() => {
+    AsyncStorage.getItem(SIDEBAR_COLLAPSED_KEY).then(v => {
+      if (v === 'true') {
+        setSidebarCollapsed(true);
+        sidebarWidthAnim.setValue(64);
+      }
+    }).catch(() => {});
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const toggleSidebar = useCallback(() => {
+    setSidebarCollapsed(prev => {
+      const next = !prev;
+      Animated.timing(sidebarWidthAnim, {
+        toValue: next ? 64 : 220,
+        duration: 200,
+        useNativeDriver: false,
+      }).start();
+      AsyncStorage.setItem(SIDEBAR_COLLAPSED_KEY, next ? 'true' : 'false').catch(() => {});
+      return next;
+    });
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  }, [sidebarWidthAnim]);
 
   // Seed QueryClient from AsyncStorage BEFORE Tabs render so POS useQuery hooks
   // see cached data on their very first execution. cacheSeeded gates the Tabs.
@@ -743,20 +771,28 @@ export default function ShopDisplayLayout() {
 
       {/* ── Sidebar — wide screens only ───────────────────────────── */}
       {isWide && (
-        <View style={[styles.sidebar, { paddingTop: Math.max(insets.top + 12, 40) }]}>
-          <View style={styles.sidebarBrand}>
-            <Image
-              source={require('@/assets/images/logo-white.png')}
-              style={styles.sidebarLogo}
-              resizeMode="contain"
-            />
-            <View style={styles.brandBadge}>
-              <Text style={styles.brandBadgeText}>SHOP DISPLAY</Text>
-            </View>
-            <Text style={styles.brandSub} numberOfLines={1}>{user.name}</Text>
-          </View>
+        <Animated.View style={[styles.sidebar, { width: sidebarWidthAnim, paddingTop: Math.max(insets.top + 12, 40) }]}>
+          {/* Toggle button — docked to right edge */}
+          <Pressable style={styles.sidebarToggleBtn} onPress={toggleSidebar}>
+            <Feather name={sidebarCollapsed ? 'chevron-right' : 'chevron-left'} size={13} color={WHITE} />
+          </Pressable>
 
-          <View style={styles.navList}>
+          {/* Brand — hidden when collapsed */}
+          {!sidebarCollapsed && (
+            <View style={styles.sidebarBrand}>
+              <Image
+                source={require('@/assets/images/logo-white.png')}
+                style={styles.sidebarLogo}
+                resizeMode="contain"
+              />
+              <View style={styles.brandBadge}>
+                <Text style={styles.brandBadgeText}>SHOP DISPLAY</Text>
+              </View>
+              <Text style={styles.brandSub} numberOfLines={1}>{user.name}</Text>
+            </View>
+          )}
+
+          <View style={[styles.navList, sidebarCollapsed && styles.navListCollapsed]}>
             {visibleNavItems.map((item) => {
               const active = isActive(item.segment);
               return (
@@ -772,12 +808,19 @@ export default function ShopDisplayLayout() {
                       : `/(shop-display)/${item.segment}`;
                     router.navigate(route as any);
                   }}
-                  style={({ pressed }) => [styles.navItem, active && styles.navItemActive, pressed && !active && styles.navItemPressed]}
+                  style={({ pressed }) => [
+                    styles.navItem,
+                    sidebarCollapsed && styles.navItemCollapsed,
+                    active && styles.navItemActive,
+                    pressed && !active && styles.navItemPressed,
+                  ]}
                 >
                   <Feather name={item.icon} size={18} color={active ? BLUE : MUTED} />
-                  <Text style={[styles.navLabel, active && styles.navLabelActive]}>{item.label}</Text>
+                  {!sidebarCollapsed && (
+                    <Text style={[styles.navLabel, active && styles.navLabelActive]}>{item.label}</Text>
+                  )}
                   {item.segment === 'index' && incomingOrderCount > 0 && (
-                    <View style={styles.navBadge}>
+                    <View style={[styles.navBadge, sidebarCollapsed && styles.navBadgeCollapsed]}>
                       <Text style={styles.navBadgeText}>{incomingOrderCount > 99 ? '99+' : String(incomingOrderCount)}</Text>
                     </View>
                   )}
@@ -786,7 +829,7 @@ export default function ShopDisplayLayout() {
             })}
           </View>
 
-          {lastSyncedAt ? (
+          {!sidebarCollapsed && lastSyncedAt ? (
             <Text style={styles.sidebarSyncTime}>{formatSyncTime(lastSyncedAt)}</Text>
           ) : null}
           <Pressable
@@ -797,12 +840,14 @@ export default function ShopDisplayLayout() {
                 router.navigate('/(shop-display)/settings' as any);
               }
             }}
-            style={styles.sidebarLogout}
+            style={[styles.sidebarLogout, sidebarCollapsed && styles.sidebarLogoutCollapsed]}
           >
             <Feather name="lock" size={15} color={MUTED} />
-            <Text style={styles.sidebarLogoutText}>{lockPin ? 'Lock screen' : 'Set up lock'}</Text>
+            {!sidebarCollapsed && (
+              <Text style={styles.sidebarLogoutText}>{lockPin ? 'Lock screen' : 'Set up lock'}</Text>
+            )}
           </Pressable>
-        </View>
+        </Animated.View>
       )}
 
       {/* ── Content — always the same node at the same tree position ─ */}
@@ -993,25 +1038,30 @@ export default function ShopDisplayLayout() {
 }
 
 const styles = StyleSheet.create({
-  sidebar:           { width: 220, backgroundColor: NAVY, borderRightWidth: StyleSheet.hairlineWidth, borderRightColor: 'rgba(255,255,255,0.12)' },
-  sidebarBrand:      { paddingHorizontal: 16, paddingBottom: 20, gap: 6, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: 'rgba(255,255,255,0.12)', marginBottom: 10 },
-  sidebarLogo:       { width: 130, height: 38, marginBottom: 4 },
-  brandBadge:        { backgroundColor: 'rgba(20,147,255,0.25)', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4, alignSelf: 'flex-start' },
-  brandBadgeText:    { color: BLUE, fontSize: 10, fontWeight: '900', letterSpacing: 0.9 },
-  brandSub:          { color: 'rgba(255,255,255,0.45)', fontSize: 12, fontWeight: '600' },
-  syncTimestamp:     { color: 'rgba(255,255,255,0.35)', fontSize: 11, fontWeight: '500' },
-  sidebarSyncBtn:    { width: 28, height: 28, borderRadius: 14, backgroundColor: 'rgba(20,147,255,0.18)', borderWidth: 1, borderColor: 'rgba(20,147,255,0.35)', alignItems: 'center', justifyContent: 'center' },
-  navList:           { flex: 1, paddingHorizontal: 10, gap: 2 },
-  navItem:           { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, paddingVertical: 13, borderRadius: 14 },
-  navItemActive:     { backgroundColor: 'rgba(20,147,255,0.18)' },
-  navItemPressed:    { backgroundColor: 'rgba(255,255,255,0.07)' },
-  navLabel:          { fontSize: 14, fontWeight: '600', color: MUTED, flex: 1 },
-  navLabelActive:    { color: WHITE, fontWeight: '700' },
-  navBadge:          { backgroundColor: '#EF4444', borderRadius: 10, minWidth: 20, height: 20, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 5 },
-  navBadgeText:      { color: WHITE, fontSize: 11, fontWeight: '800', lineHeight: 14 },
-  sidebarSyncTime:   { color: MUTED, fontSize: 11, marginHorizontal: 14, marginBottom: 4 },
-  sidebarLogout:     { flexDirection: 'row', alignItems: 'center', gap: 10, margin: 12, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)' },
-  sidebarLogoutText: { color: MUTED, fontSize: 13, fontWeight: '600' },
+  sidebar:              { backgroundColor: NAVY, borderRightWidth: StyleSheet.hairlineWidth, borderRightColor: 'rgba(255,255,255,0.12)', overflow: 'visible' as any },
+  sidebarBrand:         { paddingHorizontal: 16, paddingBottom: 20, gap: 6, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: 'rgba(255,255,255,0.12)', marginBottom: 10 },
+  sidebarLogo:          { width: 130, height: 38, marginBottom: 4 },
+  brandBadge:           { backgroundColor: 'rgba(20,147,255,0.25)', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4, alignSelf: 'flex-start' },
+  brandBadgeText:       { color: BLUE, fontSize: 10, fontWeight: '900', letterSpacing: 0.9 },
+  brandSub:             { color: 'rgba(255,255,255,0.45)', fontSize: 12, fontWeight: '600' },
+  syncTimestamp:        { color: 'rgba(255,255,255,0.35)', fontSize: 11, fontWeight: '500' },
+  sidebarSyncBtn:       { width: 28, height: 28, borderRadius: 14, backgroundColor: 'rgba(20,147,255,0.18)', borderWidth: 1, borderColor: 'rgba(20,147,255,0.35)', alignItems: 'center', justifyContent: 'center' },
+  sidebarToggleBtn:     { position: 'absolute' as any, right: -13, top: 60, width: 26, height: 26, borderRadius: 13, backgroundColor: NAVY, borderWidth: 1, borderColor: 'rgba(255,255,255,0.18)', alignItems: 'center', justifyContent: 'center', zIndex: 20, shadowColor: '#000', shadowOpacity: 0.25, shadowRadius: 4, shadowOffset: { width: 0, height: 2 }, elevation: 6 },
+  navList:              { flex: 1, paddingHorizontal: 10, gap: 2 },
+  navListCollapsed:     { paddingHorizontal: 6 },
+  navItem:              { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, paddingVertical: 13, borderRadius: 14 },
+  navItemActive:        { backgroundColor: 'rgba(20,147,255,0.18)' },
+  navItemCollapsed:     { justifyContent: 'center', gap: 0, paddingHorizontal: 0 },
+  navItemPressed:       { backgroundColor: 'rgba(255,255,255,0.07)' },
+  navLabel:             { fontSize: 14, fontWeight: '600', color: MUTED, flex: 1 },
+  navLabelActive:       { color: WHITE, fontWeight: '700' },
+  navBadge:             { backgroundColor: '#EF4444', borderRadius: 10, minWidth: 20, height: 20, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 5 },
+  navBadgeCollapsed:    { position: 'absolute' as any, top: 2, right: 2 },
+  navBadgeText:         { color: WHITE, fontSize: 11, fontWeight: '800', lineHeight: 14 },
+  sidebarSyncTime:      { color: MUTED, fontSize: 11, marginHorizontal: 14, marginBottom: 4 },
+  sidebarLogout:        { flexDirection: 'row', alignItems: 'center', gap: 10, margin: 12, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)' },
+  sidebarLogoutCollapsed: { justifyContent: 'center', gap: 0 },
+  sidebarLogoutText:    { color: MUTED, fontSize: 13, fontWeight: '600' },
 
   // Lock screen
   lockOverlay:       { backgroundColor: NAVY, alignItems: 'center', justifyContent: 'center', zIndex: 9999 },

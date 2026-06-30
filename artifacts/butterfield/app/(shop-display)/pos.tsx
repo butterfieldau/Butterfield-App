@@ -5,7 +5,7 @@ import React, {
 } from 'react';
 import {
   Alert, Animated, FlatList,
-  Pressable, Text, TextInput,
+  Pressable, ScrollView, Text, TextInput,
   useWindowDimensions, View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -27,7 +27,7 @@ import PosPinModal from '@/components/PosPinModal';
 import type { RegisterSessionReport } from '@/lib/api';
 
 import {
-  WHITE, MUTED,
+  WHITE, MUTED, BLUE,
   CATEGORY_COLORS, PRESET_COLORS,
   VOID_PIN_THRESHOLD_CENTS,
   type TicketItem, type Ticket, type ProductDetail,
@@ -52,6 +52,80 @@ import PosHeader from '@/components/pos/PosHeader';
 import PosProductBrowser from '@/components/pos/PosProductBrowser';
 import { usePosQueries } from '@/components/pos/hooks/usePosQueries';
 import { usePosHidScanner } from '@/components/pos/hooks/usePosHidScanner';
+
+// ── Category Column (vertical, wide-layout only) ──────────────────────────────
+type CatColumnCategory = { slug: string; name: string; color?: string | null };
+
+function CategoryColumn({
+  orderedCategories,
+  selCategory,
+  customCatColors,
+  getDefaultCatColor,
+  onSelect,
+  onLongPress,
+}: {
+  orderedCategories: CatColumnCategory[];
+  selCategory: string;
+  customCatColors: Record<string, string>;
+  getDefaultCatColor: (slug: string, color?: string | null) => string;
+  onSelect: (slug: string) => void;
+  onLongPress: (slug: string) => void;
+}) {
+  return (
+    <View style={styles.catColumn}>
+      <ScrollView
+        style={styles.catColumnScroll}
+        contentContainerStyle={styles.catColumnContent}
+        showsVerticalScrollIndicator={false}
+      >
+        {orderedCategories.map(cat => {
+          const active = selCategory === cat.slug;
+          const color = customCatColors[cat.slug.toLowerCase()] ?? getDefaultCatColor(cat.slug, cat.color);
+          return (
+            <Pressable
+              key={cat.slug}
+              onPress={() => onSelect(cat.slug)}
+              onLongPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                onLongPress(cat.slug);
+              }}
+              delayLongPress={400}
+              style={[
+                styles.catColumnTile,
+                active
+                  ? { backgroundColor: color, borderColor: color }
+                  : { backgroundColor: `${color}18`, borderColor: `${color}45` },
+              ]}
+            >
+              <Text
+                style={[styles.catColumnLabel, { color: active ? '#fff' : color }]}
+                numberOfLines={1}
+              >
+                {cat.name}
+              </Text>
+            </Pressable>
+          );
+        })}
+        <Pressable
+          onPress={() => onSelect('all')}
+          style={[
+            styles.catColumnTile,
+            selCategory === 'all'
+              ? { backgroundColor: BLUE, borderColor: BLUE }
+              : { backgroundColor: `${BLUE}15`, borderColor: `${BLUE}40` },
+          ]}
+        >
+          <Text
+            style={[styles.catColumnLabel, { color: selCategory === 'all' ? '#fff' : BLUE }]}
+            numberOfLines={1}
+          >
+            All
+          </Text>
+        </Pressable>
+      </ScrollView>
+    </View>
+  );
+}
 
 // ── Local constants ───────────────────────────────────────────────────────────
 const CAT_COLORS_KEY       = 'pos_category_colors';
@@ -605,6 +679,16 @@ function PosScreenInner() {
 
       {/* ── Main two-pane ─────────────────────────────────────────────────── */}
       <View style={styles.body}>
+        {isWide && (
+          <CategoryColumn
+            orderedCategories={orderedCategories}
+            selCategory={selCategory}
+            customCatColors={customCatColors}
+            getDefaultCatColor={getDefaultCatColor}
+            onSelect={setSelCategory}
+            onLongPress={setCatActionCat}
+          />
+        )}
         {(isWide || paneTab === 'menu') && (
           <PosProductBrowser
             isWide={isWide}
