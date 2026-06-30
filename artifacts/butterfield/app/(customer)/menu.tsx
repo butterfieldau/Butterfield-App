@@ -235,7 +235,7 @@ export default function MenuScreen() {
       </View>
 
       {isLoading ? (
-        <MenuShimmerGrid shimmerProgress={shimmerProgress} numColumns={numColumns} hPad={hPad} />
+        <MenuShimmerGrid shimmerProgress={shimmerProgress} numColumns={numColumns} hPad={hPad} tileGap={tileGap} />
       ) : (
         <Reanimated.View style={[{ flex: 1 }, contentAnimStyle]}>
           <Reanimated.FlatList

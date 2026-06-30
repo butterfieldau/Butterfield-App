@@ -1,5 +1,5 @@
 import React from 'react';
-import { StyleSheet, View, type DimensionValue, type StyleProp, type ViewStyle } from 'react-native';
+import { StyleSheet, View, useWindowDimensions, type DimensionValue, type StyleProp, type ViewStyle } from 'react-native';
 import Reanimated, { interpolate, useAnimatedStyle, type SharedValue } from 'react-native-reanimated';
 
 interface ShimmerBoxProps {
@@ -43,23 +43,31 @@ export function MenuShimmerGrid({
   shimmerProgress,
   numColumns,
   hPad,
+  tileGap = 12,
 }: {
   shimmerProgress: SharedValue<number>;
   numColumns: number;
   hPad: number;
+  tileGap?: number;
 }) {
-  const pairs = Array.from({ length: Math.ceil(SHIMMER_COUNT / numColumns) });
+  const { width: screenWidth } = useWindowDimensions();
+  const tileWidth = Math.floor((screenWidth - 2 * hPad - (numColumns - 1) * tileGap) / numColumns);
+  const rows = Array.from({ length: Math.ceil(SHIMMER_COUNT / numColumns) });
   return (
-    <View style={{ padding: hPad, gap: 14 }}>
-      {pairs.map((_, i) => (
-        <View key={i} style={{ flexDirection: 'row', gap: 12 }}>
-          {Array.from({ length: numColumns }).map((__, j) => (
-            <View key={j} style={{ flex: 1 }}>
-              <ShimmerProductCard shimmerProgress={shimmerProgress} />
-            </View>
-          ))}
-        </View>
-      ))}
+    <View style={{ padding: hPad, gap: tileGap }}>
+      {rows.map((_, i) => {
+        const startIndex = i * numColumns;
+        const tilesInRow = Math.min(numColumns, SHIMMER_COUNT - startIndex);
+        return (
+          <View key={i} style={{ flexDirection: 'row', gap: tileGap }}>
+            {Array.from({ length: tilesInRow }).map((__, j) => (
+              <View key={j} style={{ width: tileWidth }}>
+                <ShimmerProductCard shimmerProgress={shimmerProgress} />
+              </View>
+            ))}
+          </View>
+        );
+      })}
     </View>
   );
 }
