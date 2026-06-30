@@ -301,6 +301,17 @@ export default function OrderDetailModal({ order, visible, onClose, onStatusChan
                         <><Text style={{ textDecorationLine: 'line-through' }}>${(item.originalPriceCents / 100).toFixed(2)}</Text>{' '}${(item.unitPriceCents / 100).toFixed(2)}</>
                       ) : (`$${(item.unitPriceCents / 100).toFixed(2)}`)}
                     </Text>
+                    {item.boxContents.length > 0 && (
+                      <View style={{ marginTop: 4, gap: 1 }}>
+                        <Text style={{ color: MUTED, fontWeight: '600', fontSize: 11, letterSpacing: 0.3 }}>Box contents:</Text>
+                        {item.boxContents.map((cookie, ci) => (
+                          <View key={ci} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                            <Text style={{ color: MUTED, fontSize: 11 }}>·</Text>
+                            <Text style={{ color: TEXT, fontWeight: '400', fontSize: 12 }}>{cookie}</Text>
+                          </View>
+                        ))}
+                      </View>
+                    )}
                     {item.notableOptions.length > 0 && (<Text style={{ color: BLUE, fontWeight: '400', fontSize: 12 }}>{item.notableOptions.join(' · ')}</Text>)}
                     {item.baristaNote ? (<Text style={{ color: MUTED, fontWeight: '400', fontSize: 11, fontStyle: 'italic' }}>"{item.baristaNote}"</Text>) : null}
                   </View>

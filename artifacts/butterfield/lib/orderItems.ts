@@ -1,4 +1,5 @@
 type RawOrderItemOption = {
+  groupId?: string | null;
   optionName?: string | null;
   name?: string | null;
   textValue?: string | null;
@@ -31,6 +32,7 @@ export type NormalizedOrderItem = {
   unitPriceCents: number;
   lineTotalCents: number;
   notableOptions: string[];
+  boxContents: string[];
   baristaNote?: string;
   isFreeReward: boolean;
   priceOverrideCents?: number;
@@ -68,9 +70,17 @@ export function normalizeOrderItems(value: unknown): NormalizedOrderItem[] {
       const lineTotalCents = item.totalCents ?? item.totalPriceCents ?? (unitPriceCents * quantity);
       const optionSource = item.selectedOptionsSnapshot ?? item.selectedOptions ?? [];
       const options = Array.isArray(optionSource) ? optionSource : [];
+
+      const boxContents = options
+        .filter((option) => option.groupId === 'box-contents')
+        .map((option) => option.optionName ?? option.name ?? '')
+        .filter((name): name is string => Boolean(name));
+
       const notableOptions = options
+        .filter((option) => option.groupId !== 'box-contents')
         .map((option) => option.optionName ?? option.name ?? '')
         .filter((name): name is string => Boolean(name) && !HIDEABLE_OPTION_NAMES.has(name));
+
       const baristaNote = options.find((option) => option.textValue)?.textValue ?? undefined;
 
       return {
@@ -80,6 +90,7 @@ export function normalizeOrderItems(value: unknown): NormalizedOrderItem[] {
         unitPriceCents,
         lineTotalCents,
         notableOptions,
+        boxContents,
         baristaNote,
         isFreeReward: Boolean(item.isFreeReward),
         priceOverrideCents: item.priceOverrideCents ?? undefined,

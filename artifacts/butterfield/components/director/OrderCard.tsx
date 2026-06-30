@@ -83,6 +83,20 @@ export default function OrderCard({ order, onPress, onPrint, printing }: { order
           </View>
         )}
         <Text style={{ color: MUTED, fontWeight: '400', fontSize: 12, marginTop: 4 }} numberOfLines={1}>{itemSummary || 'No items'}</Text>
+        {items.some((it) => it.boxContents.length > 0) && (
+          <View style={{ marginTop: 4, gap: 2 }}>
+            {items.filter((it) => it.boxContents.length > 0).map((it, bi) => (
+              <View key={bi}>
+                {items.length > 1 && (
+                  <Text style={{ color: MUTED, fontWeight: '600', fontSize: 10, letterSpacing: 0.3 }}>{it.name}:</Text>
+                )}
+                <Text style={{ color: MUTED, fontWeight: '400', fontSize: 11 }} numberOfLines={3}>
+                  {it.boxContents.join(' · ')}
+                </Text>
+              </View>
+            ))}
+          </View>
+        )}
         {isWholesale && (Array.isArray((order as any).editHistory) && (order as any).editHistory.length > 0 || Array.isArray((order as any).creditMemos) && (order as any).creditMemos.length > 0) && (
           <View style={{ flexDirection: 'row', gap: 4, marginTop: 4, flexWrap: 'wrap' }}>
             {Array.isArray((order as any).editHistory) && (order as any).editHistory.length > 0 && (
