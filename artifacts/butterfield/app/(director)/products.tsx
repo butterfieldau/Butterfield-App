@@ -21,6 +21,9 @@ import { DirectorEmptyState } from '@/components/DirectorEmptyState';
 
 // ─── Palette ──────────────────────────────────────────────────────────────────
 
+// ─── Build a Box categories ────────────────────────────────────────────────────
+const BOX_CATEGORIES = ['bundles', 'boxes'];
+
 // ─── Data constants ────────────────────────────────────────────────────────────
 const PRODUCT_TYPES = ['standard','limited','seasonal','wholesale-only','staff-only'];
 const ALLERGEN_LIST = ['Gluten','Dairy','Eggs','Nuts','Peanuts','Soy','Sesame','Sulphites','Fish','Shellfish'];
@@ -380,6 +383,14 @@ export default function DirectorProductsScreen() {
                         <View style={{ width: 7, height: 7, borderRadius: 3.5, backgroundColor: catColor }} />
                         <Text style={{ fontSize: 12, color: MUTED, fontWeight: '400' }}>{catLabel}</Text>
                       </View>
+                      {BOX_CATEGORIES.includes(p.category ?? '') && (
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: '#F59E0B18', borderWidth: 1, borderColor: '#F59E0B40', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 }}>
+                            <Feather name="gift" size={10} color="#F59E0B" />
+                            <Text style={{ fontSize: 11, fontWeight: '600', color: '#F59E0B' }}>Build a Box</Text>
+                          </View>
+                        </View>
+                      )}
                     </View>
                     {/* Right: Price + status dot + chevron */}
                     <View style={{ alignItems: 'flex-end', gap: 6, flexShrink: 0 }}>
