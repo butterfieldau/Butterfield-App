@@ -73,6 +73,9 @@ export const productsTable = pgTable("products", {
   lowStockThreshold:    integer("low_stock_threshold").notNull().default(10),
   sortOrder:            integer("sort_order").notNull().default(0),
 
+  // Build a Box
+  buildABoxSurchargeCents: integer("build_a_box_surcharge_cents").notNull().default(0),
+
   // Stripe
   stripeProductId:      text("stripe_product_id"),
   stripePriceId:        text("stripe_price_id"),

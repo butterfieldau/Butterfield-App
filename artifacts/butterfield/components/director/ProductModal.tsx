@@ -16,6 +16,7 @@ const CARD        = '#FFFFFF';
 const BLUE        = '#1493FF';
 const NAVY        = '#1A2B4A';
 const RED         = '#EF4444';
+const CHERRY      = '#D20001';
 const TEXT        = '#1C1C1E';
 const MUTED       = '#8E8E93';
 const BORDER      = '#E5E7EB';
@@ -216,6 +217,7 @@ const BLANK = () => ({
   availableDays: [] as string[], stockCount: '', lowStockThreshold: '10',
   sortOrder: '0', imageUrl: '', galleryUrls: [] as string[],
   productUrl: '',
+  buildABoxSurchargeCents: 0 as number,
 });
 type FormState = ReturnType<typeof BLANK>;
 
@@ -275,6 +277,7 @@ function ProductModal({
         stockCount: initial.stockCount != null ? String(initial.stockCount) : '',
         lowStockThreshold: String(initial.lowStockThreshold ?? 10),
         sortOrder: String(initial.sortOrder ?? 0),
+        buildABoxSurchargeCents: (initial as any).buildABoxSurchargeCents ?? 0,
       });
     } else if (visible && !initial) {
       setF(BLANK());
@@ -390,6 +393,7 @@ function ProductModal({
         stockCount:        f.stockCount     ? parseInt(f.stockCount) : null,
         lowStockThreshold: parseInt(f.lowStockThreshold) || 10,
         sortOrder:         parseInt(f.sortOrder) || 0,
+        buildABoxSurchargeCents: f.category === 'cookies' ? (f.buildABoxSurchargeCents ?? 0) : 0,
       });
     } catch (e: any) {
       Alert.alert('Save failed', (e as Error).message ?? 'Could not save product.');
@@ -649,6 +653,25 @@ function ProductModal({
               Best practice: leave gaps of 10 like 10, 20, 30 so you can slot new products in later.
             </Text>
           </Field>
+
+          {/* ── Build a Box surcharge (cookies only) ─────────────────── */}
+          {f.category === 'cookies' && (
+            <>
+              <View style={{ height: 1, backgroundColor: BORDER }} />
+              <SectionHeader title="Build a Box" icon="package" color={CHERRY} />
+              <Field label="Box surcharge (AUD)">
+                <TextF
+                  value={f.buildABoxSurchargeCents !== undefined ? centsToDisplay(f.buildABoxSurchargeCents) : '0.00'}
+                  onChange={v => setF(p => ({ ...p, buildABoxSurchargeCents: displayToCents(v) }))}
+                  placeholder="0.00"
+                  numeric
+                />
+                <Text style={[form.label, { fontWeight: '400', color: MUTED, marginTop: 6, fontSize: 11 }]}>
+                  Leave at $0.00 for no extra charge. Setting $2.00 means every box containing this cookie costs an extra $2 per unit.
+                </Text>
+              </Field>
+            </>
+          )}
 
           {/* ── Section 12: Order Rules ──────────────────────────────── */}
           <View style={{ height: 1, backgroundColor: BORDER }} />

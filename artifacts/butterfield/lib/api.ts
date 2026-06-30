@@ -129,6 +129,7 @@ export const api = {
     get:        (id: string) => request<{ data: ApiProduct }>(`/products/${id}`),
     categories: ()         => request<{ data: ProductCategory[] }>('/products/categories'),
     topSellers: ()         => request<{ data: ApiProduct[] }>('/products/top-sellers'),
+    buildABoxSizes: () => request<{ data: { size: number; label: string; priceCents: number }[] }>('/products/build-a-box/sizes'),
   },
   orders: {
     list: () => request<{ data: ApiOrder[] }>('/orders'),
@@ -1419,6 +1420,7 @@ export interface ApiProduct {
   availableTimes?: string | null;
   hasVariants?: boolean;
   variants?: Array<{ id: string; name: string; priceCents: number; isActive: boolean; sortOrder?: number }>;
+  buildABoxSurchargeCents?: number;
   createdAt?: string;
 }
 

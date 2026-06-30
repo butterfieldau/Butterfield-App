@@ -50,6 +50,7 @@ import {
 } from '@/components/pos';
 import PosHeader from '@/components/pos/PosHeader';
 import PosProductBrowser from '@/components/pos/PosProductBrowser';
+import BuildABoxPosModal from '@/components/BuildABox/BuildABoxPosModal';
 import { usePosQueries } from '@/components/pos/hooks/usePosQueries';
 import { usePosHidScanner } from '@/components/pos/hooks/usePosHidScanner';
 
@@ -194,6 +195,7 @@ function PosScreenInner() {
   const [lastOrderId, setLastOrderId]     = useState<string | null>(null);
   const [historyOpenAtFailed, setHistoryOpenAtFailed] = useState(false);
   const [lastDrawerSuccessAt, setLastDrawerSuccessAt] = useState<Date | null>(null);
+  const [showBuildABox, setShowBuildABox] = useState(false);
 
   const recentBalancesRef = useRef<Record<string, { loyaltyPoints: number; stampCount: number; freeCoffeeRewards: number }>>({});
   const receiptPrintedRef = useRef<Set<string>>(new Set());
@@ -703,6 +705,7 @@ function PosScreenInner() {
             onCategorySelect={setSelCategory}
             onCategoryLongPress={setCatActionCat}
             onProductPress={handleProductTap}
+            onBuildABox={() => setShowBuildABox(true)}
           />
         )}
 
@@ -729,6 +732,12 @@ function PosScreenInner() {
       </View>
 
       {/* ── Modals ─────────────────────────────────────────────────────────── */}
+      <BuildABoxPosModal
+        visible={showBuildABox}
+        onClose={() => setShowBuildABox(false)}
+        onAdd={(item) => { addItemToTicket(item); if (!isWide) setPaneTab('ticket'); }}
+      />
+
       {customiseData && (
         <CustomiseModal
           data={customiseData}

@@ -2557,6 +2557,7 @@ router.patch('/products/:id', async (req, res) => {
     'storageInstructions','servingInstructions',
     'minOrderQty','maxOrderQty','leadTimeMins','availableDays','availableTimes',
     'stockCount','lowStockThreshold','sortOrder',
+    'buildABoxSurchargeCents',
   ];
   const updates: Record<string, any> = {};
   for (const key of allowed) {

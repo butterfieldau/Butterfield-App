@@ -188,6 +188,7 @@ function mapProduct(p: typeof productsTable.$inferSelect) {
     servingInstructions: p.servingInstructions,
     productUrl:          absolutizeUrl((p as any).productUrl ?? null),
     galleryUrls:         galleryUrls.map((url) => absolutizeUrl(url)).filter((url): url is string => !!url),
+    buildABoxSurchargeCents: p.buildABoxSurchargeCents ?? 0,
     createdAt:           p.createdAt,
   };
 }
@@ -426,6 +427,35 @@ router.get('/:id', async (req, res) => {
     });
   } catch {
     return res.status(404).json({ error: 'Product not found' });
+  }
+});
+
+// ── GET /products/build-a-box/sizes ──────────────────────────────────────────
+// Public — returns box size config from store_settings (or sensible defaults)
+router.get('/build-a-box/sizes', async (req, res) => {
+  try {
+    const rows = await db.execute(
+      sql`SELECT value FROM store_settings WHERE key = 'build_a_box_sizes' LIMIT 1`
+    );
+    const row = (rows as any).rows?.[0] ?? (rows as any)[0];
+    const DEFAULT = [
+      { size: 3,  label: '3-Pack',  priceCents: 2100 },
+      { size: 6,  label: '6-Pack',  priceCents: 3900 },
+      { size: 12, label: '12-Pack', priceCents: 7500 },
+    ];
+    if (row?.value) {
+      try {
+        const parsed = JSON.parse(row.value);
+        return res.json({ data: parsed });
+      } catch { /* fall through */ }
+    }
+    return res.json({ data: DEFAULT });
+  } catch {
+    return res.json({ data: [
+      { size: 3,  label: '3-Pack',  priceCents: 2100 },
+      { size: 6,  label: '6-Pack',  priceCents: 3900 },
+      { size: 12, label: '12-Pack', priceCents: 7500 },
+    ]});
   }
 });
 

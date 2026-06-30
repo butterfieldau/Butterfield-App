@@ -36,6 +36,7 @@ import { setSelectedProduct } from '@/lib/selectedProduct';
 import { MenuShimmerGrid } from '@/components/customer/MenuShimmerGrid';
 import { DietaryTagFilter } from '@/components/customer/DietaryTagFilter';
 import { CategoryFilterBar } from '@/components/customer/CategoryFilterBar';
+import BuildABoxBanner from '@/components/BuildABox/BuildABoxBanner';
 
 const BLUE   = '#40C0F2';
 const CHERRY = '#D20001';
@@ -93,12 +94,14 @@ export default function MenuScreen() {
 
   const categories = useMemo(() => {
     const backendCats: ProductCategory[] = categoriesData?.data ?? [];
-    const items = backendCats.map(c => ({
-      id: c.slug, label: c.name,
-      icon: (CAT_ICON_MAP[c.slug] ?? 'tag') as string,
-      imageUrl: toCategoryImageUrl(c.imageUrl),
-      color: c.color ?? null,
-    }));
+    const items = backendCats
+      .filter(c => c.slug !== 'boxes' && c.slug !== 'bundles')
+      .map(c => ({
+        id: c.slug, label: c.name,
+        icon: (CAT_ICON_MAP[c.slug] ?? 'tag') as string,
+        imageUrl: toCategoryImageUrl(c.imageUrl),
+        color: c.color ?? null,
+      }));
     return [...items, { id: 'all', label: 'All', icon: 'grid' as string, imageUrl: null, color: null }];
   }, [categoriesData]);
 
@@ -249,6 +252,7 @@ export default function MenuScreen() {
             refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={BLUE} />}
             ListHeaderComponent={
               <>
+                {activeCategory === 'cookies' && <BuildABoxBanner />}
                 <Text style={[s.count, { fontWeight: '400' }]}>
                   {filtered.length} item{filtered.length !== 1 ? 's' : ''}
                   {activeCategory !== 'all' ? ` · ${categories.find((c: any) => c.id === activeCategory)?.label ?? activeCategory}` : ''}
