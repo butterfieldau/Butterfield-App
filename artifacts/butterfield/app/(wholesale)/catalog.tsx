@@ -419,7 +419,7 @@ export default function WholesaleCatalog() {
       {/* ── Floating Add to Cart bar ─────────────────────────────────── */}
       <Reanimated.View style={[
         styles.floatBar,
-        { bottom: TAB_BAR_H + 8 },
+        { bottom: TAB_BAR_H + 38 },
         floatStyle,
       ]}>
         <View style={{ flex: 1 }}>
