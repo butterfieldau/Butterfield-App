@@ -316,9 +316,10 @@ export default function WholesaleCatalog() {
   }, [hasSelection]);
   const floatStyle = useAnimatedStyle(() => ({ transform: [{ translateY: floatY.value }] }));
 
-  // Bottom padding for list: enough room for floating bar when visible
+  // Tab bar = 46px pill + Math.max(insets.bottom, 12) padding, positioned at bottom:0
+  const TAB_BAR_H    = 46 + Math.max(insets.bottom, 12);
   const floatBarHeight = 64;
-  const listBottomPad  = insets.bottom + floatBarHeight + 16;
+  const listBottomPad  = TAB_BAR_H + floatBarHeight + 16;
 
   return (
     <KeyboardAvoidingView style={{ flex: 1, backgroundColor: BG }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
@@ -418,7 +419,7 @@ export default function WholesaleCatalog() {
       {/* ── Floating Add to Cart bar ─────────────────────────────────── */}
       <Reanimated.View style={[
         styles.floatBar,
-        { bottom: insets.bottom + 12 },
+        { bottom: TAB_BAR_H + 8 },
         floatStyle,
       ]}>
         <View style={{ flex: 1 }}>
