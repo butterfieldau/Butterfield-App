@@ -1,5 +1,46 @@
-import { db, productsTable, productVariantsTable, productOptionsTable } from '@workspace/db';
-import { inArray } from 'drizzle-orm';
+import { db, productsTable, productVariantsTable, productOptionsTable, storeSettingsTable } from '@workspace/db';
+import { inArray, eq } from 'drizzle-orm';
+
+const BUILD_A_BOX_SIZES_KEY = 'build_a_box_sizes';
+
+/** Server-authoritative price for a build-a-box item. */
+async function computeBuildABoxPrice(
+  size: number,
+  selectedOptions: { optionId?: string; groupId?: string; priceAdjustmentCents?: number }[] = [],
+): Promise<number> {
+  // 1. Load canonical size config from store_settings
+  const [row] = await db.select().from(storeSettingsTable).where(eq(storeSettingsTable.key, BUILD_A_BOX_SIZES_KEY));
+  const sizes: Array<{ size: number; label: string; priceCents: number }> = row ? JSON.parse(row.value) : [];
+  const sizeConfig = sizes.find(s => s.size === size);
+  if (!sizeConfig) throw new Error(`Build a Box size "${size}" is not configured`);
+
+  // 2. Server-validate surcharges: look up each cookie's buildABoxSurchargeCents
+  const cookieIds = selectedOptions
+    .filter(o => o.groupId === 'box-contents' && o.optionId)
+    .map(o => o.optionId as string);
+
+  let surchargeCents = 0;
+  if (cookieIds.length > 0) {
+    const cookieProducts = await db.select({
+      id: productsTable.id,
+      surchargeCents: productsTable.buildABoxSurchargeCents,
+    }).from(productsTable).where(inArray(productsTable.id, cookieIds));
+
+    const surchargeMap = new Map(cookieProducts.map(p => [p.id, p.surchargeCents ?? 0]));
+
+    for (const opt of selectedOptions) {
+      if (opt.groupId !== 'box-contents' || !opt.optionId) continue;
+      const dbSurcharge = surchargeMap.get(opt.optionId) ?? 0;
+      // priceAdjustmentCents sent by client = quantity × surchargeCents per slot
+      // Re-derive quantity by dividing, then recompute from DB value
+      const clientAdj = opt.priceAdjustmentCents ?? 0;
+      const qty = dbSurcharge > 0 ? Math.round(clientAdj / dbSurcharge) : 0;
+      surchargeCents += qty * dbSurcharge;
+    }
+  }
+
+  return sizeConfig.priceCents + surchargeCents;
+}
 
 export const DELIVERY_FEE_CENTS = 1200;
 export const STRIPE_CARD_RATE = 0.017;
@@ -83,6 +124,18 @@ export async function computeOrderTotal(
     if (item.isFreeReward) {
       const qty = Math.max(1, Math.floor(item.quantity));
       itemizedCents.push({ productId: item.productId, variantId: item.variantId, unitCents: 0, quantity: qty, lineCents: 0 });
+      continue;
+    }
+
+    // Build-a-box virtual products (productId = "build-a-box-N") bypass the catalog
+    const boxSizeMatch = /^build-a-box-(\d+)$/.exec(item.productId);
+    if (boxSizeMatch) {
+      const size = parseInt(boxSizeMatch[1], 10);
+      const unitCents = await computeBuildABoxPrice(size, item.selectedOptions ?? []);
+      const qty = Math.max(1, Math.floor(item.quantity));
+      const lineCents = unitCents * qty;
+      subtotalCents += lineCents;
+      itemizedCents.push({ productId: item.productId, variantId: null, unitCents, quantity: qty, lineCents });
       continue;
     }
 

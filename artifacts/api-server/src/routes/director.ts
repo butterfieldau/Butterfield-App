@@ -4752,7 +4752,7 @@ router.patch('/build-a-box/config', async (req, res) => {
         }
       }
       const value = JSON.stringify(sizes);
-      const existing = await db.execute(sql`SELECT id FROM store_settings WHERE key = ${BUILD_A_BOX_SIZES_KEY} LIMIT 1`);
+      const existing = await db.execute(sql`SELECT key FROM store_settings WHERE key = ${BUILD_A_BOX_SIZES_KEY} LIMIT 1`);
       const existingRow = ((existing as any).rows ?? [])[0];
       if (existingRow) {
         await db.execute(sql`UPDATE store_settings SET value = ${value}, updated_at = NOW() WHERE key = ${BUILD_A_BOX_SIZES_KEY}`);
