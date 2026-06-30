@@ -150,7 +150,10 @@ export default function CustomerHome() {
     const featured = products.filter((p) => p.isFeatured);
     const featuredIds = new Set(featured.map((p) => p.id));
     const nonFeatured = base.filter((p) => !featuredIds.has(p.id));
-    const combined = [...featured, ...nonFeatured];
+    // Only show products that have a displayable image — tiles without images look broken.
+    const hasPhoto = (p: typeof products[number]) =>
+      !!(p.images?.[0] ?? PRODUCT_IMAGES[(p as any).name ?? '']);
+    const combined = [...featured, ...nonFeatured].filter(hasPhoto);
     // Shuffle daily — consistent within the day, different each new day.
     const daySeed = Math.floor(Date.now() / 86_400_000);
     const out = [...combined];
@@ -159,6 +162,14 @@ export default function CustomerHome() {
       s = Math.imul(s, 1664525) + 1013904223;
       const j = (s >>> 0) % (i + 1);
       [out[i], out[j]] = [out[j], out[i]];
+    }
+    // Pin a cookie to the first slot — cookies are the hero product.
+    const firstCookieIdx = out.findIndex(
+      (p) => ((p as any).metadata?.category ?? (p as any).category ?? '').toLowerCase() === 'cookies'
+    );
+    if (firstCookieIdx > 0) {
+      const [cookie] = out.splice(firstCookieIdx, 1);
+      out.unshift(cookie);
     }
     return out;
   }, [topSellers, products]);
