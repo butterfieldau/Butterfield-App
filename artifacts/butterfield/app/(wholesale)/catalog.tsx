@@ -319,7 +319,7 @@ export default function WholesaleCatalog() {
   // Tab bar = 46px pill + Math.max(insets.bottom, 12) padding, positioned at bottom:0
   const TAB_BAR_H    = 46 + Math.max(insets.bottom, 12);
   const floatBarHeight = 64;
-  const listBottomPad  = TAB_BAR_H + floatBarHeight + 16;
+  const listBottomPad  = TAB_BAR_H + floatBarHeight + 46;
 
   return (
     <KeyboardAvoidingView style={{ flex: 1, backgroundColor: BG }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
