@@ -30,6 +30,10 @@ function parseDollars(raw: string): number {
   return isNaN(n) ? 0 : Math.round(n * 100);
 }
 
+function centsToDisplay(cents: number): string {
+  return cents > 0 ? (cents / 100).toFixed(2) : '';
+}
+
 export default function BuildABoxSettingsScreen() {
   const insets = useSafeAreaInsets();
   const qc = useQueryClient();
@@ -46,10 +50,21 @@ export default function BuildABoxSettingsScreen() {
   const [saving, setSaving] = useState(false);
   const [activeTab, setActiveTab] = useState<'sizes' | 'cookies'>('sizes');
 
+  const [rawSizePrices, setRawSizePrices] = useState<string[]>([]);
+  const [rawPremiumPrices, setRawPremiumPrices] = useState<Record<string, string>>({});
+
   useEffect(() => {
     if (data?.data) {
-      setSizes(data.data.sizes ?? []);
-      setProducts(data.data.products ?? []);
+      const loadedSizes = data.data.sizes ?? [];
+      const loadedProducts = data.data.products ?? [];
+      setSizes(loadedSizes);
+      setProducts(loadedProducts);
+      setRawSizePrices(loadedSizes.map(s => centsToDisplay(s.priceCents)));
+      const premiumMap: Record<string, string> = {};
+      for (const p of loadedProducts) {
+        premiumMap[p.id] = centsToDisplay(p.premiumCents);
+      }
+      setRawPremiumPrices(premiumMap);
       setSizesDirty(false);
       setProductsDirty(false);
     }
@@ -58,12 +73,14 @@ export default function BuildABoxSettingsScreen() {
   const addSize = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setSizes(prev => [...prev, { size: 0, label: '', priceCents: 0 }]);
+    setRawSizePrices(prev => [...prev, '']);
     setSizesDirty(true);
   };
 
   const removeSize = (idx: number) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setSizes(prev => prev.filter((_, i) => i !== idx));
+    setRawSizePrices(prev => prev.filter((_, i) => i !== idx));
     setSizesDirty(true);
   };
 
@@ -75,27 +92,56 @@ export default function BuildABoxSettingsScreen() {
       } else if (field === 'size') {
         const n = parseInt(raw, 10);
         next[idx] = { ...next[idx]!, size: isNaN(n) ? 0 : n };
-      } else if (field === 'priceCents') {
-        next[idx] = { ...next[idx]!, priceCents: parseDollars(raw) };
       }
       return next;
     });
     setSizesDirty(true);
   };
 
+  const commitSizePrice = (idx: number) => {
+    const raw = rawSizePrices[idx] ?? '';
+    const cents = parseDollars(raw);
+    setSizes(prev => {
+      const next = [...prev];
+      next[idx] = { ...next[idx]!, priceCents: cents };
+      return next;
+    });
+    setRawSizePrices(prev => {
+      const next = [...prev];
+      next[idx] = centsToDisplay(cents);
+      return next;
+    });
+    setSizesDirty(true);
+  };
+
   const updateProduct = (id: string, field: 'excluded' | 'premiumCents', value: boolean | string) => {
+    if (field === 'excluded') {
+      setProducts(prev =>
+        prev.map(p => p.id !== id ? p : { ...p, excluded: value as boolean }),
+      );
+    }
+    setProductsDirty(true);
+  };
+
+  const commitPremiumPrice = (id: string) => {
+    const raw = rawPremiumPrices[id] ?? '';
+    const cents = parseDollars(raw);
     setProducts(prev =>
-      prev.map(p => {
-        if (p.id !== id) return p;
-        if (field === 'excluded') return { ...p, excluded: value as boolean };
-        return { ...p, premiumCents: parseDollars(value as string) };
-      }),
+      prev.map(p => p.id !== id ? p : { ...p, premiumCents: cents }),
     );
+    setRawPremiumPrices(prev => ({ ...prev, [id]: centsToDisplay(cents) }));
     setProductsDirty(true);
   };
 
   const saveSizes = async () => {
-    for (const s of sizes) {
+    const committed = sizes.map((s, idx) => ({
+      ...s,
+      priceCents: parseDollars(rawSizePrices[idx] ?? ''),
+    }));
+    setRawSizePrices(committed.map(s => centsToDisplay(s.priceCents)));
+    setSizes(committed);
+
+    for (const s of committed) {
       if (!s.label.trim()) {
         Alert.alert('Validation', 'Each box size must have a label.');
         return;
@@ -111,7 +157,7 @@ export default function BuildABoxSettingsScreen() {
     }
     setSaving(true);
     try {
-      await api.director.updateBuildABoxConfig({ sizes });
+      await api.director.updateBuildABoxConfig({ sizes: committed });
       await qc.invalidateQueries({ queryKey: ['director-build-a-box-config'] });
       setSizesDirty(false);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -124,9 +170,18 @@ export default function BuildABoxSettingsScreen() {
   };
 
   const saveCookies = async () => {
+    const committedPremium: Record<string, string> = {};
+    const committedProducts = products.map(p => {
+      const cents = parseDollars(rawPremiumPrices[p.id] ?? '');
+      committedPremium[p.id] = centsToDisplay(cents);
+      return { ...p, premiumCents: cents };
+    });
+    setRawPremiumPrices(committedPremium);
+    setProducts(committedProducts);
+
     setSaving(true);
     try {
-      await api.director.updateBuildABoxConfig({ products });
+      await api.director.updateBuildABoxConfig({ products: committedProducts });
       await Promise.all([
         qc.invalidateQueries({ queryKey: ['director-build-a-box-config'] }),
         qc.invalidateQueries({ queryKey: ['products'] }),
@@ -282,8 +337,16 @@ export default function BuildABoxSettingsScreen() {
                     <View style={{ flex: 1.5, gap: 4 }}>
                       <Text style={{ fontSize: 11, color: MUTED, fontWeight: '500' }}>PRICE (AUD)</Text>
                       <TextInput
-                        value={s.priceCents > 0 ? (s.priceCents / 100).toFixed(2) : ''}
-                        onChangeText={v => updateSize(idx, 'priceCents', v)}
+                        value={rawSizePrices[idx] ?? ''}
+                        onChangeText={v => {
+                          setRawSizePrices(prev => {
+                            const next = [...prev];
+                            next[idx] = v;
+                            return next;
+                          });
+                          setSizesDirty(true);
+                        }}
+                        onBlur={() => commitSizePrice(idx)}
                         placeholder="0.00"
                         keyboardType="decimal-pad"
                         style={inputStyle}
@@ -412,8 +475,12 @@ export default function BuildABoxSettingsScreen() {
                       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                         <Text style={{ fontSize: 14, color: MUTED }}>$</Text>
                         <TextInput
-                          value={p.premiumCents > 0 ? (p.premiumCents / 100).toFixed(2) : ''}
-                          onChangeText={v => updateProduct(p.id, 'premiumCents', v)}
+                          value={rawPremiumPrices[p.id] ?? ''}
+                          onChangeText={v => {
+                            setRawPremiumPrices(prev => ({ ...prev, [p.id]: v }));
+                            setProductsDirty(true);
+                          }}
+                          onBlur={() => commitPremiumPrice(p.id)}
                           placeholder="0.00"
                           keyboardType="decimal-pad"
                           editable={!p.excluded}
