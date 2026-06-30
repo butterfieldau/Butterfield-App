@@ -114,18 +114,6 @@ export async function sendLinklyReceiptPrint(job: LinklyReceiptPrintJob, printer
   return sendPrinterBytes(printerIp, printerPort, await fetchBytes({ ...job, jobType: 'linkly_receipt' }));
 }
 
-/**
- * Opens the cash drawer by sending DLE DC4 bytes (Star) or ESC p (Epson) via
- * TCP socket directly from the device to the printer on the local LAN.
- *
- * The server builds the correct byte sequence for each brand:
- *   Star MCP30 → buildStarOpenDrawerBytes  (DLE DC4 = 0x10 0x14 0x01 [pin] 0x02)
- *   Epson      → buildOpenDrawerBytes       (ESC p   = 0x1B 0x70 [pin] 0x19 0xFA)
- *
- * The StarXpand SDK path was tried previously but resolved without error on the
- * JS side while silently failing to pulse the hardware — making the TCP+DLE DC4
- * approach the only confirmed-working method for the Star MCP30/mC-Print3.
- */
 export async function sendOpenDrawer(printerIp: string, printerPort = 9100, fetchBytes: BytesFetcher = api.director.printerBytes, drawerPin: 0 | 1 = 0, printerBrand?: 'epson' | 'star'): Promise<void> {
   return sendPrinterBytes(printerIp, printerPort, await fetchBytes({ jobType: 'open_drawer', drawerPin, printerBrand }));
 }
