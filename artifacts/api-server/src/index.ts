@@ -14,7 +14,7 @@ import { sql } from "drizzle-orm";
 import { ensureLinklySchemaReady, recoverOrPollTransaction } from "./lib/linklyCloud.js";
 import { ensureLoginHistorySchemaReady } from "./lib/ensureLoginHistorySchemaReady.js";
 import { ensureRosterSchemaReady } from "./lib/ensureRosterSchemaReady.js";
-import { ensureProductsSchemaReady } from "./lib/ensureProductsSchemaReady.js";
+import { ensureProductsSchemaReady, repairProductCategoryLinks } from "./lib/ensureProductsSchemaReady.js";
 
 // Catch any unhandled rejections so they never crash the process
 process.on('unhandledRejection', (reason: any) => {
@@ -150,6 +150,7 @@ Promise.resolve()
   .then(() => ensureScheduledOrderSchemaReady())
   .then(() => startScheduledDeliveryAlertService())
   .then(() => startupLinklyRecovery())
+  .then(() => repairProductCategoryLinks())
   .catch((err: any) => {
     logger.warn({ err: err?.message }, 'Background startup task failed');
   });
