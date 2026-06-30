@@ -276,6 +276,17 @@ function OrderDetailModal({ orderId, onClose }: { orderId: string; onClose: () =
                               ${(item.unitPriceCents / 100).toFixed(2)} each
                             </Text>
                           )}
+                          {item.boxContents.length > 0 && (
+                            <View style={{ marginTop: 3, gap: 1 }}>
+                              <Text style={{ fontSize: 11, fontWeight: '600', color: MUTED, letterSpacing: 0.3 }}>Box contents:</Text>
+                              {item.boxContents.map((cookie, ci) => (
+                                <View key={ci} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                                  <Text style={{ fontSize: 11, color: MUTED }}>·</Text>
+                                  <Text style={{ fontSize: 12, fontWeight: '400', color: TEXT }}>{cookie}</Text>
+                                </View>
+                              ))}
+                            </View>
+                          )}
                           {item.notableOptions.length > 0 && (
                             <Text style={{ fontSize: 12, color: BLUE, fontWeight: '400' }}>
                               {item.notableOptions.join(' · ')}

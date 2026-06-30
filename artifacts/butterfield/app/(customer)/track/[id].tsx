@@ -441,6 +441,17 @@ export default function TrackOrderScreen() {
                           {item.name}
                           {item.variantName ? <Text style={{ color: colors.mutedForeground, fontWeight: '400' }}>{` · ${item.variantName}`}</Text> : null}
                         </Text>
+                        {item.boxContents.length > 0 && (
+                          <View style={{ marginTop: 3, gap: 1 }}>
+                            <Text style={{ fontSize: 11, fontWeight: '600', color: colors.mutedForeground, letterSpacing: 0.3 }}>Box contents:</Text>
+                            {item.boxContents.map((cookie, ci) => (
+                              <View key={ci} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                                <Text style={{ fontSize: 11, color: colors.mutedForeground }}>·</Text>
+                                <Text style={{ fontSize: 12, fontWeight: '400', color: colors.foreground }}>{cookie}</Text>
+                              </View>
+                            ))}
+                          </View>
+                        )}
                         {item.notableOptions.length > 0 && (
                           <Text style={{ fontSize: 12, color: colors.primary, fontWeight: '400' }}>
                             {item.notableOptions.join(' · ')}
