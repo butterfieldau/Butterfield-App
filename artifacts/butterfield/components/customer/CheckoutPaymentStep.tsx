@@ -161,6 +161,16 @@ export function PaymentStepWithStripe({
   const { confirmPayment, createPaymentMethod, handleNextAction } = useStripe();
   const { isPlatformPaySupported, confirmPlatformPayPayment } = usePlatformPay();
 
+  // Re-check Apple Pay availability here, inside StripeProvider, so it works
+  // even when the caller checked outside the provider (where Stripe isn't init'd).
+  const [internalApplePaySupported, setInternalApplePaySupported] = useState<boolean | null>(null);
+  useEffect(() => {
+    if (Platform.OS !== 'ios' || !stripeReady) return;
+    isPlatformPaySupported().then((ok) => setInternalApplePaySupported(ok));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stripeReady]);
+  const effectiveApplePaySupported = internalApplePaySupported ?? applePaySupported;
+
   const defaultMethod: PayMethod = Platform.OS === 'android' ? 'google_pay' : 'credit_card';
   const [method, setMethod] = useState<PayMethod>(defaultMethod);
   const [platformPayAvailable, setPlatformPayAvailable] = useState<boolean | null>(null);
@@ -242,10 +252,10 @@ export function PaymentStepWithStripe({
   }, []);
 
   useEffect(() => {
-    if (applePaySupported === false && method === 'google_pay') {
+    if (effectiveApplePaySupported === false && method === 'google_pay') {
       setMethod('credit_card');
     }
-  }, [applePaySupported]);
+  }, [effectiveApplePaySupported]);
 
   useEffect(() => {
     if (method !== 'credit_card') return;
@@ -399,7 +409,7 @@ export function PaymentStepWithStripe({
   // Re-runs whenever totalCents or the discount/reward state changes.
   useEffect(() => {
     const isIos = Platform.OS === 'ios';
-    if (!isIos || !stripeReady || applePaySupported !== true || totalCents === 0) {
+    if (!isIos || !stripeReady || effectiveApplePaySupported !== true || totalCents === 0) {
       // Not eligible — cancel any stale pre-fetch
       const stale = pendingIntentRef.current;
       if (stale) {
@@ -437,7 +447,7 @@ export function PaymentStepWithStripe({
       }
     }).catch(() => { /* silent — handleApplePay creates fresh on tap if cache is empty */ })
       .finally(() => { pendingIntentFetchingRef.current = false; });
-  }, [applePaySupported, stripeReady, totalCents, selectedClaimedRewardId, useFreeCoffeeReward]);
+  }, [effectiveApplePaySupported, stripeReady, totalCents, selectedClaimedRewardId, useFreeCoffeeReward]);
 
   // Cancel any pre-fetched intent when the payment step unmounts (checkout abandoned or completed)
   useEffect(() => {
@@ -473,7 +483,7 @@ export function PaymentStepWithStripe({
     setDiscountError('');
   };
 
-  const isIosApplePay = Platform.OS === 'ios' && applePaySupported === true && stripeReady;
+  const isIosApplePay = Platform.OS === 'ios' && effectiveApplePaySupported === true && stripeReady;
   const isAndroidGooglePay = Platform.OS === 'android' && platformPayAvailable === true && stripeReady && method === 'google_pay';
 
   const handleApplePay = async () => {

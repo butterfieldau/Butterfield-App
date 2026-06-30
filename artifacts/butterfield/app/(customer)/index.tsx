@@ -150,7 +150,17 @@ export default function CustomerHome() {
     const featured = products.filter((p) => p.isFeatured);
     const featuredIds = new Set(featured.map((p) => p.id));
     const nonFeatured = base.filter((p) => !featuredIds.has(p.id));
-    return [...featured, ...nonFeatured];
+    const combined = [...featured, ...nonFeatured];
+    // Shuffle daily — consistent within the day, different each new day.
+    const daySeed = Math.floor(Date.now() / 86_400_000);
+    const out = [...combined];
+    let s = daySeed;
+    for (let i = out.length - 1; i > 0; i--) {
+      s = Math.imul(s, 1664525) + 1013904223;
+      const j = (s >>> 0) % (i + 1);
+      [out[i], out[j]] = [out[j], out[i]];
+    }
+    return out;
   }, [topSellers, products]);
   const tileWidth = isTablet ? 190 : 158;
 
