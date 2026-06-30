@@ -6,9 +6,9 @@ import styles from './posStyles';
 import { BLUE, fmtCents } from './types';
 
 export default function ProductGridCard({
-  product, onPress, loading, isWide,
+  product, onPress, loading, isWide, itemWidth,
 }: {
-  product: any; onPress: () => void; loading: boolean; isWide: boolean;
+  product: any; onPress: () => void; loading: boolean; isWide: boolean; itemWidth?: number;
 }) {
   void isWide;
   const basePriceCents = product.salePriceCents ?? product.priceCents ?? 0;
@@ -17,7 +17,7 @@ export default function ProductGridCard({
   return (
     <TouchableOpacity
       onPress={onPress}
-      style={[styles.productCard, { flex: 1 }]}
+      style={[styles.productCard, itemWidth ? { width: itemWidth } : { flex: 1 }]}
       activeOpacity={0.75}
     >
       {imgUrl ? (

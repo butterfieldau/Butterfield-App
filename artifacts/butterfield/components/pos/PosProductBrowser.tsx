@@ -1,5 +1,5 @@
 import * as Haptics from 'expo-haptics';
-import React from 'react';
+import React, { useState } from 'react';
 import { ActivityIndicator, FlatList, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import ProductGridCard from './ProductGridCard';
@@ -7,9 +7,6 @@ import styles from './posStyles';
 import { BLUE } from './types';
 
 const CHERRY = '#D20001';
-const DARK   = '#1A0A04';
-const CREAM  = '#FBF7F2';
-const CARAMEL = '#C8833A';
 
 type Category = { slug: string; name: string; color?: string | null };
 
@@ -26,7 +23,7 @@ function BuildABoxTile({ onPress }: { onPress: () => void }) {
           <Text style={local.sub}>Mix & match to order</Text>
         </View>
         <View style={local.iconWrap}>
-          <Feather name="package" size={22} color={CARAMEL} />
+          <Feather name="package" size={22} color="#fff" />
         </View>
       </View>
     </Pressable>
@@ -36,21 +33,21 @@ function BuildABoxTile({ onPress }: { onPress: () => void }) {
 const local = StyleSheet.create({
   tile: {
     marginHorizontal: 12, marginTop: 10, marginBottom: 4,
-    backgroundColor: DARK, borderRadius: 12,
+    backgroundColor: CHERRY, borderRadius: 12,
     overflow: 'hidden',
-    shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 6, shadowOffset: { width: 0, height: 2 },
-    elevation: 4,
+    shadowColor: CHERRY, shadowOpacity: 0.35, shadowRadius: 8, shadowOffset: { width: 0, height: 3 },
+    elevation: 6,
   },
   inner: {
     flexDirection: 'row', alignItems: 'center',
     paddingVertical: 14, paddingHorizontal: 16, gap: 12,
-    borderWidth: 1, borderColor: CARAMEL + '55', borderRadius: 12,
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.25)', borderRadius: 12,
   },
   left:    { flex: 1 },
-  eyebrow: { color: CARAMEL, fontSize: 9, fontWeight: '700', letterSpacing: 2.5, marginBottom: 3 },
-  heading: { color: CREAM, fontSize: 17, fontWeight: '800', letterSpacing: 0.2 },
-  sub:     { color: CARAMEL + 'CC', fontSize: 12, fontWeight: '500', marginTop: 2 },
-  iconWrap:{ width: 44, height: 44, borderRadius: 22, backgroundColor: CARAMEL + '20', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: CARAMEL + '40' },
+  eyebrow: { color: 'rgba(255,255,255,0.75)', fontSize: 9, fontWeight: '700', letterSpacing: 2.5, marginBottom: 3 },
+  heading: { color: '#FFFFFF', fontSize: 17, fontWeight: '800', letterSpacing: 0.2 },
+  sub:     { color: 'rgba(255,255,255,0.7)', fontSize: 12, fontWeight: '500', marginTop: 2 },
+  iconWrap:{ width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.18)', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.3)' },
 });
 
 export default function PosProductBrowser({
@@ -82,11 +79,22 @@ export default function PosProductBrowser({
   onProductPress: (product: any) => void;
   onBuildABox?: () => void;
 }) {
+  const [containerWidth, setContainerWidth] = useState(0);
+
   // Show the Build Your Box tile when viewing cookies or all products
   const showBuildABox = !!onBuildABox && (selCategory === 'cookies' || selCategory === 'all');
 
+  const numCols = isWide ? 3 : 2;
+  // content padding=8 each side, columnWrapper paddingHorizontal=4 each side, gap=8 between cols
+  const itemWidth = containerWidth > 0
+    ? Math.floor((containerWidth - 16 - 8 - (numCols - 1) * 8) / numCols)
+    : 0;
+
   return (
-    <View style={[styles.menuPane, isWide && { flex: 3 }]}>
+    <View
+      style={[styles.menuPane, isWide && { flex: 3 }]}
+      onLayout={e => setContainerWidth(e.nativeEvent.layout.width)}
+    >
       {/* Horizontal category scroll — narrow screens only */}
       {!isWide && (
         <View style={{ height: 84, flexShrink: 0 }}>
@@ -120,7 +128,7 @@ export default function PosProductBrowser({
           columnWrapperStyle={{ gap: 8, marginBottom: 8, paddingHorizontal: 4 }}
           ListHeaderComponent={showBuildABox ? <BuildABoxTile onPress={onBuildABox!} /> : null}
           renderItem={({ item }) => (
-            <ProductGridCard product={item} onPress={() => onProductPress(item)} loading={loadingDetail === item.id} isWide={isWide} />
+            <ProductGridCard product={item} onPress={() => onProductPress(item)} loading={loadingDetail === item.id} isWide={isWide} itemWidth={itemWidth || undefined} />
           )}
           showsVerticalScrollIndicator={false}
         />

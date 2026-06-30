@@ -276,7 +276,7 @@ export default function MenuScreen() {
               </View>
             }
             renderItem={({ item: p }) => (
-              <View style={{ flex: 1 }}>
+              <View style={{ width: Math.floor((width - 2 * hPad - (numColumns - 1) * tileGap) / numColumns) }}>
                 <SharedProductTile product={p} onPress={() => handleTilePress(p)} onAddToCart={() => handleAddToCart(p)} />
               </View>
             )}

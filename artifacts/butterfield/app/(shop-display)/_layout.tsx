@@ -777,8 +777,8 @@ export default function ShopDisplayLayout() {
             <Feather name={sidebarCollapsed ? 'chevron-right' : 'chevron-left'} size={13} color={WHITE} />
           </Pressable>
 
-          {/* Brand — hidden when collapsed */}
-          {!sidebarCollapsed && (
+          {/* Brand — full when expanded, mini logo when collapsed */}
+          {!sidebarCollapsed ? (
             <View style={styles.sidebarBrand}>
               <Image
                 source={require('@/assets/images/logo-white.png')}
@@ -789,6 +789,14 @@ export default function ShopDisplayLayout() {
                 <Text style={styles.brandBadgeText}>SHOP DISPLAY</Text>
               </View>
               <Text style={styles.brandSub} numberOfLines={1}>{user.name}</Text>
+            </View>
+          ) : (
+            <View style={styles.sidebarCollapsedLogo}>
+              <Image
+                source={require('@/assets/images/logo-white.png')}
+                style={styles.sidebarCollapsedLogoImg}
+                resizeMode="contain"
+              />
             </View>
           )}
 
@@ -1046,7 +1054,9 @@ const styles = StyleSheet.create({
   brandSub:             { color: 'rgba(255,255,255,0.45)', fontSize: 12, fontWeight: '600' },
   syncTimestamp:        { color: 'rgba(255,255,255,0.35)', fontSize: 11, fontWeight: '500' },
   sidebarSyncBtn:       { width: 28, height: 28, borderRadius: 14, backgroundColor: 'rgba(20,147,255,0.18)', borderWidth: 1, borderColor: 'rgba(20,147,255,0.35)', alignItems: 'center', justifyContent: 'center' },
-  sidebarToggleBtn:     { position: 'absolute' as any, right: -13, top: 60, width: 26, height: 26, borderRadius: 13, backgroundColor: NAVY, borderWidth: 1, borderColor: 'rgba(255,255,255,0.18)', alignItems: 'center', justifyContent: 'center', zIndex: 20, shadowColor: '#000', shadowOpacity: 0.25, shadowRadius: 4, shadowOffset: { width: 0, height: 2 }, elevation: 6 },
+  sidebarToggleBtn:     { position: 'absolute' as any, right: -14, top: 60, width: 28, height: 28, borderRadius: 14, backgroundColor: BLUE, borderWidth: 0, alignItems: 'center', justifyContent: 'center', zIndex: 200, shadowColor: '#000', shadowOpacity: 0.35, shadowRadius: 8, shadowOffset: { width: 0, height: 3 }, elevation: 12 },
+  sidebarCollapsedLogo: { alignItems: 'center', paddingVertical: 12, paddingHorizontal: 6, marginBottom: 4, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: 'rgba(255,255,255,0.12)' },
+  sidebarCollapsedLogoImg: { width: 42, height: 13 },
   navList:              { flex: 1, paddingHorizontal: 10, gap: 2 },
   navListCollapsed:     { paddingHorizontal: 6 },
   navItem:              { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, paddingVertical: 13, borderRadius: 14 },
