@@ -446,10 +446,14 @@ function PosScreenInner() {
       const alreadyPrinted = vars.linklySessionId ? receiptPrintedRef.current.has(vars.linklySessionId) : false;
       const isCashSale = vars.paymentMethod === 'cash' || vars.paymentMethod === 'split';
       const printOrderId = res.data.id;
+      const isStar = store?.printerBrand === 'star';
       if (!alreadyPrinted && store?.autoPrint && store?.printerIp) {
         if (vars.linklySessionId) receiptPrintedRef.current.add(vars.linklySessionId);
         updatePrintStatus(printOrderId, 'pending');
-        _sendReceiptPrint({ orderId: printOrderId, customerName: snapshotCustomerName, type: 'pickup', items: snapshotItems, totalCents: res.data.totalCents, discountCents: discountAmountCents, surchargeCents: vars.surchargeCents ?? 0, loyaltyPointsEarned: res.loyaltyResult?.pointsEarned, notes: activeTicket.notes?.trim() || undefined, printerBrand: store.printerBrand ?? 'epson', autoDrawer: !!(store as any).autoDrawer, drawerPin: ((store as any).drawerPin ?? 0) as 0 | 1 }, store.printerIp, store.printerPort ?? 9100, fetchBytes)
+        // Star: never embed DLE DC4 drawer bytes in the print stream — the StarXpand SDK buffers
+        // data and real-time commands are not processed correctly via printRawData. Drawer is
+        // opened explicitly via openDrawerWithTracking() (StarXpand CommandBuilder) below.
+        _sendReceiptPrint({ orderId: printOrderId, customerName: snapshotCustomerName, type: 'pickup', items: snapshotItems, totalCents: res.data.totalCents, discountCents: discountAmountCents, surchargeCents: vars.surchargeCents ?? 0, loyaltyPointsEarned: res.loyaltyResult?.pointsEarned, notes: activeTicket.notes?.trim() || undefined, printerBrand: store.printerBrand ?? 'epson', autoDrawer: !isStar && !!(store as any).autoDrawer, drawerPin: ((store as any).drawerPin ?? 0) as 0 | 1 }, store.printerIp, store.printerPort ?? 9100, fetchBytes)
           .then(() => updatePrintStatus(printOrderId, 'printed'))
           .catch(() => updatePrintStatus(printOrderId, 'failed'));
       } else if (alreadyPrinted && vars.linklySessionId) {
@@ -457,6 +461,11 @@ function PosScreenInner() {
         const ls = linklyPrintStatusRef.current[vars.linklySessionId];
         if (ls) { updatePrintStatus(printOrderId, ls); } else { updatePrintStatus(printOrderId, 'pending'); }
       } else if (!alreadyPrinted && !store?.autoPrint && store?.autoDrawer && store?.printerIp && isCashSale) {
+        openDrawerWithTracking().catch(() => {});
+      }
+      // Star drawer: always use the StarXpand SDK CommandBuilder for cash sales — fired
+      // separately from the print job so the real-time drawer pulse is not lost in the data stream.
+      if (!alreadyPrinted && isStar && store?.autoDrawer && store?.printerIp && isCashSale) {
         openDrawerWithTracking().catch(() => {});
       }
     },
