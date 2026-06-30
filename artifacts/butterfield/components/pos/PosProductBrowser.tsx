@@ -47,7 +47,7 @@ const local = StyleSheet.create({
   eyebrow: { color: 'rgba(255,255,255,0.75)', fontSize: 9, fontWeight: '700', letterSpacing: 2.5, marginBottom: 3 },
   heading: { color: '#FFFFFF', fontSize: 17, fontWeight: '800', letterSpacing: 0.2 },
   sub:     { color: 'rgba(255,255,255,0.7)', fontSize: 12, fontWeight: '500', marginTop: 2 },
-  iconWrap:{ width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.18)', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.3)' },
+  iconWrap:{ width: 44, height: 44, borderRadius: 22, backgroundColor: '#A80001', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#8A0001' },
 });
 
 export default function PosProductBrowser({
