@@ -36,6 +36,7 @@ import {
   listRegisterSessionReports,
   updateClosedRegisterSessionNotes,
 } from '../lib/registers.js';
+import { invalidateBuildABoxCache } from '../lib/orderPricing.js';
 
 const router = Router();
 router.use(requireRole('director', 'manager', 'master'));
@@ -4773,6 +4774,10 @@ router.patch('/build-a-box/config', async (req, res) => {
           .where(eq(productsTable.id, p.id));
       }
     }
+
+    // Invalidate the module-level pricing cache so the next computeOrderTotal
+    // call picks up the fresh sizes/surcharges instead of serving stale values.
+    invalidateBuildABoxCache();
 
     recordAuditLog({
       actor: req.user,

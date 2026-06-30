@@ -3,40 +3,66 @@ import { inArray, eq } from 'drizzle-orm';
 
 const BUILD_A_BOX_SIZES_KEY = 'build_a_box_sizes';
 
-/** Server-authoritative price for a build-a-box item. */
-async function computeBuildABoxPrice(
-  size: number,
-  selectedOptions: { optionId?: string; groupId?: string; priceAdjustmentCents?: number }[] = [],
-): Promise<number> {
-  // 1. Load canonical size config from store_settings
+type BuildABoxSizeConfig = { size: number; label: string; priceCents: number };
+
+// ---------------------------------------------------------------------------
+// Short-lived module-level cache for build-a-box config.
+// The sizes setting and product surcharges are quasi-static; caching them for
+// 15 s eliminates redundant DB round-trips when computeOrderTotal is called
+// multiple times within a single checkout flow (prepareRetailCheckout calls it
+// 2-3× per payment intent creation).
+// ---------------------------------------------------------------------------
+let _babSizesCache: { data: BuildABoxSizeConfig[]; expiresAt: number } | null = null;
+let _babSurchargeCache: { data: Map<string, number>; expiresAt: number } | null = null;
+const BAB_CACHE_TTL_MS = 15_000;
+
+async function getBuildABoxSizes(): Promise<BuildABoxSizeConfig[]> {
+  const now = Date.now();
+  if (_babSizesCache && _babSizesCache.expiresAt > now) return _babSizesCache.data;
   const [row] = await db.select().from(storeSettingsTable).where(eq(storeSettingsTable.key, BUILD_A_BOX_SIZES_KEY));
-  const sizes: Array<{ size: number; label: string; priceCents: number }> = row ? JSON.parse(row.value) : [];
+  const data: BuildABoxSizeConfig[] = row ? JSON.parse(row.value) : [];
+  _babSizesCache = { data, expiresAt: now + BAB_CACHE_TTL_MS };
+  return data;
+}
+
+async function getBuildABoxSurchargeMap(cookieIds: string[]): Promise<Map<string, number>> {
+  const now = Date.now();
+  // Return the cached full surcharge map if still warm; the map covers all products.
+  if (_babSurchargeCache && _babSurchargeCache.expiresAt > now) return _babSurchargeCache.data;
+  // Fetch ALL products that have a surcharge (small table scan, avoids per-cart queries).
+  const rows = await db.select({ id: productsTable.id, surchargeCents: productsTable.buildABoxSurchargeCents })
+    .from(productsTable);
+  const data = new Map(rows.map(p => [p.id, p.surchargeCents ?? 0]));
+  _babSurchargeCache = { data, expiresAt: now + BAB_CACHE_TTL_MS };
+  return data;
+}
+
+/** Call this to invalidate the cache after director updates build-a-box config or surcharges. */
+export function invalidateBuildABoxCache(): void {
+  _babSizesCache = null;
+  _babSurchargeCache = null;
+}
+
+/**
+ * Synchronous price computation for a single build-a-box item.
+ * All DB data is pre-fetched once per computeOrderTotal call and passed in.
+ */
+function computeBuildABoxPriceSync(
+  size: number,
+  selectedOptions: { optionId?: string; groupId?: string; priceAdjustmentCents?: number }[],
+  sizes: BuildABoxSizeConfig[],
+  cookieSurchargeMap: Map<string, number>,
+): number {
   const sizeConfig = sizes.find(s => s.size === size);
   if (!sizeConfig) throw new Error(`Build a Box size "${size}" is not configured`);
 
-  // 2. Server-validate surcharges: look up each cookie's buildABoxSurchargeCents
-  const cookieIds = selectedOptions
-    .filter(o => o.groupId === 'box-contents' && o.optionId)
-    .map(o => o.optionId as string);
-
   let surchargeCents = 0;
-  if (cookieIds.length > 0) {
-    const cookieProducts = await db.select({
-      id: productsTable.id,
-      surchargeCents: productsTable.buildABoxSurchargeCents,
-    }).from(productsTable).where(inArray(productsTable.id, cookieIds));
-
-    const surchargeMap = new Map(cookieProducts.map(p => [p.id, p.surchargeCents ?? 0]));
-
-    for (const opt of selectedOptions) {
-      if (opt.groupId !== 'box-contents' || !opt.optionId) continue;
-      const dbSurcharge = surchargeMap.get(opt.optionId) ?? 0;
-      // priceAdjustmentCents sent by client = quantity × surchargeCents per slot
-      // Re-derive quantity by dividing, then recompute from DB value
-      const clientAdj = opt.priceAdjustmentCents ?? 0;
-      const qty = dbSurcharge > 0 ? Math.round(clientAdj / dbSurcharge) : 0;
-      surchargeCents += qty * dbSurcharge;
-    }
+  for (const opt of selectedOptions) {
+    if (opt.groupId !== 'box-contents' || !opt.optionId) continue;
+    const dbSurcharge = cookieSurchargeMap.get(opt.optionId) ?? 0;
+    const clientAdj = opt.priceAdjustmentCents ?? 0;
+    const qty = dbSurcharge > 0 ? Math.round(clientAdj / dbSurcharge) : 0;
+    surchargeCents += qty * dbSurcharge;
   }
 
   return sizeConfig.priceCents + surchargeCents;
@@ -100,7 +126,24 @@ export async function computeOrderTotal(
     items.flatMap(i => (i.selectedOptions ?? []).map(o => o.optionId).filter(Boolean) as string[]),
   )];
 
-  const [products, variants, options] = await Promise.all([
+  // Detect build-a-box items upfront so we can fetch their config in parallel.
+  const hasBuildABox = items.some(i => !i.isFreeReward && /^build-a-box-\d+$/.test(i.productId));
+
+  // Collect all cookie product IDs referenced by build-a-box selectedOptions.
+  const allCookieIds = hasBuildABox
+    ? [...new Set(
+        items
+          .filter(i => !i.isFreeReward && /^build-a-box-\d+$/.test(i.productId))
+          .flatMap(i => (i.selectedOptions ?? [])
+            .filter(o => o.groupId === 'box-contents' && o.optionId)
+            .map(o => o.optionId as string)),
+      )]
+    : [];
+
+  // All DB fetches run in parallel; build-a-box config uses a 15s module cache
+  // so repeated calls within the same checkout flow (prepareRetailCheckout calls
+  // computeOrderTotal 2-3×) hit the cache instead of the DB every time.
+  const [products, variants, options, buildABoxSizes, cookieSurchargeMap] = await Promise.all([
     productIds.length
       ? db.select().from(productsTable).where(inArray(productsTable.id, productIds))
       : Promise.resolve([]),
@@ -110,6 +153,8 @@ export async function computeOrderTotal(
     optionIds.length
       ? db.select().from(productOptionsTable).where(inArray(productOptionsTable.id, optionIds))
       : Promise.resolve([]),
+    hasBuildABox ? getBuildABoxSizes() : Promise.resolve<BuildABoxSizeConfig[]>([]),
+    hasBuildABox ? getBuildABoxSurchargeMap(allCookieIds) : Promise.resolve(new Map<string, number>()),
   ]);
 
   const productMap = new Map(products.map(p => [p.id, p]));
@@ -127,11 +172,12 @@ export async function computeOrderTotal(
       continue;
     }
 
-    // Build-a-box virtual products (productId = "build-a-box-N") bypass the catalog
+    // Build-a-box virtual products (productId = "build-a-box-N") bypass the catalog.
+    // Uses pre-fetched sizes + surcharge map — no additional DB queries here.
     const boxSizeMatch = /^build-a-box-(\d+)$/.exec(item.productId);
     if (boxSizeMatch) {
       const size = parseInt(boxSizeMatch[1], 10);
-      const unitCents = await computeBuildABoxPrice(size, item.selectedOptions ?? []);
+      const unitCents = computeBuildABoxPriceSync(size, item.selectedOptions ?? [], buildABoxSizes, cookieSurchargeMap);
       const qty = Math.max(1, Math.floor(item.quantity));
       const lineCents = unitCents * qty;
       subtotalCents += lineCents;

@@ -190,7 +190,6 @@ export function PaymentStepWithStripe({
   const freeRewardLineRef = useRef<{ productId: string; name: string } | null>(null);
   const applePayInFlightRef = useRef(false);
   const pendingIntentRef = useRef<{ clientSecret: string; paymentIntentId: string; amountCents: number } | null>(null);
-  const pendingIntentFetchingRef = useRef(false);
   const [applePayClientSecret, setApplePayClientSecret] = useState<string | null>(null);
   const applePayParamsRef = useRef<{
     discountCode?: string;
@@ -407,6 +406,8 @@ export function PaymentStepWithStripe({
 
   // Eagerly pre-create a payment intent on iOS Apple Pay so the sheet opens instantly on tap.
   // Re-runs whenever totalCents or the discount/reward state changes.
+  // Uses a per-run `cancelled` flag so that if the effect re-runs (e.g. totalCents changes
+  // mid-flight), the stale response is discarded and the new run takes over cleanly.
   useEffect(() => {
     const isIos = Platform.OS === 'ios';
     if (!isIos || !stripeReady || effectiveApplePaySupported !== true || totalCents === 0) {
@@ -421,13 +422,13 @@ export function PaymentStepWithStripe({
     }
     // Already have a valid cached intent for this exact amount — nothing to do
     if (pendingIntentRef.current?.amountCents === totalCents) return;
-    // Cancel stale intent and fetch a fresh one
+    // Cancel stale cached intent and start a fresh fetch
     const stale = pendingIntentRef.current;
     pendingIntentRef.current = null;
     setApplePayClientSecret(null);
     if (stale) api.payment.cancelIntent(stale.paymentIntentId).catch(() => {});
-    if (pendingIntentFetchingRef.current) return;
-    pendingIntentFetchingRef.current = true;
+
+    let cancelled = false;
     api.payment.createIntent({
       items: items as any[],
       orderType,
@@ -437,6 +438,7 @@ export function PaymentStepWithStripe({
       savePaymentMethod: false,
       useFreeCoffeeReward: useFreeCoffeeReward || undefined,
     }).then((intent) => {
+      if (cancelled) return;
       if (intent.clientSecret && intent.paymentIntentId && intent.amountCents > 0) {
         pendingIntentRef.current = {
           clientSecret: intent.clientSecret,
@@ -445,8 +447,14 @@ export function PaymentStepWithStripe({
         };
         setApplePayClientSecret(intent.clientSecret);
       }
-    }).catch(() => { /* silent — handleApplePay creates fresh on tap if cache is empty */ })
-      .finally(() => { pendingIntentFetchingRef.current = false; });
+    }).catch(() => { /* silent — handleApplePay creates fresh on tap if cache is empty */ });
+
+    return () => {
+      // Mark this run as superseded so the in-flight response is ignored.
+      // The cleanup does NOT cancel the HTTP request (no AbortController) but
+      // the next run's stale-check will cancel the resulting PI on Stripe.
+      cancelled = true;
+    };
   }, [effectiveApplePaySupported, stripeReady, totalCents, selectedClaimedRewardId, useFreeCoffeeReward]);
 
   // Cancel any pre-fetched intent when the payment step unmounts (checkout abandoned or completed)
