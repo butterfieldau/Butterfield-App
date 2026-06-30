@@ -4,7 +4,7 @@ import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import { router, useFocusEffect } from 'expo-router';
 import Reanimated, {
-  useAnimatedStyle, useSharedValue, withSpring, withTiming,
+  useAnimatedStyle, useSharedValue, withTiming,
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -317,12 +317,7 @@ export default function WholesaleCatalog() {
   const pricingCtx = (pricingData?.data ?? null) as PricingContext | null;
   const totalCartQty = cart.reduce((s, e) => s + e.quantity, 0);
 
-  // Floating bar animation — stays up for "View Cart" too
-  const floatY = useSharedValue(100);
-  useEffect(() => {
-    floatY.value = withSpring((hasSelection || justAdded) ? 0 : 100, { damping: 18, stiffness: 200 });
-  }, [hasSelection, justAdded]);
-  const floatStyle = useAnimatedStyle(() => ({ transform: [{ translateY: floatY.value }] }));
+  const showFloatBar = hasSelection || justAdded;
 
   // Tab bar = 46px pill + Math.max(insets.bottom, 12) padding, positioned at bottom:0
   const TAB_BAR_H    = 46 + Math.max(insets.bottom, 12);
