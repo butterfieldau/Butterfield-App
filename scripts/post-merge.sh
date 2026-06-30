@@ -7,6 +7,7 @@ pnpm install --frozen-lockfile
 psql "$DATABASE_URL" -c "ALTER TABLE orders ADD COLUMN IF NOT EXISTS order_number text;" || true
 psql "$DATABASE_URL" -c "ALTER TABLE orders ADD CONSTRAINT orders_order_number_unique UNIQUE (order_number);" 2>/dev/null || true
 psql "$DATABASE_URL" -c "ALTER TABLE products ADD COLUMN IF NOT EXISTS is_pos_only boolean NOT NULL DEFAULT false;" || true
+psql "$DATABASE_URL" -c "ALTER TABLE products ADD COLUMN IF NOT EXISTS build_a_box_surcharge_cents integer NOT NULL DEFAULT 0;" || true
 # drizzle-kit push --force skips destructive-statement warnings. With the
 # interactive prompts pre-satisfied above, this now runs fully unattended.
 pnpm --filter @workspace/db run push-force || true

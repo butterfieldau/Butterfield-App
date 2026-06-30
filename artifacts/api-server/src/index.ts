@@ -14,6 +14,7 @@ import { sql } from "drizzle-orm";
 import { ensureLinklySchemaReady, recoverOrPollTransaction } from "./lib/linklyCloud.js";
 import { ensureLoginHistorySchemaReady } from "./lib/ensureLoginHistorySchemaReady.js";
 import { ensureRosterSchemaReady } from "./lib/ensureRosterSchemaReady.js";
+import { ensureProductsSchemaReady } from "./lib/ensureProductsSchemaReady.js";
 
 // Catch any unhandled rejections so they never crash the process
 process.on('unhandledRejection', (reason: any) => {
@@ -142,6 +143,7 @@ Promise.resolve()
   .then(() => ensureScheduledNotificationSchemaReady())
   .then(() => ensureRegisterSchemaReady())
   .then(() => ensureDefaultCategories())
+  .then(() => ensureProductsSchemaReady())
   .then(() => initStripe())
   .then(() => startScheduledNotificationsService())
   .then(() => startShiftReminderService())
