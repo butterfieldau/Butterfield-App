@@ -10,7 +10,7 @@ import { logger } from "./lib/logger.js";
 import { WebhookHandlers } from "./webhookHandlers.js";
 import { startDailySummaryJob } from "./lib/dailySummaryJob.js";
 import { seedBirthdayCookieReward, ensureRewardsIntegrity } from "./lib/birthdayRewardSeeder.js";
-import { repairProductCategories } from "./lib/repairProductCategories.js";
+import { ensureProductsSchemaReady } from "./lib/ensureProductsSchemaReady.js";
 
 const app: Express = express();
 
@@ -109,11 +109,11 @@ app.use("/api", router);
 // Start background jobs (non-blocking; unref'd so they don't prevent graceful shutdown)
 startDailySummaryJob();
 
+// Ensure all products table columns exist (adds any missing columns from schema migrations)
+void ensureProductsSchemaReady();
+
 // Seed required reward rows idempotently on boot (non-blocking)
 void seedBirthdayCookieReward();
 void ensureRewardsIntegrity();
-
-// Repair any NULL category_id links left by past migrations (idempotent, non-blocking)
-void repairProductCategories();
 
 export default app;
