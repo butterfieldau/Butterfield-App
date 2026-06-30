@@ -1,4 +1,5 @@
 import * as Haptics from 'expo-haptics';
+import { LinearGradient } from 'expo-linear-gradient';
 import React, { useState } from 'react';
 import { ActivityIndicator, FlatList, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Feather } from '@expo/vector-icons';
@@ -6,7 +7,8 @@ import ProductGridCard from './ProductGridCard';
 import styles from './posStyles';
 import { BLUE } from './types';
 
-const CHERRY = '#D20001';
+const GRAD_START = '#40C0F2';
+const GRAD_END   = '#2AA8DC';
 
 type Category = { slug: string; name: string; color?: string | null };
 
@@ -16,28 +18,31 @@ function BuildABoxTile({ onPress }: { onPress: () => void }) {
       onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); onPress(); }}
       style={local.tile}
     >
-      <View style={local.inner}>
-        <View style={local.left}>
-          <Text style={local.eyebrow}>PACK PRICES</Text>
-          <Text style={local.heading}>Build a Box</Text>
-          <Text style={local.sub}>Mix & match to order</Text>
+      <LinearGradient colors={[GRAD_START, GRAD_END]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={local.gradient}>
+        <View style={local.inner}>
+          <View style={local.left}>
+            <Text style={local.eyebrow}>PACK PRICES</Text>
+            <Text style={local.heading}>Build a Box</Text>
+            <Text style={local.sub}>Mix & match to order</Text>
+          </View>
+          <View style={local.iconWrap}>
+            <Feather name="package" size={22} color="#fff" />
+          </View>
         </View>
-        <View style={local.iconWrap}>
-          <Feather name="package" size={22} color="#fff" />
-        </View>
-      </View>
+      </LinearGradient>
     </Pressable>
   );
 }
 
 const local = StyleSheet.create({
   tile: {
-    marginHorizontal: 4, marginTop: 10, marginBottom: 4,
-    backgroundColor: CHERRY, borderRadius: 12,
+    marginHorizontal: 4, marginTop: 8, marginBottom: 8,
+    borderRadius: 12,
     overflow: 'hidden',
-    shadowColor: CHERRY, shadowOpacity: 0.35, shadowRadius: 8, shadowOffset: { width: 0, height: 3 },
+    shadowColor: GRAD_END, shadowOpacity: 0.35, shadowRadius: 8, shadowOffset: { width: 0, height: 3 },
     elevation: 6,
   },
+  gradient: { borderRadius: 12 },
   inner: {
     flexDirection: 'row', alignItems: 'center',
     paddingVertical: 14, paddingHorizontal: 16, gap: 12,
@@ -47,7 +52,7 @@ const local = StyleSheet.create({
   eyebrow: { color: 'rgba(255,255,255,0.75)', fontSize: 9, fontWeight: '700', letterSpacing: 2.5, marginBottom: 3 },
   heading: { color: '#FFFFFF', fontSize: 17, fontWeight: '800', letterSpacing: 0.2 },
   sub:     { color: 'rgba(255,255,255,0.7)', fontSize: 12, fontWeight: '500', marginTop: 2 },
-  iconWrap:{ width: 44, height: 44, borderRadius: 22, backgroundColor: '#A80001', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#8A0001' },
+  iconWrap:{ width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(0,0,0,0.18)', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.3)' },
 });
 
 export default function PosProductBrowser({

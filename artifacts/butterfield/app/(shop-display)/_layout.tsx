@@ -773,13 +773,8 @@ export default function ShopDisplayLayout() {
       {/* ── Sidebar — wide screens only ───────────────────────────── */}
       {isWide && (
         <Animated.View style={[styles.sidebar, { width: sidebarWidthAnim, paddingTop: Math.max(insets.top + 12, 40) }]}>
-          {/* Toggle button — docked to right edge */}
-          <Pressable style={styles.sidebarToggleBtn} onPress={toggleSidebar}>
-            <Feather name={sidebarCollapsed ? 'chevron-right' : 'chevron-left'} size={13} color={WHITE} />
-          </Pressable>
-
-          {/* Brand — full when expanded, mini logo when collapsed */}
-          {!sidebarCollapsed ? (
+          {/* Brand — full logo when expanded, nothing when collapsed */}
+          {!sidebarCollapsed && (
             <View style={styles.sidebarBrand}>
               <Image
                 source={require('@/assets/images/logo-white.png')}
@@ -790,14 +785,6 @@ export default function ShopDisplayLayout() {
                 <Text style={styles.brandBadgeText}>SHOP DISPLAY</Text>
               </View>
               <Text style={styles.brandSub} numberOfLines={1}>{user.name}</Text>
-            </View>
-          ) : (
-            <View style={styles.sidebarCollapsedLogo}>
-              <Image
-                source={require('@/assets/images/logo-white.png')}
-                style={styles.sidebarCollapsedLogoImg}
-                resizeMode="contain"
-              />
             </View>
           )}
 
@@ -838,9 +825,27 @@ export default function ShopDisplayLayout() {
             })}
           </View>
 
-          {!sidebarCollapsed && lastSyncedAt ? (
-            <Text style={styles.sidebarSyncTime}>{formatSyncTime(lastSyncedAt)}</Text>
-          ) : null}
+          {/* Bottom toggle + sync row */}
+          {!sidebarCollapsed ? (
+            <View style={styles.sidebarBottomRow}>
+              {lastSyncedAt ? (
+                <Text style={styles.sidebarSyncTime} numberOfLines={1}>{formatSyncTime(lastSyncedAt)}</Text>
+              ) : <View style={{ flex: 1 }} />}
+              <Pressable
+                onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); toggleSidebar(); }}
+                style={styles.sidebarChevronBtn}
+              >
+                <Feather name="chevron-left" size={15} color={WHITE} />
+              </Pressable>
+            </View>
+          ) : (
+            <Pressable
+              onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); toggleSidebar(); }}
+              style={styles.sidebarChevronCollapsed}
+            >
+              <Feather name="chevron-right" size={15} color={WHITE} />
+            </Pressable>
+          )}
           <Pressable
             onPress={() => {
               if (lockPin) {
@@ -1057,9 +1062,9 @@ const styles = StyleSheet.create({
   brandSub:             { color: 'rgba(255,255,255,0.45)', fontSize: 12, fontWeight: '600' },
   syncTimestamp:        { color: 'rgba(255,255,255,0.35)', fontSize: 11, fontWeight: '500' },
   sidebarSyncBtn:       { width: 28, height: 28, borderRadius: 14, backgroundColor: 'rgba(20,147,255,0.18)', borderWidth: 1, borderColor: 'rgba(20,147,255,0.35)', alignItems: 'center', justifyContent: 'center' },
-  sidebarToggleBtn:     { position: 'absolute' as any, right: -14, top: 60, width: 28, height: 28, borderRadius: 14, backgroundColor: BLUE, borderWidth: 0, alignItems: 'center', justifyContent: 'center', zIndex: 200, shadowColor: '#000', shadowOpacity: 0.35, shadowRadius: 8, shadowOffset: { width: 0, height: 3 }, elevation: 12 },
-  sidebarCollapsedLogo: { alignItems: 'center', paddingVertical: 12, paddingHorizontal: 6, marginBottom: 4, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: 'rgba(255,255,255,0.12)' },
-  sidebarCollapsedLogoImg: { width: 42, height: 13 },
+  sidebarBottomRow:     { flexDirection: 'row', alignItems: 'center', marginHorizontal: 14, marginBottom: 4, gap: 6 },
+  sidebarChevronBtn:    { width: 28, height: 28, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.1)', alignItems: 'center', justifyContent: 'center' },
+  sidebarChevronCollapsed: { alignItems: 'center', justifyContent: 'center', paddingVertical: 10, marginHorizontal: 6, marginBottom: 4 },
   navList:              { flex: 1, paddingHorizontal: 10, gap: 2 },
   navListCollapsed:     { paddingHorizontal: 6 },
   navItem:              { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, paddingVertical: 13, borderRadius: 14 },
@@ -1071,7 +1076,7 @@ const styles = StyleSheet.create({
   navBadge:             { backgroundColor: '#EF4444', borderRadius: 10, minWidth: 20, height: 20, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 5 },
   navBadgeCollapsed:    { position: 'absolute' as any, top: 2, right: 2 },
   navBadgeText:         { color: WHITE, fontSize: 11, fontWeight: '800', lineHeight: 14 },
-  sidebarSyncTime:      { color: MUTED, fontSize: 11, marginHorizontal: 14, marginBottom: 4 },
+  sidebarSyncTime:      { color: MUTED, fontSize: 11, flex: 1 },
   sidebarLogout:        { flexDirection: 'row', alignItems: 'center', gap: 10, margin: 12, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)' },
   sidebarLogoutCollapsed: { justifyContent: 'center', gap: 0 },
   sidebarLogoutText:    { color: MUTED, fontSize: 13, fontWeight: '600' },
