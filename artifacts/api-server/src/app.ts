@@ -10,6 +10,7 @@ import { logger } from "./lib/logger.js";
 import { WebhookHandlers } from "./webhookHandlers.js";
 import { startDailySummaryJob } from "./lib/dailySummaryJob.js";
 import { seedBirthdayCookieReward, ensureRewardsIntegrity } from "./lib/birthdayRewardSeeder.js";
+import { repairProductCategories } from "./lib/repairProductCategories.js";
 
 const app: Express = express();
 
@@ -111,5 +112,8 @@ startDailySummaryJob();
 // Seed required reward rows idempotently on boot (non-blocking)
 void seedBirthdayCookieReward();
 void ensureRewardsIntegrity();
+
+// Repair any NULL category_id links left by past migrations (idempotent, non-blocking)
+void repairProductCategories();
 
 export default app;
