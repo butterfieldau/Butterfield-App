@@ -364,6 +364,9 @@ importers:
       react-native-qrcode-svg:
         specifier: ^6.3.21
         version: 6.3.21(react-native-svg@15.15.3(react-native@0.83.6(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.2.0))(react@19.2.0))(react-native@0.83.6(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.2.0))(react@19.2.0)
+      react-native-star-io10:
+        specifier: 1.12.1
+        version: 1.12.1(react-native@0.83.6(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.2.0))(react@19.2.0)
     devDependencies:
       '@babel/core':
         specifier: ^7.25.2
@@ -6412,6 +6415,12 @@ packages:
 
   react-native-screens@4.23.0:
     resolution: {integrity: sha512-XhO3aK0UeLpBn4kLecd+J+EDeRRJlI/Ro9Fze06vo1q163VeYtzfU9QS09/VyDFMWR1qxDC1iazCArTPSFFiPw==}
+    peerDependencies:
+      react: '*'
+      react-native: '*'
+
+  react-native-star-io10@1.12.1:
+    resolution: {integrity: sha512-gdHMFV003bnyI6GgWD+2AmdtUKZBrz2QVzjd68xgsf3QEg0jaeW8hldKxEuEcEC5547abzXaHXSrU0cMuIlEAQ==}
     peerDependencies:
       react: '*'
       react-native: '*'
@@ -14826,6 +14835,11 @@ snapshots:
       react-freeze: 1.0.4(react@19.2.0)
       react-native: 0.83.6(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.2.0)
       warn-once: 0.1.1
+
+  react-native-star-io10@1.12.1(react-native@0.83.6(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.2.0))(react@19.2.0):
+    dependencies:
+      react: 19.2.0
+      react-native: 0.83.6(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.2.0)
 
   react-native-svg@15.15.3(react-native@0.83.6(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.2.0))(react@19.2.0):
     dependencies:

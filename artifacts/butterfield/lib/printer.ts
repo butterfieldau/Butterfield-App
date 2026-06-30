@@ -1,4 +1,5 @@
 import { api, type ApiOrder, type ApiOrderItem } from './api';
+import { starOpenDrawer, starDirectSend } from './starSdk';
 
 export interface PrintJob {
   orderId: string;
@@ -78,44 +79,56 @@ export function orderToPrintJob(order: PrintableOrder, printerBrand?: 'epson' | 
 }
 
 /**
- * Sends a test receipt directly from the device to the printer via TCP.
+ * Sends a test receipt directly from the device to the printer.
  *
  * The cloud API server cannot reach a local-network printer (192.168.0.x is
  * unreachable from the internet). Instead:
  *   1. We ask the server to build the ESC/POS bytes (it knows nothing about TCP).
- *   2. We open the TCP socket ourselves — the device IS on the same LAN.
+ *   2. We deliver the bytes ourselves — the device IS on the same LAN.
  *
- * react-native-tcp-socket is a native module that requires a custom development
- * build or production build (EAS Build). It is NOT available in Expo Go.
- * We use a dynamic import so Expo Go does not crash at module-load time — the
- * error is surfaced only when the user actually taps Send Test Print.
+ * Star printers: delivered via react-native-star-io10 StarXpand SDK (iOS-native).
+ * Epson printers: delivered via react-native-tcp-socket (raw TCP port 9100).
+ *
+ * Dynamic imports ensure neither native module is evaluated at screen load time —
+ * only when the user actually triggers a print action.
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type BytesFetcher = (job?: any) => Promise<{ data: { bytes: string } }>;
 
 
 export async function sendTestPrint(printerIp: string, printerPort = 9100, printerBrand: 'epson' | 'star' = 'epson', fetchBytes: BytesFetcher = api.director.printerBytes): Promise<void> {
-  return sendPrinterBytes(printerIp, printerPort, await fetchBytes({ printerBrand }));
+  return sendPrinterBytes(printerIp, printerPort, await fetchBytes({ printerBrand }), printerBrand);
 }
 
 export async function sendReceiptPrint(job: PrintJob, printerIp: string, printerPort = 9100, fetchBytes: BytesFetcher = api.director.printerBytes): Promise<void> {
-  await sendPrinterBytes(printerIp, printerPort, await fetchBytes(job));
+  await sendPrinterBytes(printerIp, printerPort, await fetchBytes(job), job.printerBrand);
 }
 
 export async function sendTaxInvoicePrint(job: PrintJob, printerIp: string, printerPort = 9100, fetchBytes: BytesFetcher = api.director.printerBytes): Promise<void> {
-  return sendPrinterBytes(printerIp, printerPort, await fetchBytes({ ...job, jobType: 'tax_invoice' }));
+  return sendPrinterBytes(printerIp, printerPort, await fetchBytes({ ...job, jobType: 'tax_invoice' }), job.printerBrand);
 }
 
 export async function sendRegisterSummaryPrint(job: RegisterSummaryPrintJob, printerIp: string, printerPort = 9100, fetchBytes: BytesFetcher = api.director.printerBytes): Promise<void> {
-  return sendPrinterBytes(printerIp, printerPort, await fetchBytes({ ...job, jobType: 'register_summary' }));
+  return sendPrinterBytes(printerIp, printerPort, await fetchBytes({ ...job, jobType: 'register_summary' }), job.printerBrand);
 }
 
 export async function sendLinklyReceiptPrint(job: LinklyReceiptPrintJob, printerIp: string, printerPort = 9100, fetchBytes: BytesFetcher = api.director.printerBytes): Promise<void> {
-  return sendPrinterBytes(printerIp, printerPort, await fetchBytes({ ...job, jobType: 'linkly_receipt' }));
+  return sendPrinterBytes(printerIp, printerPort, await fetchBytes({ ...job, jobType: 'linkly_receipt' }), job.printerBrand);
 }
 
+/**
+ * Open the cash drawer.
+ *
+ * Star MCP30: routed through the StarXpand SDK — opens the connection, fires
+ * the drawer pulse via CommandBuilder (reliable, no raw TCP teardown race).
+ *
+ * Epson: fetches drawer bytes from the API server and sends via raw TCP.
+ */
 export async function sendOpenDrawer(printerIp: string, printerPort = 9100, fetchBytes: BytesFetcher = api.director.printerBytes, drawerPin: 0 | 1 = 0, printerBrand?: 'epson' | 'star'): Promise<void> {
-  return sendPrinterBytes(printerIp, printerPort, await fetchBytes({ jobType: 'open_drawer', drawerPin, printerBrand }));
+  if (printerBrand === 'star') {
+    return starOpenDrawer(printerIp, drawerPin);
+  }
+  return sendPrinterBytes(printerIp, printerPort, await fetchBytes({ jobType: 'open_drawer', drawerPin, printerBrand }), printerBrand);
 }
 
 function base64ToUint8Array(base64: string): Uint8Array {
@@ -127,13 +140,35 @@ function base64ToUint8Array(base64: string): Uint8Array {
   return bytes;
 }
 
-async function sendPrinterBytes(printerIp: string, printerPort: number, result: { data: { bytes: string } }): Promise<void> {
-  const port = isNaN(printerPort) || printerPort <= 0 ? 9100 : printerPort;
+/**
+ * Deliver ESC/POS bytes to the printer using the appropriate transport.
+ *
+ * Star printers use the StarXpand SDK (react-native-star-io10) — avoids the
+ * iOS 26 local-network permission gate and TCP teardown timing issues.
+ *
+ * Epson printers use a raw TCP socket (react-native-tcp-socket).
+ */
+async function sendPrinterBytes(printerIp: string, printerPort: number, result: { data: { bytes: string } }, printerBrand?: 'epson' | 'star'): Promise<void> {
   const bytes = base64ToUint8Array(result.data.bytes);
 
-  // Dynamic import — deferred until print time, never evaluated at screen load.
-  // Production builds include react-native-tcp-socket so Shop Display devices
-  // can reach the receipt printer on the shop LAN.
+  if (printerBrand === 'star') {
+    return starDirectSend(printerIp, bytes);
+  }
+
+  return sendViaTcp(printerIp, printerPort, bytes);
+}
+
+/**
+ * Raw TCP delivery for Epson printers (port 9100).
+ *
+ * react-native-tcp-socket is a native module that requires a custom development
+ * build or production build (EAS Build). It is NOT available in Expo Go.
+ * We use a dynamic import so Expo Go does not crash at module-load time — the
+ * error is surfaced only when the user actually taps Send Test Print.
+ */
+async function sendViaTcp(printerIp: string, printerPort: number, bytes: Uint8Array): Promise<void> {
+  const port = isNaN(printerPort) || printerPort <= 0 ? 9100 : printerPort;
+
   let TcpSocket: Awaited<typeof import('react-native-tcp-socket')>['default'];
   try {
     const mod = await import('react-native-tcp-socket');
