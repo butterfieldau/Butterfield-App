@@ -32,7 +32,7 @@ function BuildABoxTile({ onPress }: { onPress: () => void }) {
 
 const local = StyleSheet.create({
   tile: {
-    marginHorizontal: 12, marginTop: 10, marginBottom: 4,
+    marginHorizontal: 4, marginTop: 10, marginBottom: 4,
     backgroundColor: CHERRY, borderRadius: 12,
     overflow: 'hidden',
     shadowColor: CHERRY, shadowOpacity: 0.35, shadowRadius: 8, shadowOffset: { width: 0, height: 3 },
