@@ -148,6 +148,35 @@ router.post('/', async (req, res) => {
     return res.status(400).json({ error: 'Pay at pickup orders should not include a Stripe payment intent.' });
   }
 
+  // ── Build a Box slot-count validation ─────────────────────────────────────
+  for (const item of items) {
+    const pid = (item.productId ?? '') as string;
+    const boxMatch = /^build-a-box-(\d+)$/.exec(pid);
+    if (!boxMatch) continue;
+
+    const declaredSize = parseInt(boxMatch[1], 10);
+    const selectedOptions = Array.isArray(item.selectedOptions) ? item.selectedOptions : [];
+    const boxContents = (selectedOptions as Array<{ groupId?: string; optionName?: string }>)
+      .filter(o => o.groupId === 'box-contents');
+
+    let filledSlots = 0;
+    for (const opt of boxContents) {
+      // optionName format: "N× Cookie Name" (× is U+00D7) or plain "N× ..."
+      const qtyMatch = /^(\d+)[×x]/.exec(opt.optionName ?? '');
+      if (qtyMatch) {
+        filledSlots += parseInt(qtyMatch[1], 10);
+      } else {
+        filledSlots += 1;
+      }
+    }
+
+    if (filledSlots !== declaredSize) {
+      return res.status(400).json({
+        error: `Box contents don't match the selected box size (expected ${declaredSize} cookies, got ${filledSlots}).`,
+      });
+    }
+  }
+
   let resolvedStoreId: string | null = storeId ? String(storeId) : null;
   if (resolvedOrderType === 'pickup') {
     if (!resolvedStoreId) {
