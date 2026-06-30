@@ -125,7 +125,7 @@ function WholesaleProductTile({ product, cartEntry, onAdd, pricingCtx, tileWidth
       <Text style={styles.tileName} numberOfLines={2}>{product.name}</Text>
 
       {/* Price + qty breaks */}
-      <View style={{ alignItems: 'center', gap: 3 }}>
+      <View style={{ alignItems: 'center', gap: 3, alignSelf: 'stretch' }}>
         <Text style={styles.tilePrice}>${(priceInfo.unitCents / 100).toFixed(2)} ea</Text>
         {productBreaks.length > 0 && (
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 4 }}>
@@ -380,7 +380,7 @@ const styles = StyleSheet.create({
   },
   tileInCart:  { borderColor: BLUE, backgroundColor: '#EBF5FF' },
 
-  imageWrap:   { width: '100%', aspectRatio: 1, position: 'relative' },
+  imageWrap:   { alignSelf: 'stretch', aspectRatio: 1, position: 'relative' },
   image:       { width: '100%', height: '100%', borderRadius: 10 },
 
   inCartBadge:     { position: 'absolute', top: 5, left: 5, backgroundColor: '#22C55E', borderRadius: 9, minWidth: 20, height: 20, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4, borderWidth: 2, borderColor: CARD },
@@ -388,16 +388,16 @@ const styles = StyleSheet.create({
   priceBadge:      { position: 'absolute', top: 5, right: 5, backgroundColor: BLUE, borderRadius: 7, paddingHorizontal: 5, paddingVertical: 2 },
   priceBadgeText:  { color: '#fff', fontSize: 10, fontWeight: '700' },
 
-  tileName:  { fontSize: 12, fontWeight: '600', color: TEXT, textAlign: 'center', lineHeight: 16, height: 32, width: '100%' },
+  tileName:  { fontSize: 12, fontWeight: '600', color: TEXT, textAlign: 'center', lineHeight: 16, height: 32, alignSelf: 'stretch' },
   tilePrice: { fontSize: 14, fontWeight: '700', color: BLUE },
   breakTag:  { fontSize: 10, fontWeight: '600', paddingHorizontal: 5, paddingVertical: 2, borderRadius: 5, backgroundColor: `${BLUE}12` },
 
-  stepperRow: { flexDirection: 'row', alignItems: 'center', gap: 6, width: '100%' },
-  stepBtn:    { width: 34, height: 34, borderRadius: 17, backgroundColor: BLUE, alignItems: 'center', justifyContent: 'center' },
-  stepBtnText:{ fontSize: 20, color: '#fff', fontWeight: '600', lineHeight: 24 },
-  stepQty:    { flex: 1, height: 34, textAlign: 'center', fontSize: 14, fontWeight: '700', color: TEXT, borderRadius: 8, borderWidth: 1, borderColor: BORDER, backgroundColor: BG },
+  stepperRow: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'stretch' },
+  stepBtn:    { width: 30, height: 30, borderRadius: 15, backgroundColor: BLUE, alignItems: 'center', justifyContent: 'center' },
+  stepBtnText:{ fontSize: 18, color: '#fff', fontWeight: '600', lineHeight: 22 },
+  stepQty:    { flex: 1, height: 30, textAlign: 'center', fontSize: 13, fontWeight: '700', color: TEXT, borderRadius: 8, borderWidth: 1, borderColor: BORDER, backgroundColor: BG },
 
-  addBtn:     { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, height: 36, borderRadius: 10, backgroundColor: BLUE, width: '100%' },
+  addBtn:     { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, height: 34, borderRadius: 10, backgroundColor: BLUE, alignSelf: 'stretch' },
   addBtnAdded:{ backgroundColor: '#22C55E' },
   addBtnText: { color: '#fff', fontSize: 13, fontWeight: '700' },
 });
