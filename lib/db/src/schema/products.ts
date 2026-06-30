@@ -75,6 +75,7 @@ export const productsTable = pgTable("products", {
 
   // Build a Box
   buildABoxSurchargeCents: integer("build_a_box_surcharge_cents").notNull().default(0),
+  buildABoxExcluded:       boolean("build_a_box_excluded").notNull().default(false),
 
   // Stripe
   stripeProductId:      text("stripe_product_id"),

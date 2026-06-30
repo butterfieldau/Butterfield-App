@@ -67,7 +67,9 @@ export default function BuildABoxFlow({ onClose, onConfirm }: Props) {
   const cookies = useMemo(
     () => (productsData?.data ?? []).filter(p => {
       const cat = ((p as any).category ?? p.metadata?.category ?? '').toLowerCase();
-      return cat === 'cookies' && ((p as any).isAvailable !== false);
+      return cat === 'cookies'
+        && ((p as any).isAvailable !== false)
+        && !((p as any).buildABoxExcluded);
     }),
     [productsData],
   );

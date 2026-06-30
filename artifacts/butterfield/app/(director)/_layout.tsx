@@ -153,6 +153,7 @@ export default function DirectorLayout() {
           <Tabs.Screen name="settings-scheduled-notifications" options={{ href: null }} />
           <Tabs.Screen name="settings-managers" options={{ href: null }} />
           <Tabs.Screen name="settings-directors" options={{ href: null }} />
+          <Tabs.Screen name="build-a-box"      options={{ href: mgrHref('products') }} />
 
           {/* Always hidden for staff/manager */}
           <Tabs.Screen name="linkly"              options={{ href: null }} />
@@ -225,6 +226,7 @@ export default function DirectorLayout() {
         <Tabs.Screen name="settings-delivery" options={{ href: null }} />
         <Tabs.Screen name="settings-managers" options={{ href: null }} />
         <Tabs.Screen name="settings-directors" options={{ href: null }} />
+        <Tabs.Screen name="build-a-box"      options={{ href: null }} />
         <Tabs.Screen name="stores"           options={{ href: null }} />
         <Tabs.Screen name="more-category"                  options={{ href: null }} />
         <Tabs.Screen name="_moreCategories"               options={{ href: null }} />

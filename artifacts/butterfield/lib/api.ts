@@ -571,6 +571,9 @@ export const api = {
       request<{ data: { slots: WholesaleDeliverySlot[]; cutoffReminderEnabled: boolean } }>('/director/wholesale-delivery-settings'),
     updateWholesaleDeliverySettings: (data: { slots: WholesaleDeliverySlot[]; cutoffReminderEnabled: boolean }) =>
       request<{ success: boolean }>('/director/wholesale-delivery-settings', { method: 'PATCH', body: JSON.stringify(data) }),
+    buildABoxConfig:     () => request<{ data: { sizes: BuildABoxSize[]; products: BuildABoxProductConfig[] } }>('/director/build-a-box/config'),
+    updateBuildABoxConfig: (data: { sizes?: BuildABoxSize[]; products?: BuildABoxProductConfig[] }) =>
+      request<{ success: boolean }>('/director/build-a-box/config', { method: 'PATCH', body: JSON.stringify(data) }),
     products:            () => request<{ data: DirectorCatalogProduct[] }>('/director/products'),
     createProduct:       (data: DirectorProductInput) => request<{ data: DirectorCatalogProduct }>('/director/products', { method: 'POST', body: JSON.stringify(data) }),
     updateProduct:       (id: string, updates: Partial<DirectorProductInput>) => request<{ data: DirectorCatalogProduct }>(`/director/products/${id}`, { method: 'PATCH', body: JSON.stringify(updates) }),
@@ -1379,6 +1382,19 @@ export interface ApiUser {
   role: string;
   name: string;
   phone?: string;
+}
+
+export interface BuildABoxSize {
+  size: number;
+  label: string;
+  priceCents: number;
+}
+
+export interface BuildABoxProductConfig {
+  id: string;
+  name: string;
+  excluded: boolean;
+  premiumCents: number;
 }
 
 export interface ApiProduct {

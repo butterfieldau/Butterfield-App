@@ -189,6 +189,7 @@ function mapProduct(p: typeof productsTable.$inferSelect) {
     productUrl:          absolutizeUrl((p as any).productUrl ?? null),
     galleryUrls:         galleryUrls.map((url) => absolutizeUrl(url)).filter((url): url is string => !!url),
     buildABoxSurchargeCents: p.buildABoxSurchargeCents ?? 0,
+    buildABoxExcluded:       p.buildABoxExcluded ?? false,
     createdAt:           p.createdAt,
   };
 }

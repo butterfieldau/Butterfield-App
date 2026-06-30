@@ -124,9 +124,10 @@ const ALL_CATEGORIES: Category[] = [
       {
         label: 'Catalogue & Menu',
         items: [
-          { icon: 'package', label: 'Products',   sub: 'Browse, search and manage the product library',    color: BLUE, perm: 'products', onPress: () => router.push('/(director)/products' as any) },
-          { icon: 'grid',    label: 'Categories', sub: 'Organise menu categories and category order',      color: BLUE, perm: 'products', onPress: () => router.push({ pathname: '/(director)/products', params: { tab: 'catalog' } } as any) },
-          { icon: 'sliders', label: 'Options',    sub: 'Milk types, extras, sizes and product options',   color: BLUE, perm: 'products', onPress: () => router.push({ pathname: '/(director)/products', params: { tab: 'options' } } as any) },
+          { icon: 'package', label: 'Products',     sub: 'Browse, search and manage the product library',    color: BLUE, perm: 'products', onPress: () => router.push('/(director)/products' as any) },
+          { icon: 'grid',    label: 'Categories',   sub: 'Organise menu categories and category order',      color: BLUE, perm: 'products', onPress: () => router.push({ pathname: '/(director)/products', params: { tab: 'catalog' } } as any) },
+          { icon: 'sliders', label: 'Options',      sub: 'Milk types, extras, sizes and product options',   color: BLUE, perm: 'products', onPress: () => router.push({ pathname: '/(director)/products', params: { tab: 'options' } } as any) },
+          { icon: 'package', label: 'Build a Box',  sub: 'Box sizes, prices, exclusions & premium add-ons', color: BLUE, perm: 'products', onPress: () => router.push('/(director)/build-a-box' as any) },
         ],
       },
       {

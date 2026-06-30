@@ -23,6 +23,10 @@ export async function ensureProductsSchemaReady(): Promise<void> {
       ALTER TABLE products
         ADD COLUMN IF NOT EXISTS build_a_box_surcharge_cents integer NOT NULL DEFAULT 0
     `);
+    await db.execute(sql`
+      ALTER TABLE products
+        ADD COLUMN IF NOT EXISTS build_a_box_excluded boolean NOT NULL DEFAULT false
+    `);
     columnEnsured = true;
   } catch (err) {
     logger.error({ err }, 'ensureProductsSchemaReady: failed (non-fatal)');

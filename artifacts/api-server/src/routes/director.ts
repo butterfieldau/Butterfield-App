@@ -15,7 +15,7 @@ import {
   DEFAULT_DELIVERY_SLOTS,
   type WholesaleDeliverySlot,
 } from '../lib/wholesaleCutoffReminder.js';
-import { eq, desc, count, sum, gte, lte, lt, isNull, isNotNull, and, sql, inArray } from 'drizzle-orm';
+import { eq, desc, count, sum, gte, lte, lt, isNull, isNotNull, and, sql, inArray, asc } from 'drizzle-orm';
 import { requireRole } from '../middlewares/auth.js';
 import { requireManagerRoutePermission } from '../middlewares/managerPermission.js';
 import type { ManagerPermission } from '@workspace/db';
@@ -97,8 +97,9 @@ function resolveDirectorPermission(method: string, path: string): ManagerPermiss
   if (path === '/leave' || path.startsWith('/leave/')) return 'always';
   if (path === '/timesheets' || path.startsWith('/timesheets/')) return 'self_only';
 
-  // Products
+  // Products + Build a Box config
   if (path === '/products' || path.startsWith('/products/')) return 'products';
+  if (path === '/build-a-box/config') return 'products';
 
   // Settings (store/printer) — geofencing is stripped server-side for managers
   if (path === '/settings' || path.startsWith('/printer/')) return 'settings';
@@ -4685,6 +4686,107 @@ router.get('/reports/refund-operators', async (req, res) => {
     data: Array.from(operatorMap.values()).sort((a, b) => (b.refunds + b.voids) - (a.refunds + a.voids)),
     refunds: parsedRefunds,
   });
+});
+
+// ── Build a Box config ────────────────────────────────────────────────────────
+
+const BUILD_A_BOX_SIZES_KEY = 'build_a_box_sizes';
+const DEFAULT_BOX_SIZES = [
+  { size: 3,  label: '3-Pack',  priceCents: 2100 },
+  { size: 6,  label: '6-Pack',  priceCents: 3900 },
+  { size: 12, label: '12-Pack', priceCents: 7500 },
+];
+
+router.get('/build-a-box/config', async (req, res) => {
+  try {
+    const [sizesResult, cookieProducts] = await Promise.all([
+      db.execute(sql`SELECT value FROM store_settings WHERE key = ${BUILD_A_BOX_SIZES_KEY} LIMIT 1`),
+      db.select({
+        id: productsTable.id,
+        name: productsTable.name,
+        buildABoxExcluded: productsTable.buildABoxExcluded,
+        buildABoxSurchargeCents: productsTable.buildABoxSurchargeCents,
+      })
+        .from(productsTable)
+        .where(and(eq(productsTable.isActive, true), eq(productsTable.category, 'cookies')))
+        .orderBy(asc(productsTable.sortOrder), asc(productsTable.name)),
+    ]);
+
+    const sizeRow = ((sizesResult as any).rows ?? [])[0];
+    let sizes = DEFAULT_BOX_SIZES;
+    if (sizeRow?.value) {
+      try { sizes = JSON.parse(sizeRow.value); } catch { /**/ }
+    }
+
+    return res.json({
+      data: {
+        sizes,
+        products: cookieProducts.map(p => ({
+          id: p.id,
+          name: p.name,
+          excluded: p.buildABoxExcluded ?? false,
+          premiumCents: p.buildABoxSurchargeCents ?? 0,
+        })),
+      },
+    });
+  } catch (err) {
+    req.log.error({ err }, 'build-a-box config GET failed');
+    return res.status(500).json({ error: 'Failed to fetch Build a Box config' });
+  }
+});
+
+router.patch('/build-a-box/config', async (req, res) => {
+  try {
+    const { sizes, products: productUpdates } = req.body as {
+      sizes?: { size: number; label: string; priceCents: number }[];
+      products?: { id: string; excluded: boolean; premiumCents: number }[];
+    };
+
+    if (sizes !== undefined) {
+      if (!Array.isArray(sizes)) {
+        return res.status(400).json({ error: 'sizes must be an array' });
+      }
+      for (const s of sizes) {
+        if (typeof s.size !== 'number' || typeof s.label !== 'string' || typeof s.priceCents !== 'number') {
+          return res.status(400).json({ error: 'Each size must have numeric size, string label, and numeric priceCents' });
+        }
+      }
+      const value = JSON.stringify(sizes);
+      const existing = await db.execute(sql`SELECT id FROM store_settings WHERE key = ${BUILD_A_BOX_SIZES_KEY} LIMIT 1`);
+      const existingRow = ((existing as any).rows ?? [])[0];
+      if (existingRow) {
+        await db.execute(sql`UPDATE store_settings SET value = ${value}, updated_at = NOW() WHERE key = ${BUILD_A_BOX_SIZES_KEY}`);
+      } else {
+        await db.execute(sql`INSERT INTO store_settings (key, value, updated_by) VALUES (${BUILD_A_BOX_SIZES_KEY}, ${value}, ${req.user!.id})`);
+      }
+    }
+
+    if (Array.isArray(productUpdates) && productUpdates.length > 0) {
+      for (const p of productUpdates) {
+        if (!p.id) continue;
+        await db.update(productsTable)
+          .set({
+            buildABoxExcluded: Boolean(p.excluded),
+            buildABoxSurchargeCents: Number(p.premiumCents) || 0,
+            updatedAt: new Date(),
+          })
+          .where(eq(productsTable.id, p.id));
+      }
+    }
+
+    recordAuditLog({
+      actor: req.user,
+      action: 'director.build_a_box_config_update',
+      entityType: 'settings',
+      entityId: BUILD_A_BOX_SIZES_KEY,
+      after: { hasSizes: sizes !== undefined, productCount: productUpdates?.length ?? 0 },
+    });
+
+    return res.json({ success: true });
+  } catch (err) {
+    req.log.error({ err }, 'build-a-box config PATCH failed');
+    return res.status(500).json({ error: 'Failed to update Build a Box config' });
+  }
 });
 
 // ── Login History ─────────────────────────────────────────────────────────────
