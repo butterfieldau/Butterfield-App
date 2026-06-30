@@ -318,9 +318,15 @@ export default function WholesaleCatalog() {
   const totalCartQty = cart.reduce((s, e) => s + e.quantity, 0);
 
   // Floating bar animation — stays up for "View Cart" too
-  const floatY = useSharedValue(100);
+  const floatY = useSharedValue(200);
   useEffect(() => {
-    floatY.value = withSpring((hasSelection || justAdded) ? 0 : 100, { damping: 18, stiffness: 200 });
+    if (hasSelection || justAdded) {
+      // Spring in — no bounce, just smooth deceleration
+      floatY.value = withSpring(0, { damping: 28, stiffness: 220, mass: 0.8 });
+    } else {
+      // Slide out cleanly — no spring bounce
+      floatY.value = withTiming(200, { duration: 260 });
+    }
   }, [hasSelection, justAdded]);
   const floatStyle = useAnimatedStyle(() => ({ transform: [{ translateY: floatY.value }] }));
 
