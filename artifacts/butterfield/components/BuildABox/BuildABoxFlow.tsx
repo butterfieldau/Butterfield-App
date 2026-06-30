@@ -36,9 +36,10 @@ export interface BuildABoxResult {
 interface Props {
   onClose:   () => void;
   onConfirm: (result: BuildABoxResult) => void;
+  numColumns?: number;
 }
 
-export default function BuildABoxFlow({ onClose, onConfirm }: Props) {
+export default function BuildABoxFlow({ onClose, onConfirm, numColumns }: Props) {
   const insets = useSafeAreaInsets();
 
   const [step, setStep]               = useState<0 | 1>(0);
@@ -176,6 +177,7 @@ export default function BuildABoxFlow({ onClose, onConfirm }: Props) {
           boxSize={boxSize}
           onIncrement={handleIncrement}
           onDecrement={handleDecrement}
+          numColumns={numColumns}
         />
       )}
 

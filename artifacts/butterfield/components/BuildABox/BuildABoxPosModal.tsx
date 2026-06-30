@@ -54,7 +54,7 @@ export default function BuildABoxPosModal({ visible, onClose, onAdd }: Props) {
       presentationStyle="pageSheet"
       onRequestClose={onClose}
     >
-      <BuildABoxFlow onClose={onClose} onConfirm={handleConfirm} />
+      <BuildABoxFlow onClose={onClose} onConfirm={handleConfirm} numColumns={4} />
     </Modal>
   );
 }

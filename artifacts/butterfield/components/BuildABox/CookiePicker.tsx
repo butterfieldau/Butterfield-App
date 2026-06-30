@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   Pressable, ScrollView, StyleSheet, Text, View,
 } from 'react-native';
@@ -25,9 +25,10 @@ interface CookieTileProps {
   qty: number;
   onIncrement: () => void;
   onDecrement: () => void;
+  tileWidth: number;
 }
 
-function CookieTile({ product, qty, onIncrement, onDecrement }: CookieTileProps) {
+function CookieTile({ product, qty, onIncrement, onDecrement, tileWidth }: CookieTileProps) {
   const surchargeCents = (product as any).buildABoxSurchargeCents ?? 0;
   const imageUri = product.images?.[0] ?? PRODUCT_IMAGES[product.name];
   const scaleAnim = useSharedValue(1);
@@ -42,7 +43,7 @@ function CookieTile({ product, qty, onIncrement, onDecrement }: CookieTileProps)
   };
 
   return (
-    <Reanimated.View style={[s.tile, animStyle, qty > 0 && s.tileSelected]}>
+    <Reanimated.View style={[s.tile, { width: tileWidth }, animStyle, qty > 0 && s.tileSelected]}>
       <View style={s.imageWrap}>
         {imageUri ? (
           <Image source={{ uri: imageUri }} style={s.image} contentFit="cover" transition={200} />
@@ -87,11 +88,19 @@ interface Props {
   boxSize: number;
   onIncrement: (product: ApiProduct) => void;
   onDecrement: (productId: string) => void;
+  numColumns?: number;
 }
 
 export default function CookiePicker({
-  cookies, selections, boxSize, onIncrement, onDecrement,
+  cookies, selections, boxSize, onIncrement, onDecrement, numColumns = 2,
 }: Props) {
+  const [gridWidth, setGridWidth] = useState(0);
+
+  // Compute tile width in pixels so it works correctly for any numColumns value
+  const tileWidth = gridWidth > 0
+    ? Math.floor((gridWidth - TILE_PAD * 2 - TILE_GAP * (numColumns - 1)) / numColumns)
+    : 0;
+
   return (
     <View style={s.root}>
       <View style={s.subHeader}>
@@ -101,16 +110,18 @@ export default function CookiePicker({
       <ScrollView
         style={s.scroll}
         contentContainerStyle={s.grid}
+        onLayout={e => setGridWidth(e.nativeEvent.layout.width)}
         showsVerticalScrollIndicator={false}
         bounces={true}
       >
-        {cookies.map(product => (
+        {tileWidth > 0 && cookies.map(product => (
           <CookieTile
             key={product.id}
             product={product}
             qty={selections.get(product.id)?.quantity ?? 0}
             onIncrement={() => onIncrement(product)}
             onDecrement={() => onDecrement(product.id)}
+            tileWidth={tileWidth}
           />
         ))}
       </ScrollView>
@@ -139,7 +150,6 @@ const s = StyleSheet.create({
   },
 
   tile:         {
-    width: '47.5%',
     backgroundColor: '#fff',
     borderRadius: 14, padding: 10,
     borderWidth: 1.5, borderColor: BORDER,
