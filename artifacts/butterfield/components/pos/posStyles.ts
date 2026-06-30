@@ -377,7 +377,7 @@ const styles = StyleSheet.create({
   settingsAddBtn:        { backgroundColor: BLUE, borderRadius: 10, paddingHorizontal: 18, paddingVertical: 10 },
   settingsAddBtnText:    { fontSize: 14, fontWeight: '700', color: WHITE },
 
-  cpOverlay:    { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'center', alignItems: 'center' },
+  cpOverlay:    { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'center', alignItems: 'center', zIndex: 9999 },
   cpSheet:      { backgroundColor: WHITE, borderRadius: 20, padding: 20, width: 280, shadowColor: '#000', shadowOpacity: 0.25, shadowRadius: 20, shadowOffset: { width: 0, height: 8 }, elevation: 10 },
   cpTitle:      { fontSize: 14, color: MID, marginBottom: 16, textAlign: 'center' },
   cpGrid:       { flexDirection: 'row', flexWrap: 'wrap', gap: 10, justifyContent: 'center', marginBottom: 16 },
@@ -490,7 +490,7 @@ const styles = StyleSheet.create({
   catActionCancel:      { marginTop: 12, alignItems: 'center', paddingVertical: 10, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: BORDER },
   catActionCancelText:  { fontSize: 15, fontWeight: '600', color: MUTED },
 
-  reorderOverlay:       { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' },
+  reorderOverlay:       { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end', zIndex: 9999 },
   reorderSheet:         { backgroundColor: WHITE, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingBottom: 32, shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 20, shadowOffset: { width: 0, height: -4 }, elevation: 12 },
   reorderHeader:        { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: BORDER },
   reorderTitle:         { fontSize: 17, fontWeight: '700', color: DARK, marginBottom: 2 },
