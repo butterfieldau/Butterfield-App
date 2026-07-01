@@ -535,6 +535,15 @@ router.get('/categories', async (_req, res) => {
 });
 
 // ── Products (permission-gated) ───────────────────────────────────────────
+// Rewrite private storage URLs to public ones so Expo Image can load without auth headers
+function toPublicStorageUrl(url: string | null | undefined, base: string): string | null {
+  if (!url) return null;
+  const match = url.match(/\/api\/storage\/objects\/(.+)/);
+  if (match) return `${base}/api/storage/public-objects/${match[1]}`;
+  if (/^https?:\/\//i.test(url)) return url;
+  return `${base}${url.startsWith('/') ? '' : '/'}${url}`;
+}
+
 router.get('/products', async (req, res) => {
   await ensureShopDisplaySchemaReady();
   const permissions = await getDisplayPermissions(req.user!.id);
@@ -542,10 +551,13 @@ router.get('/products', async (req, res) => {
     return res.status(403).json({ error: 'Products access not enabled for this display.' });
   }
   const products = await db.select().from(productsTable).orderBy((productsTable as any).name);
+  const base = getPublicBaseUrl(req) ?? '';
   const data = products.map((p: any) => {
     let galleryUrls: string[] = [];
     try { galleryUrls = JSON.parse(p.galleryUrls ?? '[]'); } catch {}
-    const images = [p.imageUrl, ...galleryUrls].filter((u): u is string => !!u);
+    const images = [p.imageUrl, ...galleryUrls]
+      .map((u: string | null) => toPublicStorageUrl(u, base))
+      .filter((u): u is string => !!u);
     return { ...p, images };
   });
   return res.json({ data });
@@ -601,9 +613,16 @@ router.get('/products/:id', async (req, res) => {
         options: allOptions.filter(o => o.groupId === g.id),
       }));
 
+    const base = getPublicBaseUrl(req) ?? '';
+    const galleryUrls = parseArr((product as any).galleryUrls);
+    const images = [((product as any).imageUrl as string | null), ...galleryUrls]
+      .map(u => toPublicStorageUrl(u, base))
+      .filter((u): u is string => !!u);
+
     return res.json({
       data: {
         ...product,
+        images,
         variants,
         hasVariants: variants.length > 0,
         optionGroups,
