@@ -477,9 +477,13 @@ router.get('/stats/top-products', async (req, res) => {
                  COALESCE(NULLIF(item->>'productName',''), item->>'name', 'Unknown')) AS product_key,
         COALESCE(NULLIF(item->>'productName',''), item->>'name', 'Unknown')           AS name,
         SUM(COALESCE(NULLIF(item->>'quantity','')::int, 1))                           AS units,
-        SUM(COALESCE(NULLIF(item->>'totalPriceCents','')::bigint,
-                     NULLIF(item->>'unitPriceCents','')::bigint *
-                       COALESCE(NULLIF(item->>'quantity','')::int, 1), 0))            AS revenue_cents
+        SUM(COALESCE(
+          NULLIF(item->>'lineCents','')::bigint,
+          NULLIF(item->>'totalCents','')::bigint,
+          NULLIF(item->>'totalPriceCents','')::bigint,
+          NULLIF(item->>'unitPriceCents','')::bigint *
+            COALESCE(NULLIF(item->>'quantity','')::int, 1),
+          0))                                                                          AS revenue_cents
       FROM orders,
         jsonb_array_elements(items) AS item
       -- ::timestamptz ensures Postgres treats the JS Date parameter as UTC, not session-local time.
@@ -3181,13 +3185,18 @@ router.get('/reports/products', async (req, res) => {
         'Unknown Item'
       ).replace(/\s+/g, ' ').trim();
       const qty = Math.max(1, Math.floor(Number(item?.quantity ?? 1) || 1));
-      const price = Math.max(0, Number(item?.unitPriceCents ?? item?.priceCents ?? item?.price ?? 0));
+      // Prefer server-enriched line totals (lineCents / totalPriceCents) which are
+      // already quantity-multiplied. Fall back to per-unit fields for older orders.
+      const lineTotal = Number(item?.lineCents ?? item?.totalCents ?? item?.totalPriceCents ?? 0);
+      const revenueCents = lineTotal > 0
+        ? lineTotal
+        : Math.max(0, Number(item?.unitPriceCents ?? item?.priceCents ?? item?.price ?? 0)) * qty;
       const existing = productMap.get(name);
       if (existing) {
         existing.units += qty;
-        existing.revenueCents += price * qty;
+        existing.revenueCents += revenueCents;
       } else {
-        productMap.set(name, { name, units: qty, revenueCents: price * qty });
+        productMap.set(name, { name, units: qty, revenueCents });
       }
     }
   }

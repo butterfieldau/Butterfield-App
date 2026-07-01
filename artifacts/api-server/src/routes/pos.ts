@@ -968,24 +968,34 @@ const handleCreatePosOrder: import('express').RequestHandler = async (req, res) 
 
   const items = rawItems.map((item: any) => {
     const product = productMap.get(item.productId);
+    // Build a Box virtual products (build-a-box-N) have no catalog entry.
+    // Trust the POS-computed unitPriceCents — surcharges are already baked in
+    // by BuildABoxPosModal with priceAdjustmentCents: 0 on every option.
+    const isBuildABox = /^build-a-box-\d+$/.test(String(item.productId ?? ''));
     // Trust the variant price the client sends (it came from the server's own product data)
-    // but cap option adjustments and recompute line total to prevent tampering
-    const basePriceCents = Number(item.variantPriceCents ?? product?.salePriceCents ?? product?.priceCents ?? 0);
-    const optionDelta = Array.isArray(item.selectedOptions)
+    // but cap option adjustments and recompute line total to prevent tampering.
+    const basePriceCents = isBuildABox
+      ? Number(item.unitPriceCents ?? 0)
+      : Number(item.variantPriceCents ?? product?.salePriceCents ?? product?.priceCents ?? 0);
+    // Build a Box options already have priceAdjustmentCents: 0 (surcharge baked into base).
+    const optionDelta = (!isBuildABox && Array.isArray(item.selectedOptions))
       ? item.selectedOptions.reduce((s: number, o: any) => s + (Number(o.priceAdjustmentCents) || 0), 0)
       : 0;
     const unitPriceCents = Math.max(0, basePriceCents + optionDelta);
     const quantity = Math.max(1, Math.floor(Number(item.quantity) || 1));
+    const lineCents = unitPriceCents * quantity;
     return {
       productId: item.productId ?? '',
-      productName: product?.name ?? item.productName ?? 'Item',
+      productName: isBuildABox ? (item.productName ?? 'Cookie Box') : (product?.name ?? item.productName ?? 'Item'),
       variantId: item.variantId ?? null,
       variantName: item.variantName ?? null,
       selectedOptions: item.selectedOptions ?? [],
       category: product?.category ?? item.category ?? '',
       quantity,
       unitPriceCents,
-      totalPriceCents: unitPriceCents * quantity,
+      unitCents: unitPriceCents,
+      lineCents,
+      totalPriceCents: lineCents,
       notes: item.notes ?? '',
     };
   });
@@ -1024,10 +1034,13 @@ const handleCreatePosOrder: import('express').RequestHandler = async (req, res) 
     if (overrideCents !== null && overrideCents >= 0) {
       const originalPriceCents = items[idx].unitPriceCents;
       const effectiveCents = Math.max(0, overrideCents);
+      const effectiveLineCents = effectiveCents * items[idx].quantity;
       (items as any[])[idx] = {
         ...items[idx],
         unitPriceCents: effectiveCents,
-        totalPriceCents: effectiveCents * items[idx].quantity,
+        unitCents: effectiveCents,
+        lineCents: effectiveLineCents,
+        totalPriceCents: effectiveLineCents,
         originalPriceCents,
         priceOverrideCents: effectiveCents,
       };

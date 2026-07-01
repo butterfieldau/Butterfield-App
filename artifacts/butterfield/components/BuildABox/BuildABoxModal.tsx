@@ -34,7 +34,7 @@ export default function BuildABoxModal({ visible, onClose }: Props) {
       productName:    `Cookie Box ${selectedBox.label}`,
       variantId:      undefined,
       variantName:    undefined,
-      basePriceCents: selectedBox.priceCents + surchargeTotal,
+      basePriceCents: selectedBox.priceCents,
       selectedOptions,
       quantity:       1,
       imageUrl:       undefined,

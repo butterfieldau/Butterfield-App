@@ -144,6 +144,16 @@ router.post('/', async (req, res) => {
     return res.status(400).json({ error: err.message ?? 'Could not compute order total' });
   }
 
+  // Enrich stored item JSONB with server-computed unitCents + lineCents.
+  // This ensures analytics queries on the items column always find reliable price
+  // data regardless of what the client sent — critical for Build a Box items whose
+  // virtual productId has no catalog entry to fall back on.
+  items = items.map((item: any, idx: number) => {
+    const priced = computed.itemizedCents[idx];
+    if (!priced) return item;
+    return { ...item, unitCents: priced.unitCents, lineCents: priced.lineCents };
+  });
+
   if (paymentMethod === 'pay_at_pickup' && stripePaymentIntentId) {
     return res.status(400).json({ error: 'Pay at pickup orders should not include a Stripe payment intent.' });
   }
