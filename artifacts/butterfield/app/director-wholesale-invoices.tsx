@@ -38,8 +38,7 @@ function deriveStatus(order: any): 'paid' | 'overdue' | 'unpaid' {
   if (
     order.isPaid ||
     String(order.stripePaymentStatus ?? '').toLowerCase() === 'paid' ||
-    String(order.invoiceStatus ?? '').toLowerCase() === 'paid' ||
-    order.status === 'delivered'
+    String(order.invoiceStatus ?? '').toLowerCase() === 'paid'
   ) return 'paid';
 
   const invoiceStatus = String(order.invoiceStatus ?? '').toLowerCase();
