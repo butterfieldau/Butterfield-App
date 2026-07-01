@@ -30,6 +30,7 @@ import { getPreselectedOptions, setPreselectedOptions } from '@/lib/preselectedO
 import { getSuggestedProducts, getProductCategory, getProductPriceCents } from '@/lib/productPairings';
 import { api, getProductShareUrl, type ApiOrderItemOption, type ApiProduct, type DirectorOption, type DirectorOptionGroup } from '@/lib/api';
 import type { SelectedCartOption } from '@/types';
+import CustomerFloatingCartBar, { FLOAT_BAR_EXTRA_PAD } from '@/components/customer/CustomerFloatingCartBar';
 
 const { width: W, height: H } = Dimensions.get('window');
 const HERO_H = Math.round(H * 0.46);
@@ -500,7 +501,7 @@ export default function ProductDetailScreen() {
           <ScrollView
             showsVerticalScrollIndicator={false}
             style={s.scroll}
-            contentContainerStyle={{ paddingBottom: 18 }}
+            contentContainerStyle={{ paddingBottom: 18 + FLOAT_BAR_EXTRA_PAD }}
           >
             {/* Name */}
             <Text style={[s.name, { fontWeight: '700' }]}>{product.name}</Text>
@@ -745,6 +746,9 @@ export default function ProductDetailScreen() {
           )}
         </Reanimated.View>
       )}
+
+      {/* ── Floating cart bar ────────────────────────────────────────────── */}
+      <CustomerFloatingCartBar />
     </View>
   );
 }
