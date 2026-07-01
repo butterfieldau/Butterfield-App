@@ -32,6 +32,7 @@ export async function ensureWholesalePaymentSchemaReady() {
           `ALTER TABLE wholesale_orders ADD COLUMN IF NOT EXISTS invoice_updated_at timestamp`,
           `ALTER TABLE wholesale_orders ADD COLUMN IF NOT EXISTS payment_reference text`,
           `ALTER TABLE wholesale_orders ADD COLUMN IF NOT EXISTS order_number text`,
+          `ALTER TABLE wholesale_orders ADD COLUMN IF NOT EXISTS receipt_email_sent_at timestamp`,
           `CREATE UNIQUE INDEX IF NOT EXISTS wholesale_orders_order_number_uidx ON wholesale_orders (order_number) WHERE order_number IS NOT NULL`,
         ]);
       } catch (error) {
