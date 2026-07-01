@@ -35,7 +35,7 @@ export function usePosQueries({
   const { data: productsData, isLoading: loadingProducts, refetch: refetchProducts } = useQuery({
     queryKey: ['pos-products'],
     queryFn: async () => {
-      const res = await api.products.list();
+      const res = await api.shopDisplay.products();
       if ((res as any)?.data?.length) { await savePosProductsCache((res as any).data); await prefetchProductImages((res as any).data); }
       return res;
     },

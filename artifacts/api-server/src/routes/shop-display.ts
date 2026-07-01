@@ -6,7 +6,11 @@ import {
   customerProfilesTable,
   db,
   ordersTable,
+  productCategoriesTable,
+  productOptionGroupsTable,
+  productOptionsTable,
   productsTable,
+  productVariantsTable,
   staffProfilesTable,
   staffShiftsTable,
   staffStoreAssignmentsTable,
@@ -16,7 +20,7 @@ import {
   usersTable,
   wholesaleOrdersTable,
 } from '@workspace/db';
-import { and, count, desc, eq, gte, ilike, inArray, isNull, lte, or, sql, sum } from 'drizzle-orm';
+import { and, asc, count, desc, eq, gte, ilike, inArray, isNull, lte, or, sql, sum } from 'drizzle-orm';
 import { requireRole } from '../middlewares/auth.js';
 import { notifyUser } from '../lib/notificationService.js';
 import { applyCoffeeStamps, recordLoyaltyPoints, reverseCoffeeStamps } from '../lib/loyaltyIdentity.js';
@@ -539,6 +543,70 @@ router.get('/products', async (req, res) => {
   }
   const products = await db.select().from(productsTable).orderBy((productsTable as any).name);
   return res.json({ data: products });
+});
+
+// ── GET /shop-display/products/:id — full detail (variants + option groups) for POS add-to-cart
+// Does NOT filter out isPosOnly — POS-only products must be orderable here.
+router.get('/products/:id', async (req, res) => {
+  await ensureShopDisplaySchemaReady();
+  try {
+    const [product] = await db.select().from(productsTable).where(eq(productsTable.id, req.params.id));
+    if (!product || !product.isActive) return res.status(404).json({ error: 'Product not found' });
+
+    function parseArr(val: string | null | undefined): string[] {
+      if (!val) return [];
+      try { return JSON.parse(val); } catch { return []; }
+    }
+
+    const [variants, allGroups, allOptions, allCategories] = await Promise.all([
+      db.select().from(productVariantsTable)
+        .where(and(eq(productVariantsTable.productId, product.id), eq(productVariantsTable.isActive, true)))
+        .orderBy(asc(productVariantsTable.sortOrder)),
+      db.select().from(productOptionGroupsTable)
+        .where(eq(productOptionGroupsTable.isActive, true))
+        .orderBy(asc(productOptionGroupsTable.sortOrder)),
+      db.select().from(productOptionsTable)
+        .where(eq(productOptionsTable.isActive, true))
+        .orderBy(asc(productOptionsTable.sortOrder)),
+      db.select({ id: productCategoriesTable.id, slug: productCategoriesTable.slug })
+        .from(productCategoriesTable),
+    ]);
+
+    const catSlugById = new Map<string, string>(allCategories.map(c => [c.id, c.slug]));
+    const { id: productId, categoryId, category } = product;
+
+    const optionGroups = allGroups
+      .filter(g => {
+        const catIds     = parseArr(g.appliesToCategoryIds);
+        const prodIds    = parseArr(g.appliesToProductIds);
+        const excludeIds = parseArr(g.excludeProductIds);
+        if (excludeIds.includes(productId)) return false;
+        if (prodIds.includes(productId)) return true;
+        if (categoryId && catIds.includes(categoryId)) return true;
+        if (category && catIds.some(id => id === `cat_${category}`)) return true;
+        if (category && catIds.some(id => catSlugById.get(id) === category)) return true;
+        return false;
+      })
+      .map(g => ({
+        ...g,
+        appliesToCategoryIds: parseArr(g.appliesToCategoryIds),
+        appliesToProductIds:  parseArr(g.appliesToProductIds),
+        excludeProductIds:    parseArr(g.excludeProductIds),
+        options: allOptions.filter(o => o.groupId === g.id),
+      }));
+
+    return res.json({
+      data: {
+        ...product,
+        variants,
+        hasVariants: variants.length > 0,
+        optionGroups,
+      },
+    });
+  } catch (err) {
+    req.log?.error({ err }, 'shop-display product detail error');
+    return res.status(500).json({ error: 'Failed to load product detail' });
+  }
 });
 
 // ── Customer lookup (permission-gated) ────────────────────────────────────
