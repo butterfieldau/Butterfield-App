@@ -12,7 +12,7 @@ export default function ProductGridCard({
 }) {
   void isWide;
   const basePriceCents = product.salePriceCents ?? product.priceCents ?? 0;
-  const imgUrl = product.images?.[0] ?? null;
+  const imgUrl = product.images?.[0] ?? product.imageUrl ?? null;
 
   return (
     <TouchableOpacity

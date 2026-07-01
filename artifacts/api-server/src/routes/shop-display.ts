@@ -542,7 +542,13 @@ router.get('/products', async (req, res) => {
     return res.status(403).json({ error: 'Products access not enabled for this display.' });
   }
   const products = await db.select().from(productsTable).orderBy((productsTable as any).name);
-  return res.json({ data: products });
+  const data = products.map((p: any) => {
+    let galleryUrls: string[] = [];
+    try { galleryUrls = JSON.parse(p.galleryUrls ?? '[]'); } catch {}
+    const images = [p.imageUrl, ...galleryUrls].filter((u): u is string => !!u);
+    return { ...p, images };
+  });
+  return res.json({ data });
 });
 
 // ── GET /shop-display/products/:id — full detail (variants + option groups) for POS add-to-cart
