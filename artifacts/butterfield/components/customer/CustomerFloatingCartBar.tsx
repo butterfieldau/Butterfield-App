@@ -2,62 +2,53 @@ import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { usePathname, useRouter } from 'expo-router';
 import React, { memo, useEffect, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 import Reanimated, {
-  useAnimatedProps,
   useAnimatedStyle,
   useSharedValue,
   withSpring,
   withTiming,
 } from 'react-native-reanimated';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useCart } from '@/context/CartContext';
 import { useAuth } from '@/context/AuthContext';
 import { LoginRequiredModal } from '@/components/LoginRequiredModal';
 
 const AnimatedView = Reanimated.createAnimatedComponent(View);
 
+const CIRCLE = 46;
+const INNER  = 34;
+
 function CustomerFloatingCartBar() {
-  const { totalItems, totalPriceCents } = useCart();
-  const { user } = useAuth();
-  const router = useRouter();
-  const insets = useSafeAreaInsets();
-  const pathname = usePathname();
+  const { totalItems } = useCart();
+  const { user }       = useAuth();
+  const router         = useRouter();
+  const pathname       = usePathname();
   const [showLoginModal, setShowLoginModal] = useState(false);
 
   const onCartScreen = pathname === '/customer-cart';
+  const visible = totalItems > 0 && !onCartScreen;
 
-  // Tab bar = 46px pill + Math.max(insets.bottom, 12) padding — same formula as FloatingCustomerTabBar
-  const TAB_BAR_H = 46 + Math.max(insets.bottom, 12);
-
-  // Start fully off-screen (200px) so it is never visible when cart is empty
-  const translateY = useSharedValue(200);
+  const scale      = useSharedValue(0);
+  const translateY = useSharedValue(30);
 
   useEffect(() => {
-    if (totalItems > 0 && !onCartScreen) {
-      translateY.value = withSpring(0, { damping: 28, stiffness: 220, mass: 0.8 });
+    if (visible) {
+      scale.value      = withSpring(1,  { damping: 28, stiffness: 220, mass: 0.8 });
+      translateY.value = withSpring(0,  { damping: 28, stiffness: 220, mass: 0.8 });
     } else {
-      translateY.value = withTiming(200, { duration: 260 });
+      scale.value      = withTiming(0,  { duration: 260 });
+      translateY.value = withTiming(30, { duration: 260 });
     }
-  }, [totalItems, onCartScreen]);
+  }, [visible]);
 
-  const animatedStyle = useAnimatedStyle(() => ({
-    transform: [{ translateY: translateY.value }],
+  const animStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }, { translateY: translateY.value }],
+    pointerEvents: scale.value < 0.05 ? 'none' : 'box-none',
   }));
 
-  const animatedProps = useAnimatedProps(() => ({
-    pointerEvents: translateY.value > 50 ? ('none' as const) : ('box-none' as const),
-  }));
-
-  const priceStr = `$${(totalPriceCents / 100).toFixed(2)}`;
-  const itemLabel = totalItems === 1 ? '1 item in cart' : `${totalItems} items in cart`;
-
-  const handleViewCart = () => {
+  const handlePress = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    if (!user) {
-      setShowLoginModal(true);
-      return;
-    }
+    if (!user) { setShowLoginModal(true); return; }
     router.push('/customer-cart' as any);
   };
 
@@ -68,21 +59,12 @@ function CustomerFloatingCartBar() {
         redirectTo="/(customer)/index"
         onCancel={() => setShowLoginModal(false)}
       />
-      <AnimatedView
-        animatedProps={animatedProps}
-        style={[
-          styles.floatBar,
-          { bottom: TAB_BAR_H + 25 },
-          animatedStyle,
-        ]}
-      >
-        <View style={{ flex: 1 }}>
-          <Text style={styles.floatTitle}>{itemLabel}</Text>
-          <Text style={styles.floatSub}>{priceStr} AUD</Text>
-        </View>
-        <Pressable onPress={handleViewCart} style={styles.floatBtn}>
-          <Feather name="shopping-cart" size={16} color="#fff" />
-          <Text style={styles.floatBtnText}>View Cart</Text>
+      <AnimatedView style={[styles.outer, animStyle]}>
+        <Pressable onPress={handlePress} style={styles.pressable}>
+          <View style={styles.inner}>
+            <Feather name="shopping-cart" size={20} color="#fff" />
+          </View>
+          {totalItems >= 2 && <View style={styles.badge} />}
         </Pressable>
       </AnimatedView>
     </>
@@ -92,34 +74,43 @@ function CustomerFloatingCartBar() {
 export default memo(CustomerFloatingCartBar);
 
 const styles = StyleSheet.create({
-  floatBar: {
-    position: 'absolute',
-    left: 16,
-    right: 16,
-    height: 64,
-    borderRadius: 18,
+  outer: {
+    width:           CIRCLE,
+    height:          CIRCLE,
+    borderRadius:    CIRCLE / 2,
     backgroundColor: '#0A3D8F',
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 18,
-    gap: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.22,
-    shadowRadius: 14,
-    elevation: 10,
-    zIndex: 50,
+    justifyContent:  'center',
+    alignItems:      'center',
+    shadowColor:     '#000',
+    shadowOffset:    { width: 0, height: 4 },
+    shadowOpacity:   0.22,
+    shadowRadius:    10,
+    elevation:       10,
   },
-  floatTitle: { fontSize: 14, fontWeight: '700', color: '#fff' },
-  floatSub: { fontSize: 12, color: 'rgba(255,255,255,0.7)', fontWeight: '500' },
-  floatBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 7,
+  pressable: {
+    width:          '100%',
+    height:         '100%',
+    borderRadius:   CIRCLE / 2,
+    justifyContent: 'center',
+    alignItems:     'center',
+  },
+  inner: {
+    width:           INNER,
+    height:          INNER,
+    borderRadius:    INNER / 2,
     backgroundColor: '#1493FF',
-    paddingHorizontal: 18,
-    paddingVertical: 10,
-    borderRadius: 12,
+    justifyContent:  'center',
+    alignItems:      'center',
   },
-  floatBtnText: { color: '#fff', fontSize: 14, fontWeight: '700' },
+  badge: {
+    position:        'absolute',
+    top:             3,
+    right:           3,
+    width:           10,
+    height:          10,
+    borderRadius:    5,
+    backgroundColor: '#D20001',
+    borderWidth:     1.5,
+    borderColor:     '#0A3D8F',
+  },
 });

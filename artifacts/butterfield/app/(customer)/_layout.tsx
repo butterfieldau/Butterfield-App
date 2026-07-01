@@ -1,10 +1,11 @@
 import * as Haptics from 'expo-haptics';
-import { Redirect, Tabs, useRouter } from 'expo-router';
-import React, { useState } from 'react';
+import { Redirect, Tabs, usePathname, useRouter } from 'expo-router';
+import React, { useEffect, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
-import Reanimated, { useAnimatedStyle, withSpring } from 'react-native-reanimated';
+import Reanimated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '@/context/AuthContext';
+import { useCart } from '@/context/CartContext';
 import { useColors } from '@/hooks/useColors';
 import { LoginRequiredModal } from '@/components/LoginRequiredModal';
 import { getHomeRouteForRole } from '@/lib/roleRoutes';
@@ -23,15 +24,34 @@ const CUSTOMER_TABS = {
 
 const VISIBLE_ROUTES = ['index', 'menu', 'loyalty', 'profile'] as const;
 
+// Half of (circle-width + gap) — keeps the combined row visually centred when circle appears
+const PILL_SHIFT = 28;
+
 function FloatingCustomerTabBar({ state, navigation }: any) {
-  const insets = useSafeAreaInsets();
+  const insets   = useSafeAreaInsets();
+  const { totalItems } = useCart();
+  const pathname = usePathname();
+
+  const onCartScreen  = pathname === '/customer-cart';
+  const cartVisible   = totalItems > 0 && !onCartScreen;
+
+  const pillShift = useSharedValue(0);
+
+  useEffect(() => {
+    pillShift.value = cartVisible
+      ? withSpring(-PILL_SHIFT, { damping: 28, stiffness: 220, mass: 0.8 })
+      : withSpring(0,           { damping: 28, stiffness: 220, mass: 0.8 });
+  }, [cartVisible]);
 
   const visibleRoutes = state.routes.filter((r: any) =>
     (VISIBLE_ROUTES as readonly string[]).includes(r.name),
   );
 
-  const barAnimStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: withSpring(navScale.value, { damping: 20, stiffness: 180, mass: 0.8 }) }],
+  const pillAnimStyle = useAnimatedStyle(() => ({
+    transform: [
+      { scale:      withSpring(navScale.value, { damping: 20, stiffness: 180, mass: 0.8 }) },
+      { translateX: pillShift.value },
+    ],
   }));
 
   const makeOnPress = (route: any, focused: boolean) => () => {
@@ -48,25 +68,29 @@ function FloatingCustomerTabBar({ state, navigation }: any) {
       pointerEvents="box-none"
       style={[styles.wrap, { paddingBottom: Math.max(insets.bottom, 12) }]}
     >
-      <Reanimated.View style={[styles.barRow, barAnimStyle]}>
-        <GlassPill>
-          {visibleRoutes.map((route: any) => {
-            const routeIndex = state.routes.findIndex((r: any) => r.key === route.key);
-            const focused    = state.index === routeIndex;
-            const cfg        = (CUSTOMER_TABS as any)[route.name] ?? { icon: 'circle', title: route.name };
+      <View style={styles.barRow}>
+        <Reanimated.View style={pillAnimStyle}>
+          <GlassPill>
+            {visibleRoutes.map((route: any) => {
+              const routeIndex = state.routes.findIndex((r: any) => r.key === route.key);
+              const focused    = state.index === routeIndex;
+              const cfg        = (CUSTOMER_TABS as any)[route.name] ?? { icon: 'circle', title: route.name };
 
-            return (
-              <AnimatedTabItem
-                key={route.key}
-                focused={focused}
-                onPress={makeOnPress(route, focused)}
-                cfg={cfg}
-                activeColor={BLUE}
-              />
-            );
-          })}
-        </GlassPill>
-      </Reanimated.View>
+              return (
+                <AnimatedTabItem
+                  key={route.key}
+                  focused={focused}
+                  onPress={makeOnPress(route, focused)}
+                  cfg={cfg}
+                  activeColor={BLUE}
+                />
+              );
+            })}
+          </GlassPill>
+        </Reanimated.View>
+
+        <CustomerFloatingCartBar />
+      </View>
     </View>
   );
 }
@@ -108,8 +132,6 @@ function ClassicCustomerTabs() {
         redirectTo={loginTarget ?? undefined}
         onCancel={() => setLoginTarget(null)}
       />
-
-      <CustomerFloatingCartBar />
     </>
   );
 }
@@ -134,5 +156,6 @@ const styles = StyleSheet.create({
   barRow: {
     flexDirection: 'row',
     alignItems:    'center',
+    gap:           10,
   },
 });
