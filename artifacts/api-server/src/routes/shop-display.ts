@@ -535,13 +535,81 @@ router.get('/categories', async (_req, res) => {
 });
 
 // ── Products (permission-gated) ───────────────────────────────────────────
-// Rewrite private storage URLs to public ones so Expo Image can load without auth headers
+
+// Rewrite private storage URLs to public absolute ones so Expo Image can load without auth headers.
+// `base` should come from getPublicBaseUrl(req) which checks env vars first, then request host —
+// guaranteeing a non-empty base whenever possible.
 function toPublicStorageUrl(url: string | null | undefined, base: string): string | null {
   if (!url) return null;
-  const match = url.match(/\/api\/storage\/objects\/(.+)/);
-  if (match) return `${base}/api/storage/public-objects/${match[1]}`;
-  if (/^https?:\/\//i.test(url)) return url;
-  return `${base}${url.startsWith('/') ? '' : '/'}${url}`;
+  // Already an absolute URL — re-absolutize our own storage URLs to current domain
+  if (/^https?:\/\//i.test(url)) {
+    const storageMatch = url.match(/(\/api\/storage\/(?:objects|public-objects)\/.+)/);
+    if (storageMatch) {
+      const publicPath = storageMatch[1].replace('/api/storage/objects/', '/api/storage/public-objects/');
+      return base ? `${base}${publicPath}` : publicPath;
+    }
+    return url;
+  }
+  // Relative private storage path → convert to public + absolutize
+  const privateMatch = url.match(/\/api\/storage\/objects\/(.+)/);
+  if (privateMatch) {
+    return base ? `${base}/api/storage/public-objects/${privateMatch[1]}` : `/api/storage/public-objects/${privateMatch[1]}`;
+  }
+  // Other relative paths
+  return base ? `${base}${url.startsWith('/') ? '' : '/'}${url}` : url;
+}
+
+// Sydney-time helpers for orderability checks — mirrors isProductOrderableNow in products.ts
+const SYDNEY_DAY_LABELS_SD = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] as const;
+
+function getSydneyNowSD(): Date {
+  const now = new Date();
+  try {
+    const parts = new Intl.DateTimeFormat('en-AU', {
+      timeZone: 'Australia/Sydney',
+      year: 'numeric', month: 'numeric', day: 'numeric',
+      hour: 'numeric', minute: 'numeric', second: 'numeric', hour12: false,
+    }).formatToParts(now);
+    const get = (type: string) => parseInt(parts.find((p) => p.type === type)?.value ?? '0', 10);
+    const hour = get('hour');
+    return new Date(get('year'), get('month') - 1, get('day'), hour === 24 ? 0 : hour, get('minute'), get('second'));
+  } catch { return now; }
+}
+
+function parseTimeMinutesSD(value: string): number | null {
+  const match = value.trim().match(/^(\d{1,2}):(\d{2})$/);
+  if (!match) return null;
+  const h = parseInt(match[1], 10), m = parseInt(match[2], 10);
+  if (h < 0 || h > 23 || m < 0 || m > 59) return null;
+  return h * 60 + m;
+}
+
+function isWithinTimeWindowSD(availableTimes: string | null | undefined, now: Date): boolean {
+  if (!availableTimes?.trim()) return true;
+  const cur = now.getHours() * 60 + now.getMinutes();
+  const windows = availableTimes.split(',').map((w) => w.trim()).filter(Boolean);
+  if (!windows.length) return true;
+  return windows.some((w) => {
+    const [s, e] = w.split('-').map((p) => p.trim());
+    const start = parseTimeMinutesSD(s ?? ''), end = parseTimeMinutesSD(e ?? '');
+    if (start == null || end == null) return true;
+    return end < start ? (cur >= start || cur <= end) : (cur >= start && cur <= end);
+  });
+}
+
+function parseArrSD(val: string | null | undefined): string[] {
+  if (!val) return [];
+  try { const r = JSON.parse(val); return Array.isArray(r) ? r : []; } catch { return []; }
+}
+
+function isPosOrderableNow(p: any, now: Date): boolean {
+  if (!p.isActive || !p.isAvailable || p.isSoldOut || p.isComingSoon) return false;
+  const availableDays = parseArrSD(p.availableDays).map((d: string) => d.trim()).filter(Boolean);
+  if (availableDays.length > 0) {
+    const today = SYDNEY_DAY_LABELS_SD[now.getDay()];
+    if (!availableDays.includes(today)) return false;
+  }
+  return isWithinTimeWindowSD(p.availableTimes, now);
 }
 
 router.get('/products', async (req, res) => {
@@ -550,15 +618,32 @@ router.get('/products', async (req, res) => {
   if (!permissions.includes('products')) {
     return res.status(403).json({ error: 'Products access not enabled for this display.' });
   }
-  const products = await db.select().from(productsTable).orderBy((productsTable as any).name);
+  // SQL-level filter: active, available, not sold-out, not coming-soon, not staff-only.
+  // isPosOnly is NOT filtered out — POS-exclusive items must appear.
+  const products = await db.select().from(productsTable)
+    .where(and(
+      eq(productsTable.isActive, true),
+      eq(productsTable.isAvailable, true),
+      eq(productsTable.isSoldOut, false),
+      eq(productsTable.isComingSoon, false),
+      eq(productsTable.isStaffOnly, false),
+    ))
+    .orderBy((productsTable as any).name);
+
+  // Post-filter: apply time-window and available-days checks (mirrors isProductOrderableNow)
+  const now = getSydneyNowSD();
+  const orderable = products.filter((p) => isPosOrderableNow(p, now));
+
+  // getPublicBaseUrl(req) checks env vars first then request host — never returns a domain-less path
   const base = getPublicBaseUrl(req) ?? '';
-  const data = products.map((p: any) => {
+  const data = orderable.map((p: any) => {
     let galleryUrls: string[] = [];
     try { galleryUrls = JSON.parse(p.galleryUrls ?? '[]'); } catch {}
     const images = [p.imageUrl, ...galleryUrls]
       .map((u: string | null) => toPublicStorageUrl(u, base))
       .filter((u): u is string => !!u);
-    return { ...p, images };
+    // Normalize imageUrl to the absolutized/public value so client fallback is safe
+    return { ...p, imageUrl: images[0] ?? null, images };
   });
   return res.json({ data });
 });
@@ -613,10 +698,10 @@ router.get('/products/:id', async (req, res) => {
         options: allOptions.filter(o => o.groupId === g.id),
       }));
 
-    const base = getPublicBaseUrl(req) ?? '';
+    const detailBase = getPublicBaseUrl(req) ?? '';
     const galleryUrls = parseArr((product as any).galleryUrls);
     const images = [((product as any).imageUrl as string | null), ...galleryUrls]
-      .map(u => toPublicStorageUrl(u, base))
+      .map(u => toPublicStorageUrl(u, detailBase))
       .filter((u): u is string => !!u);
 
     return res.json({
