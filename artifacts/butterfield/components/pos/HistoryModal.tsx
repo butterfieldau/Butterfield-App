@@ -182,7 +182,8 @@ export default function HistoryModal({
         orderId: order.id, customerName: order.customerName ?? 'Customer', type: 'pickup',
         items: order.items.map(i => {
           const pi = i as typeof i & { selectedOptions?: Array<{ optionName?: string | null; textValue?: string | null }>; notes?: string | null };
-          return { name: i.productName, quantity: i.quantity, unitPriceCents: i.unitPriceCents, variantName: i.variantName ?? undefined, options: (pi.selectedOptions ?? []).map((o: any) => o.optionName ?? o.textValue ?? '').filter(Boolean) as string[], notes: pi.notes?.trim() || undefined };
+          const unitPriceCents = i.unitPriceCents ?? (pi as any).unitCents ?? (pi as any).lineCents ?? (pi as any).basePriceCents ?? 0;
+          return { name: i.productName, quantity: i.quantity, unitPriceCents, variantName: i.variantName ?? undefined, options: (pi.selectedOptions ?? []).map((o: any) => o.optionName ?? o.textValue ?? '').filter(Boolean) as string[], notes: pi.notes?.trim() || undefined };
         }),
         totalCents: order.totalCents, discountCents: order.discountCents, surchargeCents: order.surchargeCents,
         notes: order.notes?.trim() || undefined, printerBrand: (store.printerBrand ?? 'epson') as 'epson' | 'star', paymentMethod: order.paymentMethod,
@@ -405,7 +406,7 @@ export default function HistoryModal({
                             <Text style={styles.historyLineName}>{li.productName}{li.variantName ? ` (${li.variantName})` : ''}</Text>
                             {(li as any).notes ? <Text style={styles.historyLineNote}>{(li as any).notes}</Text> : null}
                           </View>
-                          <Text style={styles.historyLinePrice}>{fmtCents(((li as any).unitPriceCents ?? (li as any).unitCents ?? (li as any).totalPriceCents ?? (li as any).lineCents ?? 0) * li.quantity)}</Text>
+                          <Text style={styles.historyLinePrice}>{fmtCents(((li as any).unitPriceCents ?? (li as any).unitCents ?? (li as any).totalPriceCents ?? (li as any).lineCents ?? (li as any).basePriceCents ?? 0) * li.quantity)}</Text>
                         </View>
                       ))}
                       {item.notes && <Text style={styles.historyOrderNote}>Note: {item.notes}</Text>}

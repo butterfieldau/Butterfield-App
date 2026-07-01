@@ -1494,6 +1494,26 @@ router.post('/orders/sync', async (req, res, next) => {
   return handleCreatePosOrder(req, res, next);
 });
 
+// Normalize raw DB order items so older box orders (which only stored
+// basePriceCents) surface correct prices and product names in history / reprint.
+function normalizeHistoryItems(items: any[]): any[] {
+  return items.map(item => {
+    const isBuildABox = /^build-a-box-\d+$/.test(String(item.productId ?? ''));
+    const unitPriceCents = Number(
+      item.unitPriceCents ?? item.unitCents ?? item.totalPriceCents ?? item.lineCents ?? item.basePriceCents ?? 0
+    );
+    const quantity = Math.max(1, Number(item.quantity) || 1);
+    return {
+      ...item,
+      productName: item.productName ?? (isBuildABox ? 'Cookie Box' : (item.name ?? 'Item')),
+      unitPriceCents,
+      unitCents: unitPriceCents,
+      totalPriceCents: unitPriceCents * quantity,
+      lineCents: unitPriceCents * quantity,
+    };
+  });
+}
+
 // ── GET /pos/orders — today's POS orders, cursor-paginated ──────────────────
 // Query params:
 //   cursor  — composite cursor "<createdAt ISO>|<id>" from previous page's nextCursor
@@ -1591,7 +1611,9 @@ router.get('/orders', async (req, res) => {
         totalCents: Number(r.total_cents),
         status: r.status,
         paymentMethod: r.payment_method ?? 'eftpos',
-        items: Array.isArray(r.items) ? r.items : (typeof r.items === 'string' ? JSON.parse(r.items) : []),
+        items: normalizeHistoryItems(
+          Array.isArray(r.items) ? r.items : (typeof r.items === 'string' ? JSON.parse(r.items) : [])
+        ),
         notes: r.notes,
         tipCents: Number(r.tip_cents ?? 0),
         surchargeCents: Number(r.surcharge_cents ?? 0),
