@@ -271,8 +271,8 @@ function OrderDetailModal({
               </Pressable>
             )}
 
-            {/* Pay invoice (if unpaid) */}
-            {inv && inv.status !== 'paid' && (
+            {/* Pay invoice — only for genuinely payable orders */}
+            {inv && isInvoicePayable(order) && (
               <Pressable onPress={() => onPay(inv, order)} style={[mdl.actionBtn, { backgroundColor: '#10B981' }]}>
                 <Feather name="credit-card" size={15} color="#fff" />
                 <Text style={[mdl.ghostBtnText, { color: '#fff' }]}>
@@ -389,8 +389,16 @@ export default function WholesaleOrdersScreen() {
   };
 
   const handlePay = (invoice: Invoice, order: any) => {
-    if (order?.isPaid || String(order?.stripePaymentStatus ?? '').toLowerCase() === 'paid') {
-      Alert.alert('Already Paid', 'This invoice has already been paid.');
+    if (!isInvoicePayable(order)) {
+      if (order?.isPaid || String(order?.stripePaymentStatus ?? '').toLowerCase() === 'paid' || String(order?.invoiceStatus ?? '').toLowerCase() === 'paid') {
+        Alert.alert('Already Paid', 'This invoice has already been paid.');
+      } else if (order?.status === 'cancelled') {
+        Alert.alert('Cannot Pay', 'This order has been cancelled.');
+      } else if ((order?.refundedCents ?? 0) > 0) {
+        Alert.alert('Cannot Pay', 'This order has been refunded.');
+      } else {
+        Alert.alert('Cannot Pay', 'This invoice is not eligible for payment.');
+      }
       return;
     }
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
