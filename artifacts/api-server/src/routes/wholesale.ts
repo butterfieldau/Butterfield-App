@@ -27,6 +27,7 @@ import {
   priceAndValidateOrder,
 } from '../lib/wholesalePricing.js';
 import { calculateCardProcessingFeeCents } from '../lib/stripeFees.js';
+import { sendEmail, buildPaymentReceiptEmail } from '../lib/emailService.js';
 
 const router = Router();
 router.use(requireRole('wholesale'));
@@ -990,6 +991,32 @@ router.post('/invoices/:orderId/confirm-payment', async (req, res) => {
       markStripeInvoicePaidOutOfBand(stripeInvoiceId).catch((err: any) => {
         req.log.warn({ err, stripeInvoiceId }, 'markStripeInvoicePaidOutOfBand failed (non-fatal)');
       });
+    }
+
+    // Send payment receipt email (non-fatal)
+    try {
+      const recipientEmail = getWholesaleBillingEmail(account, req.user!.email);
+      const invoiceLabel = (order as any).invoiceNumber ?? (order as any).orderNumber ?? orderId;
+      const html = buildPaymentReceiptEmail({
+        invoiceNumber:      invoiceLabel,
+        companyName:        account.companyName,
+        invoiceAmountCents: invoiceAmountCents,
+        processingFeeCents: processingFeeCents,
+        totalPaidCents:     expectedTotal,
+        paymentDate:        new Date(),
+        recipientEmail,
+      });
+      sendEmail({
+        to:      recipientEmail,
+        subject: `Payment received – ${invoiceLabel}`,
+        html,
+      }).then(({ success }) => {
+        if (!success) req.log.warn({ orderId, recipientEmail }, 'Payment receipt email failed to send');
+      }).catch((err: any) => {
+        req.log.warn({ err, orderId }, 'Payment receipt email threw (non-fatal)');
+      });
+    } catch (emailErr: any) {
+      req.log.warn({ emailErr, orderId }, 'Could not build payment receipt email (non-fatal)');
     }
 
     return res.json({ success: true });

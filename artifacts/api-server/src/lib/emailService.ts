@@ -964,6 +964,112 @@ export function buildOrderReceiptEmail(opts: {
 </html>`;
 }
 
+export interface PaymentReceiptEmailOpts {
+  invoiceNumber: string;
+  companyName: string;
+  invoiceAmountCents: number;
+  processingFeeCents: number;
+  totalPaidCents: number;
+  paymentDate: Date;
+  recipientEmail: string;
+}
+
+export function buildPaymentReceiptEmail(opts: PaymentReceiptEmailOpts): string {
+  const { invoiceNumber, companyName, invoiceAmountCents, processingFeeCents, totalPaidCents, paymentDate } = opts;
+  const fmt = (cents: number) =>
+    new Intl.NumberFormat('en-AU', { style: 'currency', currency: 'AUD' }).format(cents / 100);
+  const fmtDate = (d: Date) =>
+    d.toLocaleDateString('en-AU', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'Australia/Sydney' });
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Payment Receipt – ${invoiceNumber}</title>
+</head>
+<body style="margin:0;padding:0;background:#F6F8FB;font-family:Arial,sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#F6F8FB;padding:40px 0;">
+  <tr><td align="center">
+    <table width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%;">
+
+      <!-- Header -->
+      <tr><td style="background:#12213A;border-radius:24px 24px 0 0;padding:28px 32px;">
+        <table width="100%" cellpadding="0" cellspacing="0"><tr>
+          <td>
+            <div style="color:#ffffff;font-size:26px;font-weight:900;letter-spacing:-0.5px;font-family:Arial,sans-serif;">Butterfield</div>
+            <div style="color:rgba(255,255,255,0.6);font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;margin-top:6px;font-family:Arial,sans-serif;">Cookies · Coffee · Desserts</div>
+          </td>
+          <td align="right" valign="top">
+            <span style="background:rgba(16,185,129,0.22);color:#D1FAE5;font-size:11px;font-weight:800;letter-spacing:1px;text-transform:uppercase;padding:7px 14px;border-radius:999px;font-family:Arial,sans-serif;">PAYMENT RECEIVED</span>
+          </td>
+        </tr></table>
+      </td></tr>
+
+      <!-- Amount card -->
+      <tr><td style="background:#ffffff;padding:32px 32px 24px;border-left:1px solid #E4E8F0;border-right:1px solid #E4E8F0;">
+        <div style="text-align:center;margin-bottom:24px;">
+          <div style="color:#7A8496;font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:1.5px;font-family:Arial,sans-serif;margin-bottom:10px;">Total Paid</div>
+          <div style="color:#10B981;font-size:52px;font-weight:900;letter-spacing:-2px;font-family:Arial,sans-serif;line-height:1;">${fmt(totalPaidCents)}</div>
+          <div style="color:#2F80ED;font-size:15px;font-weight:700;margin-top:10px;font-family:Arial,sans-serif;">${invoiceNumber}</div>
+        </div>
+
+        <!-- Detail rows -->
+        <table width="100%" cellpadding="0" cellspacing="0" style="background:#F8F9FB;border-radius:16px;border:1px solid #E4E8F0;">
+          <tr>
+            <td style="padding:14px 20px;border-bottom:1px solid #E4E8F0;">
+              <span style="color:#7A8496;font-size:14px;font-family:Arial,sans-serif;">Billed to</span>
+              <span style="color:#172033;font-size:14px;font-weight:700;float:right;font-family:Arial,sans-serif;">${companyName}</span>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:14px 20px;border-bottom:1px solid #E4E8F0;">
+              <span style="color:#7A8496;font-size:14px;font-family:Arial,sans-serif;">Invoice amount</span>
+              <span style="color:#172033;font-size:14px;font-weight:700;float:right;font-family:Arial,sans-serif;">${fmt(invoiceAmountCents)}</span>
+            </td>
+          </tr>
+          ${processingFeeCents > 0 ? `<tr>
+            <td style="padding:14px 20px;border-bottom:1px solid #E4E8F0;">
+              <span style="color:#7A8496;font-size:14px;font-family:Arial,sans-serif;">Card processing fee</span>
+              <span style="color:#172033;font-size:14px;font-weight:700;float:right;font-family:Arial,sans-serif;">${fmt(processingFeeCents)}</span>
+            </td>
+          </tr>` : ''}
+          <tr>
+            <td style="padding:14px 20px;border-bottom:1px solid #E4E8F0;">
+              <span style="color:#7A8496;font-size:14px;font-family:Arial,sans-serif;">Payment method</span>
+              <span style="color:#172033;font-size:14px;font-weight:700;float:right;font-family:Arial,sans-serif;">Card</span>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:14px 20px;">
+              <span style="color:#7A8496;font-size:14px;font-family:Arial,sans-serif;">Payment date</span>
+              <span style="color:#172033;font-size:14px;font-weight:700;float:right;font-family:Arial,sans-serif;">${fmtDate(paymentDate)}</span>
+            </td>
+          </tr>
+        </table>
+      </td></tr>
+
+      <!-- Success message -->
+      <tr><td style="background:#F0FDF4;padding:20px 32px;border-left:1px solid #E4E8F0;border-right:1px solid #E4E8F0;border-top:1px solid #BBF7D0;">
+        <p style="margin:0;font-size:14px;color:#166534;line-height:1.6;font-family:Arial,sans-serif;">
+          ✓ &nbsp;Your payment has been received and your account has been updated. Please keep this receipt for your records. If you have any questions, please contact your account manager.
+        </p>
+      </td></tr>
+
+      <!-- Footer -->
+      <tr><td style="background:#12213A;border-radius:0 0 24px 24px;padding:20px 32px;text-align:center;">
+        <div style="color:#ffffff;font-size:14px;font-weight:800;margin-bottom:8px;font-family:Arial,sans-serif;">Butterfield Cookies PTY LTD</div>
+        <div style="color:rgba(255,255,255,0.55);font-size:13px;font-family:Arial,sans-serif;line-height:20px;">2 Main Lane, Merrylands NSW 2160 &nbsp;·&nbsp; ABN: 24 680 761 166</div>
+        <div style="margin-top:6px;"><a href="mailto:accounts@butterfieldcookies.com.au" style="color:#60C3FF;font-size:13px;font-weight:600;text-decoration:none;font-family:Arial,sans-serif;">accounts@butterfieldcookies.com.au</a></div>
+      </td></tr>
+
+    </table>
+  </td></tr>
+</table>
+</body>
+</html>`;
+}
+
 export function buildPasswordResetEmail(otp: string, name: string): string {
   return `<!DOCTYPE html>
 <html>
