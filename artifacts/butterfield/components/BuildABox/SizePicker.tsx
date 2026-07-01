@@ -1,5 +1,5 @@
 import React from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import Reanimated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 
@@ -12,6 +12,7 @@ export interface BoxOption {
   size: number;
   label: string;
   priceCents: number;
+  imageUrl?: string;
 }
 
 interface Props {
@@ -45,6 +46,13 @@ function BoxCard({ opt, selected, onSelect }: { opt: BoxOption; selected: boolea
             <Text style={s.checkText}>✓</Text>
           </View>
         )}
+        {opt.imageUrl ? (
+          <Image
+            source={{ uri: opt.imageUrl }}
+            style={[s.boxImage, selected && { borderColor: BLUE }]}
+            resizeMode="cover"
+          />
+        ) : null}
         <Text style={[s.packLabel, { color: selected ? BLUE : TEXT }]}>{opt.label}</Text>
         <Text style={[s.cookieCount, { color: selected ? BLUE : MUTED }]}>
           {opt.size} cookies
@@ -105,6 +113,7 @@ const s = StyleSheet.create({
   },
   checkText:  { color: '#fff', fontSize: 11, fontWeight: '800' },
 
+  boxImage:   { width: 72, height: 72, borderRadius: 10, marginBottom: 10, borderWidth: 1.5, borderColor: BORDER },
   packLabel:  { fontSize: 15, fontWeight: '700', marginBottom: 2 },
   cookieCount:{ fontSize: 11, fontWeight: '500', marginBottom: 14 },
   divider:    { width: '75%', height: StyleSheet.hairlineWidth, backgroundColor: BORDER, marginBottom: 12 },

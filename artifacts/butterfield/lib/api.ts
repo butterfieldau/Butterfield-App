@@ -129,7 +129,7 @@ export const api = {
     get:        (id: string) => request<{ data: ApiProduct }>(`/products/${id}`),
     categories: ()         => request<{ data: ProductCategory[] }>('/products/categories'),
     topSellers: ()         => request<{ data: ApiProduct[] }>('/products/top-sellers'),
-    buildABoxSizes: () => request<{ data: { size: number; label: string; priceCents: number }[] }>('/products/build-a-box/sizes'),
+    buildABoxSizes: () => request<{ data: { size: number; label: string; priceCents: number; imageUrl?: string }[] }>('/products/build-a-box/sizes'),
   },
   orders: {
     list: () => request<{ data: ApiOrder[] }>('/orders'),
@@ -254,6 +254,7 @@ export const api = {
     store:         () => request<{ data: ShopDisplayStore[] }>('/shop-display/store'),
     categories:    () => request<{ data: ProductCategory[] }>('/shop-display/categories'),
     products:      () => request<{ data: ApiProduct[] }>('/shop-display/products'),
+    getProduct:    (id: string) => request<{ data: ApiProduct & { variants: any[]; hasVariants: boolean; optionGroups: any[] } }>(`/shop-display/products/${id}`),
     idleProducts:  () => request<{ data: ApiProduct[] }>('/shop-display/idle-products'),
     customers:     (search: string) =>
       request<{ data: ShopDisplayCustomer[] }>(`/shop-display/customers?search=${encodeURIComponent(search)}`),
@@ -1397,6 +1398,7 @@ export interface BuildABoxSize {
   size: number;
   label: string;
   priceCents: number;
+  imageUrl?: string;
 }
 
 export interface BuildABoxProductConfig {
