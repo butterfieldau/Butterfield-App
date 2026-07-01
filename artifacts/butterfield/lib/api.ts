@@ -1490,6 +1490,7 @@ export interface ApiOrder {
   contactPhone?: string | null;
   isPaid?: boolean | null;
   deliveryFeeCents?: number | null;
+  receiptEmailSentAt?: string | null;
 }
 
 export interface PosTransaction {

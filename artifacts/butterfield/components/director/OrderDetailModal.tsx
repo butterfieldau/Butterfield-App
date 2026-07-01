@@ -332,6 +332,25 @@ export default function OrderDetailModal({ order, visible, onClose, onStatusChan
               </View>
               {loyaltyEarned > 0 && (<View style={{ flexDirection: 'row', justifyContent: 'space-between' }}><Text style={{ color: MUTED, fontWeight: '400', fontSize: 12 }}>Points earned</Text><Text style={{ color: '#F59E0B', fontWeight: '500', fontSize: 12 }}>+{loyaltyEarned} pts</Text></View>)}
               {isWholesale && order.isPaid != null && (<View style={{ flexDirection: 'row', justifyContent: 'space-between' }}><Text style={{ color: MUTED, fontWeight: '400', fontSize: 12 }}>Payment</Text><Text style={{ color: order.isPaid ? GREEN : '#EF4444', fontWeight: '500', fontSize: 12 }}>{order.isPaid ? 'Paid' : 'Awaiting Payment'}</Text></View>)}
+              {isWholesale && order.receiptEmailSentAt ? (
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                    <Feather name="mail" size={11} color={GREEN} />
+                    <Text style={{ color: MUTED, fontWeight: '400', fontSize: 12 }}>Receipt sent</Text>
+                  </View>
+                  <Text style={{ color: GREEN, fontWeight: '500', fontSize: 12 }}>
+                    {new Date(order.receiptEmailSentAt).toLocaleString('en-AU', { timeZone: 'Australia/Sydney', day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit' })}
+                  </Text>
+                </View>
+              ) : isWholesale && order.isPaid ? (
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                    <Feather name="mail" size={11} color={MUTED} />
+                    <Text style={{ color: MUTED, fontWeight: '400', fontSize: 12 }}>Receipt sent</Text>
+                  </View>
+                  <Text style={{ color: MUTED, fontWeight: '400', fontSize: 12 }}>Not recorded</Text>
+                </View>
+              ) : null}
             </View>
           </View>
           {order.notes ? (<View style={styles.section}><Text style={styles.sectionLabel}>Notes</Text><Text style={{ color: TEXT, fontWeight: '400', fontSize: 14, marginTop: 6, lineHeight: 20 }}>{order.notes}</Text></View>) : null}

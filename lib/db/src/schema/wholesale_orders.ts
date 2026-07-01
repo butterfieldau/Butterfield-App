@@ -33,6 +33,7 @@ export const wholesaleOrdersTable = pgTable("wholesale_orders", {
   editHistory: jsonb("edit_history").notNull().default([]),
   creditMemos: jsonb("credit_memos").notNull().default([]),
   cancelReason: text("cancel_reason"),
+  receiptEmailSentAt: timestamp("receipt_email_sent_at"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });

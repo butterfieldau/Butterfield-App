@@ -993,7 +993,7 @@ router.post('/invoices/:orderId/confirm-payment', async (req, res) => {
       });
     }
 
-    // Send payment receipt email (non-fatal)
+    // Send payment receipt email (non-fatal) — record timestamp on success
     try {
       const recipientEmail = getWholesaleBillingEmail(account, req.user!.email);
       const invoiceLabel = (order as any).invoiceNumber ?? (order as any).orderNumber ?? orderId;
@@ -1011,7 +1011,13 @@ router.post('/invoices/:orderId/confirm-payment', async (req, res) => {
         subject: `Payment received – ${invoiceLabel}`,
         html,
       }).then(({ success }) => {
-        if (!success) req.log.warn({ orderId, recipientEmail }, 'Payment receipt email failed to send');
+        if (success) {
+          db.update(wholesaleOrdersTable).set({ receiptEmailSentAt: new Date() } as any)
+            .where(eq(wholesaleOrdersTable.id, orderId))
+            .catch((dbErr: any) => req.log.warn({ dbErr, orderId }, 'receiptEmailSentAt DB update failed (non-fatal)'));
+        } else {
+          req.log.warn({ orderId, recipientEmail }, 'Payment receipt email failed to send');
+        }
       }).catch((err: any) => {
         req.log.warn({ err, orderId }, 'Payment receipt email threw (non-fatal)');
       });
