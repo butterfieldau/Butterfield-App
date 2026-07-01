@@ -11,6 +11,7 @@ import {
   Pressable,
   RefreshControl,
   ScrollView,
+  StatusBar,
   StyleSheet,
   Text,
   TextInput,
@@ -123,6 +124,7 @@ function AddressesContent() {
   };
   return (
     <View style={{ flex: 1, backgroundColor: BG }}>
+      <StatusBar barStyle="dark-content" translucent backgroundColor="transparent" />
       <View style={[s.header, { paddingTop: insets.top + 14, backgroundColor: CARD, borderBottomColor: BORDER }]}>
         <Pressable onPress={() => router.back()} style={s.backBtn}><Feather name="arrow-left" size={22} color={TEXT} /></Pressable>
         <Text style={s.headerTitle}>Saved addresses</Text>
