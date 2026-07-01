@@ -109,6 +109,7 @@ function InvoiceDetailModal({
   onPdf,
   onPay,
   pdfLoading,
+  isPayable,
 }: {
   invoice: Invoice | null;
   lines: InvoiceLine[];
@@ -118,6 +119,7 @@ function InvoiceDetailModal({
   onPdf: (inv: Invoice) => void;
   onPay: (inv: Invoice) => void;
   pdfLoading: boolean;
+  isPayable: boolean;
 }) {
   const insets = useSafeAreaInsets();
   if (!invoice) return null;
@@ -249,10 +251,10 @@ function InvoiceDetailModal({
               <Text style={mdl.ghostBtnText}>{pdfLoading ? 'Saving…' : 'Download PDF'}</Text>
             </Pressable>
 
-            {invoice.status !== 'paid' && (
+            {isPayable && invoice.status !== 'paid' && (
               <Pressable onPress={() => onPay(invoice)} style={[mdl.actionBtn, mdl.solidBtn]}>
-                <Feather name="external-link" size={15} color="#fff" />
-                <Text style={mdl.solidBtnText}>View &amp; Pay</Text>
+                <Feather name="credit-card" size={15} color="#fff" />
+                <Text style={mdl.solidBtnText}>Pay Now</Text>
               </Pressable>
             )}
           </View>
@@ -348,10 +350,19 @@ export default function WholesaleInvoices() {
   };
 
   const handlePay = (invoice: Invoice) => {
-    const sourceOrder = orderMap[invoice.id];
-    if (sourceOrder?.isPaid || String(sourceOrder?.stripePaymentStatus ?? '').toLowerCase() === 'paid') {
-      Alert.alert('Already Paid', 'This invoice has already been paid.');
-      return;
+    const so = orderMap[invoice.id];
+    if (so?.isPaid || String(so?.stripePaymentStatus ?? '').toLowerCase() === 'paid') {
+      Alert.alert('Already Paid', 'This invoice has already been paid.'); return;
+    }
+    if (so?.status === 'cancelled') {
+      Alert.alert('Cannot Pay', 'This order has been cancelled.'); return;
+    }
+    const invSt = String(so?.invoiceStatus ?? '').toLowerCase();
+    if (invSt === 'voided' || invSt === 'failed') {
+      Alert.alert('Cannot Pay', 'This invoice cannot be paid.'); return;
+    }
+    if ((so?.refundedCents ?? 0) > 0) {
+      Alert.alert('Cannot Pay', 'This order has been refunded.'); return;
     }
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setSelectedInvoice(null);
@@ -385,6 +396,17 @@ export default function WholesaleInvoices() {
         onPdf={handleDownload}
         onPay={handlePay}
         pdfLoading={loadingId === selectedInvoice?.id}
+        isPayable={(() => {
+          if (!selectedInvoice) return false;
+          const so = orderMap[selectedInvoice.id];
+          if (!so) return false;
+          if (so.isPaid || String(so.stripePaymentStatus ?? '').toLowerCase() === 'paid') return false;
+          if (so.status === 'cancelled') return false;
+          const invSt = String(so.invoiceStatus ?? '').toLowerCase();
+          if (invSt === 'voided' || invSt === 'failed') return false;
+          if ((so.refundedCents ?? 0) > 0) return false;
+          return true;
+        })()}
       />
 
       {/* ── HEADER ─────────────────────────────────────────────────────── */}
@@ -545,7 +567,14 @@ export default function WholesaleInvoices() {
                   <Text style={ss.actionGhostText}>{isPdfLoading ? 'Saving…' : 'PDF'}</Text>
                 </Pressable>
 
-                {invoice.status !== 'paid' && (
+                {invoice.status !== 'paid' && (() => {
+                  const so2 = orderMap[invoice.id];
+                  const canPay = so2
+                    && so2.status !== 'cancelled'
+                    && !['voided', 'failed'].includes(String(so2.invoiceStatus ?? '').toLowerCase())
+                    && !((so2.refundedCents ?? 0) > 0);
+                  return canPay;
+                })() && (
                   <Pressable
                     onPress={(e) => { e.stopPropagation?.(); handlePay(invoice); }}
                     style={[ss.actionBtn, ss.actionPrimary]}

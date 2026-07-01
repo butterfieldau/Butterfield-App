@@ -592,8 +592,11 @@ export default function WholesaleOrdersScreen() {
                     )}
                   </View>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                    {/* Quick Pay Now button — only for net-terms unpaid orders */}
-                    {(inv.status === 'pending' || inv.status === 'overdue') && (
+                    {/* Quick Pay Now button — only for net-terms unpaid, non-cancelled, non-refunded orders */}
+                    {(inv.status === 'pending' || inv.status === 'overdue')
+                      && order.status !== 'cancelled'
+                      && !((order.refundedCents ?? 0) > 0)
+                      && (
                       <Pressable
                         onPress={(e) => {
                           e.stopPropagation?.();

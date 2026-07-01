@@ -838,6 +838,18 @@ router.post('/invoices/:orderId/payment-intent', async (req, res) => {
     String((order as any).invoiceStatus ?? '').toLowerCase() === 'paid';
   if (alreadyPaid) return res.status(400).json({ error: 'This invoice has already been paid.' });
 
+  // Terminal non-payable states
+  const invStatus = String((order as any).invoiceStatus ?? '').toLowerCase();
+  if (order.status === 'cancelled') {
+    return res.status(400).json({ error: 'Cannot pay a cancelled order.' });
+  }
+  if (invStatus === 'voided' || invStatus === 'failed') {
+    return res.status(400).json({ error: 'Cannot pay a voided or failed invoice.' });
+  }
+  if ((order as any).refundedCents > 0) {
+    return res.status(400).json({ error: 'Cannot pay a refunded order.' });
+  }
+
   const invoiceAmountCents = order.totalCents ?? 0;
   if (invoiceAmountCents <= 0) return res.status(400).json({ error: 'Invoice amount is invalid.' });
 
@@ -907,6 +919,18 @@ router.post('/invoices/:orderId/confirm-payment', async (req, res) => {
     String(order.stripePaymentStatus ?? '').toLowerCase() === 'paid' ||
     String((order as any).invoiceStatus ?? '').toLowerCase() === 'paid';
   if (alreadyPaid) return res.status(400).json({ error: 'This invoice has already been paid.' });
+
+  // Terminal non-payable states
+  const confirmInvStatus = String((order as any).invoiceStatus ?? '').toLowerCase();
+  if (order.status === 'cancelled') {
+    return res.status(400).json({ error: 'Cannot pay a cancelled order.' });
+  }
+  if (confirmInvStatus === 'voided' || confirmInvStatus === 'failed') {
+    return res.status(400).json({ error: 'Cannot pay a voided or failed invoice.' });
+  }
+  if ((order as any).refundedCents > 0) {
+    return res.status(400).json({ error: 'Cannot pay a refunded order.' });
+  }
 
   try {
     const { getUncachableStripeClient } = await import('../stripeClient.js');
