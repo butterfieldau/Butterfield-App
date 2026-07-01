@@ -189,6 +189,9 @@ router.get('/stats', async (req, res) => {
     [appOrdersToday],
     [posOrdersToday],
     [wholesaleActiveToday],
+    [wholesalePaidToday],
+    [wholesalePaidWeek],
+    [wholesalePaidMonth],
   ] = await Promise.all([
     db.select({ count: count() }).from(ordersTable),
     db.select({ count: count() }).from(ordersTable).where(gte(ordersTable.createdAt, startOfToday)),
@@ -236,6 +239,10 @@ router.get('/stats', async (req, res) => {
     db.select({ count: count(), total: sum(ordersTable.totalCents) }).from(ordersTable).where(and(gte(ordersTable.createdAt, startOfToday), sql`source = 'pos'`, sql`status NOT IN ('cancelled','refunded','voided')`)),
     // Channel breakdown — Wholesale active orders + outstanding value
     db.select({ count: count(), total: sql<string>`COALESCE(SUM(total_cents), 0)::text` }).from(wholesaleOrdersTable).where(sql`status IN ('pending','confirmed','processing')`),
+    // Wholesale paid revenue — counted on paidAt so it lands in the period the cash actually arrived
+    db.select({ total: sql<string>`COALESCE(SUM(total_cents), 0)::text` }).from(wholesaleOrdersTable).where(and(eq(wholesaleOrdersTable.isPaid, true), gte(wholesaleOrdersTable.paidAt, startOfToday))),
+    db.select({ total: sql<string>`COALESCE(SUM(total_cents), 0)::text` }).from(wholesaleOrdersTable).where(and(eq(wholesaleOrdersTable.isPaid, true), gte(wholesaleOrdersTable.paidAt, startOfWeekMonday))),
+    db.select({ total: sql<string>`COALESCE(SUM(total_cents), 0)::text` }).from(wholesaleOrdersTable).where(and(eq(wholesaleOrdersTable.isPaid, true), gte(wholesaleOrdersTable.paidAt, startOfMonth))),
   ]);
 
   const weekShifts = await db.select({
@@ -310,9 +317,13 @@ router.get('/stats', async (req, res) => {
     return Math.round(((current - previous) / previous) * 100);
   }
 
-  const todayRevNum          = Number(todayRev.total ?? 0);
-  const weekRevNum           = Number(weekRev.total ?? 0);
-  const monthRevNum          = Number(monthRev.total ?? 0);
+  const wholesalePaidTodayNum = Number(wholesalePaidToday.total ?? 0);
+  const wholesalePaidWeekNum  = Number(wholesalePaidWeek.total ?? 0);
+  const wholesalePaidMonthNum = Number(wholesalePaidMonth.total ?? 0);
+
+  const todayRevNum          = Number(todayRev.total ?? 0) + wholesalePaidTodayNum;
+  const weekRevNum           = Number(weekRev.total ?? 0)  + wholesalePaidWeekNum;
+  const monthRevNum          = Number(monthRev.total ?? 0) + wholesalePaidMonthNum;
   const sameDayLastWeekNum   = Number(sameDayLastWeekRev.total ?? 0);
   const lastWeekTotalNum     = Number(lastWeekTotalRev.total ?? 0);
   const lastMonthTotalNum    = Number(lastMonthTotalRev.total ?? 0);
@@ -394,7 +405,7 @@ router.get('/stats', async (req, res) => {
       channels: {
         appOrders:        { countToday: appOrdersToday.count,       revenueTodayCents: Number(appOrdersToday.total ?? 0) },
         posTransactions:  { countToday: posOrdersToday.count,       revenueTodayCents: Number(posOrdersToday.total ?? 0) },
-        wholesaleOrders:  { activeCount: wholesaleActiveToday.count, outstandingCents: Number(wholesaleActiveToday.total ?? 0) },
+        wholesaleOrders:  { activeCount: wholesaleActiveToday.count, outstandingCents: Number(wholesaleActiveToday.total ?? 0), paidTodayCents: wholesalePaidTodayNum },
       },
     },
   });
