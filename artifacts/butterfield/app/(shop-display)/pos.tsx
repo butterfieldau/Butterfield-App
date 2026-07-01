@@ -162,7 +162,7 @@ function PosScreenInner() {
 
   const [paneTab, setPaneTab] = useState<'menu' | 'ticket'>('menu');
   const [searchText, setSearchText]       = useState('');
-  const [selCategory, setSelCategory]     = useState<string>('all');
+  const [selCategory, setSelCategory]     = useState<string>('cookies');
   const [customCatColors, setCustomCatColors] = useState<Record<string, string>>({});
   const [colorPickerCat, setColorPickerCat]   = useState<string | null>(null);
   const [customCatOrder, setCustomCatOrder]   = useState<string[]>([]);
@@ -445,6 +445,7 @@ function PosScreenInner() {
 
   const clearTicket = useCallback(() => {
     setTickets(prev => prev.map((t, i) => i === activeIdx ? blankTicket() : t));
+    setSelCategory('cookies');
   }, [activeIdx]);
 
   const holdTicket = useCallback(() => {
@@ -453,6 +454,7 @@ function PosScreenInner() {
     if (tickets.length >= maxHolds + 1) { Alert.alert('Hold Limit', 'Maximum 5 tickets on hold. Complete or clear an existing ticket first.'); return; }
     setTickets(prev => [...prev, blankTicket()]);
     setActiveIdx(tickets.length);
+    setSelCategory('cookies');
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
   }, [activeTicket.items.length, tickets.length]);
 
@@ -496,6 +498,7 @@ function PosScreenInner() {
   const clearActiveTicket = useCallback(() => {
     setTickets(prev => { if (prev.length === 1) return [blankTicket()]; const next = prev.filter((_, i) => i !== activeIdx); return next.length ? next : [blankTicket()]; });
     if (activeIdx > 0) setActiveIdx(0);
+    setSelCategory('cookies');
   }, [activeIdx]);
 
   const createOrderMutation = useMutation({
