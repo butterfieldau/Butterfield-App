@@ -474,7 +474,7 @@ function PosScreenInner() {
     }
     setLoadingDetail(product.id);
     try {
-      const res = await api.shopDisplay.getProduct(product.id);
+      const res = await api.products.get(product.id);
       const detail = res.data as unknown as ProductDetail;
       setDetailCache(prev => ({ ...prev, [product.id]: detail }));
       saveDetailEntry(product.id, detail);

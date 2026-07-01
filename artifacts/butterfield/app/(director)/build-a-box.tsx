@@ -1,10 +1,9 @@
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
-import * as ImagePicker from 'expo-image-picker';
 import { router } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
-  ActivityIndicator, Alert, Image, KeyboardAvoidingView, Platform,
+  ActivityIndicator, Alert, KeyboardAvoidingView, Platform,
   Pressable, ScrollView, Switch, Text, TextInput, View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -53,7 +52,6 @@ export default function BuildABoxSettingsScreen() {
 
   const [rawSizePrices, setRawSizePrices] = useState<string[]>([]);
   const [rawPremiumPrices, setRawPremiumPrices] = useState<Record<string, string>>({});
-  const [uploadingIdx, setUploadingIdx] = useState<number | null>(null);
 
   useEffect(() => {
     if (data?.data) {
@@ -74,50 +72,8 @@ export default function BuildABoxSettingsScreen() {
 
   const addSize = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setSizes(prev => [...prev, { size: 0, label: '', priceCents: 0, imageUrl: undefined }]);
+    setSizes(prev => [...prev, { size: 0, label: '', priceCents: 0 }]);
     setRawSizePrices(prev => [...prev, '']);
-    setSizesDirty(true);
-  };
-
-  const pickSizeImage = async (idx: number) => {
-    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!permission.granted) {
-      Alert.alert('Permission needed', 'Allow photo library access to upload a box image.');
-      return;
-    }
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      aspect: [1, 1],
-      quality: 0.85,
-    });
-    if (result.canceled || !result.assets[0]) return;
-    const asset = result.assets[0];
-    const filename = asset.fileName ?? `box-size-${idx}-${Date.now()}.jpg`;
-    const contentType = asset.mimeType ?? 'image/jpeg';
-    setUploadingIdx(idx);
-    try {
-      const { servingUrl } = await api.storage.uploadProductImage(asset.uri, filename, contentType, 'build-a-box', `size-${idx}`);
-      setSizes(prev => {
-        const next = [...prev];
-        next[idx] = { ...next[idx]!, imageUrl: servingUrl };
-        return next;
-      });
-      setSizesDirty(true);
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    } catch (e: any) {
-      Alert.alert('Upload failed', e.message ?? 'Could not upload image.');
-    } finally {
-      setUploadingIdx(null);
-    }
-  };
-
-  const removeSizeImage = (idx: number) => {
-    setSizes(prev => {
-      const next = [...prev];
-      next[idx] = { ...next[idx]!, imageUrl: undefined };
-      return next;
-    });
     setSizesDirty(true);
   };
 
@@ -356,57 +312,6 @@ export default function BuildABoxSettingsScreen() {
                       <Feather name="trash-2" size={13} color={RED} />
                     </Pressable>
                   </View>
-                  {/* ── Photo ── */}
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                    {s.imageUrl ? (
-                      <Image
-                        source={{ uri: s.imageUrl }}
-                        style={{ width: 64, height: 64, borderRadius: 10, borderWidth: 1, borderColor: BORDER }}
-                        resizeMode="cover"
-                      />
-                    ) : (
-                      <View style={{
-                        width: 64, height: 64, borderRadius: 10, borderWidth: 1.5,
-                        borderColor: BORDER, borderStyle: 'dashed',
-                        backgroundColor: '#F9FAFB', alignItems: 'center', justifyContent: 'center',
-                      }}>
-                        <Feather name="image" size={20} color={MUTED} />
-                      </View>
-                    )}
-                    <View style={{ flex: 1, gap: 6 }}>
-                      <Pressable
-                        onPress={() => pickSizeImage(idx)}
-                        disabled={uploadingIdx === idx}
-                        style={{
-                          flexDirection: 'row', alignItems: 'center', gap: 6,
-                          backgroundColor: '#EBF7FD', borderRadius: 8,
-                          paddingHorizontal: 12, paddingVertical: 8, alignSelf: 'flex-start',
-                        }}
-                      >
-                        {uploadingIdx === idx ? (
-                          <ActivityIndicator size="small" color={BLUE} />
-                        ) : (
-                          <Feather name="upload" size={13} color={BLUE} />
-                        )}
-                        <Text style={{ fontSize: 12, fontWeight: '600', color: BLUE }}>
-                          {uploadingIdx === idx ? 'Uploading…' : s.imageUrl ? 'Change photo' : 'Upload photo'}
-                        </Text>
-                      </Pressable>
-                      {s.imageUrl ? (
-                        <Pressable
-                          onPress={() => removeSizeImage(idx)}
-                          style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}
-                          hitSlop={8}
-                        >
-                          <Feather name="x" size={11} color={RED} />
-                          <Text style={{ fontSize: 11, color: RED, fontWeight: '500' }}>Remove photo</Text>
-                        </Pressable>
-                      ) : (
-                        <Text style={{ fontSize: 11, color: MUTED }}>Optional · shown on size picker</Text>
-                      )}
-                    </View>
-                  </View>
-
                   <View style={{ flexDirection: 'row', gap: 10 }}>
                     <View style={{ flex: 2, gap: 4 }}>
                       <Text style={{ fontSize: 11, color: MUTED, fontWeight: '500' }}>LABEL</Text>

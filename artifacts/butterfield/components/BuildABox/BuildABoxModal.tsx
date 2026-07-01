@@ -37,7 +37,7 @@ export default function BuildABoxModal({ visible, onClose }: Props) {
       basePriceCents: selectedBox.priceCents,
       selectedOptions,
       quantity:       1,
-      imageUrl:       selectedBox.imageUrl,
+      imageUrl:       undefined,
       category:       'boxes',
     });
 

@@ -405,7 +405,7 @@ export default function HistoryModal({
                             <Text style={styles.historyLineName}>{li.productName}{li.variantName ? ` (${li.variantName})` : ''}</Text>
                             {(li as any).notes ? <Text style={styles.historyLineNote}>{(li as any).notes}</Text> : null}
                           </View>
-                          <Text style={styles.historyLinePrice}>{fmtCents(((li as any).unitPriceCents ?? (li as any).unitCents ?? (li as any).totalPriceCents ?? (li as any).lineCents ?? 0) * li.quantity)}</Text>
+                          <Text style={styles.historyLinePrice}>{fmtCents(li.unitPriceCents * li.quantity)}</Text>
                         </View>
                       ))}
                       {item.notes && <Text style={styles.historyOrderNote}>Note: {item.notes}</Text>}

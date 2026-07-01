@@ -61,7 +61,7 @@ export default function BuildABoxFlow({ onClose, onConfirm, numColumns }: Props)
   const isLoading = sizesLoading || productsLoading;
 
   const boxOptions: BoxOption[] = useMemo(
-    () => (sizesData?.data ?? []).map(s => ({ size: s.size, label: s.label, priceCents: s.priceCents, imageUrl: s.imageUrl })),
+    () => (sizesData?.data ?? []).map(s => ({ size: s.size, label: s.label, priceCents: s.priceCents })),
     [sizesData],
   );
 
