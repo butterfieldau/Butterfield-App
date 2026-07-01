@@ -15,6 +15,7 @@ import { sendNotification } from '../lib/notificationService.js';
 import { ensureWholesalePaymentSchemaReady } from '../lib/ensureWholesalePaymentSchemaReady.js';
 import {
   createStripeInvoiceForWholesaleOrder,
+  markStripeInvoicePaidOutOfBand,
   syncWholesaleInvoiceStatuses,
 } from '../lib/stripeWholesaleInvoices.js';
 import { buildInvoiceHtml } from '../lib/invoiceTemplate.js';
@@ -895,28 +896,77 @@ router.post('/invoices/:orderId/confirm-payment', async (req, res) => {
   );
   if (!order) return res.status(404).json({ error: 'Invoice not found.' });
 
+  // Idempotency: already marked paid via this intent → return success
+  if (order.stripePaymentIntentId === paymentIntentId && order.isPaid) {
+    return res.json({ success: true });
+  }
+
+  // Reject if already paid by any means
+  const alreadyPaid =
+    order.isPaid ||
+    String(order.stripePaymentStatus ?? '').toLowerCase() === 'paid' ||
+    String((order as any).invoiceStatus ?? '').toLowerCase() === 'paid';
+  if (alreadyPaid) return res.status(400).json({ error: 'This invoice has already been paid.' });
+
   try {
     const { getUncachableStripeClient } = await import('../stripeClient.js');
     const stripe = await getUncachableStripeClient();
     const intent = await stripe.paymentIntents.retrieve(paymentIntentId);
 
+    // Must be succeeded
     if (intent.status !== 'succeeded') {
       return res.status(400).json({ error: `Payment did not succeed (status: ${intent.status}).` });
     }
 
+    // Strict metadata binding: all three must match
     const meta = intent.metadata ?? {};
-    if (meta.orderId && meta.orderId !== orderId) {
+    if (meta.orderId !== orderId) {
+      req.log.warn({ paymentIntentId, orderId, metaOrderId: meta.orderId }, 'Intent orderId mismatch');
       return res.status(400).json({ error: 'Payment intent does not match this invoice.' });
     }
+    if (meta.accountId !== account.id) {
+      req.log.warn({ paymentIntentId, accountId: account.id, metaAccountId: meta.accountId }, 'Intent accountId mismatch');
+      return res.status(400).json({ error: 'Payment intent does not match this account.' });
+    }
+    if (meta.userId !== req.user!.id) {
+      req.log.warn({ paymentIntentId, userId: req.user!.id, metaUserId: meta.userId }, 'Intent userId mismatch');
+      return res.status(400).json({ error: 'Payment intent does not match this user.' });
+    }
 
+    // Amount verification: intent amount must exactly equal invoice + fee
+    const invoiceAmountCents = order.totalCents ?? 0;
+    const processingFeeCents = calculateCardProcessingFeeCents(invoiceAmountCents);
+    const expectedTotal      = invoiceAmountCents + processingFeeCents;
+    if (intent.amount !== expectedTotal) {
+      req.log.warn({ paymentIntentId, intentAmount: intent.amount, expectedTotal }, 'Intent amount mismatch');
+      return res.status(400).json({ error: 'Payment amount does not match invoice total.' });
+    }
+
+    // Customer linkage: intent customer must belong to this user
+    const expectedCustomerId = await getOrCreateStripeCustomer(req.user!.id, req.user!.email, req.user!.name);
+    if (intent.customer !== expectedCustomerId) {
+      req.log.warn({ paymentIntentId, intentCustomer: intent.customer, expectedCustomerId }, 'Intent customer mismatch');
+      return res.status(400).json({ error: 'Payment intent customer does not match.' });
+    }
+
+    // Mark invoice paid in DB
     await db.update(wholesaleOrdersTable).set({
       isPaid:                true,
       paidAt:                new Date(),
+      status:                'paid',
       invoiceStatus:         'paid',
       stripePaymentStatus:   'paid',
       stripePaymentIntentId: paymentIntentId,
       updatedAt:             new Date(),
     } as any).where(eq(wholesaleOrdersTable.id, orderId));
+
+    // Reconcile Stripe invoice if one exists
+    const stripeInvoiceId = (order as any).stripeInvoiceId ?? null;
+    if (stripeInvoiceId) {
+      markStripeInvoicePaidOutOfBand(stripeInvoiceId).catch((err: any) => {
+        req.log.warn({ err, stripeInvoiceId }, 'markStripeInvoicePaidOutOfBand failed (non-fatal)');
+      });
+    }
 
     return res.json({ success: true });
   } catch (err: any) {

@@ -591,9 +591,30 @@ export default function WholesaleOrdersScreen() {
                       </View>
                     )}
                   </View>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
-                    <Text style={{ color: BLUE, fontWeight: '500', fontSize: 11 }}>Details</Text>
-                    <Feather name="chevron-right" size={12} color={BLUE} />
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    {/* Quick Pay Now button — only for net-terms unpaid orders */}
+                    {(inv.status === 'pending' || inv.status === 'overdue') && (
+                      <Pressable
+                        onPress={(e) => {
+                          e.stopPropagation?.();
+                          handlePay(inv, order);
+                        }}
+                        style={{
+                          flexDirection: 'row', alignItems: 'center', gap: 4,
+                          backgroundColor: inv.status === 'overdue' ? '#FEE2E2' : '#EFF6FF',
+                          borderWidth: 1,
+                          borderColor: inv.status === 'overdue' ? '#FCA5A5' : '#BFDBFE',
+                          paddingHorizontal: 8, paddingVertical: 4, borderRadius: 10,
+                        }}
+                      >
+                        <Feather name="credit-card" size={10} color={inv.status === 'overdue' ? '#DC2626' : BLUE} />
+                        <Text style={{ color: inv.status === 'overdue' ? '#DC2626' : BLUE, fontWeight: '700', fontSize: 10 }}>Pay Now</Text>
+                      </Pressable>
+                    )}
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+                      <Text style={{ color: BLUE, fontWeight: '500', fontSize: 11 }}>Details</Text>
+                      <Feather name="chevron-right" size={12} color={BLUE} />
+                    </View>
                   </View>
                 </View>
               </Pressable>
