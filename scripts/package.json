@@ -10,6 +10,7 @@
     "seed-tea-menu": "tsx ./src/seed-coffee-menu.ts",
     "purge-wholesale-card-secrets": "tsx ./src/purge-wholesale-card-secrets.ts",
     "seed-vault": "tsx ./src/seed-vault.ts",
+    "backfill-build-a-box-revenue": "tsx ./src/backfill-build-a-box-revenue.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
