@@ -1,4 +1,5 @@
 import { Feather } from '@expo/vector-icons';
+import { isInvoicePayable } from '../../lib/invoiceUtils';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Haptics from 'expo-haptics';
 import * as Print from 'expo-print';
@@ -592,11 +593,8 @@ export default function WholesaleOrdersScreen() {
                     )}
                   </View>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                    {/* Quick Pay Now button — only for net-terms unpaid, non-cancelled, non-refunded orders */}
-                    {(inv.status === 'pending' || inv.status === 'overdue')
-                      && order.status !== 'cancelled'
-                      && !((order.refundedCents ?? 0) > 0)
-                      && (
+                    {/* Quick Pay Now button — only for payable net-terms invoices */}
+                    {isInvoicePayable(order) && (inv.status === 'pending' || inv.status === 'overdue') && (
                       <Pressable
                         onPress={(e) => {
                           e.stopPropagation?.();
