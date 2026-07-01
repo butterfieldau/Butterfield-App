@@ -1,6 +1,6 @@
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
-import { useRouter } from 'expo-router';
+import { usePathname, useRouter } from 'expo-router';
 import React, { memo, useEffect } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import Reanimated, {
@@ -22,18 +22,21 @@ function CustomerFloatingCartBar() {
   const { totalItems, totalPriceCents } = useCart();
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const pathname = usePathname();
+
+  const onCartScreen = pathname === '/customer-cart';
 
   const TAB_BAR_H = insets.bottom + 80;
 
   const translateY = useSharedValue(100);
 
   useEffect(() => {
-    if (totalItems > 0) {
+    if (totalItems > 0 && !onCartScreen) {
       translateY.value = withSpring(0, { damping: 28, stiffness: 220 });
     } else {
       translateY.value = withSpring(100, { damping: 28, stiffness: 220 });
     }
-  }, [totalItems]);
+  }, [totalItems, onCartScreen]);
 
   const animatedStyle = useAnimatedStyle(() => ({
     transform: [{ translateY: translateY.value }],
