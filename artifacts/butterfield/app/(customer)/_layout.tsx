@@ -1,20 +1,17 @@
 import * as Haptics from 'expo-haptics';
-import { Feather } from '@expo/vector-icons';
 import { Redirect, Tabs, useRouter } from 'expo-router';
 import React, { useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import Reanimated, { useAnimatedStyle, withSpring } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '@/context/AuthContext';
-import { useCart } from '@/context/CartContext';
 import { useColors } from '@/hooks/useColors';
 import { LoginRequiredModal } from '@/components/LoginRequiredModal';
 import { getHomeRouteForRole } from '@/lib/roleRoutes';
-import { AnimatedTabItem, GlassCircle, GlassPill } from '@/components/FloatingTabBar';
+import { AnimatedTabItem, GlassPill } from '@/components/FloatingTabBar';
 import { navScale, snapNavScaleFull } from '@/hooks/useNavScroll';
 
-const BLUE      = '#1493FF';
-const CIRCLE_SZ = 62;
+const BLUE = '#1493FF';
 
 const CUSTOMER_TABS = {
   index:   { icon: 'home',    title: 'Home'    },
@@ -26,11 +23,7 @@ const CUSTOMER_TABS = {
 const VISIBLE_ROUTES = ['index', 'menu', 'loyalty', 'profile'] as const;
 
 function FloatingCustomerTabBar({ state, navigation }: any) {
-  const insets         = useSafeAreaInsets();
-  const router         = useRouter();
-  const { user }       = useAuth();
-  const { totalItems } = useCart();
-  const [loginTarget, setLoginTarget] = useState<string | null>(null);
+  const insets = useSafeAreaInsets();
 
   const visibleRoutes = state.routes.filter((r: any) =>
     (VISIBLE_ROUTES as readonly string[]).includes(r.name),
@@ -49,66 +42,31 @@ function FloatingCustomerTabBar({ state, navigation }: any) {
     }
   };
 
-  const goToCart = () => {
-    snapNavScaleFull();
-    if (!user) {
-      setLoginTarget('/customer-cart');
-      return;
-    }
-    Haptics.selectionAsync();
-    router.push('/customer-cart' as any);
-  };
-
   return (
-    <>
-      <View
-        pointerEvents="box-none"
-        style={[styles.wrap, { paddingBottom: Math.max(insets.bottom, 12) }]}
-      >
-        <Reanimated.View style={[styles.barRow, barAnimStyle]}>
-          <GlassPill>
-            {visibleRoutes.map((route: any) => {
-              const routeIndex = state.routes.findIndex((r: any) => r.key === route.key);
-              const focused    = state.index === routeIndex;
-              const cfg        = (CUSTOMER_TABS as any)[route.name] ?? { icon: 'circle', title: route.name };
+    <View
+      pointerEvents="box-none"
+      style={[styles.wrap, { paddingBottom: Math.max(insets.bottom, 12) }]}
+    >
+      <Reanimated.View style={[styles.barRow, barAnimStyle]}>
+        <GlassPill>
+          {visibleRoutes.map((route: any) => {
+            const routeIndex = state.routes.findIndex((r: any) => r.key === route.key);
+            const focused    = state.index === routeIndex;
+            const cfg        = (CUSTOMER_TABS as any)[route.name] ?? { icon: 'circle', title: route.name };
 
-              return (
-                <AnimatedTabItem
-                  key={route.key}
-                  focused={focused}
-                  onPress={makeOnPress(route, focused)}
-                  cfg={cfg}
-                  activeColor={BLUE}
-                />
-              );
-            })}
-          </GlassPill>
-
-          <Pressable onPress={goToCart} hitSlop={8} style={styles.cartWrap}>
-            <GlassCircle size={CIRCLE_SZ}>
-              <Feather
-                name="shopping-bag"
-                size={22}
-                color={totalItems > 0 ? BLUE : '#333'}
+            return (
+              <AnimatedTabItem
+                key={route.key}
+                focused={focused}
+                onPress={makeOnPress(route, focused)}
+                cfg={cfg}
+                activeColor={BLUE}
               />
-            </GlassCircle>
-            {totalItems > 0 && (
-              <View style={styles.badge}>
-                <Text style={styles.badgeText}>
-                  {totalItems > 99 ? '99+' : String(totalItems)}
-                </Text>
-              </View>
-            )}
-          </Pressable>
-        </Reanimated.View>
-      </View>
-
-      <LoginRequiredModal
-        visible={!!loginTarget}
-        redirectTo={loginTarget ?? undefined}
-        onCancel={() => setLoginTarget(null)}
-      />
-    </>
+            );
+          })}
+        </GlassPill>
+      </Reanimated.View>
+    </View>
   );
 }
 
@@ -173,27 +131,5 @@ const styles = StyleSheet.create({
   barRow: {
     flexDirection: 'row',
     alignItems:    'center',
-    gap:           10,
-  },
-  cartWrap: {
-    position: 'relative',
-  },
-  badge: {
-    position:          'absolute',
-    top:               -4,
-    right:             -4,
-    minWidth:          18,
-    height:            18,
-    borderRadius:      9,
-    backgroundColor:   '#FF3B30',
-    alignItems:        'center',
-    justifyContent:    'center',
-    paddingHorizontal: 4,
-  },
-  badgeText: {
-    color:      '#fff',
-    fontSize:   10,
-    fontWeight: '700',
-    lineHeight: 13,
   },
 });

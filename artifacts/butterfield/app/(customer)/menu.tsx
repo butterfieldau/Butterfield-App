@@ -37,6 +37,7 @@ import { MenuShimmerGrid } from '@/components/customer/MenuShimmerGrid';
 import { DietaryTagFilter } from '@/components/customer/DietaryTagFilter';
 import { CategoryFilterBar } from '@/components/customer/CategoryFilterBar';
 import BuildABoxBanner from '@/components/BuildABox/BuildABoxBanner';
+import CustomerFloatingCartBar, { FLOAT_BAR_EXTRA_PAD } from '@/components/customer/CustomerFloatingCartBar';
 
 const BLUE   = '#40C0F2';
 const CHERRY = '#D20001';
@@ -245,7 +246,7 @@ export default function MenuScreen() {
             keyExtractor={p => p.id}
             numColumns={numColumns}
             columnWrapperStyle={{ gap: tileGap }}
-            contentContainerStyle={{ paddingHorizontal: hPad, paddingTop: hPad, gap: tileGap, paddingBottom: insets.bottom + 110 }}
+            contentContainerStyle={{ paddingHorizontal: hPad, paddingTop: hPad, gap: tileGap, paddingBottom: insets.bottom + 110 + FLOAT_BAR_EXTRA_PAD }}
             showsVerticalScrollIndicator={false}
             scrollEventThrottle={16}
             onScroll={scrollHandler}
@@ -283,6 +284,7 @@ export default function MenuScreen() {
           />
         </Reanimated.View>
       )}
+      <CustomerFloatingCartBar />
     </View>
   );
 }
