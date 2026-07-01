@@ -37,7 +37,7 @@ function makeItem(overrides: Partial<ApiOrderItem> & Record<string, unknown>): A
   } as ApiOrderItem;
 }
 
-function makeOrder(items: (ApiOrderItem & Record<string, unknown>)[]) {
+function makeOrder(items: ApiOrderItem[]) {
   return {
     id: 'order-123',
     orderNumber: 'ORD-001',
