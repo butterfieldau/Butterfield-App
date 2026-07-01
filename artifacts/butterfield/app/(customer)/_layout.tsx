@@ -1,18 +1,20 @@
 import * as Haptics from 'expo-haptics';
+import { Feather } from '@expo/vector-icons';
 import { Redirect, Tabs, useRouter } from 'expo-router';
 import React, { useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import Reanimated, { useAnimatedStyle, withSpring } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '@/context/AuthContext';
+import { useCart } from '@/context/CartContext';
 import { useColors } from '@/hooks/useColors';
 import { LoginRequiredModal } from '@/components/LoginRequiredModal';
 import { getHomeRouteForRole } from '@/lib/roleRoutes';
-import { AnimatedTabItem, GlassPill } from '@/components/FloatingTabBar';
+import { AnimatedTabItem, GlassCircle, GlassPill } from '@/components/FloatingTabBar';
 import { navScale, snapNavScaleFull } from '@/hooks/useNavScroll';
-import CustomerFloatingCartBar from '@/components/customer/CustomerFloatingCartBar';
 
-const BLUE = '#1493FF';
+const BLUE      = '#1493FF';
+const CIRCLE_SZ = 62;
 
 const CUSTOMER_TABS = {
   index:   { icon: 'home',    title: 'Home'    },
@@ -24,7 +26,11 @@ const CUSTOMER_TABS = {
 const VISIBLE_ROUTES = ['index', 'menu', 'loyalty', 'profile'] as const;
 
 function FloatingCustomerTabBar({ state, navigation }: any) {
-  const insets = useSafeAreaInsets();
+  const insets         = useSafeAreaInsets();
+  const router         = useRouter();
+  const { user }       = useAuth();
+  const { totalItems } = useCart();
+  const [loginTarget, setLoginTarget] = useState<string | null>(null);
 
   const visibleRoutes = state.routes.filter((r: any) =>
     (VISIBLE_ROUTES as readonly string[]).includes(r.name),
@@ -43,31 +49,66 @@ function FloatingCustomerTabBar({ state, navigation }: any) {
     }
   };
 
-  return (
-    <View
-      pointerEvents="box-none"
-      style={[styles.wrap, { paddingBottom: Math.max(insets.bottom, 12) }]}
-    >
-      <Reanimated.View style={[styles.barRow, barAnimStyle]}>
-        <GlassPill>
-          {visibleRoutes.map((route: any) => {
-            const routeIndex = state.routes.findIndex((r: any) => r.key === route.key);
-            const focused    = state.index === routeIndex;
-            const cfg        = (CUSTOMER_TABS as any)[route.name] ?? { icon: 'circle', title: route.name };
+  const goToCart = () => {
+    snapNavScaleFull();
+    if (!user) {
+      setLoginTarget('/customer-cart');
+      return;
+    }
+    Haptics.selectionAsync();
+    router.push('/customer-cart' as any);
+  };
 
-            return (
-              <AnimatedTabItem
-                key={route.key}
-                focused={focused}
-                onPress={makeOnPress(route, focused)}
-                cfg={cfg}
-                activeColor={BLUE}
+  return (
+    <>
+      <View
+        pointerEvents="box-none"
+        style={[styles.wrap, { paddingBottom: Math.max(insets.bottom, 12) }]}
+      >
+        <Reanimated.View style={[styles.barRow, barAnimStyle]}>
+          <GlassPill>
+            {visibleRoutes.map((route: any) => {
+              const routeIndex = state.routes.findIndex((r: any) => r.key === route.key);
+              const focused    = state.index === routeIndex;
+              const cfg        = (CUSTOMER_TABS as any)[route.name] ?? { icon: 'circle', title: route.name };
+
+              return (
+                <AnimatedTabItem
+                  key={route.key}
+                  focused={focused}
+                  onPress={makeOnPress(route, focused)}
+                  cfg={cfg}
+                  activeColor={BLUE}
+                />
+              );
+            })}
+          </GlassPill>
+
+          <Pressable onPress={goToCart} hitSlop={8} style={styles.cartWrap}>
+            <GlassCircle size={CIRCLE_SZ}>
+              <Feather
+                name="shopping-bag"
+                size={22}
+                color={totalItems > 0 ? BLUE : '#333'}
               />
-            );
-          })}
-        </GlassPill>
-      </Reanimated.View>
-    </View>
+            </GlassCircle>
+            {totalItems > 0 && (
+              <View style={styles.badge}>
+                <Text style={styles.badgeText}>
+                  {totalItems > 99 ? '99+' : String(totalItems)}
+                </Text>
+              </View>
+            )}
+          </Pressable>
+        </Reanimated.View>
+      </View>
+
+      <LoginRequiredModal
+        visible={!!loginTarget}
+        redirectTo={loginTarget ?? undefined}
+        onCancel={() => setLoginTarget(null)}
+      />
+    </>
   );
 }
 
@@ -100,7 +141,8 @@ function ClassicCustomerTabs() {
           listeners={{ tabPress: (e) => { if (!user) { e.preventDefault(); setLoginTarget('/(customer)/profile'); } } }}
           options={{ title: 'Account' }}
         />
-        <Tabs.Screen name="track/[id]" options={{ href: null, title: 'Track Order' }} />
+        <Tabs.Screen name="track/[id]"      options={{ href: null, title: 'Track Order'     }} />
+        <Tabs.Screen name="payment-methods" options={{ href: null, title: 'Payment Methods' }} />
       </Tabs>
 
       <LoginRequiredModal
@@ -108,8 +150,6 @@ function ClassicCustomerTabs() {
         redirectTo={loginTarget ?? undefined}
         onCancel={() => setLoginTarget(null)}
       />
-
-      <CustomerFloatingCartBar />
     </>
   );
 }
@@ -134,5 +174,27 @@ const styles = StyleSheet.create({
   barRow: {
     flexDirection: 'row',
     alignItems:    'center',
+    gap:           10,
+  },
+  cartWrap: {
+    position: 'relative',
+  },
+  badge: {
+    position:          'absolute',
+    top:               -4,
+    right:             -4,
+    minWidth:          18,
+    height:            18,
+    borderRadius:      9,
+    backgroundColor:   '#FF3B30',
+    alignItems:        'center',
+    justifyContent:    'center',
+    paddingHorizontal: 4,
+  },
+  badgeText: {
+    color:      '#fff',
+    fontSize:   10,
+    fontWeight: '700',
+    lineHeight: 13,
   },
 });
