@@ -39,7 +39,6 @@ import BannerPicksCarousel from '@/components/BannerPicksCarousel';
 import { SvgXml } from 'react-native-svg';
 import { EARN_POINTS_SVG, BIRTHDAY_TREAT_SVG } from '@/constants/benefit-icons';
 import { CoffeeStampIcon } from '@/components/CoffeeStampIcon';
-import CustomerFloatingCartBar, { FLOAT_BAR_EXTRA_PAD } from '@/components/customer/CustomerFloatingCartBar';
 
 const HERO_TOP    = '#0C1428';
 const HERO_BTM    = '#162040';
@@ -196,7 +195,7 @@ export default function CustomerHome() {
       <Reanimated.ScrollView
         ref={scrollRef}
         style={{ flex: 1 }}
-        contentContainerStyle={{ paddingBottom: insets.bottom + 120 + FLOAT_BAR_EXTRA_PAD }}
+        contentContainerStyle={{ paddingBottom: insets.bottom + 120 }}
         showsVerticalScrollIndicator={false}
         scrollEventThrottle={16}
         onScroll={scrollHandler}
@@ -413,7 +412,6 @@ export default function CustomerHome() {
           </View>
         )}
       </Reanimated.ScrollView>
-      <CustomerFloatingCartBar />
     </View>
   );
 }

@@ -10,6 +10,7 @@ import { LoginRequiredModal } from '@/components/LoginRequiredModal';
 import { getHomeRouteForRole } from '@/lib/roleRoutes';
 import { AnimatedTabItem, GlassPill } from '@/components/FloatingTabBar';
 import { navScale, snapNavScaleFull } from '@/hooks/useNavScroll';
+import CustomerFloatingCartBar from '@/components/customer/CustomerFloatingCartBar';
 
 const BLUE = '#1493FF';
 
@@ -107,6 +108,8 @@ function ClassicCustomerTabs() {
         redirectTo={loginTarget ?? undefined}
         onCancel={() => setLoginTarget(null)}
       />
+
+      <CustomerFloatingCartBar />
     </>
   );
 }

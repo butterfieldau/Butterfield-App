@@ -1,40 +1,43 @@
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { usePathname, useRouter } from 'expo-router';
-import React, { memo, useEffect } from 'react';
+import React, { memo, useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import Reanimated, {
   useAnimatedProps,
   useAnimatedStyle,
   useSharedValue,
   withSpring,
+  withTiming,
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useCart } from '@/context/CartContext';
-
-const BLUE = '#1493FF';
-
-export const FLOAT_BAR_EXTRA_PAD = 80;
+import { useAuth } from '@/context/AuthContext';
+import { LoginRequiredModal } from '@/components/LoginRequiredModal';
 
 const AnimatedView = Reanimated.createAnimatedComponent(View);
 
 function CustomerFloatingCartBar() {
   const { totalItems, totalPriceCents } = useCart();
+  const { user } = useAuth();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const pathname = usePathname();
+  const [showLoginModal, setShowLoginModal] = useState(false);
 
   const onCartScreen = pathname === '/customer-cart';
 
-  const TAB_BAR_H = insets.bottom + 80;
+  // Tab bar = 46px pill + Math.max(insets.bottom, 12) padding — same formula as FloatingCustomerTabBar
+  const TAB_BAR_H = 46 + Math.max(insets.bottom, 12);
 
-  const translateY = useSharedValue(100);
+  // Start fully off-screen (200px) so it is never visible when cart is empty
+  const translateY = useSharedValue(200);
 
   useEffect(() => {
     if (totalItems > 0 && !onCartScreen) {
-      translateY.value = withSpring(0, { damping: 28, stiffness: 220 });
+      translateY.value = withSpring(0, { damping: 28, stiffness: 220, mass: 0.8 });
     } else {
-      translateY.value = withSpring(100, { damping: 28, stiffness: 220 });
+      translateY.value = withTiming(200, { duration: 260 });
     }
   }, [totalItems, onCartScreen]);
 
@@ -51,27 +54,38 @@ function CustomerFloatingCartBar() {
 
   const handleViewCart = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    router.replace('/customer-cart' as any);
+    if (!user) {
+      setShowLoginModal(true);
+      return;
+    }
+    router.push('/customer-cart' as any);
   };
 
   return (
-    <AnimatedView
-      animatedProps={animatedProps}
-      style={[
-        styles.floatBar,
-        { bottom: TAB_BAR_H + 16 },
-        animatedStyle,
-      ]}
-    >
-      <View style={{ flex: 1 }}>
-        <Text style={styles.floatTitle}>{itemLabel}</Text>
-        <Text style={styles.floatSub}>{priceStr} AUD</Text>
-      </View>
-      <Pressable onPress={handleViewCart} style={styles.floatBtn}>
-        <Feather name="shopping-cart" size={16} color="#fff" />
-        <Text style={styles.floatBtnText}>View Cart</Text>
-      </Pressable>
-    </AnimatedView>
+    <>
+      <LoginRequiredModal
+        visible={showLoginModal}
+        redirectTo="/(customer)/index"
+        onCancel={() => setShowLoginModal(false)}
+      />
+      <AnimatedView
+        animatedProps={animatedProps}
+        style={[
+          styles.floatBar,
+          { bottom: TAB_BAR_H + 25 },
+          animatedStyle,
+        ]}
+      >
+        <View style={{ flex: 1 }}>
+          <Text style={styles.floatTitle}>{itemLabel}</Text>
+          <Text style={styles.floatSub}>{priceStr} AUD</Text>
+        </View>
+        <Pressable onPress={handleViewCart} style={styles.floatBtn}>
+          <Feather name="shopping-cart" size={16} color="#fff" />
+          <Text style={styles.floatBtnText}>View Cart</Text>
+        </Pressable>
+      </AnimatedView>
+    </>
   );
 }
 
@@ -102,7 +116,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 7,
-    backgroundColor: BLUE,
+    backgroundColor: '#1493FF',
     paddingHorizontal: 18,
     paddingVertical: 10,
     borderRadius: 12,

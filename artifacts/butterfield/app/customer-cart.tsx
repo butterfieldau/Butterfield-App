@@ -82,7 +82,7 @@ export default function CartScreen() {
   if (confirmation) {
     return <CheckoutConfirmation confirmation={confirmation} clearCart={clearCart} insets={insets} />;
   }
-  if (!user) return <LoggedOutAccountPrompt redirectTo="/customer-cart" compact />;
+  if (!user) return <LoggedOutAccountPrompt redirectTo="/(customer)" compact />;
   return <CartContent onConfirm={setConfirmation} />;
 }
 
