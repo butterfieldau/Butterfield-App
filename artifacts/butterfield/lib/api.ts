@@ -359,6 +359,15 @@ export const api = {
       request<{ success: boolean; termsVersion: string }>('/wholesale/terms/accept', { method: 'POST', body: JSON.stringify(data) }),
     logSecurityEvent: (data: { eventType: string; screenName: string; termsVersion?: string; pricingVersion?: string; devicePlatform?: string; appVersion?: string; metadata?: Record<string, unknown> }) =>
       request<{ success: boolean }>('/wholesale/security/event', { method: 'POST', body: JSON.stringify(data) }),
+    invoicePaymentIntent: (orderId: string, paymentMethodId: string) =>
+      request<{ clientSecret: string | null; paymentIntentId: string; invoiceAmountCents: number; processingFeeCents: number; totalWithFeeCents: number; requiresAction?: boolean; success?: boolean }>(
+        `/wholesale/invoices/${orderId}/payment-intent`,
+        { method: 'POST', body: JSON.stringify({ paymentMethodId }) },
+      ),
+    invoiceConfirmPayment: (orderId: string, paymentIntentId: string) =>
+      request<{ success: boolean }>(`/wholesale/invoices/${orderId}/confirm-payment`, {
+        method: 'POST', body: JSON.stringify({ paymentIntentId }),
+      }),
   },
   delivery: {
     config: () => request<{ data: RetailDeliveryConfig }>('/delivery-config'),

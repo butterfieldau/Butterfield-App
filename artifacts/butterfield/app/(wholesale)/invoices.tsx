@@ -3,7 +3,6 @@ import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
-import * as WebBrowser from 'expo-web-browser';
 import { router } from 'expo-router';
 import React, { useCallback, useState } from 'react';
 import {
@@ -14,6 +13,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
 import { useFocusEffect } from 'expo-router';
 import { InvoiceStatusBadge } from '@/components/OrderStatusBadge';
+import { InvoicePaymentModal } from '@/components/wholesale/InvoicePaymentModal';
 import { useRefreshControl } from '@/hooks/useRefreshControl';
 import { generateInvoiceHtml, type InvoiceLine, type InvoicePdfData } from '@/lib/invoicePdf';
 import { api, getWholesaleInvoiceUrl } from '@/lib/api';
@@ -51,7 +51,7 @@ function mapOrderToInvoice(order: any): Invoice {
   // payment (e.g. issued credit memo), and the badge must reflect the revision.
   if (normalizedInvoiceStatus === 'revised') {
     status = 'revised';
-  } else if (order.isPaid || String(order.stripePaymentStatus ?? '').toLowerCase() === 'paid' || normalizedInvoiceStatus === 'paid' || order.status === 'delivered') {
+  } else if (order.isPaid || String(order.stripePaymentStatus ?? '').toLowerCase() === 'paid' || normalizedInvoiceStatus === 'paid') {
     status = 'paid';
   } else if (normalizedInvoiceStatus === 'voided' || normalizedInvoiceStatus === 'failed' || order.status === 'cancelled') {
     status = 'pending';
@@ -303,6 +303,7 @@ export default function WholesaleInvoices() {
 
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const [loadingId, setLoadingId]             = useState<string | null>(null);
+  const [payingInvoice, setPayingInvoice]     = useState<Invoice | null>(null);
 
   const totalPending = invoices.filter((i) => i.status !== 'paid').reduce((s, i) => s + i.amount, 0);
   const overdueCount = invoices.filter((i) => i.status === 'overdue').length;
@@ -349,26 +350,31 @@ export default function WholesaleInvoices() {
   const handlePay = (invoice: Invoice) => {
     const sourceOrder = orderMap[invoice.id];
     if (sourceOrder?.isPaid || String(sourceOrder?.stripePaymentStatus ?? '').toLowerCase() === 'paid') {
-      Alert.alert('Already paid', 'This invoice has already been paid.');
+      Alert.alert('Already Paid', 'This invoice has already been paid.');
       return;
     }
-    if (sourceOrder?.invoiceUrl) {
-      WebBrowser.openBrowserAsync(sourceOrder.invoiceUrl).catch(() => {
-        Alert.alert('Invoice unavailable', 'We could not open this invoice right now.');
-      });
-      return;
-    }
-    if (!defCard) {
-      Alert.alert('Invoice unavailable', 'This invoice is still being prepared. Please check back in a moment.');
-      return;
-    }
-    Alert.alert('Invoice unavailable', 'This invoice is still being prepared. Please check back in a moment.');
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setSelectedInvoice(null);
+    setPayingInvoice(invoice);
   };
 
   const goManageCards = () => router.push('/(wholesale)/profile' as any);
 
   return (
     <View style={{ flex: 1, backgroundColor: BG }}>
+      {/* Pay Now modal */}
+      <InvoicePaymentModal
+        visible={!!payingInvoice}
+        invoice={payingInvoice}
+        orderId={payingInvoice?.id ?? null}
+        onClose={() => setPayingInvoice(null)}
+        onPaid={() => {
+          setPayingInvoice(null);
+          refetchInvoices();
+          Alert.alert('Payment Successful', 'Your invoice has been paid successfully.');
+        }}
+      />
+
       {/* Detail modal */}
       <InvoiceDetailModal
         invoice={selectedInvoice}

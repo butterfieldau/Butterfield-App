@@ -4,7 +4,7 @@ import * as Haptics from 'expo-haptics';
 import * as Print from 'expo-print';
 import { router } from 'expo-router';
 import * as Sharing from 'expo-sharing';
-import * as WebBrowser from 'expo-web-browser';
+
 import React, { useState } from 'react';
 import {
   ActivityIndicator, Alert, FlatList, Modal, Platform, Pressable,
@@ -16,6 +16,7 @@ import { useQuery } from '@tanstack/react-query';
 import { generateInvoiceHtml, type InvoiceLine, type InvoicePdfData } from '@/lib/invoicePdf';
 import { api, getWholesaleInvoiceUrl } from '@/lib/api';
 import WholesaleConfidentialWatermark from '@/components/wholesale/WholesaleConfidentialWatermark';
+import { InvoicePaymentModal } from '@/components/wholesale/InvoicePaymentModal';
 import type { Invoice } from '@/types';
 import { normalizeOrderItems } from '@/lib/orderItems';
 
@@ -74,8 +75,7 @@ function mapOrderToInvoice(order: any): Invoice {
   if (
     order.isPaid ||
     String(order.stripePaymentStatus ?? '').toLowerCase() === 'paid' ||
-    normInvStatus === 'paid' ||
-    order.status === 'delivered'
+    normInvStatus === 'paid'
   ) {
     status = 'paid';
   } else if (normInvStatus === 'voided' || normInvStatus === 'failed' || order.status === 'cancelled') {
@@ -301,6 +301,7 @@ export default function WholesaleOrdersScreen() {
   const [filter, setFilter]               = useState('All');
   const [selectedOrder, setSelectedOrder] = useState<any | null>(null);
   const [loadingId, setLoadingId]         = useState<string | null>(null);
+  const [payingOrder, setPayingOrder]     = useState<any | null>(null);
 
   const { data, isLoading, refetch } = useQuery({
     queryKey: ['wholesale-orders'],
@@ -388,22 +389,33 @@ export default function WholesaleOrdersScreen() {
 
   const handlePay = (invoice: Invoice, order: any) => {
     if (order?.isPaid || String(order?.stripePaymentStatus ?? '').toLowerCase() === 'paid') {
-      Alert.alert('Already paid', 'This invoice has already been paid.');
+      Alert.alert('Already Paid', 'This invoice has already been paid.');
       return;
     }
-    if (order?.invoiceUrl) {
-      WebBrowser.openBrowserAsync(order.invoiceUrl).catch(() => {
-        Alert.alert('Invoice unavailable', 'We could not open this invoice right now.');
-      });
-      return;
-    }
-    Alert.alert('Invoice unavailable', 'This invoice is still being prepared. Please check back in a moment.');
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setSelectedOrder(null);
+    setPayingOrder(order);
   };
 
   const selectedInvoice = selectedOrder ? getInvoice(selectedOrder) : null;
 
+  const payingInvoice = payingOrder ? getInvoice(payingOrder) : null;
+
   return (
     <View style={{ flex: 1, backgroundColor: BG }}>
+      {/* Pay Now modal */}
+      <InvoicePaymentModal
+        visible={!!payingOrder}
+        invoice={payingInvoice}
+        orderId={payingOrder?.id ?? null}
+        onClose={() => setPayingOrder(null)}
+        onPaid={() => {
+          setPayingOrder(null);
+          refetch();
+          Alert.alert('Payment Successful', 'Your invoice has been paid successfully.');
+        }}
+      />
+
       <WholesaleConfidentialWatermark businessName={account?.companyName ?? undefined} email={account?.email ?? undefined} />
       <OrderDetailModal
         order={selectedOrder}

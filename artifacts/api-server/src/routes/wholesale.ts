@@ -816,4 +816,113 @@ router.get('/delivery-schedule', async (_req, res) => {
   });
 });
 
+// ── Invoice Pay Now ───────────────────────────────────────────────────────────
+
+router.post('/invoices/:orderId/payment-intent', async (req, res) => {
+  const { orderId } = req.params;
+  const { paymentMethodId } = req.body ?? {};
+  if (!paymentMethodId) return res.status(400).json({ error: 'paymentMethodId is required.' });
+
+  const account = await getAccountForUser(req.user!.id);
+  if (!account) return res.status(404).json({ error: 'Wholesale account not found.' });
+
+  const [order] = await db.select().from(wholesaleOrdersTable).where(
+    and(eq(wholesaleOrdersTable.id, orderId), eq(wholesaleOrdersTable.accountId, account.id)),
+  );
+  if (!order) return res.status(404).json({ error: 'Invoice not found.' });
+
+  const alreadyPaid =
+    order.isPaid ||
+    String(order.stripePaymentStatus ?? '').toLowerCase() === 'paid' ||
+    String((order as any).invoiceStatus ?? '').toLowerCase() === 'paid';
+  if (alreadyPaid) return res.status(400).json({ error: 'This invoice has already been paid.' });
+
+  const invoiceAmountCents = order.totalCents ?? 0;
+  if (invoiceAmountCents <= 0) return res.status(400).json({ error: 'Invoice amount is invalid.' });
+
+  const processingFeeCents = calculateCardProcessingFeeCents(invoiceAmountCents);
+  const totalWithFeeCents  = invoiceAmountCents + processingFeeCents;
+
+  try {
+    const customerId = await getOrCreateStripeCustomer(req.user!.id, req.user!.email, req.user!.name);
+    const { getUncachableStripeClient } = await import('../stripeClient.js');
+    const stripe = await getUncachableStripeClient();
+
+    const intent = await stripe.paymentIntents.create({
+      amount:               totalWithFeeCents,
+      currency:             'aud',
+      customer:             customerId,
+      receipt_email:        req.user!.email,
+      payment_method:       paymentMethodId,
+      payment_method_types: ['card'],
+      confirmation_method:  'manual',
+      confirm:              true,
+      metadata: {
+        userId:               req.user!.id,
+        accountId:            account.id,
+        orderId,
+        orderSource:          'wholesale_invoice',
+        invoiceAmountCents:   String(invoiceAmountCents),
+        processingFeeCents:   String(processingFeeCents),
+      },
+    });
+
+    return res.json({
+      clientSecret:        intent.client_secret,
+      paymentIntentId:     intent.id,
+      invoiceAmountCents,
+      processingFeeCents,
+      totalWithFeeCents,
+      requiresAction:      intent.status === 'requires_action',
+      success:             intent.status === 'succeeded',
+    });
+  } catch (err: any) {
+    req.log.error({ err }, 'Invoice payment intent creation failed');
+    return res.status(400).json({ error: err?.message ?? 'Could not create payment intent.' });
+  }
+});
+
+router.post('/invoices/:orderId/confirm-payment', async (req, res) => {
+  const { orderId } = req.params;
+  const { paymentIntentId } = req.body ?? {};
+  if (!paymentIntentId) return res.status(400).json({ error: 'paymentIntentId is required.' });
+
+  const account = await getAccountForUser(req.user!.id);
+  if (!account) return res.status(404).json({ error: 'Wholesale account not found.' });
+
+  const [order] = await db.select().from(wholesaleOrdersTable).where(
+    and(eq(wholesaleOrdersTable.id, orderId), eq(wholesaleOrdersTable.accountId, account.id)),
+  );
+  if (!order) return res.status(404).json({ error: 'Invoice not found.' });
+
+  try {
+    const { getUncachableStripeClient } = await import('../stripeClient.js');
+    const stripe = await getUncachableStripeClient();
+    const intent = await stripe.paymentIntents.retrieve(paymentIntentId);
+
+    if (intent.status !== 'succeeded') {
+      return res.status(400).json({ error: `Payment did not succeed (status: ${intent.status}).` });
+    }
+
+    const meta = intent.metadata ?? {};
+    if (meta.orderId && meta.orderId !== orderId) {
+      return res.status(400).json({ error: 'Payment intent does not match this invoice.' });
+    }
+
+    await db.update(wholesaleOrdersTable).set({
+      isPaid:                true,
+      paidAt:                new Date(),
+      invoiceStatus:         'paid',
+      stripePaymentStatus:   'paid',
+      stripePaymentIntentId: paymentIntentId,
+      updatedAt:             new Date(),
+    } as any).where(eq(wholesaleOrdersTable.id, orderId));
+
+    return res.json({ success: true });
+  } catch (err: any) {
+    req.log.error({ err }, 'Invoice payment confirmation failed');
+    return res.status(400).json({ error: err?.message ?? 'Could not confirm payment.' });
+  }
+});
+
 export default router;
