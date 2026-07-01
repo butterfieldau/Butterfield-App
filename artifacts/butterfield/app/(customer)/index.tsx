@@ -483,7 +483,7 @@ const s = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 10,
-    backgroundColor: BLUE,
+    backgroundColor: '#1493FF',
     borderRadius: 16,
     paddingVertical: 16,
   },
