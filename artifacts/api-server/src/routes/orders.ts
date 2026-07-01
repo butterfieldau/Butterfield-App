@@ -151,7 +151,13 @@ router.post('/', async (req, res) => {
   items = items.map((item: any, idx: number) => {
     const priced = computed.itemizedCents[idx];
     if (!priced) return item;
-    return { ...item, unitCents: priced.unitCents, lineCents: priced.lineCents };
+    return {
+      ...item,
+      unitCents: priced.unitCents,
+      lineCents: priced.lineCents,
+      unitPriceCents: priced.unitCents,
+      totalPriceCents: priced.lineCents,
+    };
   });
 
   if (paymentMethod === 'pay_at_pickup' && stripePaymentIntentId) {
