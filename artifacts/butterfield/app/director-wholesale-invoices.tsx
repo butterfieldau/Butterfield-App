@@ -110,11 +110,13 @@ function DetailModal({
   const insets = useSafeAreaInsets();
   if (!order) return null;
 
-  const status = deriveStatus(order);
-  const lines  = getLines(order);
-  const total  = (order.totalCents ?? 0) / 100;
-  const gst    = total / 11;
-  const excGst = total - gst;
+  const status       = deriveStatus(order);
+  const lines        = getLines(order);
+  const total        = (order.totalCents ?? 0) / 100;
+  const deliveryFee  = (order.deliveryFeeCents ?? 0) / 100;
+  const productTotal = total - deliveryFee;
+  const gst          = total / 11;
+  const excGst       = productTotal / 1.1;
 
   return (
     <Modal visible animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
@@ -196,9 +198,15 @@ function DetailModal({
             <Text style={[mdl.sectionTitle, { marginBottom: 8 }]}>Invoice Total</Text>
             <View style={{ gap: 8 }}>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                <Text style={{ color: MUTED, fontSize: 13 }}>Subtotal (ex. GST)</Text>
+                <Text style={{ color: MUTED, fontSize: 13 }}>Products (ex. GST)</Text>
                 <Text style={{ color: TEXT, fontSize: 13 }}>${excGst.toFixed(2)}</Text>
               </View>
+              {deliveryFee > 0 && (
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                  <Text style={{ color: MUTED, fontSize: 13 }}>Delivery charge</Text>
+                  <Text style={{ color: TEXT, fontSize: 13 }}>${deliveryFee.toFixed(2)}</Text>
+                </View>
+              )}
               <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
                 <Text style={{ color: MUTED, fontSize: 13 }}>GST (10%)</Text>
                 <Text style={{ color: MUTED, fontSize: 13 }}>${gst.toFixed(2)}</Text>
