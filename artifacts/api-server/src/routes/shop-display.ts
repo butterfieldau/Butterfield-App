@@ -536,24 +536,26 @@ router.get('/categories', async (_req, res) => {
 
 // ── Products (permission-gated) ───────────────────────────────────────────
 
-// Rewrite private storage URLs to public absolute ones so Expo Image can load without auth headers.
-// `base` should come from getPublicBaseUrl(req) which checks env vars first, then request host —
-// guaranteeing a non-empty base whenever possible.
+// Absolutize storage URLs so Expo Image can load them without needing auth headers.
+// Product images are uploaded with visibility="public" ACL, so the /objects/ endpoint
+// serves them to unauthenticated callers — no rewrite to /public-objects/ is needed
+// (that path uses a separate public bucket where these files do NOT exist).
+// `base` should come from getPublicBaseUrl(req) which checks env vars first, then request host.
 function toPublicStorageUrl(url: string | null | undefined, base: string): string | null {
   if (!url) return null;
-  // Already an absolute URL — re-absolutize our own storage URLs to current domain
+  // Already an absolute URL from our own domain — re-absolutize to current domain in case
+  // the stored domain differs (e.g. dev vs prod), but keep the path exactly as-is.
   if (/^https?:\/\//i.test(url)) {
-    const storageMatch = url.match(/(\/api\/storage\/(?:objects|public-objects)\/.+)/);
+    const storageMatch = url.match(/(\/api\/storage\/.+)/);
     if (storageMatch) {
-      const publicPath = storageMatch[1].replace('/api/storage/objects/', '/api/storage/public-objects/');
-      return base ? `${base}${publicPath}` : publicPath;
+      return base ? `${base}${storageMatch[1]}` : url;
     }
+    // External URL (e.g. Stripe CDN) — return as-is
     return url;
   }
-  // Relative private storage path → convert to public + absolutize
-  const privateMatch = url.match(/\/api\/storage\/objects\/(.+)/);
-  if (privateMatch) {
-    return base ? `${base}/api/storage/public-objects/${privateMatch[1]}` : `/api/storage/public-objects/${privateMatch[1]}`;
+  // Relative storage path — absolutize with base
+  if (url.startsWith('/api/storage/')) {
+    return base ? `${base}${url}` : url;
   }
   // Other relative paths
   return base ? `${base}${url.startsWith('/') ? '' : '/'}${url}` : url;
