@@ -48,7 +48,7 @@ function CustomerFloatingCartBar() {
 
   const handleViewCart = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    router.push('/customer-cart' as any);
+    router.replace('/customer-cart' as any);
   };
 
   return (
