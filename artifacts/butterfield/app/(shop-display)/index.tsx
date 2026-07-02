@@ -401,8 +401,13 @@ export default function ShopDisplayOrdersScreen() {
         if (order) void printOrder(order);
       }
       if (status === 'completed' && printerConfig?.autoDrawer && printerConfig?.printerIp) {
-        const drawerPin = ((printerConfig.drawerPin ?? 0) === 1 ? 1 : 0) as 0 | 1;
-        sendOpenDrawer(printerConfig.printerIp, printerConfig.printerPort ?? 9100, api.shopDisplay.printerBytes, drawerPin, printerConfig.printerBrand as 'epson' | 'star' | undefined).catch(() => {});
+        const order = rows.find(o => o.id === id);
+        // App orders are pre-paid via Stripe — never open the drawer for them.
+        const isPrepaid = !!(order?.stripePaymentIntentId);
+        if (!isPrepaid) {
+          const drawerPin = ((printerConfig.drawerPin ?? 0) === 1 ? 1 : 0) as 0 | 1;
+          sendOpenDrawer(printerConfig.printerIp, printerConfig.printerPort ?? 9100, api.shopDisplay.printerBytes, drawerPin, printerConfig.printerBrand as 'epson' | 'star' | undefined).catch(() => {});
+        }
       }
     } finally {
       setUpdatingOrderId(null);
@@ -417,7 +422,9 @@ export default function ShopDisplayOrdersScreen() {
     }
     const port = printerConfig?.printerPort ?? 9100;
     const brand = printerConfig?.printerBrand === 'star' ? 'star' : 'epson';
-    const autoDrawer = printerConfig?.autoDrawer ?? false;
+    // Never open the drawer for app orders — they are pre-paid via Stripe.
+    const isPrepaid = !!(order.stripePaymentIntentId);
+    const autoDrawer = !isPrepaid && (printerConfig?.autoDrawer ?? false);
     const drawerPin = ((printerConfig?.drawerPin ?? 0) === 1 ? 1 : 0) as 0 | 1;
     try {
       const job = orderToPrintJob(order, brand);
