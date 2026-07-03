@@ -37,6 +37,13 @@ export default function CustomerModal({
     searchCustomerCache('').then(setCachedResults).catch(() => {});
   }, []);
 
+  // Auto-request camera permission whenever we're in scan mode and don't have it yet
+  useEffect(() => {
+    if (mode === 'scan' && permission && !permission.granted && permission.canAskAgain) {
+      requestPermission();
+    }
+  }, [mode, permission, requestPermission]);
+
   useEffect(() => {
     if (!isOnline) {
       searchCustomerCache(query).then(setCachedResults).catch(() => {});
@@ -256,6 +263,7 @@ export default function CustomerModal({
             {permission?.granted ? (
               <CameraView
                 style={{ flex: 1, margin: 12, borderRadius: 12, overflow: 'hidden' }}
+                facing="back"
                 barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
                 onBarcodeScanned={handleQrScan}
               />

@@ -313,15 +313,17 @@ export function PaymentStepWithStripe({
   const { items: cartItemsWithPrices } = useCart();
 
   const [useFreeCoffeeReward, setUseFreeCoffeeReward] = useState(false);
-  const freeCoffeeRewards = loyaltyProfileData?.data?.freeCoffeeRewards ?? 0;
-  const hasCoffeeInCart = cartItemsWithPrices.some(
-    (i) => String((i as any).category ?? '').toLowerCase() === 'coffee',
-  );
+  const freeCoffeeRewards =
+    (loyaltyProfileData?.data?.freeCoffeeRewards ?? 0) ||
+    (loyaltyProfileData?.data?.freeCoffeesEarned ?? 0);
+  const isCoffeeItem = (i: { category?: string | null; isCoffee?: boolean }) =>
+    i.isCoffee === true || String(i.category ?? '').toLowerCase() === 'coffee';
+  const hasCoffeeInCart = cartItemsWithPrices.some(isCoffeeItem);
 
   const cheapestCoffeePriceCents = useMemo(() => {
     if (!useFreeCoffeeReward || !hasCoffeeInCart) return 0;
     const prices = cartItemsWithPrices
-      .filter((i) => String((i as any).category ?? '').toLowerCase() === 'coffee')
+      .filter(isCoffeeItem)
       .map((i) => i.unitPriceCents ?? 0);
     return prices.length > 0 ? Math.min(...prices) : 0;
   }, [useFreeCoffeeReward, hasCoffeeInCart, cartItemsWithPrices]);

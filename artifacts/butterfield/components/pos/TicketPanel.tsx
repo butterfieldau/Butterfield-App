@@ -44,7 +44,7 @@ export default function TicketPanel({
   const [showCodeInput, setShowCodeInput] = React.useState(false);
 
 
-  const hasCoffeeItems = ticket.items.some(i => i.category.toLowerCase() === 'coffee');
+  const hasCoffeeItems = ticket.items.some(i => (i.category ?? '').toLowerCase() === 'coffee');
   const canRedeemFreeCoffee = (ticket.customer?.freeCoffeeRewards ?? 0) > 0 && hasCoffeeItems && discount?.type !== 'free_coffee';
 
   const applyPctDiscount = (pct: number) => {
