@@ -26,6 +26,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useColors } from '@/hooks/useColors';
 import { useHomeScreenData } from '@/hooks/useHomeScreenData';
 import { getPalette } from '@/constants/categoryColors';
+import { getProductCategory } from '@/lib/productPairings';
 import StoreInfoSheet from '@/components/StoreInfoSheet';
 import { CustomerQrModal } from '@/components/CustomerQrModal';
 import { api, type ApiProduct } from '@/lib/api';
@@ -140,7 +141,7 @@ export default function CustomerHome() {
       basePriceCents: raw.priceCents ?? p.prices?.[0]?.unit_amount ?? 0,
       selectedOptions: [], quantity: 1,
       imageUrl: p.images?.[0] ?? PRODUCT_IMAGES[p.name],
-      category: p.metadata?.category,
+      category: getProductCategory(p),
     });
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   }, [addItemToCart]);
@@ -334,7 +335,7 @@ export default function CustomerHome() {
                       hitSlop={8}
                       onPress={(e) => {
                         e.stopPropagation();
-                        addItemToCart({ productId: p.id, productName: p.name, variantId, variantName, basePriceCents, selectedOptions: selectedOptions ?? [], quantity, imageUrl: p.images?.[0], category: (p as any).metadata?.category });
+                        addItemToCart({ productId: p.id, productName: p.name, variantId, variantName, basePriceCents, selectedOptions: selectedOptions ?? [], quantity, imageUrl: p.images?.[0], category: getProductCategory(p) });
                         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
                       }}
                     >

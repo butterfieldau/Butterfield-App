@@ -1,6 +1,9 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import type { CartItem } from '@/types';
+import { getProductCategory } from '@/lib/productPairings';
+import { api, type ApiProduct } from '@/lib/api';
 
 const CART_STORAGE_KEY = '@butterfield_cart';
 
@@ -30,28 +33,75 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   const [hydrated, setHydrated]                       = useState(false);
   const [cartRestoredFromSession, setCartRestoredFromSession] = useState(false);
   const isFirstWrite = useRef(true);
+  const qc = useQueryClient();
 
   // ── Rehydrate from AsyncStorage on mount ──────────────────────────────
   useEffect(() => {
-    AsyncStorage.getItem(CART_STORAGE_KEY)
-      .then(val => {
-        if (val) {
+    let cancelled = false;
+
+    async function hydrate() {
+      const val = await AsyncStorage.getItem(CART_STORAGE_KEY).catch(() => null);
+      if (!val || cancelled) return;
+
+      let parsed: CartItem[];
+      try {
+        const raw = JSON.parse(val);
+        if (!Array.isArray(raw) || raw.length === 0) return;
+        parsed = raw as CartItem[];
+      } catch {
+        return;
+      }
+
+      // Normalise items that are missing a category field (e.g. from old cache entries)
+      // by looking them up first in the React Query in-memory cache, then falling back
+      // to a real API fetch so cold-start restores are also covered.
+      const hasMissing = parsed.some(item => !item.category);
+      if (hasMissing) {
+        let productMap = new Map<string, ApiProduct>();
+
+        // 1. Try the in-memory React Query cache (warm start)
+        const cached = qc.getQueryData<ApiProduct[]>(['products']);
+        if (cached && cached.length > 0) {
+          productMap = new Map(cached.map(p => [p.id, p]));
+        }
+
+        // 2. If cache was cold, fetch from API so we always get a real category
+        const stillMissing = parsed.some(item => !item.category && !productMap.has(item.productId));
+        if (stillMissing) {
           try {
-            const parsed = JSON.parse(val) as CartItem[];
-            if (Array.isArray(parsed) && parsed.length > 0) {
-              setItems(parsed);
-              setCartRestoredFromSession(true);
+            const res = await api.products.list();
+            const fetched = res?.data ?? [];
+            productMap = new Map(fetched.map(p => [p.id, p]));
+            // Populate RQ cache for other consumers
+            if (fetched.length > 0) {
+              qc.setQueryData(['products'], fetched);
             }
           } catch {
-            // Corrupt data — start fresh
+            // Network unavailable — proceed with partial map; categories stay missing
           }
         }
-      })
-      .catch(() => {})
-      .finally(() => {
+
+        parsed = parsed.map(item => {
+          if (item.category) return item;
+          const prod = productMap.get(item.productId);
+          return prod ? { ...item, category: getProductCategory(prod) } : item;
+        });
+      }
+
+      if (!cancelled) {
+        setItems(parsed);
+        setCartRestoredFromSession(true);
+      }
+    }
+
+    hydrate().finally(() => {
+      if (!cancelled) {
         setHydrated(true);
         isFirstWrite.current = false;
-      });
+      }
+    });
+
+    return () => { cancelled = true; };
   }, []);
 
   // ── Persist to AsyncStorage on every items change (after hydration) ───

@@ -37,6 +37,7 @@ import { MenuShimmerGrid } from '@/components/customer/MenuShimmerGrid';
 import { DietaryTagFilter } from '@/components/customer/DietaryTagFilter';
 import { CategoryFilterBar } from '@/components/customer/CategoryFilterBar';
 import BuildABoxBanner from '@/components/BuildABox/BuildABoxBanner';
+import { getProductCategory } from '@/lib/productPairings';
 
 const BLUE   = '#40C0F2';
 const CHERRY = '#D20001';
@@ -187,7 +188,7 @@ export default function MenuScreen() {
       basePriceCents: raw.priceCents ?? p.prices?.[0]?.unit_amount ?? 0,
       selectedOptions: [], quantity: 1,
       imageUrl: p.images?.[0] ?? PRODUCT_IMAGES[p.name],
-      category: p.metadata?.category,
+      category: getProductCategory(p),
     });
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   };

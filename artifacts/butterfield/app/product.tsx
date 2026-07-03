@@ -254,7 +254,7 @@ export default function ProductDetailScreen() {
   }, []);
 
 
-  const category     = product?.category ?? product?.metadata?.category ?? 'cookies';
+  const category     = product ? getProductCategory(product) : 'cookies';
   const palette      = getPalette(category);
   const galleryUrls  = useMemo(() => {
     const fallback = product?.name ? (PRODUCT_IMAGES[product.name] ?? null) : null;

@@ -27,7 +27,7 @@ import { useStores } from '@/hooks/useStores';
 import { LoggedOutAccountPrompt } from '@/components/LoggedOutAccountPrompt';
 import SuggestionTile from '@/components/SuggestionTile';
 import { api, type AuthProfile } from '@/lib/api';
-import { getSuggestedProductsForCart } from '@/lib/productPairings';
+import { getSuggestedProductsForCart, getProductCategory } from '@/lib/productPairings';
 import { setSelectedProduct } from '@/lib/selectedProduct';
 import { formatDateChip } from '@/lib/dateUtils';
 import { PaymentStepWithStripe } from '@/components/customer/CheckoutPaymentStep';
@@ -330,7 +330,7 @@ function CartContent({ onConfirm }: { onConfirm: (c: Confirmation) => void }) {
                   selectedOptions: [],
                   quantity:        1,
                   imageUrl:        p.images?.[0],
-                  category:        (p as any).category ?? p.metadata?.category,
+                  category:        getProductCategory(p),
                   isCoffee:        false,
                 })}
               />
