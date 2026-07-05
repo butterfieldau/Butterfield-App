@@ -932,32 +932,44 @@ export function PaymentStepWithStripe({
 
       <Text style={[psStyles.sectionTitle, { marginTop: 8 }]}>Use Rewards</Text>
       <View style={psStyles.pointsCard}>
-        <View style={psStyles.pointsCardTop}>
-          <View>
-            <Text style={psStyles.pointsCardValue}>{availableLoyaltyPoints}</Text>
-            <Text style={psStyles.pointsCardSub}>Available as {`AUD ${(availableLoyaltyPoints * LOYALTY_POINT_VALUE_CENTS / 100).toFixed(2)}`}</Text>
+        {availableLoyaltyPoints === 0 && freeCoffeeRewards === 0 ? (
+          <View style={psStyles.pointsEmptyPrompt}>
+            <Feather name="star" size={18} color={BLUE} />
+            <View style={{ flex: 1 }}>
+              <Text style={psStyles.pointsEmptyTitle}>Place your first order to start earning rewards</Text>
+              <Text style={psStyles.pointsEmptySub}>Every order earns points you can use for discounts and free treats.</Text>
+            </View>
           </View>
-          <Pressable
-            onPress={() => setPointsToUseInput(maxUsablePoints > 0 ? String(maxUsablePoints) : '')}
-            disabled={maxUsablePoints < 1}
-            style={[psStyles.pointsQuickBtn, maxUsablePoints < 1 && { opacity: 0.45 }]}
-          >
-            <Text style={psStyles.pointsQuickBtnText}>Use all</Text>
-          </Pressable>
-        </View>
-        <View style={psStyles.pointsInputRow}>
-          <TextInput
-            style={psStyles.pointsInput}
-            placeholder="0"
-            placeholderTextColor={MUTED}
-            value={pointsToUseInput}
-            onChangeText={(text) => setPointsToUseInput(text.replace(/\D/g, ''))}
-            keyboardType="number-pad"
-          />
-          <Text style={psStyles.pointsInputMeta}>
-            {loyaltyPointsUsed > 0 ? `-${(loyaltyPointsDiscountCents / 100).toFixed(2)} at checkout` : `${maxUsablePoints} max now`}
-          </Text>
-        </View>
+        ) : (
+          <>
+            <View style={psStyles.pointsCardTop}>
+              <View>
+                <Text style={psStyles.pointsCardValue}>{availableLoyaltyPoints}</Text>
+                <Text style={psStyles.pointsCardSub}>Available as {`AUD ${(availableLoyaltyPoints * LOYALTY_POINT_VALUE_CENTS / 100).toFixed(2)}`}</Text>
+              </View>
+              <Pressable
+                onPress={() => setPointsToUseInput(maxUsablePoints > 0 ? String(maxUsablePoints) : '')}
+                disabled={maxUsablePoints < 1}
+                style={[psStyles.pointsQuickBtn, maxUsablePoints < 1 && { opacity: 0.45 }]}
+              >
+                <Text style={psStyles.pointsQuickBtnText}>Use all</Text>
+              </Pressable>
+            </View>
+            <View style={psStyles.pointsInputRow}>
+              <TextInput
+                style={psStyles.pointsInput}
+                placeholder="0"
+                placeholderTextColor={MUTED}
+                value={pointsToUseInput}
+                onChangeText={(text) => setPointsToUseInput(text.replace(/\D/g, ''))}
+                keyboardType="number-pad"
+              />
+              <Text style={psStyles.pointsInputMeta}>
+                {loyaltyPointsUsed > 0 ? `-${(loyaltyPointsDiscountCents / 100).toFixed(2)} at checkout` : `${maxUsablePoints} max now`}
+              </Text>
+            </View>
+          </>
+        )}
         {freeCoffeeRewards > 0 && hasCoffeeInCart && (
           <>
             <View style={{ height: 1, backgroundColor: BORDER, marginVertical: 4 }} />
@@ -1379,6 +1391,9 @@ const psStyles = StyleSheet.create({
   pointsInputRow:{ flexDirection: 'row', alignItems: 'center', gap: 10 },
   pointsInput:   { width: 92, borderWidth: 1.5, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 16, fontWeight: '700', color: TEXT, backgroundColor: '#F8FAFC', borderColor: BORDER },
   pointsInputMeta:{ flex: 1, fontSize: 12, lineHeight: 17, color: MUTED },
+  pointsEmptyPrompt: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
+  pointsEmptyTitle: { fontSize: 13, fontWeight: '600', color: TEXT, marginBottom: 2 },
+  pointsEmptySub:  { fontSize: 12, color: MUTED, lineHeight: 17 },
   totalRow:      { gap: 4 },
   secureRow:     { flexDirection: 'row', alignItems: 'center', gap: 6, justifyContent: 'center', paddingTop: 4 },
   noticeRow:     { flexDirection: 'row', alignItems: 'flex-start', gap: 8, padding: 12, borderRadius: 12, borderWidth: 1 },
