@@ -13,6 +13,7 @@ import { ensureStoreConfigSchemaReady } from '../lib/ensureStoreConfigSchemaRead
 import { refundOrderStripePayment } from '../lib/stripeRefunds.js';
 import { generateOrderNumber } from '../lib/orderNumber.js';
 import { getAllowedNextStatuses, getStatusMessage } from '../lib/orderStatusTransitions.js';
+import { buildConfirmationSavings } from '../lib/orderConfirmationSavings.js';
 import { getSydneyNow } from '../lib/sydneyTime.js';
 
 const router = Router();
@@ -516,20 +517,16 @@ router.post('/', async (req, res) => {
     }
   })();
 
-  const rewardSavingsCents = claimedRewardDiscountCents > 0
-    ? claimedRewardDiscountCents
-    : birthdayCookieDiscountCents > 0
-      ? birthdayCookieDiscountCents
-      : freeCoffeeDiscountCents > 0
-        ? freeCoffeeDiscountCents
-        : 0;
+  const { rewardSavingsCents, freeCoffeeDiscountCents: confirmFreeCoffeeCents } =
+    buildConfirmationSavings({ claimedRewardDiscountCents, birthdayCookieDiscountCents, freeCoffeeDiscountCents });
 
   const rewardName = claimedRewardData?.rewardName
     ?? (freeCoffeeRewardUsed ? 'Free Coffee' : null);
 
   return res.status(201).json({
     data: order,
-    rewardSavingsCents: rewardSavingsCents > 0 ? rewardSavingsCents : undefined,
+    rewardSavingsCents,
+    freeCoffeeDiscountCents: confirmFreeCoffeeCents,
     rewardName: rewardName ?? undefined,
   });
 });

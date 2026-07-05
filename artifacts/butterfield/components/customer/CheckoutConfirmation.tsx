@@ -19,6 +19,9 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import { EdgeInsets } from 'react-native-safe-area-context';
+import { computeConfirmationDisplaySavings } from '../../lib/confirmationSavings';
+
+export { computeConfirmationDisplaySavings };
 
 const CHERRY = '#D0312D';
 const BLUE   = '#1493FF';
@@ -33,6 +36,7 @@ export interface Confirmation {
   paymentMethodType?: string;
   isScheduled?: boolean;
   rewardSavingsCents?: number;
+  freeCoffeeDiscountCents?: number;
   rewardName?: string;
 }
 
@@ -102,7 +106,8 @@ interface Props {
 }
 
 export function CheckoutConfirmation({ confirmation, clearCart, insets }: Props) {
-  const earnedPoints  = Math.max(0, Math.floor(confirmation.totalCents / 125));
+  const earnedPoints   = Math.max(0, Math.floor(confirmation.totalCents / 125));
+  const totalSavingsCents = computeConfirmationDisplaySavings(confirmation);
   const orderShortId  = confirmation.orderNumber ?? `#${confirmation.orderId.slice(0, 8).toUpperCase()}`;
   const placedLabel   = new Intl.DateTimeFormat('en-AU', { day: 'numeric', month: 'short', year: 'numeric' }).format(new Date());
   const { width: screenWidth } = useWindowDimensions();
@@ -206,13 +211,13 @@ export function CheckoutConfirmation({ confirmation, clearCart, insets }: Props)
                   You earned <Text style={s.pointsInlineStrong}>+{earnedPoints} points</Text> from this order
                 </Text>
               </View>
-              {!!confirmation.rewardSavingsCents && confirmation.rewardSavingsCents > 0 && (
+              {totalSavingsCents > 0 && (
                 <View style={s.rewardSavings}>
                   <Feather name="gift" size={15} color="#15803D" />
                   <Text style={s.rewardSavingsText}>
                     You saved{' '}
-                    <Text style={s.rewardSavingsStrong}>${(confirmation.rewardSavingsCents / 100).toFixed(2)}</Text>
-                    {confirmation.rewardName ? ` with your ${confirmation.rewardName}` : ' with a loyalty reward'}
+                    <Text style={s.rewardSavingsStrong}>${(totalSavingsCents / 100).toFixed(2)}</Text>
+                    {confirmation.rewardName ? ` with your ${confirmation.rewardName}` : ' with loyalty rewards'}
                   </Text>
                 </View>
               )}

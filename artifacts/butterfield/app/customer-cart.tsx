@@ -70,6 +70,7 @@ interface Confirmation {
   paymentMethodType?: string;
   isScheduled?: boolean;
   rewardSavingsCents?: number;
+  freeCoffeeDiscountCents?: number;
   rewardName?: string;
 }
 
@@ -252,8 +253,9 @@ function CartContent({ onConfirm }: { onConfirm: (c: Confirmation) => void }) {
         scheduledDateLabel,
         paymentMethodType: opts.paymentMethodType,
         isScheduled:       (order.data as any).status === 'scheduled',
-        rewardSavingsCents: order.rewardSavingsCents,
-        rewardName:        order.rewardName,
+        rewardSavingsCents:     order.rewardSavingsCents,
+        freeCoffeeDiscountCents: order.freeCoffeeDiscountCents,
+        rewardName:              order.rewardName,
       });
     } catch (e: any) {
       Alert.alert('Order failed', e.message ?? 'Please try again.');
