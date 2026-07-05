@@ -43,7 +43,17 @@
       "title": "Butterfield Cookies — Sydney's Premium Café",
       "description": "Order freshly baked cookies, specialty coffee, and desserts from Butterfield — Sydney's premium café. Browse the full menu, earn loyalty points, and order online for pickup or delivery."
     },
+    "updates": {
+      "url": "https://u.expo.dev/59738e9e-3968-45e1-af76-21e113169e9b",
+      "enabled": true,
+      "checkAutomatically": "ON_LOAD",
+      "fallbackToCacheTimeout": 0
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
     "plugins": [
+      "expo-updates",
       [
         "expo-router",
         {

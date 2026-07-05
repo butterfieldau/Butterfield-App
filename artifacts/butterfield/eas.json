@@ -8,6 +8,7 @@
     "development": {
       "developmentClient": true,
       "distribution": "internal",
+      "channel": "development",
       "env": {
         "EXPO_PUBLIC_DOMAIN": "app.butterfieldcookies.com.au"
       },
@@ -17,6 +18,7 @@
     },
     "preview": {
       "distribution": "internal",
+      "channel": "preview",
       "env": {
         "EXPO_PUBLIC_DOMAIN": "app.butterfieldcookies.com.au"
       },
@@ -26,6 +28,7 @@
     },
     "production": {
       "autoIncrement": true,
+      "channel": "production",
       "env": {
         "EXPO_PUBLIC_DOMAIN": "app.butterfieldcookies.com.au",
         "IS_POS_BUILD": "0"
@@ -37,6 +40,7 @@
     },
     "production-pos": {
       "autoIncrement": true,
+      "channel": "production-pos",
       "env": {
         "EXPO_PUBLIC_DOMAIN": "app.butterfieldcookies.com.au",
         "IS_POS_BUILD": "1"
