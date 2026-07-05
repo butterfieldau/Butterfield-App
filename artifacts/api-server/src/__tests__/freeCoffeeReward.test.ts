@@ -450,3 +450,153 @@ describe('prepareRetailCheckout — response shape for order confirmation', () =
     expect(result.freeCoffeeRewardUsed).toBe(false);
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 8. Free coffee + loyalty points both active — neither cancels the other
+// ─────────────────────────────────────────────────────────────────────────────
+// LOYALTY_POINT_VALUE_CENTS is mocked to 100 in this test module.
+
+describe('prepareRetailCheckout — free coffee + loyalty points both toggled on', () => {
+  // Cart: flat white ($5.50) + cookie ($4.00) = $9.50 subtotal.
+  // Customer toggles ON free coffee reward AND uses 2 loyalty points.
+  // Expected: flat white marked free (freeCoffeeDiscountCents=550),
+  //           claimedLoyaltyPoints=2, loyaltyDiscountCents=200,
+  //           both flags non-zero in the returned result.
+
+  const twoItemRawItems = [
+    { productId: FLAT_WHITE_ID, quantity: 1, selectedOptions: [] },
+    { productId: COOKIE_ID, quantity: 1, selectedOptions: [] },
+  ];
+
+  it('both freeCoffeeRewardUsed and claimedLoyaltyPoints are non-zero simultaneously', async () => {
+    // DB call sequence in prepareRetailCheckout:
+    //   1. loyaltyPoints profile check (claimedLoyaltyPoints > 0)
+    //   2. freeCoffeeRewards profile check (useFreeCoffeeReward === true)
+    //   3. products fetch for coffee detection
+    queueSelectResults(
+      [{ loyaltyPoints: 500 }],              // (1) points balance check
+      [{ freeCoffeeRewards: 1 }],            // (2) free coffee rewards check
+      [flatWhiteProduct, cookieProduct],     // (3) products lookup
+    );
+
+    // previewWithoutPoints: flat white is already free → subtotal = cookie price only
+    // final: same items, discount applied via loyalty points
+    mockComputeOrderTotal
+      .mockResolvedValueOnce(makeComputedTotal(COOKIE_PRICE))   // previewWithoutPoints
+      .mockResolvedValueOnce(makeComputedTotal(COOKIE_PRICE));  // final computed
+
+    const result = await prepareRetailCheckout({
+      ...BASE_INPUT,
+      rawItems: twoItemRawItems,
+      loyaltyPointsUsed: 2,
+      useFreeCoffeeReward: true,
+    });
+
+    // Free coffee reward applied
+    expect(result.freeCoffeeRewardUsed).toBe(true);
+    expect(result.freeCoffeeDiscountCents).toBe(FLAT_WHITE_PRICE);
+
+    // Loyalty points applied — neither replaced by the coffee reward
+    expect(result.claimedLoyaltyPoints).toBe(2);
+    expect(result.loyaltyDiscountCents).toBe(2 * 100); // LOYALTY_POINT_VALUE_CENTS = 100
+
+    // Both are non-zero in the same result — not silently cancelled
+    expect(result.freeCoffeeDiscountCents).toBeGreaterThan(0);
+    expect(result.loyaltyDiscountCents).toBeGreaterThan(0);
+
+    // The flat white item is marked as a free reward
+    const freeItem = result.items.find((i) => (i as any).isFreeReward === true);
+    expect(freeItem?.productId).toBe(FLAT_WHITE_ID);
+    expect((freeItem as any).freeCoffeeItem).toBe(true);
+  });
+
+  it('toggling off free coffee (useFreeCoffeeReward=false) leaves loyalty points intact', async () => {
+    // Only points check fires — no free coffee DB calls
+    queueSelectResults(
+      [{ loyaltyPoints: 500 }], // points balance check only
+    );
+
+    mockComputeOrderTotal
+      .mockResolvedValueOnce(makeComputedTotal(FLAT_WHITE_PRICE + COOKIE_PRICE))
+      .mockResolvedValueOnce(makeComputedTotal(FLAT_WHITE_PRICE + COOKIE_PRICE));
+
+    const result = await prepareRetailCheckout({
+      ...BASE_INPUT,
+      rawItems: twoItemRawItems,
+      loyaltyPointsUsed: 2,
+      useFreeCoffeeReward: false,
+    });
+
+    expect(result.freeCoffeeRewardUsed).toBe(false);
+    expect(result.freeCoffeeDiscountCents).toBe(0);
+
+    // Points deduction should survive even when coffee reward is off
+    expect(result.claimedLoyaltyPoints).toBe(2);
+    expect(result.loyaltyDiscountCents).toBe(2 * 100);
+
+    // No items should be marked as free
+    expect(result.items.every((i) => !(i as any).isFreeReward)).toBe(true);
+  });
+
+  it('toggling off points (loyaltyPointsUsed=0) leaves free coffee reward intact', async () => {
+    // No points check (claimedLoyaltyPoints = 0) — only free coffee DB calls
+    queueSelectResults(
+      [{ freeCoffeeRewards: 1 }],          // free coffee check
+      [flatWhiteProduct, cookieProduct],   // products
+    );
+
+    mockComputeOrderTotal
+      .mockResolvedValueOnce(makeComputedTotal(COOKIE_PRICE))   // previewWithoutPoints
+      .mockResolvedValueOnce(makeComputedTotal(COOKIE_PRICE));  // final
+
+    const result = await prepareRetailCheckout({
+      ...BASE_INPUT,
+      rawItems: twoItemRawItems,
+      loyaltyPointsUsed: 0,
+      useFreeCoffeeReward: true,
+    });
+
+    expect(result.freeCoffeeRewardUsed).toBe(true);
+    expect(result.freeCoffeeDiscountCents).toBe(FLAT_WHITE_PRICE);
+
+    // Points should be zero — not somehow added by the coffee reward
+    expect(result.claimedLoyaltyPoints).toBe(0);
+    expect(result.loyaltyDiscountCents).toBe(0);
+
+    // Flat white is free, cookie is paid
+    const freeItem = result.items.find((i) => (i as any).isFreeReward === true);
+    expect(freeItem?.productId).toBe(FLAT_WHITE_ID);
+  });
+
+  it('order submission payload carries both loyaltyPointsUsed and useFreeCoffeeReward flags', async () => {
+    // Verifies that the result shape prepareRetailCheckout returns contains the values
+    // the orders route needs to build the correct DB record and API response.
+    queueSelectResults(
+      [{ loyaltyPoints: 500 }],
+      [{ freeCoffeeRewards: 1 }],
+      [flatWhiteProduct, cookieProduct],
+    );
+
+    mockComputeOrderTotal
+      .mockResolvedValueOnce(makeComputedTotal(COOKIE_PRICE))
+      .mockResolvedValueOnce(makeComputedTotal(COOKIE_PRICE));
+
+    const result = await prepareRetailCheckout({
+      ...BASE_INPUT,
+      rawItems: twoItemRawItems,
+      loyaltyPointsUsed: 3,
+      useFreeCoffeeReward: true,
+    });
+
+    // These two fields drive the orders route DB writes:
+    //   freeCoffeeRewardUsed=true → decrement free_coffee_rewards in DB
+    //   claimedLoyaltyPoints=3   → deduct loyalty_points in DB
+    expect(result.freeCoffeeRewardUsed).toBe(true);
+    expect(result.claimedLoyaltyPoints).toBe(3);
+
+    // Confirm the result is a single combined object — not split across two calls
+    expect(typeof result).toBe('object');
+    expect('freeCoffeeRewardUsed' in result).toBe(true);
+    expect('claimedLoyaltyPoints' in result).toBe(true);
+  });
+});

@@ -317,3 +317,133 @@ describe('computeCheckoutTotals — combinations', () => {
     expect(result.totalLabel).toBe(`AUD ${(result.totalCents / 100).toFixed(2)}`);
   });
 });
+
+describe('computeCheckoutTotals — points + free coffee both toggled on', () => {
+  // Scenario: customer has a coffee in cart ($5.50) plus a cookie ($4.50).
+  // They toggle ON both "free coffee" (stamp reward) and use 10 loyalty points.
+  // Both discounts must stack — neither should silently cancel the other.
+
+  const COFFEE_PRICE = 550;  // cheapest coffee in cart
+  const COOKIE_PRICE = 450;
+  const subtotalCents = COFFEE_PRICE + COOKIE_PRICE; // $10.00
+
+  it('deducts both free coffee and loyalty points when both are active simultaneously', () => {
+    const cheapestCoffeePriceCents = COFFEE_PRICE;
+    const pointsToUse = 10;
+    const base = subtotalCents - cheapestCoffeePriceCents;
+    const stripeFee = Math.round(base * STRIPE_CARD_RATE) + STRIPE_CARD_FIXED_FEE_CENTS;
+    const totalBeforePoints = base + stripeFee;
+    const loyaltyDiscount = pointsToUse * LOYALTY_POINT_VALUE_CENTS;
+
+    const result = computeCheckoutTotals({
+      ...BASE,
+      subtotalCents,
+      cheapestCoffeePriceCents,
+      availableLoyaltyPoints: 100,
+      pointsToUseInput: String(pointsToUse),
+    });
+
+    expect(result.discountCents).toBe(cheapestCoffeePriceCents);
+    expect(result.loyaltyPointsUsed).toBe(pointsToUse);
+    expect(result.loyaltyPointsDiscountCents).toBe(loyaltyDiscount);
+    expect(result.totalCents).toBe(totalBeforePoints - loyaltyDiscount);
+    expect(result.totalCents).toBeGreaterThan(0);
+    expect(result.totalLabel).toBe(`AUD ${((totalBeforePoints - loyaltyDiscount) / 100).toFixed(2)}`);
+  });
+
+  it('loyalty points are capped by the post-coffee-discount total, not the raw subtotal', () => {
+    // The max redeemable points must be based on the total after the coffee is free,
+    // not the raw subtotal — so they cannot stack beyond the remaining balance.
+    const cheapestCoffeePriceCents = COFFEE_PRICE;
+    const base = subtotalCents - cheapestCoffeePriceCents;
+    const stripeFee = Math.round(base * STRIPE_CARD_RATE) + STRIPE_CARD_FIXED_FEE_CENTS;
+    const totalBeforePoints = base + stripeFee;
+    const expectedMax = Math.floor(totalBeforePoints / LOYALTY_POINT_VALUE_CENTS);
+    // Points are whole units (5¢ each), so the sub-point remainder is never covered
+    const expectedRemainder = totalBeforePoints - expectedMax * LOYALTY_POINT_VALUE_CENTS;
+
+    const result = computeCheckoutTotals({
+      ...BASE,
+      subtotalCents,
+      cheapestCoffeePriceCents,
+      availableLoyaltyPoints: 99999,
+      pointsToUseInput: '99999',
+    });
+
+    expect(result.maxUsablePoints).toBe(expectedMax);
+    expect(result.loyaltyPointsUsed).toBe(expectedMax);
+    // totalCents floors to the sub-point remainder (0 when divisible, otherwise < 5)
+    expect(result.totalCents).toBe(expectedRemainder);
+  });
+
+  it('toggling off free coffee (cheapestCoffeePriceCents=0) leaves loyalty points deduction intact', () => {
+    const pointsToUse = 10;
+    const stripeFee = Math.round(subtotalCents * STRIPE_CARD_RATE) + STRIPE_CARD_FIXED_FEE_CENTS;
+    const totalBeforePoints = subtotalCents + stripeFee;
+    const loyaltyDiscount = pointsToUse * LOYALTY_POINT_VALUE_CENTS;
+
+    const result = computeCheckoutTotals({
+      ...BASE,
+      subtotalCents,
+      cheapestCoffeePriceCents: 0,
+      availableLoyaltyPoints: 100,
+      pointsToUseInput: String(pointsToUse),
+    });
+
+    expect(result.discountCents).toBe(0);
+    expect(result.loyaltyPointsUsed).toBe(pointsToUse);
+    expect(result.loyaltyPointsDiscountCents).toBe(loyaltyDiscount);
+    expect(result.totalCents).toBe(totalBeforePoints - loyaltyDiscount);
+  });
+
+  it('toggling off points (empty pointsToUseInput) leaves free coffee deduction intact', () => {
+    const cheapestCoffeePriceCents = COFFEE_PRICE;
+    const base = subtotalCents - cheapestCoffeePriceCents;
+    const stripeFee = Math.round(base * STRIPE_CARD_RATE) + STRIPE_CARD_FIXED_FEE_CENTS;
+
+    const result = computeCheckoutTotals({
+      ...BASE,
+      subtotalCents,
+      cheapestCoffeePriceCents,
+      availableLoyaltyPoints: 100,
+      pointsToUseInput: '',
+    });
+
+    expect(result.discountCents).toBe(cheapestCoffeePriceCents);
+    expect(result.loyaltyPointsUsed).toBe(0);
+    expect(result.loyaltyPointsDiscountCents).toBe(0);
+    expect(result.totalCents).toBe(base + stripeFee);
+  });
+
+  it('both rewards together produce a smaller total than either alone', () => {
+    const cheapestCoffeePriceCents = COFFEE_PRICE;
+    const pointsToUse = 5;
+
+    const coffeeOnlyResult = computeCheckoutTotals({
+      ...BASE,
+      subtotalCents,
+      cheapestCoffeePriceCents,
+      availableLoyaltyPoints: 0,
+      pointsToUseInput: '',
+    });
+
+    const pointsOnlyResult = computeCheckoutTotals({
+      ...BASE,
+      subtotalCents,
+      cheapestCoffeePriceCents: 0,
+      availableLoyaltyPoints: 100,
+      pointsToUseInput: String(pointsToUse),
+    });
+
+    const bothResult = computeCheckoutTotals({
+      ...BASE,
+      subtotalCents,
+      cheapestCoffeePriceCents,
+      availableLoyaltyPoints: 100,
+      pointsToUseInput: String(pointsToUse),
+    });
+
+    expect(bothResult.totalCents).toBeLessThan(coffeeOnlyResult.totalCents);
+    expect(bothResult.totalCents).toBeLessThan(pointsOnlyResult.totalCents);
+  });
+});
