@@ -888,6 +888,97 @@ export function PaymentStepWithStripe({
 
   return (
     <View style={psStyles.wrap}>
+      <Text style={[psStyles.sectionTitle, { marginTop: 0 }]}>Discount code</Text>
+      {discountApplied ? (
+        <View style={psStyles.discountApplied}>
+          <Feather name="tag" size={14} color="#16A34A" />
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontSize: 13, fontWeight: '600', color: '#166534' }}>{discountApplied.code}</Text>
+            {discountApplied.description ? (
+              <Text style={{ fontSize: 11, color: '#4ADE80', marginTop: 1 }}>{discountApplied.description}</Text>
+            ) : null}
+          </View>
+          <Text style={{ fontSize: 13, fontWeight: '700', color: '#166534' }}>
+            -AUD {(discountApplied.discountAmountCents / 100).toFixed(2)}
+          </Text>
+          <Pressable onPress={removeDiscount} style={{ padding: 4 }}>
+            <Feather name="x" size={16} color="#16A34A" />
+          </Pressable>
+        </View>
+      ) : (
+        <View style={psStyles.discountRow}>
+          <TextInput
+            style={[psStyles.discountInput, { borderColor: discountError ? CHERRY : BORDER, color: TEXT }]}
+            placeholder="Enter code"
+            placeholderTextColor={MUTED}
+            value={discountInput}
+            onChangeText={(t) => { setDiscountInput(t); setDiscountError(''); }}
+            autoCapitalize="characters"
+            returnKeyType="done"
+            onSubmitEditing={applyDiscount}
+          />
+          <Pressable
+            onPress={applyDiscount}
+            disabled={!discountInput.trim() || validatingDiscount}
+            style={[psStyles.applyBtn, { backgroundColor: discountInput.trim() ? BLUE : BORDER }]}
+          >
+            {validatingDiscount
+              ? <ActivityIndicator size="small" color="#fff" />
+              : <Text style={{ fontSize: 13, fontWeight: '600', color: discountInput.trim() ? '#fff' : MUTED }}>Apply</Text>}
+          </Pressable>
+        </View>
+      )}
+      {!!discountError && <Text style={{ fontSize: 12, color: CHERRY, marginTop: 2 }}>{discountError}</Text>}
+
+      <Text style={[psStyles.sectionTitle, { marginTop: 8 }]}>Use Rewards</Text>
+      <View style={psStyles.pointsCard}>
+        <View style={psStyles.pointsCardTop}>
+          <View>
+            <Text style={psStyles.pointsCardValue}>{availableLoyaltyPoints}</Text>
+            <Text style={psStyles.pointsCardSub}>Available as {`AUD ${(availableLoyaltyPoints * LOYALTY_POINT_VALUE_CENTS / 100).toFixed(2)}`}</Text>
+          </View>
+          <Pressable
+            onPress={() => setPointsToUseInput(maxUsablePoints > 0 ? String(maxUsablePoints) : '')}
+            disabled={maxUsablePoints < 1}
+            style={[psStyles.pointsQuickBtn, maxUsablePoints < 1 && { opacity: 0.45 }]}
+          >
+            <Text style={psStyles.pointsQuickBtnText}>Use all</Text>
+          </Pressable>
+        </View>
+        <View style={psStyles.pointsInputRow}>
+          <TextInput
+            style={psStyles.pointsInput}
+            placeholder="0"
+            placeholderTextColor={MUTED}
+            value={pointsToUseInput}
+            onChangeText={(text) => setPointsToUseInput(text.replace(/\D/g, ''))}
+            keyboardType="number-pad"
+          />
+          <Text style={psStyles.pointsInputMeta}>
+            {loyaltyPointsUsed > 0 ? `-${(loyaltyPointsDiscountCents / 100).toFixed(2)} at checkout` : `${maxUsablePoints} max now`}
+          </Text>
+        </View>
+        {freeCoffeeRewards > 0 && hasCoffeeInCart && (
+          <>
+            <View style={{ height: 1, backgroundColor: BORDER, marginVertical: 4 }} />
+            <View style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 8 }}>
+              <View style={{ flex: 1 }}>
+                <Text style={psStyles.freeCoffeeTitle}>Free coffee reward</Text>
+                <Text style={psStyles.freeCoffeeSub}>
+                  {freeCoffeeRewards} available · Thanks for being part of Butterfield.
+                </Text>
+              </View>
+              <Switch
+                value={useFreeCoffeeReward}
+                onValueChange={(v) => { setUseFreeCoffeeReward(v); Haptics.selectionAsync(); }}
+                trackColor={{ false: BORDER, true: BLUE }}
+                thumbColor="#fff"
+              />
+            </View>
+          </>
+        )}
+      </View>
+
       <Text style={psStyles.sectionTitle}>Payment method</Text>
 
       {isIosApplePay && (
@@ -1169,98 +1260,6 @@ export function PaymentStepWithStripe({
           </View>
         </View>
       )}
-
-      <Text style={[psStyles.sectionTitle, { marginTop: 8 }]}>Discount code</Text>
-      {discountApplied ? (
-        <View style={psStyles.discountApplied}>
-          <Feather name="tag" size={14} color="#16A34A" />
-          <View style={{ flex: 1 }}>
-            <Text style={{ fontSize: 13, fontWeight: '600', color: '#166534' }}>{discountApplied.code}</Text>
-            {discountApplied.description ? (
-              <Text style={{ fontSize: 11, color: '#4ADE80', marginTop: 1 }}>{discountApplied.description}</Text>
-            ) : null}
-          </View>
-          <Text style={{ fontSize: 13, fontWeight: '700', color: '#166534' }}>
-            -AUD {(discountApplied.discountAmountCents / 100).toFixed(2)}
-          </Text>
-          <Pressable onPress={removeDiscount} style={{ padding: 4 }}>
-            <Feather name="x" size={16} color="#16A34A" />
-          </Pressable>
-        </View>
-      ) : (
-        <View style={psStyles.discountRow}>
-          <TextInput
-            style={[psStyles.discountInput, { borderColor: discountError ? CHERRY : BORDER, color: TEXT }]}
-            placeholder="Enter code"
-            placeholderTextColor={MUTED}
-            value={discountInput}
-            onChangeText={(t) => { setDiscountInput(t); setDiscountError(''); }}
-            autoCapitalize="characters"
-            returnKeyType="done"
-            onSubmitEditing={applyDiscount}
-          />
-          <Pressable
-            onPress={applyDiscount}
-            disabled={!discountInput.trim() || validatingDiscount}
-            style={[psStyles.applyBtn, { backgroundColor: discountInput.trim() ? BLUE : BORDER }]}
-          >
-            {validatingDiscount
-              ? <ActivityIndicator size="small" color="#fff" />
-              : <Text style={{ fontSize: 13, fontWeight: '600', color: discountInput.trim() ? '#fff' : MUTED }}>Apply</Text>}
-          </Pressable>
-        </View>
-      )}
-      {!!discountError && <Text style={{ fontSize: 12, color: CHERRY, marginTop: 2 }}>{discountError}</Text>}
-
-      {freeCoffeeRewards > 0 && hasCoffeeInCart && (
-        <View style={psStyles.freeCoffeeRow}>
-          <View style={{ flex: 1 }}>
-            <Text style={psStyles.freeCoffeeTitle}>Free coffee reward</Text>
-            <Text style={psStyles.freeCoffeeSub}>
-              {freeCoffeeRewards} available · Thanks for being part of Butterfield.
-            </Text>
-          </View>
-          <Switch
-            value={useFreeCoffeeReward}
-            onValueChange={(v) => {
-              setUseFreeCoffeeReward(v);
-              Haptics.selectionAsync();
-            }}
-            trackColor={{ false: BORDER, true: BLUE }}
-            thumbColor="#fff"
-          />
-        </View>
-      )}
-
-      <Text style={[psStyles.sectionTitle, { marginTop: 8 }]}>Use points</Text>
-      <View style={psStyles.pointsCard}>
-        <View style={psStyles.pointsCardTop}>
-          <View>
-            <Text style={psStyles.pointsCardValue}>{availableLoyaltyPoints}</Text>
-            <Text style={psStyles.pointsCardSub}>Available as {`AUD ${(availableLoyaltyPoints * LOYALTY_POINT_VALUE_CENTS / 100).toFixed(2)}`}</Text>
-          </View>
-          <Pressable
-            onPress={() => setPointsToUseInput(maxUsablePoints > 0 ? String(maxUsablePoints) : '')}
-            disabled={maxUsablePoints < 1}
-            style={[psStyles.pointsQuickBtn, maxUsablePoints < 1 && { opacity: 0.45 }]}
-          >
-            <Text style={psStyles.pointsQuickBtnText}>Use all</Text>
-          </Pressable>
-        </View>
-        <View style={psStyles.pointsInputRow}>
-          <TextInput
-            style={psStyles.pointsInput}
-            placeholder="0"
-            placeholderTextColor={MUTED}
-            value={pointsToUseInput}
-            onChangeText={(text) => setPointsToUseInput(text.replace(/\D/g, ''))}
-            keyboardType="number-pad"
-          />
-          <Text style={psStyles.pointsInputMeta}>
-            {loyaltyPointsUsed > 0 ? `-${(loyaltyPointsDiscountCents / 100).toFixed(2)} at checkout` : `${maxUsablePoints} max now`}
-          </Text>
-        </View>
-      </View>
 
       <View style={[psStyles.totalRow, { marginTop: 4 }]}>
         <View style={{ flex: 1, gap: 2 }}>
