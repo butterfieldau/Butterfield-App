@@ -452,7 +452,145 @@ describe('prepareRetailCheckout — response shape for order confirmation', () =
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 8. Free coffee + loyalty points both active — neither cancels the other
+// 8. Double-redemption prevention — stamp + catalog item_reward on the same product
+// ─────────────────────────────────────────────────────────────────────────────
+
+const CLAIMED_REWARD_ID = 'claimed-flat-white-reward';
+const REWARD_DEF_ID = 'reward-def-1';
+
+/** Minimal claimed reward row returned by the DB mock. */
+const claimedRewardRow = {
+  id: CLAIMED_REWARD_ID,
+  userId: USER_ID,
+  status: 'available',
+  voucherValueCents: null,
+  rewardId: REWARD_DEF_ID,
+  expiresAt: null,
+};
+
+/** Reward definition: item_reward linked to the Flat White. */
+const flatWhiteItemRewardDef = {
+  rewardType: 'item_reward',
+  linkedProductId: FLAT_WHITE_ID,
+  name: 'Free Flat White',
+  tierRestriction: null,
+  minOrderValueCents: null,
+};
+
+/** Linked product row (for savings display inside the item_reward block). */
+const flatWhiteLinkedProductRow = { priceCents: FLAT_WHITE_PRICE, salePriceCents: null };
+
+describe('prepareRetailCheckout — stamp + catalog item_reward double-redemption guard', () => {
+  // DB call sequence when both claimedRewardId (item_reward) and useFreeCoffeeReward are set:
+  //   1. claimed_rewards row
+  //   2. loyalty_rewards definition
+  //   3. products row for linkedProductId (savings display)
+  //   4. customer_profiles row (freeCoffeeRewards)
+  //   5. products fetch for all cart item productIds (coffee detection)
+
+  it('throws a descriptive error when the only coffee in the cart is already covered by the claimed item_reward', async () => {
+    // Cart: 2x Flat White — item_reward splits into 1 paid + 1 free,
+    // leaving one "paid" unit that the stamp would otherwise double-redeem.
+    queueSelectResults(
+      [claimedRewardRow],                 // (1) claimed reward row
+      [flatWhiteItemRewardDef],            // (2) reward definition
+      [flatWhiteLinkedProductRow],         // (3) linked product price
+      [{ freeCoffeeRewards: 1 }],          // (4) profile for stamp
+      [flatWhiteProduct],                  // (5) products for coffee detection
+    );
+
+    mockComputeOrderTotal.mockResolvedValue(makeComputedTotal(FLAT_WHITE_PRICE * 2));
+
+    await expect(
+      prepareRetailCheckout({
+        ...BASE_INPUT,
+        rawItems: [{ productId: FLAT_WHITE_ID, quantity: 2, selectedOptions: [] }],
+        claimedRewardId: CLAIMED_REWARD_ID,
+        useFreeCoffeeReward: true,
+      }),
+    ).rejects.toThrow('Your free coffee stamp cannot be applied');
+  });
+
+  it('does not produce two free lines for the same product when cart has qty=2 of the claimed coffee', async () => {
+    // Sanity-check companion: confirm the error fires (not a silent double-free).
+    queueSelectResults(
+      [claimedRewardRow],
+      [flatWhiteItemRewardDef],
+      [flatWhiteLinkedProductRow],
+      [{ freeCoffeeRewards: 1 }],
+      [flatWhiteProduct],
+    );
+
+    mockComputeOrderTotal.mockResolvedValue(makeComputedTotal(FLAT_WHITE_PRICE * 2));
+
+    let result: Awaited<ReturnType<typeof prepareRetailCheckout>> | null = null;
+    try {
+      result = await prepareRetailCheckout({
+        ...BASE_INPUT,
+        rawItems: [{ productId: FLAT_WHITE_ID, quantity: 2, selectedOptions: [] }],
+        claimedRewardId: CLAIMED_REWARD_ID,
+        useFreeCoffeeReward: true,
+      });
+    } catch (_) {
+      // Expected to throw — that IS the correct behaviour (no double-free produced).
+    }
+
+    // If it somehow resolved, verify it did NOT produce two isFreeReward lines
+    // for the same product (the original bug).
+    if (result !== null) {
+      const freeLines = result.items.filter((i) => (i as any).isFreeReward === true);
+      const freeFlatWhites = freeLines.filter((i) => i.productId === FLAT_WHITE_ID);
+      expect(freeFlatWhites).toHaveLength(1); // at most one free Flat White
+    }
+  });
+
+  it('redirects the stamp to a different coffee when the claimed product is already free', async () => {
+    // Cart: 1x Flat White (claimed by item_reward) + 1x Latte.
+    // Stamp must target the Latte, not attempt to double-redeem the Flat White.
+    queueSelectResults(
+      [claimedRewardRow],                  // (1) claimed reward row
+      [flatWhiteItemRewardDef],             // (2) reward definition
+      [flatWhiteLinkedProductRow],          // (3) linked product price
+      [{ freeCoffeeRewards: 1 }],           // (4) profile for stamp
+      [flatWhiteProduct, latteProduct],     // (5) products for coffee detection
+    );
+
+    mockComputeOrderTotal
+      .mockResolvedValueOnce(makeComputedTotal(FLAT_WHITE_PRICE + LATTE_PRICE)) // previewWithoutPoints
+      .mockResolvedValueOnce(makeComputedTotal(FLAT_WHITE_PRICE + LATTE_PRICE)); // final
+
+    const result = await prepareRetailCheckout({
+      ...BASE_INPUT,
+      rawItems: [
+        { productId: FLAT_WHITE_ID, quantity: 1, selectedOptions: [] },
+        { productId: LATTE_ID,      quantity: 1, selectedOptions: [] },
+      ],
+      claimedRewardId: CLAIMED_REWARD_ID,
+      useFreeCoffeeReward: true,
+    });
+
+    // item_reward covers the Flat White
+    const flatWhiteFree = result.items.find(
+      (i) => i.productId === FLAT_WHITE_ID && (i as any).isFreeReward,
+    );
+    expect(flatWhiteFree).toBeDefined();
+    expect((flatWhiteFree as any).freeCoffeeItem).toBeUndefined(); // not the stamp item
+
+    // Stamp covers the Latte
+    const latteFree = result.items.find(
+      (i) => i.productId === LATTE_ID && (i as any).isFreeReward,
+    );
+    expect(latteFree).toBeDefined();
+    expect((latteFree as any).freeCoffeeItem).toBe(true);
+
+    // Discount is the Latte price, not Flat White
+    expect(result.freeCoffeeDiscountCents).toBe(LATTE_PRICE);
+    expect(result.freeCoffeeRewardUsed).toBe(true);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 9. Free coffee + loyalty points both active — neither cancels the other
 // ─────────────────────────────────────────────────────────────────────────────
 // LOYALTY_POINT_VALUE_CENTS is mocked to 100 in this test module.
 

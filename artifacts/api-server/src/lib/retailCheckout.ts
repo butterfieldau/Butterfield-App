@@ -70,6 +70,9 @@ export async function prepareRetailCheckout(input: RetailCheckoutPreparationInpu
   let claimedRewardDiscountCents = 0;
   let claimedRewardData: PreparedClaimedReward | null = null;
   let birthdayCookieDiscountCents = 0;
+  // Tracks the product already awarded free by a catalog item_reward so the
+  // free-coffee stamp block cannot target the same product and double-redeem it.
+  let claimedItemRewardLinkedProductId: string | null = null;
 
   if (claimedLoyaltyPoints > 0) {
     const [profile] = await db.select().from(customerProfilesTable).where(eq(customerProfilesTable.userId, input.userId));
@@ -236,6 +239,9 @@ export async function prepareRetailCheckout(input: RetailCheckoutPreparationInpu
       }
     } else if (rewardType === 'item_reward') {
       if (linkedProductId) {
+        // Record the product being awarded free so the stamp block can avoid it.
+        claimedItemRewardLinkedProductId = linkedProductId;
+
         // Look up the product price for savings display on the confirmation screen.
         const [linkedProduct] = await db
           .select({ priceCents: productsTable.priceCents, salePriceCents: productsTable.salePriceCents })
@@ -338,6 +344,10 @@ export async function prepareRetailCheckout(input: RetailCheckoutPreparationInpu
       const item = items[i]!;
       const cp = coffeeProductMap.get(item.productId);
       if (!cp || item.isFreeReward) continue;
+      // Skip the product already covered by a claimed catalog item_reward.
+      // This prevents double-redemption when the stamp and the catalog reward
+      // both target the same coffee product (e.g. two free Flat White lines).
+      if (claimedItemRewardLinkedProductId && item.productId === claimedItemRewardLinkedProductId) continue;
       // Authoritative base price: variant price if variant present, else product price.
       let unitCents: number;
       if (item.variantId) {
@@ -360,6 +370,12 @@ export async function prepareRetailCheckout(input: RetailCheckoutPreparationInpu
     }
 
     if (cheapestIdx < 0) {
+      if (claimedItemRewardLinkedProductId) {
+        throw new Error(
+          'Your free coffee stamp cannot be applied: your only eligible coffee is already being redeemed ' +
+          'by your claimed catalog reward. Add a different coffee to use both rewards together.',
+        );
+      }
       throw new Error('No coffee items in your order to apply the free coffee reward');
     }
 
