@@ -143,11 +143,11 @@ export function Express() {
 
   const TOTAL_POINTS = 240;
   const POINT_VALUE = 0.01;
-  const POINTS_STEP = 10;
+  const POINTS_STEP = 1;
 
   function commitPointsInput(raw: string) {
-    const n = Math.round(parseInt(raw, 10) / POINTS_STEP) * POINTS_STEP;
-    const clamped = isNaN(n) ? POINTS_STEP : Math.min(TOTAL_POINTS, Math.max(POINTS_STEP, n));
+    const n = parseInt(raw, 10);
+    const clamped = isNaN(n) ? 1 : Math.min(TOTAL_POINTS, Math.max(1, n));
     setPointsToUse(clamped);
     setPointsInput(String(clamped));
     setEditingPoints(false);
@@ -470,7 +470,7 @@ export function Express() {
                     <div style={{ height: "100%", borderRadius: 2, background: BLUE, width: `${(pointsToUse / TOTAL_POINTS) * 100}%`, transition: "width 0.15s" }} />
                   </div>
                   <div style={{ display: "flex", justifyContent: "space-between", marginTop: 5 }}>
-                    <span style={{ color: MUTED, fontSize: 11 }}>{POINTS_STEP} min</span>
+                    <span style={{ color: MUTED, fontSize: 11 }}>1 min</span>
                     <span style={{ color: MUTED, fontSize: 11 }}>{TOTAL_POINTS} max</span>
                   </div>
 
