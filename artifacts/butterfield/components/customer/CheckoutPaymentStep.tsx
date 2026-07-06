@@ -1382,7 +1382,7 @@ const psStyles = StyleSheet.create({
   discountInput: { flex: 1, borderWidth: 1.5, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, fontSize: 14, fontWeight: '600', letterSpacing: 0, backgroundColor: CARD },
   applyBtn:      { paddingHorizontal: 18, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   discountApplied:{ flexDirection: 'row', alignItems: 'center', gap: 10, padding: 14, borderRadius: 12, backgroundColor: '#F0FDF4', borderWidth: 1.5, borderColor: '#86EFAC' },
-  pointsCard:    { gap: 10, padding: 14, borderRadius: 14, backgroundColor: CARD, borderWidth: 1.5, borderColor: BORDER },
+  pointsCard:    { gap: 10, padding: 14, borderRadius: 14, backgroundColor: CARD, borderWidth: 1.5, borderColor: BLUE },
   pointsCardTop: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   pointsCardValue:{ fontSize: 22, fontWeight: '700', color: TEXT },
   pointsCardSub: { marginTop: 2, fontSize: 12, color: MUTED },
