@@ -71,7 +71,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             registerPushToken(token).catch(() => {});
           } catch (e: any) {
             const status = e instanceof ApiError ? e.status : undefined;
-            if (status === 401 || status === 403) {
+            if (status === 401) {
               await clearToken();
               await AsyncStorage.removeItem(USER_KEY);
               setUser(null);
