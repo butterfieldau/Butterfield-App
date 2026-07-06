@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import {
   ChevronLeft, MapPin, CreditCard, Store, Tag, Coffee,
   Star, Check, ChevronRight, Zap, Calendar,
@@ -136,11 +136,22 @@ export function Express() {
   const [payMethod, setPayMethod] = useState<PayMethod>("apple");
   const [usePoints, setUsePoints] = useState(false);
   const [pointsToUse, setPointsToUse] = useState(240);
+  const [pointsInput, setPointsInput] = useState("240");
+  const [editingPoints, setEditingPoints] = useState(false);
   const [useFreeCoffee, setUseFreeCoffee] = useState(false);
+  const pointsInputRef = useRef<HTMLInputElement>(null);
 
   const TOTAL_POINTS = 240;
-  const POINT_VALUE = 0.01; // AUD per point
+  const POINT_VALUE = 0.01;
   const POINTS_STEP = 10;
+
+  function commitPointsInput(raw: string) {
+    const n = Math.round(parseInt(raw, 10) / POINTS_STEP) * POINTS_STEP;
+    const clamped = isNaN(n) ? POINTS_STEP : Math.min(TOTAL_POINTS, Math.max(POINTS_STEP, n));
+    setPointsToUse(clamped);
+    setPointsInput(String(clamped));
+    setEditingPoints(false);
+  }
 
   // Pickup schedule state
   const [pickupDateIdx, setPickupDateIdx] = useState(0);
@@ -400,13 +411,50 @@ export function Express() {
                       <span style={{ fontSize: 26, color: pointsToUse <= POINTS_STEP ? BORDER : BLUE, fontWeight: 300, lineHeight: 1 }}>−</span>
                     </button>
 
-                    <div style={{ flex: 1, textAlign: "center" as const, padding: "6px 0" }}>
-                      <p style={{ color: TEXT, fontSize: 17, fontWeight: 700, margin: 0 }}>
-                        {pointsToUse} pts
-                      </p>
-                      <p style={{ color: GREEN, fontSize: 12, fontWeight: 600, margin: "1px 0 0" }}>
-                        −AUD {(pointsToUse * POINT_VALUE).toFixed(2)} off
-                      </p>
+                    {/* Tappable centre — tap to type */}
+                    <div
+                      onClick={() => {
+                        setEditingPoints(true);
+                        setPointsInput(String(pointsToUse));
+                        setTimeout(() => pointsInputRef.current?.select(), 30);
+                      }}
+                      style={{ flex: 1, textAlign: "center" as const, padding: "6px 0", cursor: "text" }}
+                    >
+                      {editingPoints ? (
+                        <div style={{ display: "flex", flexDirection: "column" as const, alignItems: "center", gap: 2 }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                            <input
+                              ref={pointsInputRef}
+                              autoFocus
+                              inputMode="numeric"
+                              value={pointsInput}
+                              onChange={e => setPointsInput(e.target.value.replace(/\D/g, ""))}
+                              onBlur={() => commitPointsInput(pointsInput)}
+                              onKeyDown={e => { if (e.key === "Enter") commitPointsInput(pointsInput); if (e.key === "Escape") { setEditingPoints(false); setPointsInput(String(pointsToUse)); } }}
+                              style={{
+                                width: 72, textAlign: "center" as const, fontSize: 17, fontWeight: 700,
+                                color: TEXT, border: "none", outline: "none", background: "transparent",
+                                caretColor: BLUE, borderBottom: `2px solid ${BLUE}`, padding: "2px 0"
+                              }}
+                            />
+                            <span style={{ fontSize: 14, color: MUTED, fontWeight: 500 }}>pts</span>
+                          </div>
+                          <p style={{ color: GREEN, fontSize: 12, fontWeight: 600, margin: 0 }}>
+                            −AUD {((parseInt(pointsInput || "0", 10) || 0) * POINT_VALUE).toFixed(2)} off
+                          </p>
+                        </div>
+                      ) : (
+                        <div style={{ display: "flex", flexDirection: "column" as const, alignItems: "center" }}>
+                          <div style={{ display: "flex", alignItems: "baseline", gap: 4 }}>
+                            <span style={{ color: TEXT, fontSize: 17, fontWeight: 700 }}>{pointsToUse}</span>
+                            <span style={{ fontSize: 12, color: MUTED, fontWeight: 500 }}>pts</span>
+                          </div>
+                          <p style={{ color: GREEN, fontSize: 12, fontWeight: 600, margin: "1px 0 0" }}>
+                            −AUD {(pointsToUse * POINT_VALUE).toFixed(2)} off
+                          </p>
+                          <p style={{ color: MUTED, fontSize: 10, margin: "2px 0 0", letterSpacing: 0.2 }}>tap to edit</p>
+                        </div>
+                      )}
                     </div>
 
                     <button
