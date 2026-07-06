@@ -309,16 +309,6 @@ export function Express() {
                   {timing === "schedule" && (
                     <>
                       <div style={{ height: 1, background: BORDER }} />
-                      {/* Chosen summary pill */}
-                      {pickupSummary && (
-                        <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 16px", background: "#EFF9FF", borderBottom: `1px solid ${BORDER}` }}>
-                          <Calendar size={14} color={BLUE} />
-                          <span style={{ color: BLUE, fontSize: 14, fontWeight: 600 }}>{pickupSummary}</span>
-                          <button onClick={() => { setPickupSlot(""); }} style={{ marginLeft: "auto", color: MUTED, background: "none", border: "none", fontSize: 12, cursor: "pointer" }}>
-                            Change
-                          </button>
-                        </div>
-                      )}
                       <div style={{ paddingTop: 12 }}>
                         <DateTimePicker
                           dates={DATES}
@@ -350,19 +340,6 @@ export function Express() {
                   <div style={{ padding: "12px 16px 4px" }}>
                     <p style={{ color: TEXT, fontSize: 14, fontWeight: 600, margin: "0 0 10px" }}>Choose a delivery date</p>
                   </div>
-
-                  {/* Chosen date summary */}
-                  {delivSlot && (
-                    <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 16px", background: "#EFF9FF", borderBottom: `1px solid ${BORDER}` }}>
-                      <Calendar size={14} color={BLUE} />
-                      <span style={{ color: BLUE, fontSize: 14, fontWeight: 600 }}>
-                        {DELIVERY_DATES[delivDateIdx].label} {DELIVERY_DATES[delivDateIdx].sub}
-                      </span>
-                      <button onClick={() => setDelivSlot("")} style={{ marginLeft: "auto", color: MUTED, background: "none", border: "none", fontSize: 12, cursor: "pointer" }}>
-                        Change
-                      </button>
-                    </div>
-                  )}
 
                   {/* Date chips only — no time slots */}
                   <div style={{ display: "flex", gap: 8, padding: "12px 16px 4px", overflowX: "auto" as const, scrollbarWidth: "none" as const }}>
