@@ -19,7 +19,7 @@ export function useWholesaleScreenSecurity({ screenName, enabled = true }: Optio
     let screenshotSub: ScreenCapture.Subscription | null = null;
 
     const platform  = Platform.OS;
-    const appVersion = Constants.expoConfig?.version ?? null;
+    const appVersion = Constants.expoConfig?.version ?? Constants.manifest?.version ?? null;
 
     async function setup() {
       if (loggedViewRef.current) return;
