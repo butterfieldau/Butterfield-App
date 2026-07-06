@@ -135,7 +135,12 @@ export function Express() {
   const [timing, setTiming] = useState<Timing>("now");
   const [payMethod, setPayMethod] = useState<PayMethod>("apple");
   const [usePoints, setUsePoints] = useState(false);
+  const [pointsToUse, setPointsToUse] = useState(240);
   const [useFreeCoffee, setUseFreeCoffee] = useState(false);
+
+  const TOTAL_POINTS = 240;
+  const POINT_VALUE = 0.01; // AUD per point
+  const POINTS_STEP = 10;
 
   // Pickup schedule state
   const [pickupDateIdx, setPickupDateIdx] = useState(0);
@@ -147,7 +152,7 @@ export function Express() {
 
   const subtotal = 26.50;
   const deliveryFee = fulfillment === "delivery" ? 5.00 : 0;
-  const discount = usePoints ? 2.40 : 0;
+  const discount = usePoints ? pointsToUse * POINT_VALUE : 0;
   const coffeeDiscount = useFreeCoffee ? 5.50 : 0;
   const total = (subtotal + deliveryFee - discount - coffeeDiscount).toFixed(2);
 
@@ -358,24 +363,73 @@ export function Express() {
           {/* USE REWARDS */}
           <SecLabel label="Use Rewards" />
           <div style={{ background: CARD, margin: "0 16px", borderRadius: 14, border: `1px solid ${BORDER}`, overflow: "hidden" }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 16px" }}>
+            {/* Points row */}
+            <div style={{ padding: "14px 16px" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                <div style={{ width: 38, height: 38, borderRadius: 10, background: usePoints ? "#EFF9FF" : BG, border: `1.5px solid ${usePoints ? BLUE : BORDER}`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <div style={{ width: 38, height: 38, borderRadius: 10, background: usePoints ? "#EFF9FF" : BG, border: `1.5px solid ${usePoints ? BLUE : BORDER}`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                   <Star size={17} color={usePoints ? BLUE : MUTED} fill={usePoints ? BLUE : "none"} />
                 </div>
-                <div>
-                  <p style={{ color: TEXT, fontSize: 15, fontWeight: 600, margin: 0 }}>240 points</p>
-                  <p style={{ color: MUTED, fontSize: 12, margin: "2px 0 0" }}>Worth AUD 2.40</p>
+                <div style={{ flex: 1 }}>
+                  <p style={{ color: TEXT, fontSize: 15, fontWeight: 600, margin: 0 }}>
+                    {TOTAL_POINTS} points available
+                  </p>
+                  <p style={{ color: MUTED, fontSize: 12, margin: "2px 0 0" }}>
+                    Worth AUD {(TOTAL_POINTS * POINT_VALUE).toFixed(2)} · 1 pt = AUD 0.01
+                  </p>
                 </div>
+                {!usePoints && (
+                  <button onClick={() => { setUsePoints(true); setPointsToUse(TOTAL_POINTS); }} style={{
+                    padding: "7px 16px", borderRadius: 20, border: "none",
+                    background: BG, color: TEXT, fontSize: 13, fontWeight: 700, cursor: "pointer",
+                    flexShrink: 0
+                  }}>
+                    Use
+                  </button>
+                )}
               </div>
-              <button onClick={() => setUsePoints(!usePoints)} style={{
-                padding: "7px 16px", borderRadius: 20, border: "none",
-                background: usePoints ? BLUE : BG, color: usePoints ? "#fff" : TEXT,
-                fontSize: 13, fontWeight: 700, cursor: "pointer",
-                display: "flex", alignItems: "center", gap: 5
-              }}>
-                {usePoints ? <><Check size={12} /> Applied</> : "Use"}
-              </button>
+
+              {/* Stepper — expands after tapping Use */}
+              {usePoints && (
+                <div style={{ marginTop: 12 }}>
+                  {/* Slider row */}
+                  <div style={{ display: "flex", alignItems: "center", gap: 0, background: BG, borderRadius: 14, border: `1.5px solid ${BLUE}`, overflow: "hidden" }}>
+                    <button
+                      onClick={() => setPointsToUse(Math.max(POINTS_STEP, pointsToUse - POINTS_STEP))}
+                      style={{ width: 48, height: 48, background: "transparent", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}
+                    >
+                      <span style={{ fontSize: 22, color: pointsToUse <= POINTS_STEP ? BORDER : BLUE, fontWeight: 300, lineHeight: 1 }}>−</span>
+                    </button>
+
+                    <div style={{ flex: 1, textAlign: "center" as const, padding: "6px 0" }}>
+                      <p style={{ color: TEXT, fontSize: 17, fontWeight: 700, margin: 0 }}>
+                        {pointsToUse} pts
+                      </p>
+                      <p style={{ color: GREEN, fontSize: 12, fontWeight: 600, margin: "1px 0 0" }}>
+                        −AUD {(pointsToUse * POINT_VALUE).toFixed(2)} off
+                      </p>
+                    </div>
+
+                    <button
+                      onClick={() => setPointsToUse(Math.min(TOTAL_POINTS, pointsToUse + POINTS_STEP))}
+                      style={{ width: 48, height: 48, background: "transparent", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}
+                    >
+                      <span style={{ fontSize: 22, color: pointsToUse >= TOTAL_POINTS ? BORDER : BLUE, fontWeight: 300, lineHeight: 1 }}>+</span>
+                    </button>
+                  </div>
+
+                  {/* Points track */}
+                  <div style={{ marginTop: 8, height: 4, borderRadius: 2, background: BORDER, overflow: "hidden" }}>
+                    <div style={{ height: "100%", borderRadius: 2, background: BLUE, width: `${(pointsToUse / TOTAL_POINTS) * 100}%`, transition: "width 0.15s" }} />
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "space-between", marginTop: 4 }}>
+                    <span style={{ color: MUTED, fontSize: 11 }}>{POINTS_STEP} pts min</span>
+                    <button onClick={() => setUsePoints(false)} style={{ color: MUTED, fontSize: 11, background: "none", border: "none", cursor: "pointer", padding: 0 }}>
+                      Remove
+                    </button>
+                    <span style={{ color: MUTED, fontSize: 11 }}>{TOTAL_POINTS} pts max</span>
+                  </div>
+                </div>
+              )}
             </div>
             <RowDiv />
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 16px" }}>
