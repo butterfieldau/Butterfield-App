@@ -336,16 +336,54 @@ export function Express() {
 
               {/* DELIVERY */}
               {fulfillment === "delivery" && (
-                <div style={{ padding: "14px 16px" }}>
-                  <div style={{ display: "flex", alignItems: "center", padding: "11px 14px", background: BG, borderRadius: 10, border: `1px solid ${BORDER}`, gap: 10 }}>
-                    <MapPin size={16} color={BLUE} />
-                    <span style={{ color: TEXT, fontSize: 14, flex: 1 }}>12 George St, Sydney NSW 2000</span>
-                    <ChevronRight size={14} color={MUTED} />
+                <>
+                  <div style={{ padding: "14px 16px 10px" }}>
+                    <div style={{ display: "flex", alignItems: "center", padding: "11px 14px", background: BG, borderRadius: 10, border: `1px solid ${BORDER}`, gap: 10 }}>
+                      <MapPin size={16} color={BLUE} />
+                      <span style={{ color: TEXT, fontSize: 14, flex: 1 }}>12 George St, Sydney NSW 2000</span>
+                      <ChevronRight size={14} color={MUTED} />
+                    </div>
                   </div>
-                  <p style={{ color: MUTED, fontSize: 12, margin: "8px 0 0", paddingLeft: 2 }}>
-                    Delivered within 2–4 business days · AUD 5.00 flat fee
+
+                  <div style={{ height: 1, background: BORDER }} />
+
+                  <div style={{ padding: "12px 16px 4px" }}>
+                    <p style={{ color: TEXT, fontSize: 14, fontWeight: 600, margin: "0 0 10px" }}>Choose a delivery date</p>
+                  </div>
+
+                  {/* Chosen date summary */}
+                  {delivSlot && (
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 16px", background: "#EFF9FF", borderBottom: `1px solid ${BORDER}` }}>
+                      <Calendar size={14} color={BLUE} />
+                      <span style={{ color: BLUE, fontSize: 14, fontWeight: 600 }}>
+                        {DELIVERY_DATES[delivDateIdx].label} {DELIVERY_DATES[delivDateIdx].sub}
+                      </span>
+                      <button onClick={() => setDelivSlot("")} style={{ marginLeft: "auto", color: MUTED, background: "none", border: "none", fontSize: 12, cursor: "pointer" }}>
+                        Change
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Date chips only — no time slots */}
+                  <div style={{ display: "flex", gap: 8, padding: "12px 16px 4px", overflowX: "auto" as const, scrollbarWidth: "none" as const }}>
+                    {DELIVERY_DATES.map((d, i) => (
+                      <button key={i} onClick={() => { setDelivDateIdx(i); setDelivSlot(d.sub); }} style={{
+                        flexShrink: 0, padding: "9px 14px", borderRadius: 12, border: "none",
+                        background: delivDateIdx === i && delivSlot ? TEXT : BG,
+                        color: delivDateIdx === i && delivSlot ? "#fff" : TEXT,
+                        cursor: "pointer", textAlign: "center" as const,
+                        boxShadow: delivDateIdx === i && delivSlot ? "0 2px 8px rgba(0,0,0,0.15)" : "none"
+                      }}>
+                        <div style={{ fontSize: 13, fontWeight: 700 }}>{d.label}</div>
+                        <div style={{ fontSize: 11, color: delivDateIdx === i && delivSlot ? "rgba(255,255,255,0.7)" : MUTED, marginTop: 2 }}>{d.sub}</div>
+                      </button>
+                    ))}
+                  </div>
+
+                  <p style={{ color: MUTED, fontSize: 12, padding: "6px 16px 14px", margin: 0 }}>
+                    Delivered between 8am and 5pm · AUD 5.00 flat fee
                   </p>
-                </div>
+                </>
               )}
             </div>
           </div>
