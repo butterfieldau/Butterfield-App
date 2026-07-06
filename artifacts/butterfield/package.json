@@ -86,7 +86,7 @@
     "expo-screen-capture": "~55.0.14",
     "expo-secure-store": "~55.0.14",
     "expo-sharing": "~55.0.20",
-    "expo-updates": "^57.0.6",
+    "expo-updates": "^55.0.25",
     "react": "19.2.0",
     "react-native": "0.83.6",
     "react-native-google-places-autocomplete": "^2.6.4",
