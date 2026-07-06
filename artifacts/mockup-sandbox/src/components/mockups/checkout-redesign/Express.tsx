@@ -1,7 +1,7 @@
 import { useState } from "react";
 import {
-  ChevronLeft, MapPin, Clock, CreditCard, Store, Tag, Coffee,
-  Star, Check, ChevronDown, ChevronRight, Zap, Calendar,
+  ChevronLeft, MapPin, CreditCard, Store, Tag, Coffee,
+  Star, Check, ChevronRight, Zap, Calendar,
   Apple, Package
 } from "lucide-react";
 
@@ -17,6 +17,24 @@ const GREEN_BG = "#F0FDF4";
 
 type PayMethod = "apple" | "card" | "counter";
 type Fulfillment = "pickup" | "delivery";
+type Timing = "now" | "schedule";
+
+const DATES = [
+  { label: "Today", sub: "6 Jul", slots: ["10:00", "10:30", "11:00", "11:30", "12:00", "12:30", "13:00"] },
+  { label: "Mon", sub: "7 Jul", slots: ["9:00", "9:30", "10:00", "10:30", "11:00", "12:00", "13:00", "14:00"] },
+  { label: "Tue", sub: "8 Jul", slots: ["9:00", "9:30", "10:00", "10:30", "11:00", "12:00"] },
+  { label: "Wed", sub: "9 Jul", slots: ["9:00", "10:00", "11:00", "12:00", "13:00", "14:00", "15:00"] },
+  { label: "Thu", sub: "10 Jul", slots: ["9:30", "10:30", "11:00", "12:30", "14:00"] },
+  { label: "Fri", sub: "11 Jul", slots: ["9:00", "9:30", "10:00", "11:00", "12:00"] },
+];
+
+const DELIVERY_DATES = [
+  { label: "Mon", sub: "7 Jul", slots: ["9:00–11:00", "11:00–13:00", "13:00–15:00", "15:00–17:00"] },
+  { label: "Tue", sub: "8 Jul", slots: ["9:00–11:00", "11:00–13:00", "13:00–15:00"] },
+  { label: "Wed", sub: "9 Jul", slots: ["9:00–11:00", "11:00–13:00", "13:00–15:00", "15:00–17:00"] },
+  { label: "Thu", sub: "10 Jul", slots: ["9:00–11:00", "11:00–13:00"] },
+  { label: "Fri", sub: "11 Jul", slots: ["9:00–11:00", "11:00–13:00", "13:00–15:00"] },
+];
 
 function StatusBar() {
   return (
@@ -43,7 +61,7 @@ function StatusBar() {
   );
 }
 
-function RowDivider() {
+function RowDiv() {
   return <div style={{ height: 1, background: BORDER, marginLeft: 20 }} />;
 }
 
@@ -55,12 +73,77 @@ function SecLabel({ label }: { label: string }) {
   );
 }
 
+function DateTimePicker({
+  dates, selectedDate, selectedSlot, onDate, onSlot, slotLabel
+}: {
+  dates: typeof DATES;
+  selectedDate: number;
+  selectedSlot: string;
+  onDate: (i: number) => void;
+  onSlot: (s: string) => void;
+  slotLabel?: string;
+}) {
+  return (
+    <div style={{ paddingBottom: 4 }}>
+      {/* Date chips — horizontal scroll */}
+      <div style={{
+        display: "flex", gap: 8, padding: "0 16px 12px",
+        overflowX: "auto" as const, scrollbarWidth: "none" as const
+      }}>
+        {dates.map((d, i) => (
+          <button key={i} onClick={() => { onDate(i); onSlot(""); }} style={{
+            flexShrink: 0, padding: "9px 14px", borderRadius: 12, border: "none",
+            background: selectedDate === i ? TEXT : BG,
+            color: selectedDate === i ? "#fff" : TEXT,
+            cursor: "pointer", textAlign: "center" as const,
+            boxShadow: selectedDate === i ? "0 2px 8px rgba(0,0,0,0.15)" : "none"
+          }}>
+            <div style={{ fontSize: 13, fontWeight: 700 }}>{d.label}</div>
+            <div style={{ fontSize: 11, color: selectedDate === i ? "rgba(255,255,255,0.7)" : MUTED, marginTop: 2 }}>{d.sub}</div>
+          </button>
+        ))}
+      </div>
+
+      {/* Time slot label */}
+      <div style={{ padding: "0 16px 8px" }}>
+        <span style={{ color: MUTED, fontSize: 11, fontWeight: 700, letterSpacing: 0.8, textTransform: "uppercase" as const }}>
+          {slotLabel ?? "Pick a time"}
+        </span>
+      </div>
+
+      {/* Time slots — 3-column wrap */}
+      <div style={{ display: "flex", flexWrap: "wrap" as const, gap: 8, padding: "0 16px 12px" }}>
+        {dates[selectedDate].slots.map((slot) => (
+          <button key={slot} onClick={() => onSlot(slot)} style={{
+            padding: "9px 0", borderRadius: 10, border: "none",
+            width: "calc(33.33% - 6px)",
+            background: selectedSlot === slot ? BLUE : BG,
+            color: selectedSlot === slot ? "#fff" : TEXT,
+            fontSize: 13, fontWeight: 600, cursor: "pointer",
+            boxShadow: selectedSlot === slot ? `0 2px 8px rgba(64,192,242,0.3)` : "none"
+          }}>
+            {slot}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function Express() {
   const [fulfillment, setFulfillment] = useState<Fulfillment>("pickup");
-  const [timing, setTiming] = useState<"now" | "schedule">("now");
+  const [timing, setTiming] = useState<Timing>("now");
   const [payMethod, setPayMethod] = useState<PayMethod>("apple");
   const [usePoints, setUsePoints] = useState(false);
   const [useFreeCoffee, setUseFreeCoffee] = useState(false);
+
+  // Pickup schedule state
+  const [pickupDateIdx, setPickupDateIdx] = useState(0);
+  const [pickupSlot, setPickupSlot] = useState("");
+
+  // Delivery date state
+  const [delivDateIdx, setDelivDateIdx] = useState(0);
+  const [delivSlot, setDelivSlot] = useState("");
 
   const subtotal = 26.50;
   const deliveryFee = fulfillment === "delivery" ? 5.00 : 0;
@@ -73,6 +156,14 @@ export function Express() {
     { name: "Flat White", qty: 1, price: 5.50 },
     { name: "Salted Caramel Cookie", qty: 1, price: 4.00 },
   ];
+
+  // Summary line for chosen schedule
+  const pickupSummary = pickupSlot
+    ? `${DATES[pickupDateIdx].label} ${DATES[pickupDateIdx].sub} · ${pickupSlot}`
+    : null;
+  const delivSummary = delivSlot
+    ? `${DELIVERY_DATES[delivDateIdx].label} ${DELIVERY_DATES[delivDateIdx].sub} · ${delivSlot}`
+    : null;
 
   return (
     <div style={{ minHeight: "100vh", background: "#d4d4d4", display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "32px 0" }}>
@@ -95,7 +186,6 @@ export function Express() {
             <span style={{ color: TEXT, fontSize: 20, fontWeight: 700 }}>Checkout</span>
             <div style={{ width: 60 }} />
           </div>
-          {/* Step bar */}
           <div style={{ display: "flex", gap: 6, padding: "10px 20px 0" }}>
             {[true, true, false].map((active, i) => (
               <div key={i} style={{ flex: 1, height: 3, borderRadius: 2, background: active ? BLUE : BORDER }} />
@@ -103,7 +193,7 @@ export function Express() {
           </div>
         </div>
 
-        {/* Scrollable body */}
+        {/* Scrollable */}
         <div style={{ flex: 1, overflowY: "auto", background: BG }}>
 
           {/* ORDER */}
@@ -120,7 +210,7 @@ export function Express() {
                   </div>
                   <span style={{ color: TEXT, fontSize: 15, fontWeight: 500 }}>AUD {item.price.toFixed(2)}</span>
                 </div>
-                {i < items.length - 1 && <RowDivider />}
+                {i < items.length - 1 && <RowDiv />}
               </div>
             ))}
           </div>
@@ -147,69 +237,127 @@ export function Express() {
             </div>
 
             <div style={{ background: CARD, borderRadius: 14, border: `1px solid ${BORDER}`, overflow: "hidden" }}>
-              {fulfillment === "pickup" ? (
-                <div style={{ padding: "14px 16px" }}>
-                  <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
-                    <div style={{ width: 38, height: 38, borderRadius: 10, background: "#EFF9FF", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                      <MapPin size={17} color={BLUE} />
+
+              {/* PICKUP */}
+              {fulfillment === "pickup" && (
+                <>
+                  <div style={{ padding: "14px 16px" }}>
+                    <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
+                      <div style={{ width: 38, height: 38, borderRadius: 10, background: "#EFF9FF", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                        <MapPin size={17} color={BLUE} />
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <p style={{ color: TEXT, fontSize: 15, fontWeight: 700, margin: 0 }}>Cookie Corner</p>
+                        <p style={{ color: MUTED, fontSize: 13, margin: "2px 0 0" }}>420 Crown St, Surry Hills NSW</p>
+                        <span style={{ display: "inline-flex", alignItems: "center", marginTop: 6, padding: "3px 9px", borderRadius: 6, background: GREEN_BG, color: GREEN, fontSize: 11, fontWeight: 700 }}>Open · Closes 5pm</span>
+                      </div>
+                      <ChevronRight size={16} color={MUTED} />
                     </div>
-                    <div style={{ flex: 1 }}>
-                      <p style={{ color: TEXT, fontSize: 15, fontWeight: 700, margin: 0 }}>Cookie Corner</p>
-                      <p style={{ color: MUTED, fontSize: 13, margin: "2px 0 0" }}>420 Crown St, Surry Hills NSW</p>
-                      <span style={{ display: "inline-flex", alignItems: "center", marginTop: 6, padding: "3px 9px", borderRadius: 6, background: GREEN_BG, color: GREEN, fontSize: 11, fontWeight: 700 }}>Open · Closes 5pm</span>
+                  </div>
+
+                  <RowDiv />
+
+                  {/* Now / Schedule */}
+                  <div style={{ padding: "12px 16px" }}>
+                    <div style={{ display: "flex", gap: 8 }}>
+                      {(["now", "schedule"] as const).map((t) => (
+                        <button key={t} onClick={() => setTiming(t)} style={{
+                          flex: 1, padding: "9px 0", borderRadius: 10,
+                          border: `1.5px solid ${timing === t ? BLUE : BORDER}`,
+                          background: timing === t ? "#EFF9FF" : "transparent",
+                          color: timing === t ? BLUE : MUTED,
+                          fontSize: 14, fontWeight: 600, cursor: "pointer",
+                          display: "flex", alignItems: "center", justifyContent: "center", gap: 6
+                        }}>
+                          {t === "now" ? <Zap size={14} /> : <Calendar size={14} />}
+                          {t === "now" ? "Now" : "Schedule"}
+                        </button>
+                      ))}
                     </div>
-                    <ChevronRight size={16} color={MUTED} />
+
+                    {timing === "now" && (
+                      <p style={{ color: MUTED, fontSize: 12, margin: "8px 0 0", textAlign: "center" as const }}>
+                        Ready in approx 5–10 minutes
+                      </p>
+                    )}
                   </div>
-                </div>
-              ) : (
-                <div style={{ padding: "14px 16px" }}>
-                  <div style={{ display: "flex", alignItems: "center", padding: "11px 14px", background: BG, borderRadius: 10, border: `1px solid ${BORDER}`, gap: 10 }}>
-                    <MapPin size={16} color={BLUE} />
-                    <span style={{ color: TEXT, fontSize: 14, flex: 1 }}>12 George St, Sydney NSW 2000</span>
-                    <ChevronRight size={14} color={MUTED} />
-                  </div>
-                </div>
+
+                  {/* Date/time picker — expands when Schedule selected */}
+                  {timing === "schedule" && (
+                    <>
+                      <div style={{ height: 1, background: BORDER }} />
+                      {/* Chosen summary pill */}
+                      {pickupSummary && (
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 16px", background: "#EFF9FF", borderBottom: `1px solid ${BORDER}` }}>
+                          <Calendar size={14} color={BLUE} />
+                          <span style={{ color: BLUE, fontSize: 14, fontWeight: 600 }}>{pickupSummary}</span>
+                          <button onClick={() => { setPickupSlot(""); }} style={{ marginLeft: "auto", color: MUTED, background: "none", border: "none", fontSize: 12, cursor: "pointer" }}>
+                            Change
+                          </button>
+                        </div>
+                      )}
+                      <div style={{ paddingTop: 12 }}>
+                        <DateTimePicker
+                          dates={DATES}
+                          selectedDate={pickupDateIdx}
+                          selectedSlot={pickupSlot}
+                          onDate={setPickupDateIdx}
+                          onSlot={setPickupSlot}
+                          slotLabel="Pick a time"
+                        />
+                      </div>
+                    </>
+                  )}
+                </>
               )}
 
-              <RowDivider />
-
-              {/* Timing */}
-              <div style={{ padding: "12px 16px" }}>
-                <div style={{ display: "flex", gap: 8 }}>
-                  {(["now", "schedule"] as const).map((t) => (
-                    <button key={t} onClick={() => setTiming(t)} style={{
-                      flex: 1, padding: "9px 0", borderRadius: 10,
-                      border: `1.5px solid ${timing === t ? BLUE : BORDER}`,
-                      background: timing === t ? "#EFF9FF" : "transparent",
-                      color: timing === t ? BLUE : MUTED,
-                      fontSize: 14, fontWeight: 600, cursor: "pointer",
-                      display: "flex", alignItems: "center", justifyContent: "center", gap: 6
-                    }}>
-                      {t === "now" ? <Zap size={14} /> : <Calendar size={14} />}
-                      {t === "now" ? "Now" : "Schedule"}
-                    </button>
-                  ))}
-                </div>
-                {timing === "now" && (
-                  <p style={{ color: MUTED, fontSize: 12, margin: "8px 0 0", textAlign: "center" as const }}>Ready in approx 10–15 minutes</p>
-                )}
-                {timing === "schedule" && (
-                  <div style={{ marginTop: 10, padding: "10px 14px", background: BG, borderRadius: 10, border: `1px solid ${BORDER}`, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                      <Clock size={15} color={BLUE} />
-                      <span style={{ color: TEXT, fontSize: 14 }}>Mon 14 Jul · 9:30 am</span>
+              {/* DELIVERY */}
+              {fulfillment === "delivery" && (
+                <>
+                  <div style={{ padding: "14px 16px" }}>
+                    <div style={{ display: "flex", alignItems: "center", padding: "11px 14px", background: BG, borderRadius: 10, border: `1px solid ${BORDER}`, gap: 10 }}>
+                      <MapPin size={16} color={BLUE} />
+                      <span style={{ color: TEXT, fontSize: 14, flex: 1 }}>12 George St, Sydney NSW 2000</span>
+                      <ChevronRight size={14} color={MUTED} />
                     </div>
-                    <ChevronDown size={15} color={MUTED} />
                   </div>
-                )}
-              </div>
+
+                  <div style={{ height: 1, background: BORDER }} />
+
+                  {/* Delivery always shows a date picker (no "Now" for delivery) */}
+                  <div style={{ padding: "12px 16px 4px" }}>
+                    <p style={{ color: TEXT, fontSize: 14, fontWeight: 600, margin: "0 0 10px" }}>Choose delivery window</p>
+                  </div>
+
+                  {/* Chosen summary */}
+                  {delivSummary && (
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 16px", background: "#EFF9FF", borderBottom: `1px solid ${BORDER}` }}>
+                      <Calendar size={14} color={BLUE} />
+                      <span style={{ color: BLUE, fontSize: 14, fontWeight: 600 }}>{delivSummary}</span>
+                      <button onClick={() => setDelivSlot("")} style={{ marginLeft: "auto", color: MUTED, background: "none", border: "none", fontSize: 12, cursor: "pointer" }}>
+                        Change
+                      </button>
+                    </div>
+                  )}
+
+                  <div style={{ paddingTop: 8 }}>
+                    <DateTimePicker
+                      dates={DELIVERY_DATES}
+                      selectedDate={delivDateIdx}
+                      selectedSlot={delivSlot}
+                      onDate={setDelivDateIdx}
+                      onSlot={setDelivSlot}
+                      slotLabel="Delivery window"
+                    />
+                  </div>
+                </>
+              )}
             </div>
           </div>
 
           {/* USE REWARDS */}
           <SecLabel label="Use Rewards" />
           <div style={{ background: CARD, margin: "0 16px", borderRadius: 14, border: `1px solid ${BORDER}`, overflow: "hidden" }}>
-            {/* Points */}
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 16px" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                 <div style={{ width: 38, height: 38, borderRadius: 10, background: usePoints ? "#EFF9FF" : BG, border: `1.5px solid ${usePoints ? BLUE : BORDER}`, display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -222,17 +370,14 @@ export function Express() {
               </div>
               <button onClick={() => setUsePoints(!usePoints)} style={{
                 padding: "7px 16px", borderRadius: 20, border: "none",
-                background: usePoints ? BLUE : BG,
-                color: usePoints ? "#fff" : TEXT,
+                background: usePoints ? BLUE : BG, color: usePoints ? "#fff" : TEXT,
                 fontSize: 13, fontWeight: 700, cursor: "pointer",
                 display: "flex", alignItems: "center", gap: 5
               }}>
                 {usePoints ? <><Check size={12} /> Applied</> : "Use"}
               </button>
             </div>
-            <RowDivider />
-
-            {/* Free coffee */}
+            <RowDiv />
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 16px" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                 <div style={{ width: 38, height: 38, borderRadius: 10, background: useFreeCoffee ? "#EFF9FF" : BG, border: `1.5px solid ${useFreeCoffee ? BLUE : BORDER}`, display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -245,17 +390,14 @@ export function Express() {
               </div>
               <button onClick={() => setUseFreeCoffee(!useFreeCoffee)} style={{
                 padding: "7px 16px", borderRadius: 20, border: "none",
-                background: useFreeCoffee ? BLUE : BG,
-                color: useFreeCoffee ? "#fff" : TEXT,
+                background: useFreeCoffee ? BLUE : BG, color: useFreeCoffee ? "#fff" : TEXT,
                 fontSize: 13, fontWeight: 700, cursor: "pointer",
                 display: "flex", alignItems: "center", gap: 5
               }}>
                 {useFreeCoffee ? <><Check size={12} /> Applied</> : "Use"}
               </button>
             </div>
-            <RowDivider />
-
-            {/* Discount code */}
+            <RowDiv />
             <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "13px 16px" }}>
               <Tag size={16} color={MUTED} />
               <input placeholder="Discount code" style={{
@@ -270,24 +412,9 @@ export function Express() {
           <SecLabel label="Payment" />
           <div style={{ background: CARD, margin: "0 16px", borderRadius: 14, border: `1px solid ${BORDER}`, overflow: "hidden" }}>
             {([
-              {
-                id: "apple" as PayMethod,
-                icon: <Apple size={19} />,
-                label: "Apple Pay",
-                sub: "Face ID · instant"
-              },
-              {
-                id: "card" as PayMethod,
-                icon: <CreditCard size={18} />,
-                label: "•••• 4242",
-                sub: "Visa · expires 09/27"
-              },
-              {
-                id: "counter" as PayMethod,
-                icon: <Package size={17} />,
-                label: "Pay at counter",
-                sub: "When you arrive"
-              },
+              { id: "apple" as PayMethod, icon: <Apple size={19} />, label: "Apple Pay", sub: "Face ID · instant" },
+              { id: "card" as PayMethod, icon: <CreditCard size={18} />, label: "•••• 4242", sub: "Visa · expires 09/27" },
+              { id: "counter" as PayMethod, icon: <Package size={17} />, label: "Pay at counter", sub: "When you arrive" },
             ]).map((m, i, arr) => (
               <div key={m.id}>
                 <button onClick={() => setPayMethod(m.id)} style={{
@@ -316,7 +443,7 @@ export function Express() {
                     {payMethod === m.id && <Check size={12} color="#fff" strokeWidth={3} />}
                   </div>
                 </button>
-                {i < arr.length - 1 && <RowDivider />}
+                {i < arr.length - 1 && <RowDiv />}
               </div>
             ))}
           </div>
@@ -346,22 +473,17 @@ export function Express() {
             </div>
           </div>
 
-          {/* PLACE ORDER BUTTON */}
+          {/* CTA */}
           <div style={{ padding: "16px 16px 36px" }}>
             <button style={{
               width: "100%", padding: "18px 0", borderRadius: 16, border: "none",
               background: payMethod === "apple" ? TEXT : CHERRY,
               color: "#fff", fontSize: 17, fontWeight: 700, cursor: "pointer",
               display: "flex", alignItems: "center", justifyContent: "center", gap: 10,
-              boxShadow: payMethod === "apple"
-                ? "0 4px 20px rgba(0,0,0,0.25)"
-                : `0 6px 24px rgba(210,0,1,0.3)`
+              boxShadow: payMethod === "apple" ? "0 4px 20px rgba(0,0,0,0.25)" : `0 6px 24px rgba(210,0,1,0.3)`
             }}>
               {payMethod === "apple" ? (
-                <>
-                  <Apple size={19} fill="#fff" strokeWidth={0} />
-                  Pay AUD {total}
-                </>
+                <><Apple size={19} fill="#fff" strokeWidth={0} /> Pay AUD {total}</>
               ) : (
                 "Place Order · AUD " + total
               )}
