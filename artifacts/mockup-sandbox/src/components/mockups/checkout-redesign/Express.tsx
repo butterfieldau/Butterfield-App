@@ -391,13 +391,13 @@ export function Express() {
               {/* Stepper — expands after tapping Use */}
               {usePoints && (
                 <div style={{ marginTop: 12 }}>
-                  {/* Slider row */}
+                  {/* Stepper control */}
                   <div style={{ display: "flex", alignItems: "center", gap: 0, background: BG, borderRadius: 14, border: `1.5px solid ${BLUE}`, overflow: "hidden" }}>
                     <button
                       onClick={() => setPointsToUse(Math.max(POINTS_STEP, pointsToUse - POINTS_STEP))}
-                      style={{ width: 48, height: 48, background: "transparent", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}
+                      style={{ width: 52, height: 52, background: "transparent", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}
                     >
-                      <span style={{ fontSize: 22, color: pointsToUse <= POINTS_STEP ? BORDER : BLUE, fontWeight: 300, lineHeight: 1 }}>−</span>
+                      <span style={{ fontSize: 26, color: pointsToUse <= POINTS_STEP ? BORDER : BLUE, fontWeight: 300, lineHeight: 1 }}>−</span>
                     </button>
 
                     <div style={{ flex: 1, textAlign: "center" as const, padding: "6px 0" }}>
@@ -411,23 +411,32 @@ export function Express() {
 
                     <button
                       onClick={() => setPointsToUse(Math.min(TOTAL_POINTS, pointsToUse + POINTS_STEP))}
-                      style={{ width: 48, height: 48, background: "transparent", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}
+                      style={{ width: 52, height: 52, background: "transparent", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}
                     >
-                      <span style={{ fontSize: 22, color: pointsToUse >= TOTAL_POINTS ? BORDER : BLUE, fontWeight: 300, lineHeight: 1 }}>+</span>
+                      <span style={{ fontSize: 26, color: pointsToUse >= TOTAL_POINTS ? BORDER : BLUE, fontWeight: 300, lineHeight: 1 }}>+</span>
                     </button>
                   </div>
 
-                  {/* Points track */}
+                  {/* Progress track */}
                   <div style={{ marginTop: 8, height: 4, borderRadius: 2, background: BORDER, overflow: "hidden" }}>
                     <div style={{ height: "100%", borderRadius: 2, background: BLUE, width: `${(pointsToUse / TOTAL_POINTS) * 100}%`, transition: "width 0.15s" }} />
                   </div>
-                  <div style={{ display: "flex", justifyContent: "space-between", marginTop: 4 }}>
-                    <span style={{ color: MUTED, fontSize: 11 }}>{POINTS_STEP} pts min</span>
-                    <button onClick={() => setUsePoints(false)} style={{ color: MUTED, fontSize: 11, background: "none", border: "none", cursor: "pointer", padding: 0 }}>
-                      Remove
-                    </button>
-                    <span style={{ color: MUTED, fontSize: 11 }}>{TOTAL_POINTS} pts max</span>
+                  <div style={{ display: "flex", justifyContent: "space-between", marginTop: 5 }}>
+                    <span style={{ color: MUTED, fontSize: 11 }}>{POINTS_STEP} min</span>
+                    <span style={{ color: MUTED, fontSize: 11 }}>{TOTAL_POINTS} max</span>
                   </div>
+
+                  {/* Remove button — prominent, below stepper */}
+                  <button
+                    onClick={() => { setUsePoints(false); setPointsToUse(TOTAL_POINTS); }}
+                    style={{
+                      marginTop: 10, width: "100%", padding: "9px 0", borderRadius: 10,
+                      background: "transparent", border: `1.5px solid ${BORDER}`,
+                      color: MUTED, fontSize: 13, fontWeight: 600, cursor: "pointer"
+                    }}
+                  >
+                    Remove points
+                  </button>
                 </div>
               )}
             </div>
