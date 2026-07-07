@@ -237,7 +237,14 @@ function LoyaltyContent() {
           qc.invalidateQueries({ queryKey: ['loyalty-profile'] });
           qc.invalidateQueries({ queryKey: ['loyalty-claimed-rewards'] });
           Alert.alert('Claimed!', `"${title}" is ready. Go to checkout to apply it.`);
-        } catch (e: any) { Alert.alert('Error', e.message); }
+        } catch (e: any) {
+          if (e?.status === 403) {
+            qc.invalidateQueries({ queryKey: ['loyalty-claimed-rewards'] });
+            Alert.alert('Already claimed', 'You\'ve already claimed this reward.');
+          } else {
+            Alert.alert('Error', e.message);
+          }
+        }
         finally { setRedeeming(null); }
       }},
     ]);
