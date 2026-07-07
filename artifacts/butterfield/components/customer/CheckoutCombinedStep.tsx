@@ -155,7 +155,6 @@ export function CheckoutCombinedStep(props: CheckoutCombinedStepProps) {
   const defaultMethod: PayMethod = Platform.OS === 'android' ? 'google_pay' : 'credit_card';
   const [method, setMethod] = useState<PayMethod>(defaultMethod);
   const [platformPayAvailable, setPlatformPayAvailable] = useState<boolean | null>(null);
-  const [showAddCardForm, setShowAddCardForm] = useState(false);
   const [selectedSavedPaymentMethodId, setSelectedSavedPaymentMethodId] = useState<string | null>(null);
   const [saveCardForNextTime, setSaveCardForNextTime] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -241,15 +240,21 @@ export function CheckoutCombinedStep(props: CheckoutCombinedStepProps) {
     if (effectiveApplePaySupported === false && method === 'google_pay') setMethod('credit_card');
   }, [effectiveApplePaySupported]);
 
+  // Auto-select Apple Pay on iOS once support is confirmed
+  useEffect(() => {
+    if (internalApplePaySupported === true && stripeReady) {
+      setMethod('apple_pay');
+    }
+  }, [internalApplePaySupported, stripeReady]);
+
   useEffect(() => {
     if (method !== 'credit_card') return;
-    if (!savedPaymentMethods.length) { setSelectedSavedPaymentMethodId(null); setShowAddCardForm(true); return; }
+    if (!savedPaymentMethods.length) { setSelectedSavedPaymentMethodId(null); return; }
     setSelectedSavedPaymentMethodId((cur) => {
       if (cur && savedPaymentMethods.some((m) => m.id === cur)) return cur;
       const def = savedPaymentMethods.find((m) => m.isDefault)?.id;
       return def ?? savedPaymentMethods[0]?.id ?? null;
     });
-    setShowAddCardForm(false);
   }, [method, savedPaymentMethods]);
 
   useEffect(() => {
@@ -928,7 +933,7 @@ export function CheckoutCombinedStep(props: CheckoutCombinedStepProps) {
         {/* Saved cards */}
         {savedPaymentMethods.map((pm, i) => (
           <React.Fragment key={pm.id}>
-            <Pressable onPress={() => { setMethod('credit_card'); setSelectedSavedPaymentMethodId(pm.id); setShowAddCardForm(false); Haptics.selectionAsync(); }} style={s.methodRow}>
+            <Pressable onPress={() => { setMethod('credit_card'); setSelectedSavedPaymentMethodId(pm.id); Haptics.selectionAsync(); }} style={s.methodRow}>
               <View style={[s.methodIcon, method === 'credit_card' && selectedSavedPaymentMethodId === pm.id && s.methodIconActive]}>
                 <Feather name="credit-card" size={18} color={method === 'credit_card' && selectedSavedPaymentMethodId === pm.id ? BLUE : MUTED} />
               </View>
@@ -945,7 +950,7 @@ export function CheckoutCombinedStep(props: CheckoutCombinedStepProps) {
         ))}
 
         {/* Add new card row */}
-        <Pressable onPress={() => { setMethod('credit_card'); setSelectedSavedPaymentMethodId(null); setShowAddCardForm(true); Haptics.selectionAsync(); }} style={s.methodRow}>
+        <Pressable onPress={() => { setMethod('credit_card'); setSelectedSavedPaymentMethodId(null); Haptics.selectionAsync(); }} style={s.methodRow}>
           <View style={[s.methodIcon, method === 'credit_card' && !selectedSavedPaymentMethodId && s.methodIconActive]}>
             <Feather name="plus-circle" size={18} color={method === 'credit_card' && !selectedSavedPaymentMethodId ? BLUE : MUTED} />
           </View>
@@ -958,7 +963,7 @@ export function CheckoutCombinedStep(props: CheckoutCombinedStepProps) {
           </View>
         </Pressable>
 
-        {method === 'credit_card' && !selectedSavedPaymentMethodId && showAddCardForm && (
+        {method === 'credit_card' && !selectedSavedPaymentMethodId && (
           <>
             <RowDivider />
             <View style={{ padding: 16 }}>
