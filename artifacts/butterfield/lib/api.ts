@@ -728,6 +728,7 @@ export const api = {
     updateReward:        (id: string, data: Partial<DirectorReward>) => request<{ data: DirectorReward }>(`/director/rewards/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
     deleteReward:        (id: string) => request<{ success: boolean }>(`/director/rewards/${id}`, { method: 'DELETE' }),
     restoreReward:       (id: string) => request<{ data: DirectorReward }>(`/director/rewards/${id}/restore`, { method: 'POST' }),
+    rewardClaims:        (id: string) => request<{ data: DirectorRewardClaim[] }>(`/director/rewards/${id}/claims`),
 
     // Announcements / Notifications
     allAnnouncements:    () => request<{ data: DirectorAnnouncement[] }>('/director/announcements'),
@@ -1871,6 +1872,19 @@ export interface DirectorReward {
   minOrderValueCents?: number | null;
   autoGrantPointsThreshold?: number | null;
   maxPerCustomer?: number | null;
+}
+
+export interface DirectorRewardClaim {
+  id: string;
+  userId: string;
+  status: 'available' | 'applied_to_cart' | 'redeemed' | 'expired' | 'cancelled';
+  claimedAt: string;
+  redeemedAt?: string | null;
+  orderId?: string | null;
+  pointsSpent: number;
+  expiresAt?: string | null;
+  customerName: string;
+  customerEmail: string;
 }
 
 export interface ClaimedReward {

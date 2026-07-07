@@ -7,7 +7,7 @@ import {
   Switch, Text, TextInput, View,
 } from 'react-native';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
-import { api, type DirectorReward, type DirectorProduct } from '@/lib/api';
+import { api, type DirectorReward, type DirectorProduct, type DirectorRewardClaim } from '@/lib/api';
 import { useRefreshControl } from '@/hooks/useRefreshControl';
 import { styles } from './settingsStyles';
 
@@ -377,14 +377,121 @@ function RewardModal({ visible, reward, onClose, onSuccess }: {
   );
 }
 
+const STATUS_COLOR: Record<string, { bg: string; text: string; label: string }> = {
+  available:       { bg: '#DCFCE7', text: '#166534', label: 'Available' },
+  applied_to_cart: { bg: '#DBEAFE', text: '#1E40AF', label: 'In cart' },
+  redeemed:        { bg: '#F3F4F6', text: '#374151', label: 'Redeemed' },
+  expired:         { bg: '#FEF9C3', text: '#854D0E', label: 'Expired' },
+  cancelled:       { bg: '#FEE2E2', text: '#991B1B', label: 'Cancelled' },
+};
+
+function ClaimsModal({ reward, onClose }: { reward: DirectorReward | null; onClose: () => void }) {
+  const visible = !!reward;
+  const { data, isLoading } = useQuery({
+    queryKey: ['director-reward-claims', reward?.id],
+    queryFn:  () => api.director.rewardClaims(reward!.id),
+    enabled:  !!reward?.id,
+    staleTime: 30_000,
+  });
+  const claims: DirectorRewardClaim[] = data?.data ?? [];
+
+  const statusCounts = claims.reduce<Record<string, number>>((acc, c) => {
+    acc[c.status] = (acc[c.status] ?? 0) + 1;
+    return acc;
+  }, {});
+
+  return (
+    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
+      <View style={{ flex: 1, backgroundColor: '#fff' }}>
+        <View style={[styles.modalHeader, { borderBottomColor: BORDER }]}>
+          <Pressable onPress={onClose}><Text style={[styles.modalCancel, { color: MUTED }]}>Done</Text></Pressable>
+          <View style={{ flex: 1, alignItems: 'center' }}>
+            <Text style={styles.modalTitle} numberOfLines={1}>{reward?.name}</Text>
+            <Text style={{ fontSize: 11, color: MUTED, marginTop: 1 }}>Claim history</Text>
+          </View>
+          <View style={{ width: 48 }} />
+        </View>
+
+        {isLoading ? (
+          <View style={styles.center}><ActivityIndicator color={BLUE} /></View>
+        ) : claims.length === 0 ? (
+          <View style={styles.center}>
+            <Feather name="users" size={32} color={MUTED} />
+            <Text style={styles.emptyText}>No claims yet</Text>
+            <Text style={{ fontSize: 12, color: MUTED, textAlign: 'center', marginTop: 4, paddingHorizontal: 32 }}>
+              Nobody has claimed this reward yet.
+            </Text>
+          </View>
+        ) : (
+          <>
+            <View style={{ flexDirection: 'row', padding: 16, gap: 8, flexWrap: 'wrap', borderBottomWidth: 1, borderBottomColor: BORDER }}>
+              {Object.entries(statusCounts).map(([status, cnt]) => {
+                const s = STATUS_COLOR[status] ?? { bg: '#F3F4F6', text: MUTED, label: status };
+                return (
+                  <View key={status} style={{ flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: s.bg, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10 }}>
+                    <Text style={{ fontSize: 13, fontWeight: '700', color: s.text }}>{cnt}</Text>
+                    <Text style={{ fontSize: 12, color: s.text }}>{s.label}</Text>
+                  </View>
+                );
+              })}
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: '#F0F7FF', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10 }}>
+                <Text style={{ fontSize: 13, fontWeight: '700', color: BLUE }}>{claims.length}</Text>
+                <Text style={{ fontSize: 12, color: BLUE }}>total</Text>
+              </View>
+            </View>
+            <FlatList
+              data={claims}
+              keyExtractor={c => c.id}
+              contentContainerStyle={{ padding: 16, gap: 10, paddingBottom: 40 }}
+              renderItem={({ item: c }) => {
+                const s = STATUS_COLOR[c.status] ?? { bg: '#F3F4F6', text: MUTED, label: c.status };
+                const claimedDate = new Date(c.claimedAt).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' });
+                const redeemedDate = c.redeemedAt ? new Date(c.redeemedAt).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' }) : null;
+                const expiresDate  = c.expiresAt  ? new Date(c.expiresAt).toLocaleDateString('en-AU',  { day: 'numeric', month: 'short', year: 'numeric' }) : null;
+                const isExpired    = c.status === 'expired' || (c.expiresAt && new Date(c.expiresAt) < new Date() && c.status === 'available');
+                return (
+                  <View style={[styles.card, { backgroundColor: '#FAFAFA' }]}>
+                    <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 10 }}>
+                      <View style={{ flex: 1, gap: 2 }}>
+                        <Text style={{ fontSize: 14, fontWeight: '600', color: TEXT }} numberOfLines={1}>{c.customerName}</Text>
+                        <Text style={{ fontSize: 12, color: MUTED }} numberOfLines={1}>{c.customerEmail}</Text>
+                      </View>
+                      <View style={[styles.chip, { backgroundColor: s.bg, borderColor: 'transparent' }]}>
+                        <Text style={[styles.chipText, { color: s.text, fontSize: 11 }]}>{s.label.toUpperCase()}</Text>
+                      </View>
+                    </View>
+                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
+                      <Text style={{ fontSize: 12, color: MUTED }}>Claimed {claimedDate}</Text>
+                      {redeemedDate && <Text style={{ fontSize: 12, color: MUTED }}>· Redeemed {redeemedDate}</Text>}
+                      {expiresDate && !redeemedDate && (
+                        <Text style={{ fontSize: 12, color: isExpired ? RED : MUTED }}>
+                          · {isExpired ? 'Expired' : 'Expires'} {expiresDate}
+                        </Text>
+                      )}
+                    </View>
+                    {c.orderId && (
+                      <Text style={{ fontSize: 11, color: MUTED, marginTop: 4 }}>Order: {c.orderId.slice(0, 8)}…</Text>
+                    )}
+                  </View>
+                );
+              }}
+            />
+          </>
+        )}
+      </View>
+    </Modal>
+  );
+}
+
 const REWARD_TABS = ['Active', 'Deactivated', 'Deleted'] as const;
 type RewardTabKey = typeof REWARD_TABS[number];
 
 export function RewardsTab() {
   const qc = useQueryClient();
-  const [modal,   setModal]   = useState(false);
-  const [editing, setEditing] = useState<DirectorReward | null>(null);
-  const [rTab,    setRTab]    = useState<RewardTabKey>('Active');
+  const [modal,        setModal]        = useState(false);
+  const [editing,      setEditing]      = useState<DirectorReward | null>(null);
+  const [rTab,         setRTab]         = useState<RewardTabKey>('Active');
+  const [claimsReward, setClaimsReward] = useState<DirectorReward | null>(null);
 
   const { data, isLoading, refetch } = useQuery({
     queryKey: ['director-rewards'],
@@ -564,13 +671,25 @@ export function RewardsTab() {
               </View>
               <View style={styles.rewardActions}>
                 {isDeleted ? (
-                  <Pressable onPress={() => confirmRestore(r)}
-                    style={[styles.actionBtn, { borderColor: GREEN + '60', backgroundColor: '#F0FDF4', flex: 1 }]}>
-                    <Feather name="rotate-ccw" size={13} color={GREEN} />
-                    <Text style={[styles.actionBtnText, { color: GREEN }]}>Restore</Text>
-                  </Pressable>
+                  <>
+                    <Pressable onPress={() => { Haptics.selectionAsync(); setClaimsReward(r); }}
+                      style={[styles.actionBtn, { borderColor: BLUE + '40', backgroundColor: '#EBF8FF' }]}>
+                      <Feather name="users" size={13} color={BLUE} />
+                      <Text style={[styles.actionBtnText, { color: BLUE }]}>Claims</Text>
+                    </Pressable>
+                    <Pressable onPress={() => confirmRestore(r)}
+                      style={[styles.actionBtn, { borderColor: GREEN + '60', backgroundColor: '#F0FDF4', flex: 1 }]}>
+                      <Feather name="rotate-ccw" size={13} color={GREEN} />
+                      <Text style={[styles.actionBtnText, { color: GREEN }]}>Restore</Text>
+                    </Pressable>
+                  </>
                 ) : (
                   <>
+                    <Pressable onPress={() => { Haptics.selectionAsync(); setClaimsReward(r); }}
+                      style={[styles.actionBtn, { borderColor: BLUE + '40', backgroundColor: '#EBF8FF' }]}>
+                      <Feather name="users" size={13} color={BLUE} />
+                      <Text style={[styles.actionBtnText, { color: BLUE }]}>Claims</Text>
+                    </Pressable>
                     <Pressable onPress={() => openEdit(r)}
                       style={[styles.actionBtn, { borderColor: BLUE + '40', backgroundColor: '#EBF8FF' }]}>
                       <Feather name="edit-2" size={13} color={BLUE} />
@@ -605,6 +724,10 @@ export function RewardsTab() {
         visible={modal} reward={editing}
         onClose={() => setModal(false)}
         onSuccess={() => { setModal(false); qc.invalidateQueries({ queryKey: ['director-rewards'] }); }}
+      />
+      <ClaimsModal
+        reward={claimsReward}
+        onClose={() => setClaimsReward(null)}
       />
     </>
   );

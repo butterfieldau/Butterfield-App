@@ -2896,6 +2896,33 @@ router.post('/rewards/:id/restore', async (req, res) => {
   return res.json({ data: restored });
 });
 
+// List all claim records for a specific reward (director audit view)
+router.get('/rewards/:id/claims', async (req, res) => {
+  const [reward] = await db.select({ id: loyaltyRewardsTable.id, name: loyaltyRewardsTable.name })
+    .from(loyaltyRewardsTable).where(eq(loyaltyRewardsTable.id, req.params.id));
+  if (!reward) return res.status(404).json({ error: 'Reward not found.' });
+
+  const claims = await db
+    .select({
+      id:               claimedRewardsTable.id,
+      userId:           claimedRewardsTable.userId,
+      status:           claimedRewardsTable.status,
+      claimedAt:        claimedRewardsTable.claimedAt,
+      redeemedAt:       claimedRewardsTable.redeemedAt,
+      orderId:          claimedRewardsTable.orderId,
+      pointsSpent:      claimedRewardsTable.pointsSpent,
+      expiresAt:        claimedRewardsTable.expiresAt,
+      customerName:     usersTable.name,
+      customerEmail:    usersTable.email,
+    })
+    .from(claimedRewardsTable)
+    .innerJoin(usersTable, eq(claimedRewardsTable.userId, usersTable.id))
+    .where(eq(claimedRewardsTable.rewardId, req.params.id))
+    .orderBy(desc(claimedRewardsTable.claimedAt));
+
+  return res.json({ data: claims });
+});
+
 // ── Announcements / Notifications CRUD ───────────────────────────────────────
 router.get('/announcements', async (req, res) => {
   const rows = await db.select().from(announcementsTable).orderBy(desc(announcementsTable.createdAt));
