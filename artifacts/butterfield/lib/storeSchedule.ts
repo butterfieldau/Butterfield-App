@@ -88,7 +88,7 @@ export function getStorePickupTimeMins(
   date: Date,
   sydNow: Date,
   leadMinutes = 180,
-  slotMinutes = 30,
+  slotMinutes = 60,
 ): number[] {
   const sameDay = date.getFullYear() === sydNow.getFullYear()
     && date.getMonth() === sydNow.getMonth()
