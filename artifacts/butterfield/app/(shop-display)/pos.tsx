@@ -32,6 +32,7 @@ import {
   VOID_PIN_THRESHOLD_CENTS,
   type TicketItem, type Ticket, type ProductDetail,
   type PosCompletedOrder, type PosDiscountPinGate, type PosRegisterApprovalPrompt, type PosOrderVars,
+  type AttachedCustomerClaimedReward,
   fmtCents, uuid, blankTicket,
   ticketSubtotal, ticketTotal,
   buildPosOrderPayload,
@@ -790,6 +791,30 @@ function PosScreenInner() {
           onSelect={(c) => { updateTicket({ customer: c, appliedDiscount: null }); setShowCustomerModal(false); upsertCustomerCache(c).catch(() => {}); }}
           onRemove={() => { updateTicket({ customer: null, appliedDiscount: null }); setShowCustomerModal(false); }}
           onClose={() => setShowCustomerModal(false)}
+          onApplyClaimedReward={(cr: AttachedCustomerClaimedReward) => {
+            const sub = ticketSubtotal(activeTicket);
+            let amountCents: number;
+            let label: string;
+            if (cr.voucherValueCents) {
+              amountCents = Math.min(cr.voucherValueCents, sub);
+              label = `🎁 ${cr.rewardName} (–${fmtCents(amountCents)})`;
+            } else if (cr.rewardType === 'birthday_cookie' || cr.rewardType === 'cookie_any') {
+              const cookieCategories = ['cookies', 'cookie-frappes'];
+              const cookieItems = activeTicket.items.filter((i: TicketItem) => cookieCategories.includes(i.category.toLowerCase()));
+              if (cookieItems.length === 0) {
+                amountCents = 0;
+                label = `🍪 ${cr.rewardName} (add a cookie to cart)`;
+              } else {
+                const cheapestCookie = Math.min(...cookieItems.map((i: TicketItem) => i.priceOverrideCents ?? i.unitPriceCents));
+                amountCents = cheapestCookie;
+                label = `🍪 ${cr.rewardName} (–${fmtCents(cheapestCookie)})`;
+              }
+            } else {
+              amountCents = sub;
+              label = `🎁 ${cr.rewardName} (free)`;
+            }
+            updateTicket({ appliedDiscount: { type: 'claimed_reward', claimedRewardId: cr.id, amountCents, label } });
+          }}
         />
       )}
 

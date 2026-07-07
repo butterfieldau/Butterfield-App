@@ -422,6 +422,12 @@ router.post('/redeem', requireAuth, async (req, res) => {
     return res.status(400).json({ error: 'Not enough points' });
   }
 
+  // If the reward is auto-grant only (has a threshold), enforce that threshold even
+  // when pointsCost = 0, so customers can't manually claim before they've earned it
+  if (reward.autoGrantPointsThreshold && profile.loyaltyPoints < reward.autoGrantPointsThreshold) {
+    return res.status(403).json({ error: `You need ${reward.autoGrantPointsThreshold} points to unlock this reward` });
+  }
+
   // Check tier restriction — ensure customer's loyalty tier is in the allowed list
   if (reward.tierRestriction) {
     try {

@@ -73,6 +73,7 @@ function LoyaltyContent() {
   const [showQR, setShowQR]                       = useState(false);
   const [redeeming, setRedeeming]                 = useState<string | null>(null);
   const [cancelling, setCancelling]               = useState<string | null>(null);
+  const [applying, setApplying]                   = useState<string | null>(null);
   const [celebrateTier, setCelebrateTier]         = useState<DisplayTier | null>(null);
   const [showStampCelebration, setShowStampCelebration] = useState(false);
   const [displayedPoints, setDisplayedPoints]     = useState(0);
@@ -221,6 +222,10 @@ function LoyaltyContent() {
   const handleClaim = async (reward: LoyaltyReward) => {
     if (points < reward.pointsCost) {
       Alert.alert('Not enough points', `You need ${reward.pointsCost - points} more points.`);
+      return;
+    }
+    if (reward.autoGrantPointsThreshold && points < reward.autoGrantPointsThreshold) {
+      Alert.alert('Keep earning!', `You need ${reward.autoGrantPointsThreshold} points to unlock this reward (you have ${points}).`);
       return;
     }
     const title  = reward.title ?? reward.name ?? 'Reward';
@@ -423,8 +428,25 @@ function LoyaltyContent() {
                       </Text>
                       <Text style={styles.walletExpiry}>{expiryInfo?.label ?? 'Ready now'}</Text>
                       <View style={styles.walletButtonRow}>
-                        <Pressable style={styles.walletPrimaryButton} onPress={() => router.push('/customer-cart' as any)}>
-                          <Text style={styles.walletPrimaryButtonText}>Use now</Text>
+                        <Pressable
+                          style={[styles.walletPrimaryButton, applying === claim.id && { opacity: 0.6 }]}
+                          disabled={applying === claim.id}
+                          onPress={async () => {
+                            setApplying(claim.id);
+                            try {
+                              await api.loyalty.applyClaim(claim.id);
+                              qc.invalidateQueries({ queryKey: ['loyalty-claimed-rewards'] });
+                              router.push('/customer-cart' as any);
+                            } catch {
+                              Alert.alert('Error', 'Could not apply reward — please try again');
+                            } finally {
+                              setApplying(null);
+                            }
+                          }}
+                        >
+                          {applying === claim.id
+                            ? <ActivityIndicator size="small" color={WHITE} />
+                            : <Text style={styles.walletPrimaryButtonText}>Use now</Text>}
                         </Pressable>
                         <Pressable style={styles.walletSecondaryButton} onPress={() => setShowQR(true)}>
                           <Text style={styles.walletSecondaryButtonText}>QR</Text>
@@ -457,7 +479,8 @@ function LoyaltyContent() {
                 {visibleRewards.map((reward: LoyaltyReward) => {
                   const rewardTitle = reward.title ?? reward.name ?? 'Reward';
                   const preset      = rewardPresetForTitle(rewardTitle, reward.rewardType);
-                  const canClaim    = points >= reward.pointsCost;
+                  const thresholdMet = !reward.autoGrantPointsThreshold || points >= reward.autoGrantPointsThreshold;
+                  const canClaim    = points >= reward.pointsCost && thresholdMet;
                   const isOnceOnly  = reward.maxPerCustomer === 1;
                   const hasExpiry   = !!reward.expiresAt;
                   const alreadyClaimed = reward.maxPerCustomer != null
@@ -496,7 +519,7 @@ function LoyaltyContent() {
                         {redeeming === reward.id
                           ? <ActivityIndicator size="small" color={WHITE} />
                           : <Text style={styles.rewardClaimBtnText}>
-                              {alreadyClaimed ? 'Claimed' : canClaim ? 'Claim' : `${reward.pointsCost} pts`}
+                              {alreadyClaimed ? 'Claimed' : canClaim ? 'Claim' : !thresholdMet ? `${reward.autoGrantPointsThreshold} pts req.` : `${reward.pointsCost} pts`}
                             </Text>}
                       </Pressable>
                     </View>

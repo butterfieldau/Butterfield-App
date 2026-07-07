@@ -10,15 +10,16 @@ import { searchCustomerCache, upsertCustomerCache } from '@/lib/posCache';
 import type { CachedPosCustomer } from '@/lib/posCache';
 import styles from './posStyles';
 import { BLUE, DARK, MUTED, MID, STAMP_GOAL, WHITE } from './types';
-import type { AttachedCustomer } from './types';
+import type { AttachedCustomer, AttachedCustomerClaimedReward } from './types';
 
 export default function CustomerModal({
-  currentCustomer, onSelect, onRemove, onClose, initialMode = 'search', recentBalances = {},
+  currentCustomer, onSelect, onRemove, onClose, onApplyClaimedReward, initialMode = 'search', recentBalances = {},
 }: {
   currentCustomer: AttachedCustomer | null;
   onSelect: (c: AttachedCustomer) => void;
   onRemove: () => void;
   onClose: () => void;
+  onApplyClaimedReward?: (cr: AttachedCustomerClaimedReward) => void;
   initialMode?: 'search' | 'scan';
   recentBalances?: Record<string, { loyaltyPoints: number; stampCount: number; freeCoffeeRewards: number }>;
 }) {
@@ -111,8 +112,39 @@ export default function CustomerModal({
               <Text style={styles.customerSub}>
                 {currentCustomer.loyaltyPoints} pts · {currentCustomer.stampCount}/{currentCustomer.stampGoal ?? STAMP_GOAL} stamps
               </Text>
+              {(currentCustomer.availableClaimedRewards?.length ?? 0) > 0 && (
+                <View style={{ marginTop: 8, gap: 6 }}>
+                  <Text style={[styles.customerSub, { fontWeight: '600', color: BLUE }]}>
+                    Rewards wallet ({currentCustomer.availableClaimedRewards.length})
+                  </Text>
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+                    {currentCustomer.availableClaimedRewards.map(cr => (
+                      <Pressable
+                        key={cr.id}
+                        onPress={() => { onApplyClaimedReward?.(cr); onClose(); }}
+                        style={{
+                          backgroundColor: '#1A3A5C',
+                          borderRadius: 8,
+                          paddingHorizontal: 10,
+                          paddingVertical: 6,
+                          flexDirection: 'row',
+                          alignItems: 'center',
+                          gap: 4,
+                        }}
+                      >
+                        <Text style={{ fontSize: 13, color: WHITE }}>
+                          {cr.voucherValueCents
+                            ? `🎁 $${(cr.voucherValueCents / 100).toFixed(0)} voucher`
+                            : `🎁 ${cr.rewardName}`}
+                        </Text>
+                        <Text style={{ fontSize: 11, color: MUTED }}>tap to apply</Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                </View>
+              )}
             </View>
-            <Pressable onPress={onRemove} style={styles.removeCustomerBtn}>
+            <Pressable onPress={onRemove} style={[styles.removeCustomerBtn, { alignSelf: 'flex-start' }]}>
               <Text style={styles.removeCustomerText}>Remove</Text>
             </Pressable>
           </View>
