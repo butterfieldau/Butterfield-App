@@ -966,12 +966,30 @@ export function CheckoutCombinedStep(props: CheckoutCombinedStepProps) {
         {method === 'credit_card' && !selectedSavedPaymentMethodId && (
           <>
             <RowDivider />
-            <View style={{ padding: 16 }}>
-              <CardField postalCodeEnabled={false}
-                style={{ width: '100%', height: 50 }}
-                cardStyle={{ backgroundColor: BG, textColor: TEXT, borderRadius: 10, placeholderColor: MUTED }}
-              />
-              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 10 }}>
+            <View style={{ paddingHorizontal: 16, paddingTop: 14, paddingBottom: 4 }}>
+              <Text style={{ fontSize: 12, fontWeight: '600', color: MUTED, marginBottom: 8, letterSpacing: 0.3 }}>CARD NUMBER · EXPIRY · CVC</Text>
+              <View style={{
+                borderWidth: 1.5, borderColor: BLUE, borderRadius: 12,
+                backgroundColor: '#fff', overflow: 'hidden',
+                paddingHorizontal: 4,
+              }}>
+                <CardField
+                  postalCodeEnabled={false}
+                  placeholders={{ number: '4242 4242 4242 4242', expiration: 'MM/YY', cvc: 'CVC' }}
+                  style={{ width: '100%', height: 54 }}
+                  cardStyle={{
+                    backgroundColor: '#ffffff',
+                    textColor: TEXT,
+                    placeholderColor: '#9CA3AF',
+                    borderRadius: 10,
+                    fontSize: 16,
+                  }}
+                />
+              </View>
+              <Text style={{ fontSize: 11, color: MUTED, marginTop: 6 }}>
+                Test card: 4242 4242 4242 4242 · any expiry · any CVC
+              </Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 12 }}>
                 <Text style={{ color: MUTED, fontSize: 13 }}>Save card for next time</Text>
                 <Switch value={saveCardForNextTime} onValueChange={setSaveCardForNextTime} trackColor={{ false: BORDER, true: BLUE }} />
               </View>
