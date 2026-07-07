@@ -1758,6 +1758,8 @@ export interface LoyaltyReward {
   tierRestriction?: string | null;
   minOrderValueCents?: number | null;
   autoGrantPointsThreshold?: number | null;
+  maxPerCustomer?: number | null;
+  expiresAt?: string | null;
 }
 
 export interface SavedAddress {
@@ -1868,6 +1870,7 @@ export interface DirectorReward {
   tierRestriction?: string | null;
   minOrderValueCents?: number | null;
   autoGrantPointsThreshold?: number | null;
+  maxPerCustomer?: number | null;
 }
 
 export interface ClaimedReward {

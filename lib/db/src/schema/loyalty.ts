@@ -34,6 +34,7 @@ export const loyaltyRewardsTable = pgTable("loyalty_rewards", {
   tierRestriction: text("tier_restriction"),
   minOrderValueCents: integer("min_order_value_cents"),
   autoGrantPointsThreshold: integer("auto_grant_points_threshold"),
+  maxPerCustomer: integer("max_per_customer"),
 });
 
 export const loyaltyRedemptionsTable = pgTable("loyalty_redemptions", {

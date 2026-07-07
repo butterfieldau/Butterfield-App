@@ -129,6 +129,8 @@ function RewardModal({ visible, reward, onClose, onSuccess }: {
   const [tierRestriction,    setTierRestriction]    = useState<string[]>([]);
   const [minOrderDollars,    setMinOrderDollars]    = useState('');
   const [autoGrantThreshold, setAutoGrantThreshold] = useState('');
+  const [maxPerCustomer,     setMaxPerCustomer]     = useState('');
+  const [availableUntil,     setAvailableUntil]     = useState('');
   const [loading,            setLoading]            = useState(false);
   const [error,              setError]              = useState('');
 
@@ -149,11 +151,14 @@ function RewardModal({ visible, reward, onClose, onSuccess }: {
       } catch { setTierRestriction([]); }
       setMinOrderDollars(reward.minOrderValueCents ? String(reward.minOrderValueCents / 100) : '');
       setAutoGrantThreshold(reward.autoGrantPointsThreshold ? String(reward.autoGrantPointsThreshold) : '');
+      setMaxPerCustomer(reward.maxPerCustomer != null ? String(reward.maxPerCustomer) : '');
+      setAvailableUntil(reward.expiresAt ? reward.expiresAt.slice(0, 10) : '');
     } else {
       setName(''); setDesc(''); setPts(''); setCategory('food'); setStock('');
       setIsAppOnly(false); setIsActive(true); setRewardType('item_reward');
       setVoucherDollars(''); setLinkedProductId(''); setCustomerRedeemable(true);
       setClaimExpiryDays(''); setTierRestriction([]); setMinOrderDollars(''); setAutoGrantThreshold('');
+      setMaxPerCustomer(''); setAvailableUntil('');
     }
     setError('');
   }, [reward, visible]);
@@ -175,6 +180,8 @@ function RewardModal({ visible, reward, onClose, onSuccess }: {
       const minOrderValueCents        = minOrderDollars.trim() ? Math.round(parseFloat(minOrderDollars) * 100) : null;
       const autoGrantPointsThreshold  = autoGrantThreshold.trim() ? parseInt(autoGrantThreshold.trim(), 10) : null;
       const tierRestrictionJson       = tierRestriction.length > 0 ? JSON.stringify(tierRestriction) : null;
+      const parsedMaxPerCustomer      = maxPerCustomer.trim() ? parseInt(maxPerCustomer.trim(), 10) : null;
+      const parsedAvailableUntil      = availableUntil.trim() ? availableUntil.trim() : null;
       const payload = {
         name: name.trim(), description: desc.trim(), pointsCost, category,
         stock: stock ? parseInt(stock, 10) : null, isAppOnly, isActive,
@@ -185,6 +192,8 @@ function RewardModal({ visible, reward, onClose, onSuccess }: {
         tierRestriction: tierRestrictionJson,
         minOrderValueCents: minOrderValueCents && minOrderValueCents > 0 ? minOrderValueCents : null,
         autoGrantPointsThreshold: autoGrantPointsThreshold && autoGrantPointsThreshold > 0 ? autoGrantPointsThreshold : null,
+        maxPerCustomer: parsedMaxPerCustomer && parsedMaxPerCustomer > 0 ? parsedMaxPerCustomer : null,
+        expiresAt: parsedAvailableUntil,
       };
       if (reward?.id) await api.director.updateReward(reward.id, payload);
       else            await api.director.createReward(payload);
@@ -324,6 +333,26 @@ function RewardModal({ visible, reward, onClose, onSuccess }: {
               placeholderTextColor={MUTED} />
             <Text style={{ fontSize: 11, color: MUTED, lineHeight: 15 }}>
               Reward is automatically added to the customer's wallet once they reach this points total.
+            </Text>
+          </View>
+
+          <View style={{ gap: 6 }}>
+            <Text style={styles.fieldLabel}>Max per customer (leave blank for unlimited)</Text>
+            <TextInput style={[styles.input, { borderColor: BORDER, color: TEXT }]} value={maxPerCustomer}
+              onChangeText={setMaxPerCustomer} keyboardType="number-pad" placeholder="Unlimited"
+              placeholderTextColor={MUTED} />
+            <Text style={{ fontSize: 11, color: MUTED, lineHeight: 15 }}>
+              Set to 1 to allow claiming once per customer lifetime. Leave blank for no limit.
+            </Text>
+          </View>
+
+          <View style={{ gap: 6 }}>
+            <Text style={styles.fieldLabel}>Available until (reward-level expiry, optional)</Text>
+            <TextInput style={[styles.input, { borderColor: BORDER, color: TEXT }]} value={availableUntil}
+              onChangeText={setAvailableUntil} placeholder="YYYY-MM-DD"
+              placeholderTextColor={MUTED} autoCapitalize="none" autoCorrect={false} />
+            <Text style={{ fontSize: 11, color: MUTED, lineHeight: 15 }}>
+              After this date the reward disappears from the customer catalog. Distinct from per-claim expiry above.
             </Text>
           </View>
 
@@ -518,6 +547,20 @@ export function RewardsTab() {
                 {r.isAppOnly     && <Text style={styles.rewardMetaText}>· App only</Text>}
                 {r.stock != null && <Text style={styles.rewardMetaText}>· Stock: {r.stock}</Text>}
                 {(r.claimCount ?? 0) > 0 && <Text style={styles.rewardMetaText}>· {r.claimCount} redeemed</Text>}
+                {r.maxPerCustomer != null && (
+                  <View style={[styles.chip, { backgroundColor: '#EEF4FF', borderColor: '#BAD8F7', marginLeft: 2 }]}>
+                    <Text style={[styles.chipText, { color: BLUE, fontSize: 10 }]}>
+                      {r.maxPerCustomer === 1 ? '1× only' : `${r.maxPerCustomer}× max`}
+                    </Text>
+                  </View>
+                )}
+                {r.expiresAt && (
+                  <View style={[styles.chip, { backgroundColor: '#FEF9C3', borderColor: '#FDE68A', marginLeft: 2 }]}>
+                    <Text style={[styles.chipText, { color: '#854D0E', fontSize: 10 }]}>
+                      Until {new Date(r.expiresAt).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' })}
+                    </Text>
+                  </View>
+                )}
               </View>
               <View style={styles.rewardActions}>
                 {isDeleted ? (

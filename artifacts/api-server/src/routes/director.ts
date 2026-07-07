@@ -2846,6 +2846,7 @@ router.post('/rewards', async (req, res) => {
     tierRestriction: b.tierRestriction != null ? String(b.tierRestriction) : null,
     minOrderValueCents: b.minOrderValueCents != null ? Math.round(Number(b.minOrderValueCents)) : null,
     autoGrantPointsThreshold: b.autoGrantPointsThreshold != null ? Math.round(Number(b.autoGrantPointsThreshold)) : null,
+    maxPerCustomer: b.maxPerCustomer != null ? Math.floor(Number(b.maxPerCustomer)) : null,
   }).returning();
   return res.status(201).json({ data: reward });
 });
@@ -2854,7 +2855,7 @@ router.patch('/rewards/:id', async (req, res) => {
   const b = req.body ?? {};
   const allowed = ['name','description','pointsCost','category','imageUrl','isActive','isAppOnly','stock',
     'rewardType','voucherValueCents','linkedProductId','customerRedeemable','staffRedeemable',
-    'tierRestriction','minOrderValueCents','autoGrantPointsThreshold'];
+    'tierRestriction','minOrderValueCents','autoGrantPointsThreshold','maxPerCustomer'];
   const updates: Record<string, any> = {};
   for (const k of allowed) if (b[k] !== undefined) updates[k] = b[k];
   if (b.expiresAt !== undefined) updates.expiresAt = b.expiresAt ? new Date(b.expiresAt) : null;

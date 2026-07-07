@@ -136,7 +136,11 @@ function LoyaltyContent() {
   }, [claimedData]);
   const pastClaims: ClaimedReward[] = useMemo(() => {
     const list = (claimedData as any)?.data ?? [];
-    return list.filter((c: ClaimedReward) => c.status !== 'available').slice(0, 6);
+    return list.filter((c: ClaimedReward) => c.status === 'redeemed' || c.status === 'expired').slice(0, 6);
+  }, [claimedData]);
+  const allNonCancelledClaims: ClaimedReward[] = useMemo(() => {
+    const list = (claimedData as any)?.data ?? [];
+    return list.filter((c: ClaimedReward) => c.status !== 'cancelled');
   }, [claimedData]);
   const visibleRewards: LoyaltyReward[] = useMemo(() => {
     const list = rewardsData?.data ?? [];
@@ -447,8 +451,16 @@ function LoyaltyContent() {
                   const rewardTitle = reward.title ?? reward.name ?? 'Reward';
                   const preset      = rewardPresetForTitle(rewardTitle, reward.rewardType);
                   const canClaim    = points >= reward.pointsCost;
+                  const isOnceOnly  = reward.maxPerCustomer === 1;
+                  const hasExpiry   = !!reward.expiresAt;
+                  const alreadyClaimed = reward.maxPerCustomer != null
+                    ? allNonCancelledClaims.filter(
+                        (c: ClaimedReward) => c.rewardId === reward.id
+                      ).length >= reward.maxPerCustomer
+                    : false;
+                  const claimDisabled = redeeming === reward.id || !canClaim || alreadyClaimed;
                   return (
-                    <View key={reward.id} style={[styles.rewardCard, { opacity: canClaim ? 1 : 0.65 }]}>
+                    <View key={reward.id} style={[styles.rewardCard, { opacity: (canClaim && !alreadyClaimed) ? 1 : 0.65 }]}>
                       <LinearGradient colors={preset.bg} style={styles.rewardCardArt}>
                         {preset.image ? <Image source={preset.image} style={{ width: '100%', height: '100%' }} contentFit="cover" /> : null}
                         <View style={[styles.rewardCardIcon, { borderColor: preset.tint }]}>
@@ -458,15 +470,27 @@ function LoyaltyContent() {
                       <View style={styles.rewardCardBody}>
                         <Text style={styles.rewardCardTitle} numberOfLines={2}>{rewardTitle}</Text>
                         <Text style={styles.rewardCardPts}>{reward.rewardType === 'money_voucher' && reward.voucherValueCents ? `$${(reward.voucherValueCents / 100).toFixed(2)} voucher` : `${reward.pointsCost} pts`}</Text>
+                        {isOnceOnly && !alreadyClaimed && (
+                          <View style={styles.rewardBadge}>
+                            <Text style={styles.rewardBadgeText}>Once only</Text>
+                          </View>
+                        )}
+                        {hasExpiry && (
+                          <Text style={styles.rewardExpiry}>
+                            Until {new Date(reward.expiresAt!).toLocaleDateString('en-AU', { day: 'numeric', month: 'short' })}
+                          </Text>
+                        )}
                       </View>
                       <Pressable
-                        style={[styles.rewardClaimBtn, { backgroundColor: canClaim ? BRAND : '#2A3856' }]}
+                        style={[styles.rewardClaimBtn, { backgroundColor: alreadyClaimed ? '#1A2B4A' : canClaim ? BRAND : '#2A3856' }]}
                         onPress={() => handleClaim(reward)}
-                        disabled={redeeming === reward.id || !canClaim}
+                        disabled={claimDisabled}
                       >
                         {redeeming === reward.id
                           ? <ActivityIndicator size="small" color={WHITE} />
-                          : <Text style={styles.rewardClaimBtnText}>{canClaim ? 'Claim' : `${reward.pointsCost} pts`}</Text>}
+                          : <Text style={styles.rewardClaimBtnText}>
+                              {alreadyClaimed ? 'Claimed' : canClaim ? 'Claim' : `${reward.pointsCost} pts`}
+                            </Text>}
                       </Pressable>
                     </View>
                   );
@@ -589,6 +613,9 @@ const styles = StyleSheet.create({
   rewardCardPts: { fontSize: 11, color: BRAND, fontWeight: '700' },
   rewardClaimBtn:{ marginHorizontal: 10, marginBottom: 10, borderRadius: 12, paddingVertical: 9, alignItems: 'center' },
   rewardClaimBtnText: { color: WHITE, fontSize: 12, fontWeight: '800' },
+  rewardBadge: { backgroundColor: 'rgba(64,192,242,0.15)', borderRadius: 6, paddingHorizontal: 5, paddingVertical: 2, alignSelf: 'flex-start', marginTop: 2 },
+  rewardBadgeText: { color: BRAND, fontSize: 9, fontWeight: '700', letterSpacing: 0.3 },
+  rewardExpiry: { fontSize: 9, color: TEXT_MUTED, marginTop: 2 },
   // Birthday
   birthdayCard:      { borderRadius: 20, overflow: 'hidden', padding: 16, gap: 6 },
   birthdayHeroText:  { fontSize: 18, fontWeight: '800', color: '#2D1B29' },

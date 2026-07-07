@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { randomUUID } from 'crypto';
 import { db, loyaltyRewardsTable, loyaltyRedemptionsTable, loyaltyTransactionsTable, customerProfilesTable, loyaltyActivityLogTable, usersTable, claimedRewardsTable } from '@workspace/db';
-import { eq, desc, and, isNull, sql, inArray, gte, lte, isNotNull } from 'drizzle-orm';
+import { eq, desc, and, isNull, sql, inArray, gte, lte, isNotNull, or, gt } from 'drizzle-orm';
 import { requireAuth, requireRole } from '../middlewares/auth.js';
 import { requireManagerPermission } from '../middlewares/managerPermission.js';
 import {
@@ -92,15 +92,27 @@ router.get('/profile', requireAuth, async (req, res) => {
         lte(loyaltyRewardsTable.autoGrantPointsThreshold, currentPoints),
       ));
     for (const tr of thresholdRewards) {
-      const [alreadyGranted] = await db
-        .select({ id: claimedRewardsTable.id })
-        .from(claimedRewardsTable)
-        .where(and(
-          eq(claimedRewardsTable.userId, req.user!.id),
-          eq(claimedRewardsTable.rewardId, tr.id),
-        ))
-        .limit(1);
-      if (!alreadyGranted) {
+      // Count all non-cancelled claims (includes redeemed). If maxPerCustomer is set,
+      // skip re-grant once the customer has reached their limit.
+      type CountResult = { rows: { cnt: string }[] };
+      const grantCountResult = await db.execute(
+        sql`SELECT COUNT(*) as cnt FROM claimed_rewards
+            WHERE user_id = ${req.user!.id}
+              AND reward_id = ${tr.id}
+              AND status != 'cancelled'`
+      ) as unknown as CountResult;
+      const grantCount = parseInt(grantCountResult.rows[0]?.cnt ?? '0', 10);
+      // Double-safety: also count legacy loyalty_redemptions rows (separate table used before claimed_rewards)
+      const redemptionCountResult = await db.execute(
+        sql`SELECT COUNT(*) as cnt FROM loyalty_redemptions
+            WHERE user_id = ${req.user!.id}
+              AND reward_id = ${tr.id}`
+      ) as unknown as CountResult;
+      const redemptionCount = parseInt(redemptionCountResult.rows[0]?.cnt ?? '0', 10);
+      const totalClaimCount = grantCount + redemptionCount;
+      const effectiveLimit = tr.maxPerCustomer != null && tr.maxPerCustomer > 0 ? tr.maxPerCustomer : null;
+      const alreadyAtLimit = effectiveLimit !== null ? totalClaimCount >= effectiveLimit : totalClaimCount > 0;
+      if (!alreadyAtLimit) {
         const expiryDays = typeof tr.claimExpiryDays === 'number' && tr.claimExpiryDays > 0
           ? tr.claimExpiryDays : 30;
         await db.insert(claimedRewardsTable).values({
@@ -204,8 +216,13 @@ router.get('/transactions', requireAuth, async (req, res) => {
 });
 
 router.get('/rewards', async (_req, res) => {
+  const now = new Date();
   const rewards = await db.select().from(loyaltyRewardsTable)
-    .where(and(eq(loyaltyRewardsTable.isActive, true), isNull(loyaltyRewardsTable.deletedAt)));
+    .where(and(
+      eq(loyaltyRewardsTable.isActive, true),
+      isNull(loyaltyRewardsTable.deletedAt),
+      or(isNull(loyaltyRewardsTable.expiresAt), gt(loyaltyRewardsTable.expiresAt, now)),
+    ));
   return res.json({ data: rewards });
 });
 
@@ -315,7 +332,7 @@ router.get('/claimed-rewards', requireAuth, async (req, res) => {
     .leftJoin(loyaltyRewardsTable, eq(claimedRewardsTable.rewardId, loyaltyRewardsTable.id))
     .where(and(
       eq(claimedRewardsTable.userId, userId),
-      inArray(claimedRewardsTable.status, ['available', 'applied_to_cart']),
+      inArray(claimedRewardsTable.status, ['available', 'applied_to_cart', 'redeemed', 'expired']),
     ))
     .orderBy(desc(claimedRewardsTable.claimedAt));
 
@@ -417,6 +434,21 @@ router.post('/redeem', requireAuth, async (req, res) => {
         });
       }
     } catch { /* invalid JSON — allow claim */ }
+  }
+
+  // Check per-customer claim limit
+  if (reward.maxPerCustomer != null && reward.maxPerCustomer > 0) {
+    type CountResult = { rows: { cnt: string }[] };
+    const countResult = await db.execute(
+      sql`SELECT COUNT(*) as cnt FROM claimed_rewards
+          WHERE user_id = ${req.user!.id}
+            AND reward_id = ${reward.id}
+            AND status != 'cancelled'`
+    ) as unknown as CountResult;
+    const claimCount = parseInt(countResult.rows[0]?.cnt ?? '0', 10);
+    if (claimCount >= reward.maxPerCustomer) {
+      return res.status(403).json({ error: "You've already claimed this reward" });
+    }
   }
 
   // ── Truly atomic claim: points + stock + row creation in a single DB transaction ──
