@@ -7,9 +7,12 @@ import { Swipeable } from 'react-native-gesture-handler';
 import { getPalette } from '@/constants/categoryColors';
 
 const CHERRY = '#D0312D';
-const MUTED  = '#8E8E93';
+const BLUE   = '#40C0F2';
+const TEXT   = '#111111';
+const MUTED  = '#6B7280';
 const CARD   = '#FFFFFF';
 const BORDER = '#E5E7EB';
+const BG     = '#F5F6FA';
 
 interface CartItemRowProps {
   item: {
@@ -25,9 +28,10 @@ interface CartItemRowProps {
   onRemove: () => void;
   updateItemQuantity: (cartItemId: string, qty: number) => void;
   openSwipeableRef: React.MutableRefObject<Swipeable | null>;
+  showDivider?: boolean;
 }
 
-export function CartItemRow({ item, onRemove, updateItemQuantity, openSwipeableRef }: CartItemRowProps) {
+export function CartItemRow({ item, onRemove, updateItemQuantity, openSwipeableRef, showDivider = false }: CartItemRowProps) {
   const swipeableRef    = useRef<Swipeable>(null);
   const rowHeightAnim   = useRef(new RNAnimated.Value(0)).current;
   const measuredHeight  = useRef(0);
@@ -54,7 +58,7 @@ export function CartItemRow({ item, onRemove, updateItemQuantity, openSwipeableR
       <View style={s.swipeDelete}>
         <RNAnimated.View style={{ alignItems: 'center', transform: [{ scale }], opacity }}>
           <Feather name="trash-2" size={18} color="#FFFFFF" />
-          <Text style={s.swipeDeleteLabel}>Delete</Text>
+          <Text style={s.swipeDeleteLabel}>Remove</Text>
         </RNAnimated.View>
       </View>
     );
@@ -92,40 +96,61 @@ export function CartItemRow({ item, onRemove, updateItemQuantity, openSwipeableR
         onLayout={handleLayout}
         style={collapsing ? { height: rowHeightAnim, overflow: 'hidden' } : undefined}
       >
-        <View style={[s.itemCard, { backgroundColor: CARD, borderColor: BORDER }]}>
+        {showDivider && <View style={s.divider} />}
+        <View style={s.row}>
+
+          {/* Thumbnail */}
           {imageUrl ? (
-            <Image source={{ uri: imageUrl }} style={s.itemThumb} contentFit="cover" />
+            <Image source={{ uri: imageUrl }} style={s.thumb} contentFit="cover" />
           ) : (
-            <View style={[s.itemThumb, { backgroundColor: palette.bg, alignItems: 'center', justifyContent: 'center' }]}>
-              <Text style={{ fontSize: 28 }}>{palette.emoji}</Text>
+            <View style={[s.thumb, { backgroundColor: palette.bg, alignItems: 'center', justifyContent: 'center' }]}>
+              <Text style={{ fontSize: 26 }}>{palette.emoji}</Text>
             </View>
           )}
-          <Pressable
-            onPress={() => { onRemove(); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }}
-            style={s.removeBtn}
-          >
-            <Feather name="x" size={12} color={MUTED} />
-          </Pressable>
-          <View style={s.itemBody}>
-            <Text style={s.itemName}>
-              {item.productName}{item.variantName ? ` · ${item.variantName}` : ''}
-            </Text>
+
+          {/* Body */}
+          <View style={s.body}>
+            {/* Name + price on same line */}
+            <View style={s.nameRow}>
+              <Text style={s.name} numberOfLines={2}>
+                {item.productName}{item.variantName ? ` · ${item.variantName}` : ''}
+              </Text>
+              <Text style={s.price}>AUD {((item.unitPriceCents * item.quantity) / 100).toFixed(2)}</Text>
+            </View>
+
+            {/* Options */}
             {optionLines.length > 0 && (
-              <Text style={[s.itemOpts, { fontWeight: '400' }]} numberOfLines={2}>
+              <Text style={s.opts} numberOfLines={2}>
                 {optionLines.map(o => o.textValue ?? o.optionName).join(', ')}
               </Text>
             )}
-            <Text style={s.itemPrice}>AUD {((item.unitPriceCents * item.quantity) / 100).toFixed(2)}</Text>
+
+            {/* Qty controls + remove */}
             <View style={s.qtyRow}>
-              <Pressable onPress={() => { updateItemQuantity(item.cartItemId, item.quantity - 1); Haptics.selectionAsync(); }} style={s.qtyBtn}>
-                <Text style={s.qtyBtnText}>–</Text>
+              <Pressable
+                onPress={() => { updateItemQuantity(item.cartItemId, item.quantity - 1); Haptics.selectionAsync(); }}
+                style={s.qtyBtn}
+              >
+                <Text style={s.qtyBtnText}>−</Text>
               </Pressable>
-              <Text style={s.qtyLabel}>QTY: {item.quantity}</Text>
-              <Pressable onPress={() => { updateItemQuantity(item.cartItemId, item.quantity + 1); Haptics.selectionAsync(); }} style={s.qtyBtn}>
+              <Text style={s.qtyLabel}>{item.quantity}</Text>
+              <Pressable
+                onPress={() => { updateItemQuantity(item.cartItemId, item.quantity + 1); Haptics.selectionAsync(); }}
+                style={s.qtyBtn}
+              >
                 <Text style={s.qtyBtnText}>+</Text>
+              </Pressable>
+              <View style={{ flex: 1 }} />
+              <Pressable
+                onPress={() => { onRemove(); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }}
+                style={s.removeBtn}
+                hitSlop={8}
+              >
+                <Feather name="trash-2" size={13} color={MUTED} />
               </Pressable>
             </View>
           </View>
+
         </View>
       </RNAnimated.View>
     </Swipeable>
@@ -133,17 +158,19 @@ export function CartItemRow({ item, onRemove, updateItemQuantity, openSwipeableR
 }
 
 const s = StyleSheet.create({
-  swipeDelete:      { backgroundColor: CHERRY, width: 80, justifyContent: 'center', alignItems: 'center', gap: 4, borderRadius: 14, marginLeft: 8 },
+  swipeDelete:      { backgroundColor: CHERRY, width: 80, justifyContent: 'center', alignItems: 'center', gap: 4 },
   swipeDeleteLabel: { color: '#FFFFFF', fontSize: 11, fontWeight: '600' },
-  itemCard:   { flexDirection: 'row', borderRadius: 14, borderWidth: 1, overflow: 'hidden', position: 'relative' },
-  itemThumb:  { width: 90, alignSelf: 'stretch' },
-  removeBtn:  { position: 'absolute', top: 8, right: 8, width: 22, height: 22, borderRadius: 11, backgroundColor: '#EFF6FF', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#E5E7EB', zIndex: 1 },
-  itemBody:   { flex: 1, padding: 12, gap: 4 },
-  itemName:   { fontSize: 15, fontWeight: '600', color: '#1C1C1E' },
-  itemOpts:   { fontSize: 12, color: '#8E8E93', lineHeight: 16 },
-  itemPrice:  { fontSize: 14, fontWeight: '500', color: '#1C1C1E' },
-  qtyRow:     { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 6 },
-  qtyBtn:     { width: 28, height: 28, borderRadius: 14, borderWidth: 1, borderColor: '#E5E7EB', alignItems: 'center', justifyContent: 'center', backgroundColor: '#EFF6FF' },
-  qtyBtnText: { fontSize: 16, color: '#1C1C1E', fontWeight: '600', lineHeight: 20 },
-  qtyLabel:   { fontSize: 13, fontWeight: '600', color: '#1C1C1E' },
+  divider:  { height: 1, backgroundColor: BORDER },
+  row:      { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 12, gap: 12, backgroundColor: CARD },
+  thumb:    { width: 64, height: 64, borderRadius: 10, flexShrink: 0 },
+  body:     { flex: 1, gap: 3 },
+  nameRow:  { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
+  name:     { flex: 1, fontSize: 15, fontWeight: '600', color: TEXT, lineHeight: 20 },
+  opts:     { fontSize: 12, color: MUTED, lineHeight: 16 },
+  price:    { fontSize: 14, fontWeight: '700', color: TEXT, flexShrink: 0 },
+  qtyRow:   { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 6 },
+  qtyBtn:   { width: 26, height: 26, borderRadius: 13, borderWidth: 1, borderColor: BORDER, alignItems: 'center', justifyContent: 'center', backgroundColor: BG },
+  qtyBtnText: { fontSize: 16, color: TEXT, fontWeight: '500', lineHeight: 20 },
+  qtyLabel: { fontSize: 13, fontWeight: '600', color: TEXT, minWidth: 18, textAlign: 'center' },
+  removeBtn:{ width: 26, height: 26, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
 });

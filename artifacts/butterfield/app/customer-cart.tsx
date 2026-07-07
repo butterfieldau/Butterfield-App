@@ -284,6 +284,7 @@ function CartContent({ onConfirm }: { onConfirm: (c: Confirmation) => void }) {
             onRemove={() => removeCartItem(item.cartItemId)}
             updateItemQuantity={updateItemQuantity}
             openSwipeableRef={openSwipeableRef}
+            showDivider={idx > 0}
           />
         ))}
       </View>
