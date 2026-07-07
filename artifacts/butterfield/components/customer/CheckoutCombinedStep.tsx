@@ -581,7 +581,7 @@ export function CheckoutCombinedStep(props: CheckoutCombinedStepProps) {
             <RowDivider />
 
             {/* Now / Schedule toggle */}
-            <View style={{ padding: 12 }}>
+            <View style={{ padding: 14 }}>
               <View style={{ flexDirection: 'row', gap: 8 }}>
                 {(['now', 'schedule'] as const).map((t) => {
                   const active = (t === 'now' && pickupMode === 'asap') || (t === 'schedule' && pickupMode === 'scheduled');
@@ -611,9 +611,9 @@ export function CheckoutCombinedStep(props: CheckoutCombinedStepProps) {
             {pickupMode === 'scheduled' && (
               <>
                 <RowDivider />
-                <View style={{ paddingBottom: 4 }}>
+                <View style={{ paddingBottom: 8 }}>
                   {/* Date chips */}
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, padding: '0 16px 12px' as any, paddingHorizontal: 16, paddingBottom: 12, paddingTop: 12 }}>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingHorizontal: 16, paddingBottom: 12, paddingTop: 12 }}>
                     {pickupDateChips.map((chip, i) => {
                       const sel = selectedPickupIdx === i;
                       return (
@@ -669,7 +669,7 @@ export function CheckoutCombinedStep(props: CheckoutCombinedStepProps) {
             {showAddressForm && (
               <>
                 <RowDivider />
-                <View style={{ padding: 12, gap: 10 }}>
+                <View style={{ padding: 14, gap: 10 }}>
                   <AddressSearchInput
                     currentValue={street ? `${street}${suburb ? `, ${suburb}` : ''}` : undefined}
                     placeholder="Search delivery address…"
@@ -736,8 +736,8 @@ export function CheckoutCombinedStep(props: CheckoutCombinedStepProps) {
 
             {/* Contact / notes for delivery */}
             <RowDivider />
-            <View style={{ padding: 12, gap: 10 }}>
-              <Text style={s.slotsLabel}>Your details</Text>
+            <View style={{ padding: 14, gap: 10 }}>
+              <Text style={{ fontSize: 11, fontWeight: '700', color: MUTED, letterSpacing: 0.8, textTransform: 'uppercase', marginBottom: 2 }}>Your details</Text>
               <TextInput style={s.input} placeholder="Full name" placeholderTextColor={MUTED} value={contactName} onChangeText={setContactName} autoCapitalize="words" />
               <TextInput style={s.input} placeholder="Mobile number" placeholderTextColor={MUTED} value={contactPhone} onChangeText={setContactPhone} keyboardType="phone-pad" />
               <TextInput style={s.input} placeholder="Email" placeholderTextColor={MUTED} value={contactEmail} onChangeText={setContactEmail} keyboardType="email-address" autoCapitalize="none" />
@@ -880,7 +880,7 @@ export function CheckoutCombinedStep(props: CheckoutCombinedStepProps) {
             </Pressable>
           </View>
         ) : (
-          <View style={{ flexDirection: 'row', alignItems: 'center', padding: '0 16px' as any, paddingHorizontal: 16, paddingVertical: 14, gap: 10 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14, gap: 10 }}>
             <Feather name="tag" size={16} color={MUTED} />
             <TextInput
               style={{ flex: 1, fontSize: 15, color: TEXT }}
@@ -966,7 +966,7 @@ export function CheckoutCombinedStep(props: CheckoutCombinedStepProps) {
         {method === 'credit_card' && !selectedSavedPaymentMethodId && (
           <>
             <RowDivider />
-            <View style={{ paddingHorizontal: 16, paddingTop: 14, paddingBottom: 4 }}>
+            <View style={{ paddingHorizontal: 16, paddingTop: 14, paddingBottom: 14 }}>
               <Text style={{ fontSize: 12, fontWeight: '600', color: MUTED, marginBottom: 8, letterSpacing: 0.3 }}>CARD NUMBER · EXPIRY · CVC</Text>
               <View style={{
                 borderWidth: 1.5, borderColor: BLUE, borderRadius: 12,
@@ -1049,7 +1049,7 @@ export function CheckoutCombinedStep(props: CheckoutCombinedStepProps) {
       </View>
 
       {/* ── CTA ──────────────────────────────────────────────────────────── */}
-      <View style={{ paddingHorizontal: 16, paddingBottom: 40, gap: 10 }}>
+      <View style={{ paddingHorizontal: 16, paddingTop: 16, paddingBottom: 40, gap: 10 }}>
         {isIosApplePay && method === 'apple_pay' ? (
           applePayClientSecret ? (
             <StableApplePayButton
@@ -1085,12 +1085,12 @@ const s = StyleSheet.create({
   secLabel:     { fontSize: 11, fontWeight: '600', color: MUTED, letterSpacing: 1, textTransform: 'uppercase', paddingHorizontal: 16, paddingTop: 20, paddingBottom: 8 },
   card:         { backgroundColor: CARD, marginHorizontal: 16, borderRadius: 14, borderWidth: 1, borderColor: BORDER, overflow: 'hidden' },
   // Segmented toggle
-  segWrap:      { paddingHorizontal: 16 },
+  segWrap:      { paddingHorizontal: 16, marginBottom: 12 },
   segTrack:     { flexDirection: 'row', backgroundColor: BORDER, borderRadius: 14, padding: 5, gap: 4 },
   segBtn:       { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 9, borderRadius: 10 },
   segBtnActive: { backgroundColor: CARD, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 2 },
   segLabel:     { fontSize: 14, fontWeight: '600' },
-  deliveryNote: { fontSize: 12, color: MUTED, paddingHorizontal: 16, marginTop: 4 },
+  deliveryNote: { fontSize: 12, color: MUTED, paddingHorizontal: 16, marginTop: 8, marginBottom: 4 },
   // Store row
   storeRow:      { flexDirection: 'row', alignItems: 'flex-start', gap: 12, padding: 14 },
   storeIconWrap: { width: 38, height: 38, borderRadius: 10, backgroundColor: '#EFF9FF', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
@@ -1143,7 +1143,7 @@ const s = StyleSheet.create({
   radio:          { width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: BORDER, alignItems: 'center', justifyContent: 'center' },
   // Total
   totalCard:      { marginHorizontal: 16, marginTop: 16, padding: 16, backgroundColor: CARD, borderRadius: 14, borderWidth: 1, borderColor: BORDER },
-  totalRow:       { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
+  totalRow:       { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
   totalRowLabel:  { fontSize: 14, color: MUTED },
   totalRowValue:  { fontSize: 14, color: TEXT },
   grandLabel:     { fontSize: 19, fontWeight: '800', color: TEXT, letterSpacing: -0.3 },
