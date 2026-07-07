@@ -85,7 +85,8 @@ export default function CustomerModal({
           availableClaimedRewards: c.availableClaimedRewards ?? [],
         };
         onSelect(customer);
-        Alert.alert(`✓ ${c.name} attached`, `${c.loyaltyPoints} pts · ${c.stampCount}/${c.stampGoal ?? STAMP_GOAL} stamps`);
+        setMode('search');
+        Alert.alert(`✓ ${c.name} attached`, `${c.loyaltyPoints} pts · ${c.stampCount}/${c.stampGoal ?? STAMP_GOAL} stamps${customer.availableClaimedRewards.length > 0 ? `\n\n${customer.availableClaimedRewards.length} reward${customer.availableClaimedRewards.length > 1 ? 's' : ''} in wallet — tap to apply` : ''}`);
       } else {
         Alert.alert('Not Found', 'Customer not found for this QR code.');
       }
@@ -212,6 +213,8 @@ export default function CustomerModal({
                               birthday: live.birthday ?? null,
                               availableClaimedRewards: live.availableClaimedRewards ?? [],
                             });
+                            setQuery('');
+                            setResults([]);
                           } else {
                             throw new Error('No data returned');
                           }

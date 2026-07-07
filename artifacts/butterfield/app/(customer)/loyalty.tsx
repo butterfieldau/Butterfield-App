@@ -245,7 +245,7 @@ function LoyaltyContent() {
         } catch (e: any) {
           if (e?.status === 403) {
             qc.invalidateQueries({ queryKey: ['loyalty-claimed-rewards'] });
-            Alert.alert('Already claimed', 'You\'ve already claimed this reward.');
+            Alert.alert('Cannot claim', e?.message ?? 'You\'re not eligible to claim this reward right now.');
           } else {
             Alert.alert('Error', e.message);
           }

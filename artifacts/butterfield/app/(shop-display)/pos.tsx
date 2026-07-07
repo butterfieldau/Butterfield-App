@@ -788,7 +788,7 @@ function PosScreenInner() {
           currentCustomer={activeTicket.customer}
           initialMode={customerModalMode}
           recentBalances={recentBalancesRef.current}
-          onSelect={(c) => { updateTicket({ customer: c, appliedDiscount: null }); setShowCustomerModal(false); upsertCustomerCache(c).catch(() => {}); }}
+          onSelect={(c) => { updateTicket({ customer: c, appliedDiscount: null }); upsertCustomerCache(c).catch(() => {}); }}
           onRemove={() => { updateTicket({ customer: null, appliedDiscount: null }); setShowCustomerModal(false); }}
           onClose={() => setShowCustomerModal(false)}
           onApplyClaimedReward={(cr: AttachedCustomerClaimedReward) => {
