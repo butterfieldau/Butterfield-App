@@ -123,6 +123,9 @@ function resolveDirectorPermission(method: string, path: string): ManagerPermiss
   if (path === '/audit-logs') return 'director_only';
   if (path === '/login-history') return 'director_only';
 
+  // POS analytics — accessible to managers with orders permission
+  if (path === '/pos/summary' || path === '/pos/transactions') return 'orders';
+
   // POS thresholds — director only
   if (path === '/pos-thresholds') return 'director_only';
 
@@ -761,6 +764,151 @@ router.get('/pos-orders', async (req, res) => {
       discountCents:        Number(r.discount_cents ?? 0),
       operatorName:         r.operator_name ?? null,
       registerSessionId:    null,
+    })),
+  });
+});
+
+// ── GET /director/pos/summary?date=YYYY-MM-DD ─────────────────────────────
+// Aggregated POS metrics for a given Sydney-local date.
+router.get('/pos/summary', async (req, res) => {
+  const rawDate = typeof req.query.date === 'string' ? req.query.date.trim() : '';
+  let dateStr = rawDate;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+    const sydParts = new Intl.DateTimeFormat('en-CA', { timeZone: 'Australia/Sydney' }).formatToParts(new Date());
+    dateStr = sydParts.map(p => p.value).join('');
+  }
+  const result = await db.execute(sql`
+    SELECT
+      COUNT(*)                                                                        AS total_count,
+      COUNT(*) FILTER (WHERE status NOT IN ('cancelled','voided','refunded'))::int    AS ticket_count,
+      COALESCE(SUM(total_cents) FILTER (WHERE status NOT IN ('cancelled','voided','refunded')),0)::bigint AS total_revenue_cents,
+      COALESCE(SUM(total_cents) FILTER (WHERE status NOT IN ('cancelled','voided','refunded') AND LOWER(COALESCE(payment_method,'eftpos'))='cash'),0)::bigint AS cash_cents,
+      COUNT(*) FILTER (WHERE status IN ('voided','cancelled'))::int                  AS void_count,
+      COUNT(*) FILTER (WHERE status = 'refunded')::int                               AS refund_count,
+      JSON_AGG(items) FILTER (WHERE status NOT IN ('cancelled','voided','refunded'))  AS all_items_json
+    FROM orders
+    WHERE source = 'pos'
+      AND created_at >= (${dateStr}::date)::timestamp AT TIME ZONE 'Australia/Sydney' AT TIME ZONE 'UTC'
+      AND created_at <  (${dateStr}::date + interval '1 day')::timestamp AT TIME ZONE 'Australia/Sydney' AT TIME ZONE 'UTC'
+  `);
+  const row = ((result.rows ?? result as unknown as any[]) as any[])[0] ?? {};
+  const ticketCount      = Number(row.ticket_count ?? 0);
+  const totalRevenue     = Number(row.total_revenue_cents ?? 0);
+  const cashCents        = Number(row.cash_cents ?? 0);
+  const eftposCents      = totalRevenue - cashCents;
+  const avgTicketCents   = ticketCount > 0 ? Math.round(totalRevenue / ticketCount) : 0;
+
+  // Compute top-selling item from items JSONB arrays
+  const itemCounts: Record<string, number> = {};
+  try {
+    const allItemsJson = row.all_items_json;
+    const txArrays: any[][] = Array.isArray(allItemsJson) ? allItemsJson : (allItemsJson ? JSON.parse(allItemsJson) : []);
+    for (const items of txArrays) {
+      if (!Array.isArray(items)) continue;
+      for (const item of items) {
+        const name = item?.name ?? item?.productName ?? 'Item';
+        const qty  = Number(item?.quantity ?? item?.qty ?? 1);
+        itemCounts[name] = (itemCounts[name] ?? 0) + qty;
+      }
+    }
+  } catch { /* ignore parse errors */ }
+
+  const topEntry = Object.entries(itemCounts).sort(([, a], [, b]) => b - a)[0] ?? null;
+  const topItem  = topEntry ? { name: topEntry[0], qty: topEntry[1] } : null;
+
+  return res.json({
+    data: {
+      date:              dateStr,
+      totalRevenueCents: totalRevenue,
+      ticketCount,
+      avgTicketCents,
+      cashCents,
+      eftposCents,
+      voidCount:         Number(row.void_count ?? 0),
+      refundCount:       Number(row.refund_count ?? 0),
+      topItem,
+    },
+  });
+});
+
+// ── GET /director/pos/transactions?date=YYYY-MM-DD ───────────────────────
+// POS transactions for a given Sydney-local date with period tagging.
+router.get('/pos/transactions', async (req, res) => {
+  const rawDate = typeof req.query.date === 'string' ? req.query.date.trim() : '';
+  let dateStr = rawDate;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+    const sydParts = new Intl.DateTimeFormat('en-CA', { timeZone: 'Australia/Sydney' }).formatToParts(new Date());
+    dateStr = sydParts.map(p => p.value).join('');
+  }
+  const statusFilter = typeof req.query.status        === 'string' ? req.query.status.trim()        : null;
+  const methodFilter = typeof req.query.paymentMethod === 'string' ? req.query.paymentMethod.trim() : null;
+  const validStatuses = ['received','being_prepared','completed','refunded','voided','cancelled'];
+  const validMethods  = ['eftpos','cash','split','card'];
+  const safeStatus    = statusFilter && validStatuses.includes(statusFilter) ? statusFilter : null;
+  const safeMethod    = methodFilter && validMethods.includes(methodFilter)  ? methodFilter : null;
+
+  const result = await db.execute(sql`
+    SELECT
+      o.id,
+      o.order_number,
+      TO_CHAR(o.created_at AT TIME ZONE 'UTC' AT TIME ZONE 'Australia/Sydney',
+              'YYYY-MM-DD"T"HH24:MI:SS') AS created_at_sydney,
+      TO_CHAR(o.created_at, 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS created_at_iso,
+      EXTRACT(HOUR FROM o.created_at AT TIME ZONE 'UTC' AT TIME ZONE 'Australia/Sydney')::int AS sydney_hour,
+      o.total_cents,
+      o.status,
+      o.payment_method,
+      o.items,
+      o.notes,
+      o.source,
+      COALESCE(o.tip_cents, 0)        AS tip_cents,
+      COALESCE(o.surcharge_cents, 0)  AS surcharge_cents,
+      o.split_payments,
+      COALESCE(o.discount_cents, 0)   AS discount_cents,
+      su.name                         AS operator_name
+    FROM orders o
+    LEFT JOIN users su ON su.id = o.staff_user_id
+    WHERE o.source = 'pos'
+      AND o.created_at >= (${dateStr}::date)::timestamp AT TIME ZONE 'Australia/Sydney' AT TIME ZONE 'UTC'
+      AND o.created_at <  (${dateStr}::date + interval '1 day')::timestamp AT TIME ZONE 'Australia/Sydney' AT TIME ZONE 'UTC'
+      ${safeStatus ? sql`AND o.status = ${safeStatus}` : sql``}
+      ${safeMethod ? sql`AND o.payment_method = ${safeMethod}` : sql``}
+    ORDER BY o.created_at DESC
+    LIMIT 500
+  `);
+  const rows = (result.rows ?? result as unknown as any[]) as Array<{
+    id: string; order_number: string; created_at_iso: string; created_at_sydney: string;
+    sydney_hour: number; total_cents: string | number; status: string; source: string | null;
+    payment_method: string | null; items: any; notes: string | null;
+    tip_cents: string | number; surcharge_cents: string | number;
+    split_payments: any; discount_cents: string | number; operator_name: string | null;
+  }>;
+
+  function getPeriod(h: number): 'morning' | 'afternoon' | 'evening' {
+    if (h < 12) return 'morning';
+    if (h < 17) return 'afternoon';
+    return 'evening';
+  }
+
+  return res.json({
+    data: rows.map(r => ({
+      id:               r.id,
+      orderNumber:      r.order_number,
+      createdAt:        r.created_at_iso,
+      sydneyHour:       Number(r.sydney_hour),
+      period:           getPeriod(Number(r.sydney_hour)),
+      totalCents:       Number(r.total_cents),
+      status:           r.status,
+      source:           r.source ?? 'pos',
+      paymentMethod:    r.payment_method ?? 'eftpos',
+      items:            r.items ?? [],
+      notes:            r.notes ?? null,
+      tipCents:         Number(r.tip_cents),
+      surchargeCents:   Number(r.surcharge_cents),
+      splitPayments:    r.split_payments ?? null,
+      discountCents:    Number(r.discount_cents ?? 0),
+      operatorName:     r.operator_name ?? null,
+      registerSessionId: null,
     })),
   });
 });

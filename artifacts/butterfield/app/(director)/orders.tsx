@@ -169,12 +169,6 @@ export default function DirectorOrdersScreen() {
     placeholderData: keepPreviousData,
     enabled: !isStaff || canViewOrders,
   });
-  const { data: posData, isLoading: posLoading, refetch: posRefetch } = useQuery({
-    queryKey: ['director-pos-orders', posDayStr],
-    queryFn: () => api.director.posOrders({ date: posDayStr }),
-    staleTime: 30_000,
-    enabled: channelTab === 'pos' && !isStaff,
-  });
 
   useFocusEffect(
     React.useCallback(() => {
@@ -518,10 +512,6 @@ export default function DirectorOrdersScreen() {
         <PosTabContent
           dayStr={posDayStr}
           onSetDay={setPosDayStr}
-          posOrders={posData?.data ?? []}
-          isLoading={posLoading}
-          refreshing={refreshing}
-          onRefresh={async () => { await posRefetch(); }}
         />
       ) : channelTab === 'wholesale' && !isStaff ? (
         /* ── Wholesale tab ───────────────────────────────────────── */

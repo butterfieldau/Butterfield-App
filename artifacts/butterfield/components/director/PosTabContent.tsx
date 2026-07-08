@@ -1,11 +1,13 @@
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator, Alert, Pressable,
   RefreshControl, ScrollView, Text, TextInput, View,
 } from 'react-native';
-import type { PosTransaction } from '@/lib/api';
+import { useQuery } from '@tanstack/react-query';
+import { api } from '@/lib/api';
+import type { PosTransaction, PosSummary } from '@/lib/api';
 import { styles } from './ordersStyles';
 import { fmtTime } from './ordersHelpers';
 
@@ -189,14 +191,37 @@ function applyPosChipFilter(tx: PosTransaction, chip: PosChipKey): boolean {
 }
 
 export function PosTabContent({
-  dayStr, onSetDay, posOrders, isLoading, refreshing, onRefresh,
+  dayStr, onSetDay,
 }: {
-  dayStr: string; onSetDay: (d: string) => void;
-  posOrders: PosTransaction[]; isLoading: boolean;
-  refreshing: boolean; onRefresh: () => Promise<void>;
+  dayStr: string;
+  onSetDay: (d: string) => void;
 }) {
   const todayStr = sydneyDateStr();
   const isToday  = dayStr === todayStr;
+
+  const { data: txData, isLoading: txLoading, refetch: txRefetch } = useQuery({
+    queryKey: ['director-pos-transactions', dayStr],
+    queryFn: () => api.director.posTransactions({ date: dayStr }),
+    staleTime: 30_000,
+  });
+
+  const { data: summaryData, refetch: summaryRefetch } = useQuery({
+    queryKey: ['director-pos-summary', dayStr],
+    queryFn: () => api.director.posSummary(dayStr),
+    staleTime: 30_000,
+    enabled: isToday,
+  });
+
+  const posOrders: PosTransaction[] = txData?.data ?? [];
+  const summary: PosSummary | undefined = summaryData?.data;
+  const isLoading = txLoading;
+
+  const [refreshing, setRefreshing] = useState(false);
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await Promise.all([txRefetch(), summaryRefetch()]);
+    setRefreshing(false);
+  }, [txRefetch, summaryRefetch]);
 
   const [showSearch, setShowSearch]   = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -373,30 +398,37 @@ export function PosTabContent({
         >
           {/* ── Today at a glance card ──────────────────────────── */}
           {isToday && !hasActiveFilters && (() => {
-            const completed = posOrders.filter(tx => tx.status !== 'cancelled' && tx.status !== 'voided' && tx.status !== 'refunded');
-            const revenue   = completed.reduce((s, tx) => s + tx.totalCents, 0);
-            const count     = completed.length;
-            const avgCents  = count > 0 ? Math.round(revenue / count) : 0;
-            const voidCount = posOrders.filter(tx => tx.status === 'voided' || tx.status === 'cancelled').length;
-            const cashCents = completed.filter(tx => (tx.paymentMethod ?? '').toLowerCase() === 'cash').reduce((s, tx) => s + tx.totalCents, 0);
-            const eftposCents = revenue - cashCents;
-            const itemCounts: Record<string, number> = {};
-            completed.forEach(tx => {
-              (Array.isArray(tx.items) ? tx.items : []).forEach((item: any) => {
-                const name = item.name ?? item.productName ?? 'Item';
-                const qty  = item.quantity ?? item.qty ?? 1;
-                itemCounts[name] = (itemCounts[name] ?? 0) + qty;
+            // Use server-side summary if available, otherwise derive from transactions
+            const revenue     = summary?.totalRevenueCents  ?? posOrders.filter(tx => !['cancelled','voided','refunded'].includes(tx.status)).reduce((s, tx) => s + tx.totalCents, 0);
+            const count       = summary?.ticketCount        ?? posOrders.filter(tx => !['cancelled','voided','refunded'].includes(tx.status)).length;
+            const avgCents    = summary?.avgTicketCents      ?? (count > 0 ? Math.round(revenue / count) : 0);
+            const voidCount   = summary?.voidCount          ?? posOrders.filter(tx => tx.status === 'voided' || tx.status === 'cancelled').length;
+            const cashCents   = summary?.cashCents          ?? posOrders.filter(tx => !['cancelled','voided','refunded'].includes(tx.status) && (tx.paymentMethod ?? '').toLowerCase() === 'cash').reduce((s, tx) => s + tx.totalCents, 0);
+            const eftposCents = summary?.eftposCents        ?? (revenue - cashCents);
+            // Top item: prefer server summary, fall back to client-side computation
+            let topItem: [string, number] | null = null;
+            if (summary?.topItem) {
+              topItem = [summary.topItem.name, summary.topItem.qty];
+            } else {
+              const itemCounts: Record<string, number> = {};
+              posOrders.filter(tx => !['cancelled','voided','refunded'].includes(tx.status)).forEach(tx => {
+                (Array.isArray(tx.items) ? tx.items : []).forEach((item: any) => {
+                  const name = item.name ?? item.productName ?? 'Item';
+                  const qty  = item.quantity ?? item.qty ?? 1;
+                  itemCounts[name] = (itemCounts[name] ?? 0) + qty;
+                });
               });
-            });
-            const topItem = Object.entries(itemCounts).sort(([, a], [, b]) => b - a)[0];
+              const top = Object.entries(itemCounts).sort(([, a], [, b]) => b - a)[0];
+              if (top) topItem = top;
+            }
             return (
               <View style={{ backgroundColor: NAVY, borderRadius: 16, padding: 14, marginBottom: 14, gap: 10 }}>
                 <Text style={{ fontSize: 12, fontWeight: '700', color: '#ffffff80', textTransform: 'uppercase', letterSpacing: 0.6 }}>Today at a glance</Text>
                 <View style={{ flexDirection: 'row', gap: 10 }}>
                   {[
-                    { label: 'Revenue',   value: fmtCents(revenue),  color: GREEN  },
-                    { label: 'Tickets',   value: String(count),       color: BLUE   },
-                    { label: 'Avg ticket',value: fmtCents(avgCents),  color: '#F59E0B' },
+                    { label: 'Revenue',    value: fmtCents(revenue),   color: GREEN },
+                    { label: 'Tickets',    value: String(count),        color: BLUE },
+                    { label: 'Avg ticket', value: fmtCents(avgCents),   color: '#F59E0B' },
                   ].map(tile => (
                     <View key={tile.label} style={{ flex: 1, backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: 10, padding: 10, alignItems: 'center', gap: 3 }}>
                       <Text style={{ fontSize: 14, fontWeight: '800', color: '#fff' }}>{tile.value}</Text>

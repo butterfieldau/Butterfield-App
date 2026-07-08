@@ -525,6 +525,18 @@ export const api = {
       const qs = params.toString();
       return request<{ data: PosTransaction[] }>(`/director/pos-orders${qs ? `?${qs}` : ''}`);
     },
+    posSummary: (date?: string) => {
+      const qs = date ? `?date=${encodeURIComponent(date)}` : '';
+      return request<{ data: PosSummary }>(`/director/pos/summary${qs}`);
+    },
+    posTransactions: (opts?: { date?: string; status?: string; paymentMethod?: string }) => {
+      const params = new URLSearchParams();
+      if (opts?.date)          params.set('date',          opts.date);
+      if (opts?.status)        params.set('status',        opts.status);
+      if (opts?.paymentMethod) params.set('paymentMethod', opts.paymentMethod);
+      const qs = params.toString();
+      return request<{ data: PosTransaction[] }>(`/director/pos/transactions${qs ? `?${qs}` : ''}`);
+    },
     acceptOrder:         (id: string) => request<{ data: ApiOrder }>(`/director/orders/${id}/accept`, { method: 'POST' }),
     updateOrderStatus:   (id: string, status: string, cancelReason?: string) => request<{ data: ApiOrder }>(`/director/orders/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status, ...(cancelReason ? { cancelReason } : {}) }) }),
     users:               () => request<{ data: DirectorUserSummary[] }>('/director/users'),
@@ -1500,6 +1512,8 @@ export interface PosTransaction {
   id: string;
   orderNumber: string;
   createdAt: string;
+  sydneyHour?: number;
+  period?: 'morning' | 'afternoon' | 'evening';
   totalCents: number;
   status: string;
   paymentMethod: string;
@@ -1510,6 +1524,18 @@ export interface PosTransaction {
   splitPayments: any;
   discountCents: number;
   operatorName: string | null;
+}
+
+export interface PosSummary {
+  date: string;
+  totalRevenueCents: number;
+  ticketCount: number;
+  avgTicketCents: number;
+  cashCents: number;
+  eftposCents: number;
+  voidCount: number;
+  refundCount: number;
+  topItem: { name: string; qty: number } | null;
 }
 
 export interface LiveContext {
