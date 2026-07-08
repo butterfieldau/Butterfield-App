@@ -7,7 +7,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator, Alert,
   Linking, Pressable,
-  RefreshControl, ScrollView, Text, View,
+  RefreshControl, ScrollView, Text, TextInput, View,
 } from 'react-native';
 import { useRefreshControl } from '@/hooks/useRefreshControl';
 import { DirectorTabScreen } from '@/components/DirectorTabScreen';
@@ -30,7 +30,7 @@ import {
 } from '@/components/director/ordersHelpers';
 import { styles } from '@/components/director/directorOrdersStyles';
 import {
-  BG, SURFACE, SURFACE_RAISED, BORDER, TEXT, TEXT_MUTED, BRAND, BRAND_TEXT_ON,
+  BG, SURFACE, SURFACE_RAISED, BORDER, TEXT, TEXT_MUTED, TEXT_FAINT, BRAND, BRAND_TEXT_ON,
   GREEN, GREEN_DIM, AMBER, AMBER_DIM, RED,
 } from '@/components/director/commandCenterColors';
 import { normalizeOrderItems, summarizeOrderItems } from '@/lib/orderItems';
@@ -45,6 +45,15 @@ const APP_FILTER_TABS = [
   { key: 'completed',        label: 'Done' },
   { key: 'cancelled',        label: 'Cancelled' },
 ];
+
+// Local filter for the In-Flight Queue strip only (independent of the main history filter)
+const LIVE_FILTER_TABS = [
+  { key: 'all',              label: 'All' },
+  { key: 'received',         label: 'Pending' },
+  { key: 'being_prepared',   label: 'Preparing' },
+  { key: 'ready_for_pickup', label: 'Ready' },
+] as const;
+type LiveFilterKey = (typeof LIVE_FILTER_TABS)[number]['key'];
 
 // Statuses that appear in the live pinned strip (in-flight orders only)
 const LIVE_STRIP_STATUSES  = ['received', 'being_prepared', 'ready_for_pickup'];
@@ -111,9 +120,9 @@ function AnalyticsStrip({ orders }: { orders: ApiOrder[] }) {
   return (
     <View style={{ flexDirection: 'row', gap: 10, paddingHorizontal: 14, paddingVertical: 10, backgroundColor: BG }}>
       {[
-        { label: 'Orders',      value: String(total),         icon: 'shopping-bag' as const, color: BRAND },
-        { label: 'Avg ticket',  value: fmtCents(avgCents),    icon: 'dollar-sign'  as const, color: AMBER },
-        { label: 'Fulfilment',  value: `${fulfilment}%`,      icon: 'check-circle' as const, color: GREEN },
+        { label: 'Total Orders', value: String(total),         icon: 'shopping-bag' as const, color: BRAND },
+        { label: 'Avg Ticket',   value: fmtCents(avgCents),    icon: 'dollar-sign'  as const, color: AMBER },
+        { label: 'Fulfilment',   value: `${fulfilment}%`,      icon: 'check-circle' as const, color: GREEN },
       ].map((tile) => (
         <View key={tile.label} style={{ flex: 1, backgroundColor: SURFACE_RAISED, borderRadius: 12, padding: 10, borderWidth: 1, borderColor: BORDER, alignItems: 'center', gap: 3 }}>
           <View style={{ width: 26, height: 26, borderRadius: 8, backgroundColor: tile.color + '18', alignItems: 'center', justifyContent: 'center' }}>
@@ -149,6 +158,9 @@ export default function DirectorOrdersScreen() {
   const [drillHour, setDrillHour]         = useState<number | null>(null);
   const [productFilter, setProductFilter] = useState<string | null>(null);
   const [wsFilterParam, setWsFilterParam] = useState<string>('all');
+  const [liveFilter, setLiveFilter]                 = useState<LiveFilterKey>('all');
+  const [historySearchOpen, setHistorySearchOpen]   = useState(false);
+  const [historySearchQuery, setHistorySearchQuery] = useState('');
   const drillModeRef = useRef<string | null>(null);
   const tabParamAppliedRef = useRef<string | null>(null);
 
@@ -324,6 +336,10 @@ export default function DirectorOrdersScreen() {
     () => appOrders.filter((o) => LIVE_STRIP_STATUSES.includes(o.status)),
     [appOrders],
   );
+  const filteredLiveOrders = useMemo(
+    () => liveFilter === 'all' ? liveActiveOrders : liveActiveOrders.filter((o) => o.status === liveFilter),
+    [liveActiveOrders, liveFilter],
+  );
   const todayOrders      = useMemo(() => drillFiltered.filter((o) => isSameDay(getOrderTimelineDate(o), today)), [drillFiltered, today]);
   const thisWeekOrders   = useMemo(() => drillFiltered.filter((o) => isThisWeek(getOrderTimelineDate(o)) && (isStaff || !isSameDay(getOrderTimelineDate(o), today))), [drillFiltered, today, isStaff]);
   const weekDrillOrders  = useMemo(() => drillFiltered.filter((o) => isThisWeek(getOrderTimelineDate(o))), [drillFiltered]);
@@ -395,10 +411,20 @@ export default function DirectorOrdersScreen() {
       ? orders.filter((o) => TERMINAL_STATUSES.includes(o.status))
       : orders;
 
+    // Search by order number / customer name on top of the history list
+    const searchedHistoryOrders = historySearchQuery.trim()
+      ? historyOrders.filter((o) => {
+          const q = historySearchQuery.trim().toLowerCase();
+          const num = String(o.orderNumber ?? o.id ?? '').toLowerCase();
+          const name = (o.customerName ?? '').toLowerCase();
+          return num.includes(q) || name.includes(q);
+        })
+      : historyOrders;
+
     // Day-grouped history with revenue subtotals
     const dayGroups = (() => {
       const map: Record<string, ApiOrder[]> = {};
-      for (const o of historyOrders) {
+      for (const o of searchedHistoryOrders) {
         const k = sydDate(getOrderTimelineDate(o));
         (map[k] ??= []).push(o);
       }
@@ -431,26 +457,88 @@ export default function DirectorOrdersScreen() {
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={BRAND} />}
       >
-        {/* Live active orders strip — always visible while orders are active */}
-        {liveActiveOrders.length > 0 && (
-          <View style={{ marginBottom: 16 }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 10 }}>
+        {/* Hero stat — orders currently in flight + revenue today */}
+        <View style={{ alignItems: 'center', paddingVertical: 20, marginBottom: 16, backgroundColor: SURFACE, borderRadius: 16, borderWidth: 1, borderColor: BORDER }}>
+          <Text style={{ fontSize: 11, fontWeight: '800', color: liveActiveOrders.length > 0 ? AMBER : GREEN, textTransform: 'uppercase', letterSpacing: 1.2, marginBottom: 6 }}>
+            {liveActiveOrders.length > 0 ? 'Needs Attention' : 'All Clear'}
+          </Text>
+          <Text style={{ fontSize: 52, fontWeight: '800', color: TEXT, letterSpacing: -1, lineHeight: 58 }}>{liveActiveOrders.length}</Text>
+          <Text style={{ fontSize: 14, color: TEXT_MUTED, marginBottom: 12 }}>Orders in flight</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: SURFACE_RAISED, borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8, borderWidth: 1, borderColor: BORDER }}>
+            <Feather name="trending-up" size={14} color={GREEN} />
+            <Text style={{ fontSize: 13, fontWeight: '700', color: TEXT }}>{fmtCents(todayOrders.filter((o) => o.status === 'completed').reduce((s, o) => s + (o.totalCents ?? 0), 0))}</Text>
+            <Text style={{ fontSize: 12, color: TEXT_MUTED }}>revenue today</Text>
+          </View>
+        </View>
+
+        {/* In-Flight Queue — always visible, with its own local status filter */}
+        <View style={{ marginBottom: 16 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
               <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: GREEN }} />
-              <Text style={{ fontSize: 13, fontWeight: '700', color: TEXT }}>Live — {liveActiveOrders.length} active</Text>
+              <Text style={{ fontSize: 13, fontWeight: '700', color: TEXT }}>In-Flight Queue</Text>
             </View>
+          </View>
+          <View style={{ flexDirection: 'row', gap: 6, marginBottom: 10 }}>
+            {LIVE_FILTER_TABS.map((t) => {
+              const active = liveFilter === t.key;
+              return (
+                <Pressable
+                  key={t.key}
+                  onPress={() => { setLiveFilter(t.key); Haptics.selectionAsync(); }}
+                  style={{ paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, backgroundColor: active ? BRAND : SURFACE_RAISED, borderWidth: 1, borderColor: active ? BRAND : BORDER }}
+                >
+                  <Text style={{ fontSize: 11, fontWeight: '600', color: active ? BRAND_TEXT_ON : TEXT_MUTED }}>{t.label}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
+          {filteredLiveOrders.length > 0 ? (
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingRight: 4 }}>
-              {liveActiveOrders.map(item => (
+              {filteredLiveOrders.map(item => (
                 <LiveOrderCard key={item.id} order={item} onPress={() => { setSelectedOrder(item); Haptics.selectionAsync(); }} />
               ))}
             </ScrollView>
-          </View>
-        )}
+          ) : (
+            <View style={{ paddingVertical: 18, alignItems: 'center', backgroundColor: SURFACE, borderRadius: 12, borderWidth: 1, borderColor: BORDER }}>
+              <Text style={{ color: TEXT_FAINT, fontSize: 12 }}>No orders in flight{liveFilter !== 'all' ? ' for this filter' : ''}</Text>
+            </View>
+          )}
+        </View>
 
-        {/* Analytics strip */}
+        {/* Supporting KPIs */}
         <AnalyticsStrip orders={orders} />
 
         {/* Day-grouped order list with date headers + daily revenue */}
-        <OrdersSectionHeader title={title} count={orders.length} />
+        <OrdersSectionHeader
+          title={title}
+          count={searchedHistoryOrders.length}
+          right={
+            <Pressable
+              onPress={() => { Haptics.selectionAsync(); setHistorySearchOpen((v) => { if (v) setHistorySearchQuery(''); return !v; }); }}
+              hitSlop={10}
+              accessibilityLabel={historySearchOpen ? 'Close order history search' : 'Search order history'}
+              testID="history-search-toggle"
+              style={{ width: 30, height: 30, borderRadius: 8, backgroundColor: historySearchOpen ? BRAND : SURFACE_RAISED, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: historySearchOpen ? BRAND : BORDER }}
+            >
+              <Feather name={historySearchOpen ? 'x' : 'search'} size={13} color={historySearchOpen ? BRAND_TEXT_ON : TEXT_MUTED} />
+            </Pressable>
+          }
+        />
+        {historySearchOpen && (
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: SURFACE, borderRadius: 10, borderWidth: 1, borderColor: BORDER, paddingHorizontal: 10, marginBottom: 10 }}>
+            <Feather name="search" size={14} color={TEXT_FAINT} />
+            <TextInput
+              value={historySearchQuery}
+              onChangeText={setHistorySearchQuery}
+              placeholder="Search by order # or customer name"
+              placeholderTextColor={TEXT_FAINT}
+              autoFocus
+              testID="history-search-input"
+              style={{ flex: 1, color: TEXT, paddingVertical: 9, fontSize: 13 }}
+            />
+          </View>
+        )}
         {dayGroups.length === 0 ? (
           <View style={styles.emptySection}>
             <Feather name="coffee" size={28} color={BORDER} />

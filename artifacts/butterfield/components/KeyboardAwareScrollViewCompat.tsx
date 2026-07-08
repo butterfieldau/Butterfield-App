@@ -22,6 +22,7 @@ export function KeyboardAwareScrollViewCompat({
   const scrollRef = useRef<ScrollView>(null);
 
   const handleFocus = (e: any) => {
+    if (Platform.OS === 'web') return;
     const node = findNodeHandle(e.target as any);
     if (!node || !scrollRef.current) return;
     setTimeout(() => {

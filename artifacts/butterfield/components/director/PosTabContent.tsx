@@ -190,9 +190,9 @@ function PosTransactionCard({
 }
 
 const POS_SECTIONS = [
+  { key: 'issues',   label: 'Refunded / Voided', statuses: ['refunded', 'voided', 'cancelled'], accentColor: RED },
   { key: 'active',   label: 'In Progress',      statuses: ['received', 'being_prepared'],       accentColor: AMBER },
   { key: 'done',     label: 'Completed',         statuses: ['completed'],                        accentColor: GREEN },
-  { key: 'issues',   label: 'Refunded / Voided', statuses: ['refunded', 'voided', 'cancelled'], accentColor: RED },
 ] as const;
 
 const POS_CHIP_FILTERS = [
