@@ -53,7 +53,7 @@ export function generateInvoicePdf(data: InvoicePdfData): Promise<Buffer> {
     doc.fillColor('#ffffff').fontSize(20).font('Helvetica-Bold')
        .text('Butterfield Cookies', 40, 22);
     doc.fillColor('rgba(255,255,255,0.6)').fontSize(8).font('Helvetica')
-       .text('COOKIES · COFFEE · DESSERTS', 40, 47);
+       .text('COOKIES · COFFEE · SOFT SERVE', 40, 47);
 
     doc.fillColor('rgba(255,255,255,0.5)').fontSize(7).font('Helvetica')
        .text('TAX INVOICE', 40, 60, { align: 'right', width: PAGE_W });

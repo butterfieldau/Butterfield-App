@@ -246,7 +246,7 @@ export default function LoginScreen() {
             style={{ width: 240, height: 88, marginBottom: 4 }}
             resizeMode="contain"
           />
-          <Text style={[s.tagline, { fontWeight: '400' }]}>Cookies · Coffee · Desserts</Text>
+          <Text style={[s.tagline, { fontWeight: '400' }]}>Cookies · Coffee · Soft Serve</Text>
         </LinearGradient>
 
         <KeyboardAwareScrollViewCompat

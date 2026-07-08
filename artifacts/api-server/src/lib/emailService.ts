@@ -218,7 +218,7 @@ export function buildWholesaleInvoiceEmail(opts: WholesaleInvoiceEmailOpts): str
     <table width="100%" cellpadding="0" cellspacing="0"><tr>
       <td>
         <div style="color:#ffffff;font-size:28px;font-weight:900;letter-spacing:-0.5px;font-family:Arial,sans-serif;">Butterfield</div>
-        <div style="color:rgba(255,255,255,0.6);font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;margin-top:8px;font-family:Arial,sans-serif;">Cookies · Coffee · Desserts</div>
+        <div style="color:rgba(255,255,255,0.6);font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;margin-top:8px;font-family:Arial,sans-serif;">Cookies · Coffee · Soft Serve</div>
       </td>
       <td align="right" valign="top">
         <span style="background:${sc.bg};color:${sc.color};font-size:11px;font-weight:800;letter-spacing:1px;text-transform:uppercase;padding:7px 14px;border-radius:999px;font-family:Arial,sans-serif;">${statusLabel}</span>
@@ -557,7 +557,7 @@ export function buildPosReceiptEmail(opts: {
         <tr>
           <td style="background:linear-gradient(135deg,#1A2B4A,#253B5E);padding:32px 40px;text-align:center;">
             <div style="font-size:24px;font-weight:800;color:#ffffff;letter-spacing:-0.5px;">Butterfield Cookies</div>
-            <div style="font-size:11px;color:rgba(255,255,255,0.65);margin-top:4px;letter-spacing:1.5px;text-transform:uppercase;">Cookies · Coffee · Desserts</div>
+            <div style="font-size:11px;color:rgba(255,255,255,0.65);margin-top:4px;letter-spacing:1.5px;text-transform:uppercase;">Cookies · Coffee · Soft Serve</div>
           </td>
         </tr>
 
@@ -700,7 +700,7 @@ export function buildOrderConfirmationEmail(opts: {
         <tr>
           <td style="background:linear-gradient(135deg,#1493FF,#40C0F2);padding:32px 40px;text-align:center;">
             <div style="font-size:24px;font-weight:800;color:#ffffff;letter-spacing:-0.5px;">Butterfield Cookies</div>
-            <div style="font-size:11px;color:rgba(255,255,255,0.75);margin-top:4px;letter-spacing:1.5px;text-transform:uppercase;">Cookies · Coffee · Desserts</div>
+            <div style="font-size:11px;color:rgba(255,255,255,0.75);margin-top:4px;letter-spacing:1.5px;text-transform:uppercase;">Cookies · Coffee · Soft Serve</div>
           </td>
         </tr>
 
@@ -865,7 +865,7 @@ export function buildOrderReceiptEmail(opts: {
         <tr>
           <td style="background:linear-gradient(135deg,#1493FF,#40C0F2);padding:32px 40px;text-align:center;">
             <div style="font-size:24px;font-weight:800;color:#ffffff;letter-spacing:-0.5px;">Butterfield Cookies</div>
-            <div style="font-size:11px;color:rgba(255,255,255,0.75);margin-top:4px;letter-spacing:1.5px;text-transform:uppercase;">Cookies · Coffee · Desserts</div>
+            <div style="font-size:11px;color:rgba(255,255,255,0.75);margin-top:4px;letter-spacing:1.5px;text-transform:uppercase;">Cookies · Coffee · Soft Serve</div>
           </td>
         </tr>
 
@@ -998,7 +998,7 @@ export function buildPaymentReceiptEmail(opts: PaymentReceiptEmailOpts): string 
         <table width="100%" cellpadding="0" cellspacing="0"><tr>
           <td>
             <div style="color:#ffffff;font-size:26px;font-weight:900;letter-spacing:-0.5px;font-family:Arial,sans-serif;">Butterfield</div>
-            <div style="color:rgba(255,255,255,0.6);font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;margin-top:6px;font-family:Arial,sans-serif;">Cookies · Coffee · Desserts</div>
+            <div style="color:rgba(255,255,255,0.6);font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;margin-top:6px;font-family:Arial,sans-serif;">Cookies · Coffee · Soft Serve</div>
           </td>
           <td align="right" valign="top">
             <span style="background:rgba(16,185,129,0.22);color:#D1FAE5;font-size:11px;font-weight:800;letter-spacing:1px;text-transform:uppercase;padding:7px 14px;border-radius:999px;font-family:Arial,sans-serif;">PAYMENT RECEIVED</span>
@@ -1150,7 +1150,7 @@ export function buildCustomerWelcomeEmail(opts: { name: string; logoUrl: string 
   <table width="100%" cellpadding="0" cellspacing="0" style="background:#F5F6FA;">
     <tr><td align="center" class="outer-pad" style="padding:40px 16px;">
       <table width="520" cellpadding="0" cellspacing="0" style="width:520px;max-width:520px;background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.08);" class="card">
-        ${accountEmailHeader({ logoUrl, background: '#F5F6FA', badgeText: 'Cookies · Coffee · Desserts', badgeColor: '#6B7280' })}
+        ${accountEmailHeader({ logoUrl, background: '#F5F6FA', badgeText: 'Cookies · Coffee · Soft Serve', badgeColor: '#6B7280' })}
         <tr>
           <td style="padding:36px 40px 28px;" class="body-pad">
             <p style="margin:0 0 8px;font-size:22px;font-weight:700;color:#1C1C1E;" class="headline">Welcome, ${name} 👋</p>
@@ -1303,7 +1303,7 @@ export function buildPasswordResetEmail(otp: string, name: string): string {
         <tr>
           <td style="background:linear-gradient(135deg,#1493FF,#3CBBEE);padding:36px 40px;text-align:center;">
             <div style="font-size:26px;font-weight:800;color:#ffffff;letter-spacing:-0.5px;">Butterfield Cookies</div>
-            <div style="font-size:13px;color:rgba(255,255,255,0.75);margin-top:6px;letter-spacing:1px;">COOKIES · COFFEE · DESSERTS</div>
+            <div style="font-size:13px;color:rgba(255,255,255,0.75);margin-top:6px;letter-spacing:1px;">COOKIES · COFFEE · SOFT SERVE</div>
           </td>
         </tr>
         <tr>

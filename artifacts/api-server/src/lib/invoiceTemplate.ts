@@ -125,7 +125,7 @@ export function buildInvoiceHtml(data: InvoiceData): string {
     <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
       <div>
         <img src="${LOGO_WHITE}" alt="Butterfield" style="height:34px;display:block;max-width:200px;object-fit:contain;">
-        <div style="color:rgba(255,255,255,0.4);font-size:9px;letter-spacing:1.8px;margin-top:5px;text-transform:uppercase;font-weight:500;">Cookies · Coffee · Desserts</div>
+        <div style="color:rgba(255,255,255,0.4);font-size:9px;letter-spacing:1.8px;margin-top:5px;text-transform:uppercase;font-weight:500;">Cookies · Coffee · Soft Serve</div>
       </div>
       <div style="text-align:right;">
         <div style="color:rgba(255,255,255,0.45);font-size:9px;letter-spacing:1.8px;text-transform:uppercase;font-weight:600;margin-bottom:3px;">Tax Invoice</div>
