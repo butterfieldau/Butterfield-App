@@ -190,7 +190,7 @@ export function AppOrders() {
           if (order.urgency === 'high') {
             timeColor = RED;
             bgColor = RED_DIM;
-            borderColor = 'rgba(248, 113, 113, 0.3)';
+            borderColor = 'rgba(96, 165, 250, 0.4)';
           } else if (order.urgency === 'medium') {
             timeColor = AMBER;
           }
