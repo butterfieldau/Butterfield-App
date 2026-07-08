@@ -18,19 +18,21 @@ import { useAuth } from '@/context/AuthContext';
 import { orderToPrintJob, sendReceiptPrint } from '@/lib/printer';
 import { STATUS_COLORS, STATUS_LABEL } from '@/lib/orderStatus';
 import {
-  OrderDetailModal, CalendarModal, PosTabContent, OrderCard, OrdersSectionHeader,
+  CalendarModal, PosTabContent, OrdersSectionHeader,
   EditWholesaleOrderSheet, AdjustWholesaleOrderSheet, CreateWholesaleOrderSheet,
 } from '@/components/director';
+import DirectorOrderCard from '@/components/director/DirectorOrderCard';
+import DirectorOrderDetailModal from '@/components/director/DirectorOrderDetailModal';
 import { WholesaleTabContent } from '@/components/director/WholesaleTabContent';
 import {
   sydneyDateStr, getErrorMessage, fmtHourLabel, sydDate, isSameDay,
   isThisMonth, isThisWeek, getOrderTimelineDate, fmtDateChip, fmtCents,
 } from '@/components/director/ordersHelpers';
-import { styles } from '@/components/director/ordersStyles';
+import { styles } from '@/components/director/directorOrdersStyles';
 import {
-  BG, CARD, BLUE, NAVY, TEXT, MUTED, BORDER, GREEN, AMBER, RED,
-  GLASS_BG, GLASS_BORDER,
-} from '@/components/director/directorColors';
+  BG, SURFACE, SURFACE_RAISED, BORDER, TEXT, TEXT_MUTED, BRAND, BRAND_TEXT_ON,
+  GREEN, GREEN_DIM, AMBER, AMBER_DIM, RED,
+} from '@/components/director/commandCenterColors';
 import { normalizeOrderItems, summarizeOrderItems } from '@/lib/orderItems';
 
 const APP_FILTER_TABS = [
@@ -66,12 +68,10 @@ function LiveOrderCard({ order, onPress }: { order: ApiOrder; onPress: () => voi
     <Pressable
       onPress={onPress}
       style={({ pressed }) => ({
-        width: 200, backgroundColor: CARD, borderRadius: 14, padding: 12,
+        width: 200, backgroundColor: SURFACE_RAISED, borderRadius: 14, padding: 12,
         borderWidth: 1, borderColor: BORDER, marginRight: 10,
-        borderTopWidth: 3, borderTopColor: col?.text ?? BLUE,
+        borderTopWidth: 3, borderTopColor: col?.text ?? BRAND,
         opacity: pressed ? 0.9 : 1,
-        shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.06, shadowRadius: 8, elevation: 2,
       })}
     >
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
@@ -79,21 +79,21 @@ function LiveOrderCard({ order, onPress }: { order: ApiOrder; onPress: () => voi
           #{order.orderNumber ?? order.id.slice(-5).toUpperCase()}
         </Text>
         <View style={{ backgroundColor: col?.bg ?? '#F3F4F6', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 8 }}>
-          <Text style={{ fontSize: 9, fontWeight: '700', color: col?.text ?? MUTED }}>{label}</Text>
+          <Text style={{ fontSize: 9, fontWeight: '700', color: col?.text ?? TEXT_MUTED }}>{label}</Text>
         </View>
       </View>
       {order.customerName && (
-        <Text style={{ fontSize: 11, color: MUTED, marginBottom: 4 }} numberOfLines={1}>{order.customerName}</Text>
+        <Text style={{ fontSize: 11, color: TEXT_MUTED, marginBottom: 4 }} numberOfLines={1}>{order.customerName}</Text>
       )}
       {summary ? (
-        <Text style={{ fontSize: 11, color: MUTED, marginBottom: 6 }} numberOfLines={1}>{summary}</Text>
+        <Text style={{ fontSize: 11, color: TEXT_MUTED, marginBottom: 6 }} numberOfLines={1}>{summary}</Text>
       ) : null}
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
-          <Feather name="clock" size={10} color={MUTED} />
-          <Text style={{ fontSize: 10, color: MUTED }}>{elapsed}</Text>
+          <Feather name="clock" size={10} color={TEXT_MUTED} />
+          <Text style={{ fontSize: 10, color: TEXT_MUTED }}>{elapsed}</Text>
         </View>
-        <Text style={{ fontSize: 12, fontWeight: '700', color: BLUE }}>{fmtCents(order.totalCents ?? 0)}</Text>
+        <Text style={{ fontSize: 12, fontWeight: '700', color: BRAND }}>{fmtCents(order.totalCents ?? 0)}</Text>
       </View>
     </Pressable>
   );
@@ -111,16 +111,16 @@ function AnalyticsStrip({ orders }: { orders: ApiOrder[] }) {
   return (
     <View style={{ flexDirection: 'row', gap: 10, paddingHorizontal: 14, paddingVertical: 10, backgroundColor: BG }}>
       {[
-        { label: 'Orders',      value: String(total),         icon: 'shopping-bag' as const, color: BLUE },
+        { label: 'Orders',      value: String(total),         icon: 'shopping-bag' as const, color: BRAND },
         { label: 'Avg ticket',  value: fmtCents(avgCents),    icon: 'dollar-sign'  as const, color: AMBER },
         { label: 'Fulfilment',  value: `${fulfilment}%`,      icon: 'check-circle' as const, color: GREEN },
       ].map((tile) => (
-        <View key={tile.label} style={{ flex: 1, backgroundColor: CARD, borderRadius: 12, padding: 10, borderWidth: 1, borderColor: BORDER, alignItems: 'center', gap: 3 }}>
+        <View key={tile.label} style={{ flex: 1, backgroundColor: SURFACE_RAISED, borderRadius: 12, padding: 10, borderWidth: 1, borderColor: BORDER, alignItems: 'center', gap: 3 }}>
           <View style={{ width: 26, height: 26, borderRadius: 8, backgroundColor: tile.color + '18', alignItems: 'center', justifyContent: 'center' }}>
             <Feather name={tile.icon} size={12} color={tile.color} />
           </View>
           <Text style={{ fontSize: 13, fontWeight: '700', color: TEXT }}>{tile.value}</Text>
-          <Text style={{ fontSize: 9, color: MUTED, fontWeight: '500', textTransform: 'uppercase', letterSpacing: 0.4 }}>{tile.label}</Text>
+          <Text style={{ fontSize: 9, color: TEXT_MUTED, fontWeight: '500', textTransform: 'uppercase', letterSpacing: 0.4 }}>{tile.label}</Text>
         </View>
       ))}
     </View>
@@ -244,13 +244,13 @@ export default function DirectorOrdersScreen() {
   // Access guard
   if (isStaff && !canViewOrders) {
     if (staffProfileLoading) {
-      return <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: BG }}><ActivityIndicator color={BLUE} size="large" /></View>;
+      return <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: BG }}><ActivityIndicator color={BRAND} size="large" /></View>;
     }
     return (
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: BG, padding: 32, gap: 16 }}>
-        <Feather name="lock" size={40} color={MUTED} />
+        <Feather name="lock" size={40} color={TEXT_MUTED} />
         <Text style={{ fontSize: 18, fontWeight: '700', color: TEXT, textAlign: 'center' }}>Access Restricted</Text>
-        <Text style={{ fontSize: 14, color: MUTED, textAlign: 'center', lineHeight: 20 }}>
+        <Text style={{ fontSize: 14, color: TEXT_MUTED, textAlign: 'center', lineHeight: 20 }}>
           You don't have permission to view orders.{'\n'}Ask your manager to enable this.
         </Text>
       </View>
@@ -377,7 +377,7 @@ export default function DirectorOrdersScreen() {
     if (isLoading) {
       return (
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-          <ActivityIndicator color={BLUE} size="large" />
+          <ActivityIndicator color={BRAND} size="large" />
         </View>
       );
     }
@@ -422,14 +422,14 @@ export default function DirectorOrdersScreen() {
     })();
 
     const renderCard = (o: ApiOrder) => (
-      <OrderCard key={o.id} order={o} onPress={() => { setSelectedOrder(o); Haptics.selectionAsync(); }} onPrint={() => printOrder(o)} printing={printingOrderId === o.id} />
+      <DirectorOrderCard key={o.id} order={o} onPress={() => { setSelectedOrder(o); Haptics.selectionAsync(); }} onPrint={() => printOrder(o)} printing={printingOrderId === o.id} />
     );
 
     return (
       <ScrollView
         contentContainerStyle={{ padding: 14, gap: 0, paddingBottom: 120 }}
         showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={BLUE} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={BRAND} />}
       >
         {/* Live active orders strip — always visible while orders are active */}
         {liveActiveOrders.length > 0 && (
@@ -462,13 +462,13 @@ export default function DirectorOrdersScreen() {
               {/* Day header with revenue subtotal */}
               <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 8, paddingHorizontal: 2, marginTop: 6 }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  <View style={{ width: 3, height: 14, borderRadius: 2, backgroundColor: BLUE + '80' }} />
+                  <View style={{ width: 3, height: 14, borderRadius: 2, backgroundColor: BRAND + '80' }} />
                   <Text style={{ fontSize: 12, fontWeight: '700', color: TEXT, letterSpacing: 0.2 }}>{group.label}</Text>
                   <View style={{ backgroundColor: BG, borderRadius: 8, paddingHorizontal: 6, paddingVertical: 2 }}>
-                    <Text style={{ fontSize: 11, color: MUTED, fontWeight: '600' }}>{group.count}</Text>
+                    <Text style={{ fontSize: 11, color: TEXT_MUTED, fontWeight: '600' }}>{group.count}</Text>
                   </View>
                 </View>
-                <Text style={{ fontSize: 12, fontWeight: '700', color: BLUE }}>{fmtCents(group.revenue)}</Text>
+                <Text style={{ fontSize: 12, fontWeight: '700', color: BRAND }}>{fmtCents(group.revenue)}</Text>
               </View>
               {group.orders.map(renderCard)}
             </View>
@@ -479,10 +479,17 @@ export default function DirectorOrdersScreen() {
   };
 
   return (
-    <DirectorTabScreen title="Orders">
+    <DirectorTabScreen
+      title="Orders"
+      backgroundColor={BG}
+      headerBackgroundColor={SURFACE}
+      titleColor={TEXT}
+      subtitleColor={TEXT_MUTED}
+      statusBarStyle="light-content"
+    >
       {/* ── Channel tab bar (director/manager only) ── */}
       {!isStaff && (
-        <View style={{ backgroundColor: CARD, borderBottomWidth: 1, borderBottomColor: BORDER, paddingHorizontal: 16, paddingTop: 10, paddingBottom: 10 }}>
+        <View style={{ backgroundColor: SURFACE, borderBottomWidth: 1, borderBottomColor: BORDER, paddingHorizontal: 16, paddingTop: 10, paddingBottom: 10 }}>
           <View style={{ flexDirection: 'row', backgroundColor: BG, borderRadius: 12, padding: 3 }}>
             {([
               { key: 'app'       as const, label: 'App Orders' },
@@ -495,9 +502,9 @@ export default function DirectorOrdersScreen() {
                   key={t.key}
                   onPress={() => { setChannelTab(t.key); Haptics.selectionAsync(); }}
                   style={[{ flex: 1, paddingVertical: 9, borderRadius: 10, alignItems: 'center' },
-                    active && { backgroundColor: '#fff', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.08, shadowRadius: 4, elevation: 2 }]}
+                    active && { backgroundColor: SURFACE_RAISED, borderWidth: 1, borderColor: BRAND + '50' }]}
                 >
-                  <Text style={{ fontSize: 12, fontWeight: active ? '700' : '500', color: active ? NAVY : MUTED }}>
+                  <Text style={{ fontSize: 12, fontWeight: active ? '700' : '500', color: active ? BRAND : TEXT_MUTED }}>
                     {t.label}
                   </Text>
                 </Pressable>
@@ -530,16 +537,16 @@ export default function DirectorOrdersScreen() {
         <>
           {/* Drill-down banner */}
           {isDrillActive && drillLabel && (
-            <View style={{ backgroundColor: '#EFF6FF', borderBottomWidth: 1, borderBottomColor: '#BFDBFE', flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 10, gap: 10 }}>
-              <View style={{ backgroundColor: BLUE + '20', borderRadius: 8, width: 28, height: 28, alignItems: 'center', justifyContent: 'center' }}>
-                <Feather name="filter" size={13} color={BLUE} />
+            <View style={{ backgroundColor: SURFACE, borderBottomWidth: 1, borderBottomColor: BORDER, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 10, gap: 10 }}>
+              <View style={{ backgroundColor: BRAND + '20', borderRadius: 8, width: 28, height: 28, alignItems: 'center', justifyContent: 'center' }}>
+                <Feather name="filter" size={13} color={BRAND} />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={{ fontSize: 11, fontWeight: '700', color: BLUE, letterSpacing: 0.5 }}>DRILL-DOWN ACTIVE</Text>
-                <Text style={{ fontSize: 12, color: '#1E40AF', fontWeight: '500', marginTop: 1 }}>{drillLabel}</Text>
+                <Text style={{ fontSize: 11, fontWeight: '700', color: BRAND, letterSpacing: 0.5 }}>DRILL-DOWN ACTIVE</Text>
+                <Text style={{ fontSize: 12, color: TEXT, fontWeight: '500', marginTop: 1 }}>{drillLabel}</Text>
               </View>
               <Pressable onPress={() => { drillModeRef.current = null; router.replace('/(director)/orders' as any); }} style={{ padding: 4 }}>
-                <Feather name="x" size={16} color={BLUE} />
+                <Feather name="x" size={16} color={BRAND} />
               </Pressable>
             </View>
           )}
@@ -553,14 +560,14 @@ export default function DirectorOrdersScreen() {
             >
               {APP_FILTER_TABS.map((t) => {
                 const active = filter === t.key;
-                const color  = t.key === 'active' ? AMBER : BLUE;
+                const color  = t.key === 'active' ? AMBER : BRAND;
                 return (
                   <Pressable
                     key={t.key}
                     onPress={() => { setFilter(t.key); Haptics.selectionAsync(); }}
-                    style={[styles.filterChip, { backgroundColor: active ? color : BG, borderColor: active ? color : BORDER }]}
+                    style={[styles.filterChip, { backgroundColor: active ? color : SURFACE_RAISED, borderColor: active ? color : BORDER }]}
                   >
-                    <Text style={{ fontSize: 12, fontWeight: '600', color: active ? '#fff' : MUTED }}>{t.label}</Text>
+                    <Text style={{ fontSize: 12, fontWeight: '600', color: active ? BRAND_TEXT_ON : TEXT_MUTED }}>{t.label}</Text>
                   </Pressable>
                 );
               })}
@@ -581,9 +588,9 @@ export default function DirectorOrdersScreen() {
                 <Pressable
                   key={m.key}
                   onPress={() => { setViewMode(m.key); if (m.key === 'date') setShowCalendar(true); Haptics.selectionAsync(); }}
-                  style={[styles.dateTab, { borderBottomWidth: 2, borderBottomColor: active ? BLUE : 'transparent' }]}
+                  style={[styles.dateTab, { borderBottomWidth: 2, borderBottomColor: active ? BRAND : 'transparent' }]}
                 >
-                  <Text style={{ fontWeight: active ? '700' : '400', fontSize: 13, color: active ? BLUE : MUTED }}>
+                  <Text style={{ fontWeight: active ? '700' : '400', fontSize: 13, color: active ? BRAND : TEXT_MUTED }}>
                     {m.key === 'date' && viewMode === 'date' ? fmtDateChip(selectedDate) : m.label}
                   </Text>
                 </Pressable>
@@ -595,15 +602,15 @@ export default function DirectorOrdersScreen() {
           {viewMode === 'date' && (
             <Pressable
               onPress={() => setShowCalendar(true)}
-              style={{ backgroundColor: CARD, borderBottomWidth: 1, borderBottomColor: BORDER, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 13 }}
+              style={{ backgroundColor: SURFACE, borderBottomWidth: 1, borderBottomColor: BORDER, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 13 }}
             >
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                <Feather name="calendar" size={16} color={BLUE} />
-                <Text style={{ fontSize: 14, fontWeight: '600', color: BLUE }}>
+                <Feather name="calendar" size={16} color={BRAND} />
+                <Text style={{ fontSize: 14, fontWeight: '600', color: BRAND }}>
                   {selectedDate.toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
                 </Text>
               </View>
-              <Feather name="chevron-right" size={16} color={MUTED} />
+              <Feather name="chevron-right" size={16} color={TEXT_MUTED} />
             </Pressable>
           )}
 
@@ -612,7 +619,7 @@ export default function DirectorOrdersScreen() {
       )}
 
       {/* ── Shared modals (all tabs) ─────────────────────────────── */}
-      <OrderDetailModal
+      <DirectorOrderDetailModal
         order={selectedOrder}
         visible={!!selectedOrder}
         onClose={() => setSelectedOrder(null)}

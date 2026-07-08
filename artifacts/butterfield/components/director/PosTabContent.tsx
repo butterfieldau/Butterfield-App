@@ -8,19 +8,16 @@ import {
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import type { PosTransaction, PosSummary } from '@/lib/api';
-import { styles } from './ordersStyles';
+import { styles } from './directorOrdersStyles';
 import { fmtTime } from './ordersHelpers';
-
-const BG     = '#EFF6FF';
-const CARD   = '#FFFFFF';
-const BLUE   = '#1493FF';
-const TEXT   = '#1C1C1E';
-const MUTED  = '#8E8E93';
-const BORDER = '#E5E7EB';
-const GREEN  = '#22C55E';
-const NAVY   = '#1A2B4A';
-const PURPLE = '#8B5CF6';
-const RED_CONST = '#DC2626';
+import {
+  BG, SURFACE, SURFACE_RAISED, BORDER,
+  TEXT, TEXT_MUTED, TEXT_FAINT,
+  BRAND, BRAND_DARK, BRAND_DIM, BRAND_TEXT_ON,
+  GREEN, GREEN_DIM, AMBER, AMBER_DIM,
+  RED, RED_DIM, BLUE, BLUE_DIM,
+  PURPLE, PURPLE_DIM,
+} from './commandCenterColors';
 
 function sydneyDateStr(d: Date = new Date()): string {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'Australia/Sydney' }).format(d);
@@ -51,7 +48,7 @@ function formatPosDay(dateStr: string): string {
 const POS_METHOD_CONFIG: Record<string, { label: string; color: string }> = {
   eftpos: { label: 'EFTPOS', color: BLUE },
   cash:   { label: 'Cash',   color: GREEN },
-  split:  { label: 'Split',  color: '#8B5CF6' },
+  split:  { label: 'Split',  color: PURPLE },
 };
 
 function getPosPaymentLabel(tx: PosTransaction): { label: string; color: string } {
@@ -59,7 +56,7 @@ function getPosPaymentLabel(tx: PosTransaction): { label: string; color: string 
     return POS_METHOD_CONFIG.split;
   }
   const pm = (tx.paymentMethod ?? 'eftpos').toLowerCase();
-  return POS_METHOD_CONFIG[pm] ?? { label: pm.toUpperCase(), color: MUTED };
+  return POS_METHOD_CONFIG[pm] ?? { label: pm.toUpperCase(), color: TEXT_MUTED };
 }
 
 function summarisePosItems(items: any[]): string {
@@ -74,11 +71,11 @@ function summarisePosItems(items: any[]): string {
 }
 
 const POS_STATUS_COLORS: Record<string, { bg: string; text: string }> = {
-  received:  { bg: '#DCFCE7', text: '#166534' },
-  completed: { bg: '#F3F4F6', text: '#6B7280' },
-  refunded:  { bg: '#F3E8FF', text: '#6B21A8' },
-  voided:    { bg: '#FEE2E2', text: '#991B1B' },
-  cancelled: { bg: '#FEE2E2', text: '#991B1B' },
+  received:  { bg: GREEN_DIM, text: GREEN },
+  completed: { bg: SURFACE,   text: TEXT_MUTED },
+  refunded:  { bg: PURPLE_DIM, text: PURPLE },
+  voided:    { bg: RED_DIM,    text: RED },
+  cancelled: { bg: RED_DIM,    text: RED },
 };
 
 function PosTransactionCard({
@@ -94,7 +91,7 @@ function PosTransactionCard({
   onReprint?: () => void;
   onRestore?: () => void;
 }) {
-  const statusStyle = POS_STATUS_COLORS[tx.status] ?? { bg: '#F3F4F6', text: '#6B7280' };
+  const statusStyle = POS_STATUS_COLORS[tx.status] ?? { bg: SURFACE, text: TEXT_MUTED };
   const payMethod   = getPosPaymentLabel(tx);
   const hasExtras   = tx.tipCents > 0 || tx.surchargeCents > 0 || tx.discountCents > 0;
   // Void is for sales that haven't settled yet; once a POS sale is completed
@@ -104,7 +101,7 @@ function PosTransactionCard({
   const canReprint  = tx.status !== 'cancelled';
   const canRestore  = tx.status === 'voided';
   return (
-    <View style={{ backgroundColor: CARD, borderRadius: 16, padding: 14, borderWidth: 1, borderColor: BORDER, gap: 8, marginBottom: 10 }}>
+    <View style={{ backgroundColor: SURFACE_RAISED, borderRadius: 16, padding: 14, borderWidth: 1, borderColor: BORDER, gap: 8, marginBottom: 10 }}>
       <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 12 }}>
         <View style={{ flex: 1, gap: 2 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
@@ -113,34 +110,34 @@ function PosTransactionCard({
             </Text>
             <View style={{ paddingHorizontal: 8, paddingVertical: 3, borderRadius: 20, backgroundColor: statusStyle.bg }}>
               <Text style={{ fontSize: 11, fontWeight: '700', color: statusStyle.text, letterSpacing: 0.3 }}>
-                {tx.status.charAt(0).toUpperCase() + tx.status.slice(1)}
+                {tx.status.charAt(0).toUpperCase() + tx.status.slice(1).toUpperCase()}
               </Text>
             </View>
           </View>
-          <Text style={{ fontSize: 12, color: MUTED }}>{fmtTime(tx.createdAt)}</Text>
+          <Text style={{ fontSize: 12, color: TEXT_MUTED }}>{fmtTime(tx.createdAt)}</Text>
         </View>
         <View style={{ alignItems: 'flex-end', gap: 4 }}>
           <Text style={{ fontSize: 17, fontWeight: '700', color: TEXT }}>{fmtCents(tx.totalCents)}</Text>
           <View style={{ paddingHorizontal: 8, paddingVertical: 3, borderRadius: 20, backgroundColor: payMethod.color + '18' }}>
-            <Text style={{ fontSize: 11, fontWeight: '700', color: payMethod.color }}>{payMethod.label}</Text>
+            <Text style={{ fontSize: 11, fontWeight: '700', color: payMethod.color }}>{payMethod.label.toUpperCase()}</Text>
           </View>
         </View>
       </View>
       <View style={{ height: 1, backgroundColor: BORDER }} />
-      <Text style={{ fontSize: 13, color: MUTED, lineHeight: 18 }} numberOfLines={2}>
+      <Text style={{ fontSize: 13, color: TEXT_MUTED, lineHeight: 18 }} numberOfLines={2}>
         {summarisePosItems(tx.items)}
       </Text>
       {hasExtras && (
         <View style={{ flexDirection: 'row', gap: 10, flexWrap: 'wrap' }}>
           {tx.discountCents > 0 && <Text style={{ fontSize: 12, color: GREEN }}>−{fmtCents(tx.discountCents)} disc</Text>}
-          {tx.surchargeCents > 0 && <Text style={{ fontSize: 12, color: MUTED }}>+{fmtCents(tx.surchargeCents)} surcharge</Text>}
-          {tx.tipCents > 0 && <Text style={{ fontSize: 12, color: '#F59E0B' }}>+{fmtCents(tx.tipCents)} tip</Text>}
+          {tx.surchargeCents > 0 && <Text style={{ fontSize: 12, color: TEXT_MUTED }}>+{fmtCents(tx.surchargeCents)} surcharge</Text>}
+          {tx.tipCents > 0 && <Text style={{ fontSize: 12, color: AMBER }}>+{fmtCents(tx.tipCents)} tip</Text>}
         </View>
       )}
       {tx.operatorName ? (
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-          <Feather name="user" size={11} color={MUTED} />
-          <Text style={{ fontSize: 12, color: MUTED }}>{tx.operatorName}</Text>
+          <Feather name="user" size={11} color={TEXT_MUTED} />
+          <Text style={{ fontSize: 12, color: TEXT_MUTED }}>{tx.operatorName}</Text>
         </View>
       ) : null}
       {/* Per-row actions: void / refund / reprint / restore */}
@@ -150,17 +147,17 @@ function PosTransactionCard({
             <Pressable
               onPress={() => { Haptics.selectionAsync(); onReprint(); }}
               style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5,
-                backgroundColor: BLUE + '12', borderWidth: 1, borderColor: BLUE + '30', borderRadius: 10, paddingVertical: 7 }}
+                backgroundColor: SURFACE, borderWidth: 1, borderColor: BORDER, borderRadius: 10, paddingVertical: 7 }}
             >
-              <Feather name="printer" size={12} color={BLUE} />
-              <Text style={{ fontSize: 12, fontWeight: '600', color: BLUE }}>Reprint</Text>
+              <Feather name="printer" size={12} color={TEXT_MUTED} />
+              <Text style={{ fontSize: 12, fontWeight: '600', color: TEXT_MUTED }}>Reprint</Text>
             </Pressable>
           )}
           {canRefund && onRefund && (
             <Pressable
               onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); onRefund(); }}
               style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5,
-                backgroundColor: PURPLE + '12', borderWidth: 1, borderColor: PURPLE + '30', borderRadius: 10, paddingVertical: 7 }}
+                backgroundColor: PURPLE_DIM, borderWidth: 1, borderColor: PURPLE + '30', borderRadius: 10, paddingVertical: 7 }}
             >
               <Feather name="rotate-ccw" size={12} color={PURPLE} />
               <Text style={{ fontSize: 12, fontWeight: '600', color: PURPLE }}>Refund</Text>
@@ -170,17 +167,17 @@ function PosTransactionCard({
             <Pressable
               onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); onVoid(); }}
               style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5,
-                backgroundColor: RED_CONST + '10', borderWidth: 1, borderColor: RED_CONST + '30', borderRadius: 10, paddingVertical: 7 }}
+                backgroundColor: RED_DIM, borderWidth: 1, borderColor: RED + '30', borderRadius: 10, paddingVertical: 7 }}
             >
-              <Feather name="x-circle" size={12} color={RED_CONST} />
-              <Text style={{ fontSize: 12, fontWeight: '600', color: RED_CONST }}>Void</Text>
+              <Feather name="x-circle" size={12} color={RED} />
+              <Text style={{ fontSize: 12, fontWeight: '600', color: RED }}>Void</Text>
             </Pressable>
           )}
           {canRestore && onRestore && (
             <Pressable
               onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); onRestore(); }}
               style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5,
-                backgroundColor: GREEN + '12', borderWidth: 1, borderColor: GREEN + '30', borderRadius: 10, paddingVertical: 7 }}
+                backgroundColor: GREEN_DIM, borderWidth: 1, borderColor: GREEN + '30', borderRadius: 10, paddingVertical: 7 }}
             >
               <Feather name="rotate-ccw" size={12} color={GREEN} />
               <Text style={{ fontSize: 12, fontWeight: '600', color: GREEN }}>Restore</Text>
@@ -193,9 +190,9 @@ function PosTransactionCard({
 }
 
 const POS_SECTIONS = [
-  { key: 'active',   label: 'In Progress',      statuses: ['received', 'being_prepared'],       accentColor: '#F59E0B' },
+  { key: 'active',   label: 'In Progress',      statuses: ['received', 'being_prepared'],       accentColor: AMBER },
   { key: 'done',     label: 'Completed',         statuses: ['completed'],                        accentColor: GREEN },
-  { key: 'issues',   label: 'Refunded / Voided', statuses: ['refunded', 'voided', 'cancelled'], accentColor: '#DC2626' },
+  { key: 'issues',   label: 'Refunded / Voided', statuses: ['refunded', 'voided', 'cancelled'], accentColor: RED },
 ] as const;
 
 const POS_CHIP_FILTERS = [
@@ -414,13 +411,13 @@ export function PosTabContent({
   };
 
   return (
-    <View style={{ flex: 1 }}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: CARD, borderBottomWidth: showSearch ? 0 : 1, borderBottomColor: BORDER, paddingHorizontal: 8, paddingVertical: 10 }}>
+    <View style={{ flex: 1, backgroundColor: BG }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#0D131C', borderBottomWidth: showSearch ? 0 : 1, borderBottomColor: BORDER, paddingHorizontal: 8, paddingVertical: 10 }}>
         <Pressable onPress={() => onSetDay(shiftPosDate(dayStr, -1))} style={{ padding: 8 }} hitSlop={12}>
-          <Feather name="chevron-left" size={22} color={NAVY} />
+          <Feather name="chevron-left" size={22} color={TEXT_MUTED} />
         </Pressable>
         <View style={{ flex: 1, alignItems: 'center' }}>
-          <Text style={{ fontSize: 15, fontWeight: '600', color: TEXT }}>{formatPosDay(dayStr)}</Text>
+          <Text style={{ fontSize: 15, fontWeight: '700', color: TEXT }}>{formatPosDay(dayStr).toUpperCase()}</Text>
         </View>
         <Pressable
           onPress={() => {
@@ -431,7 +428,7 @@ export function PosTabContent({
           style={{ padding: 8 }}
           hitSlop={12}
         >
-          <Feather name={showSearch ? 'x' : 'search'} size={18} color={showSearch ? BLUE : MUTED} />
+          <Feather name={showSearch ? 'x' : 'search'} size={18} color={showSearch ? BRAND : TEXT_MUTED} />
         </Pressable>
         <Pressable
           onPress={() => { if (!isToday) onSetDay(shiftPosDate(dayStr, 1)); }}
@@ -439,18 +436,18 @@ export function PosTabContent({
           disabled={isToday}
           hitSlop={12}
         >
-          <Feather name="chevron-right" size={22} color={isToday ? BORDER : NAVY} />
+          <Feather name="chevron-right" size={22} color={isToday ? TEXT_FAINT : TEXT_MUTED} />
         </Pressable>
       </View>
 
       {showSearch && (
-        <View style={{ backgroundColor: CARD, paddingHorizontal: 12, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: BORDER }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: BG, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 7, gap: 8 }}>
-            <Feather name="search" size={15} color={MUTED} />
+        <View style={{ backgroundColor: '#0D131C', paddingHorizontal: 12, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: BORDER }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: SURFACE, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 7, gap: 8, borderWidth: 1, borderColor: BORDER }}>
+            <Feather name="search" size={15} color={TEXT_MUTED} />
             <TextInput
               style={{ flex: 1, fontSize: 14, color: TEXT, padding: 0 }}
-              placeholder="Order number or operator…"
-              placeholderTextColor={MUTED}
+              placeholder="Search receipt #, item, or amount…"
+              placeholderTextColor={TEXT_FAINT}
               value={searchQuery}
               onChangeText={setSearchQuery}
               returnKeyType="search"
@@ -461,7 +458,7 @@ export function PosTabContent({
             />
             {searchQuery.length > 0 && (
               <Pressable onPress={() => setSearchQuery('')} hitSlop={8}>
-                <Feather name="x-circle" size={15} color={MUTED} />
+                <Feather name="x-circle" size={15} color={TEXT_MUTED} />
               </Pressable>
             )}
           </View>
@@ -476,14 +473,14 @@ export function PosTabContent({
         >
           {POS_CHIP_FILTERS.map((chip) => {
             const active = chipFilter === chip.key;
-            const color  = chip.key === 'refunded' ? PURPLE : chip.key === 'voided' ? RED_CONST : BLUE;
+            const color  = chip.key === 'refunded' ? PURPLE : chip.key === 'voided' ? RED : BLUE;
             return (
               <Pressable
                 key={chip.key}
                 onPress={() => { setChipFilter(chip.key); Haptics.selectionAsync(); }}
-                style={[styles.filterChip, { backgroundColor: active ? color : BG, borderColor: active ? color : BORDER }]}
+                style={[styles.filterChip, { backgroundColor: active ? color : SURFACE, borderColor: active ? color : BORDER }]}
               >
-                <Text style={{ fontSize: 12, fontWeight: '600', color: active ? '#fff' : MUTED }}>
+                <Text style={{ fontSize: 12, fontWeight: '600', color: active ? BRAND_TEXT_ON : TEXT_MUTED }}>
                   {chip.label}
                 </Text>
               </Pressable>
@@ -493,40 +490,41 @@ export function PosTabContent({
       </View>
 
       {isLoading && !refreshing ? (
-        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-          <ActivityIndicator color={BLUE} size="large" />
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: BG }}>
+          <ActivityIndicator color={BRAND} size="large" />
         </View>
       ) : posOrders.length === 0 ? (
-        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 }}>
-          <Feather name="monitor" size={36} color={MUTED} style={{ opacity: 0.4 }} />
-          <Text style={{ color: MUTED, marginTop: 12, fontSize: 15, fontWeight: '600' }}>
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24, backgroundColor: BG }}>
+          <Feather name="monitor" size={36} color={TEXT_FAINT} style={{ opacity: 0.4 }} />
+          <Text style={{ color: TEXT_MUTED, marginTop: 12, fontSize: 15, fontWeight: '600' }}>
             {isToday ? 'No POS transactions today' : 'No transactions on this day'}
           </Text>
-          <Text style={{ color: MUTED, marginTop: 4, fontSize: 13, textAlign: 'center' }}>
+          <Text style={{ color: TEXT_FAINT, marginTop: 4, fontSize: 13, textAlign: 'center' }}>
             {isToday ? 'Terminal sales will appear here in real time.' : 'Use the arrows to navigate to another day.'}
           </Text>
         </View>
       ) : filteredOrders.length === 0 ? (
-        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 }}>
-          <Feather name="search" size={36} color={MUTED} />
-          <Text style={{ color: MUTED, marginTop: 12, fontSize: 15, fontWeight: '600' }}>No matching transactions</Text>
-          <Text style={{ color: MUTED, marginTop: 4, fontSize: 13, textAlign: 'center' }}>
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24, backgroundColor: BG }}>
+          <Feather name="search" size={36} color={TEXT_FAINT} />
+          <Text style={{ color: TEXT_MUTED, marginTop: 12, fontSize: 15, fontWeight: '600' }}>No matching transactions</Text>
+          <Text style={{ color: TEXT_FAINT, marginTop: 4, fontSize: 13, textAlign: 'center' }}>
             Try a different search term or filter.
           </Text>
           {hasActiveFilters && (
             <Pressable
               onPress={() => { setSearchQuery(''); setChipFilter('all'); }}
-              style={{ marginTop: 14, paddingHorizontal: 16, paddingVertical: 8, backgroundColor: BLUE, borderRadius: 20 }}
+              style={{ marginTop: 14, paddingHorizontal: 16, paddingVertical: 8, backgroundColor: BRAND, borderRadius: 20 }}
             >
-              <Text style={{ fontSize: 13, fontWeight: '600', color: '#FFFFFF' }}>Clear filters</Text>
+              <Text style={{ fontSize: 13, fontWeight: '600', color: BRAND_TEXT_ON }}>Clear filters</Text>
             </Pressable>
           )}
         </View>
       ) : (
         <ScrollView
+          style={{ backgroundColor: BG }}
           contentContainerStyle={{ padding: 16, paddingBottom: 120 }}
           showsVerticalScrollIndicator={false}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={BLUE} />}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={BRAND} />}
         >
           {/* ── Today at a glance card ──────────────────────────── */}
           {isToday && !hasActiveFilters && (() => {
@@ -554,43 +552,45 @@ export function PosTabContent({
               if (top) topItem = top;
             }
             return (
-              <View style={{ backgroundColor: NAVY, borderRadius: 16, padding: 14, marginBottom: 14, gap: 10 }}>
-                <Text style={{ fontSize: 12, fontWeight: '700', color: '#ffffff80', textTransform: 'uppercase', letterSpacing: 0.6 }}>Today at a glance</Text>
-                <View style={{ flexDirection: 'row', gap: 10 }}>
-                  {[
-                    { label: 'Revenue',    value: fmtCents(revenue),   color: GREEN },
-                    { label: 'Tickets',    value: String(count),        color: BLUE },
-                    { label: 'Avg ticket', value: fmtCents(avgCents),   color: '#F59E0B' },
-                  ].map(tile => (
-                    <View key={tile.label} style={{ flex: 1, backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: 10, padding: 10, alignItems: 'center', gap: 3 }}>
-                      <Text style={{ fontSize: 14, fontWeight: '800', color: '#fff' }}>{tile.value}</Text>
-                      <Text style={{ fontSize: 9, color: '#ffffff80', fontWeight: '500', textTransform: 'uppercase', letterSpacing: 0.4 }}>{tile.label}</Text>
+              <View style={{ backgroundColor: SURFACE_RAISED, borderRadius: 20, padding: 20, marginBottom: 24, borderWidth: 1, borderColor: BORDER, overflow: 'hidden' }}>
+                <View style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, backgroundColor: BRAND }} />
+                <Text style={{ fontSize: 11, fontWeight: '800', color: BRAND, textTransform: 'uppercase', letterSpacing: 1.2, marginBottom: 16 }}>TOTAL REVENUE</Text>
+                
+                <View style={{ alignItems: 'center', marginBottom: 20 }}>
+                  <Text style={{ fontSize: 44, fontWeight: '900', color: TEXT, letterSpacing: -1 }}>{fmtCents(revenue)}</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 }}>
+                    <Text style={{ fontSize: 14, color: TEXT_MUTED }}>{count} tickets</Text>
+                    <View style={{ width: 4, height: 4, borderRadius: 2, backgroundColor: BORDER }} />
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                      <Feather name="trending-up" size={14} color={GREEN} />
+                      <Text style={{ fontSize: 14, color: GREEN, fontWeight: '600' }}>Live</Text>
                     </View>
-                  ))}
-                </View>
-                <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
-                  {cashCents > 0 && (
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4 }}>
-                      <Text style={{ fontSize: 11, color: GREEN, fontWeight: '600' }}>Cash {fmtCents(cashCents)}</Text>
-                    </View>
-                  )}
-                  {eftposCents > 0 && (
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4 }}>
-                      <Text style={{ fontSize: 11, color: '#93C5FD', fontWeight: '600' }}>EFTPOS {fmtCents(eftposCents)}</Text>
-                    </View>
-                  )}
-                  {voidCount > 0 && (
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(220,38,38,0.2)', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4 }}>
-                      <Text style={{ fontSize: 11, color: '#FCA5A5', fontWeight: '600' }}>{voidCount} void{voidCount !== 1 ? 's' : ''}</Text>
-                    </View>
-                  )}
-                </View>
-                {topItem && (
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                    <Text style={{ fontSize: 11, color: '#ffffff60' }}>Top item:</Text>
-                    <Text style={{ fontSize: 11, color: '#fff', fontWeight: '600' }} numberOfLines={1}>{topItem[0]} ({topItem[1]}×)</Text>
                   </View>
-                )}
+                </View>
+
+                <View style={{ flexDirection: 'row', gap: 12 }}>
+                  <View style={{ flex: 1, backgroundColor: SURFACE, borderRadius: 12, padding: 12, borderWidth: 1, borderColor: BORDER }}>
+                    <Text style={{ fontSize: 10, fontWeight: '700', color: TEXT_MUTED, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>AVG TICKET</Text>
+                    <Text style={{ fontSize: 18, fontWeight: '700', color: TEXT }}>{fmtCents(avgCents)}</Text>
+                  </View>
+                  {topItem && (
+                    <View style={{ flex: 1, backgroundColor: SURFACE, borderRadius: 12, padding: 12, borderWidth: 1, borderColor: BORDER }}>
+                      <Text style={{ fontSize: 10, fontWeight: '700', color: TEXT_MUTED, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>TOP SELLER</Text>
+                      <Text style={{ fontSize: 14, fontWeight: '700', color: TEXT }} numberOfLines={1}>{topItem[0]}</Text>
+                    </View>
+                  )}
+                </View>
+
+                <View style={{ marginTop: 20, gap: 10 }}>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 2 }}>
+                    <Text style={{ fontSize: 11, fontWeight: '700', color: TEXT_MUTED }}>EFTPOS ({Math.round(eftposCents/revenue*100)||0}%)</Text>
+                    <Text style={{ fontSize: 11, fontWeight: '700', color: TEXT_MUTED }}>CASH ({Math.round(cashCents/revenue*100)||0}%)</Text>
+                  </View>
+                  <View style={{ height: 8, backgroundColor: SURFACE, borderRadius: 4, overflow: 'hidden', flexDirection: 'row' }}>
+                    <View style={{ flex: eftposCents || 0, backgroundColor: BLUE }} />
+                    <View style={{ flex: cashCents || 0, backgroundColor: GREEN }} />
+                  </View>
+                </View>
               </View>
             );
           })()}
@@ -598,12 +598,12 @@ export function PosTabContent({
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionHeaderText}>
               {hasActiveFilters
-                ? `${filteredOrders.length} of ${posOrders.length} Transaction${posOrders.length !== 1 ? 's' : ''}`
-                : `${posOrders.length} Transaction${posOrders.length !== 1 ? 's' : ''}`}
+                ? `${filteredOrders.length} of ${posOrders.length} TRANSACTION${posOrders.length !== 1 ? 'S' : ''}`
+                : `${posOrders.length} TRANSACTION${posOrders.length !== 1 ? 'S' : ''}`}
             </Text>
             {dailyRevenue > 0 && (
-              <View style={{ backgroundColor: `${BLUE}18`, borderRadius: 10, paddingHorizontal: 8, paddingVertical: 2 }}>
-                <Text style={{ color: BLUE, fontWeight: '700', fontSize: 11 }}>{fmtCents(dailyRevenue)}</Text>
+              <View style={{ backgroundColor: BRAND_DIM, borderRadius: 10, paddingHorizontal: 8, paddingVertical: 2 }}>
+                <Text style={{ color: BRAND, fontWeight: '700', fontSize: 11 }}>{fmtCents(dailyRevenue)}</Text>
               </View>
             )}
           </View>
@@ -628,14 +628,14 @@ export function PosTabContent({
               const periodRevenue = items.filter(tx => tx.status !== 'cancelled' && tx.status !== 'voided' && tx.status !== 'refunded').reduce((s, tx) => s + tx.totalCents, 0);
               return (
                 <View key={period.key} style={{ marginBottom: 4 }}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10, marginTop: 8 }}>
-                    <View style={{ width: 3, height: 14, borderRadius: 2, backgroundColor: period.color }} />
-                    <Text style={{ fontSize: 12, fontWeight: '700', color: MUTED, letterSpacing: 0.8, textTransform: 'uppercase', flex: 1 }}>{period.label}</Text>
-                    <View style={{ backgroundColor: period.color + '18', borderRadius: 10, paddingHorizontal: 7, paddingVertical: 2 }}>
-                      <Text style={{ fontSize: 11, fontWeight: '700', color: period.color }}>{items.length}</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12, marginTop: 12 }}>
+                    <View style={{ width: 4, height: 16, borderRadius: 2, backgroundColor: period.color }} />
+                    <Text style={{ fontSize: 11, fontWeight: '800', color: TEXT_MUTED, letterSpacing: 1, textTransform: 'uppercase', flex: 1 }}>{period.label}</Text>
+                    <View style={{ backgroundColor: SURFACE, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 2, borderWidth: 1, borderColor: BORDER }}>
+                      <Text style={{ fontSize: 11, fontWeight: '700', color: TEXT }}>{items.length}</Text>
                     </View>
                     {periodRevenue > 0 && (
-                      <Text style={{ fontSize: 11, color: MUTED, fontWeight: '500' }}>{fmtCents(periodRevenue)}</Text>
+                      <Text style={{ fontSize: 11, color: TEXT_MUTED, fontWeight: '600' }}>{fmtCents(periodRevenue)}</Text>
                     )}
                   </View>
                   {items.map(tx => (
@@ -654,12 +654,12 @@ export function PosTabContent({
           })() : (
             sections.map(section => (
               <View key={section.key} style={{ marginBottom: 4 }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10, marginTop: 8 }}>
-                  <View style={{ width: 3, height: 14, borderRadius: 2, backgroundColor: section.accentColor }} />
-                  <Text style={{ fontSize: 12, fontWeight: '700', color: MUTED, letterSpacing: 0.8, textTransform: 'uppercase' }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12, marginTop: 12 }}>
+                  <View style={{ width: 4, height: 16, borderRadius: 2, backgroundColor: section.accentColor }} />
+                  <Text style={{ fontSize: 11, fontWeight: '800', color: TEXT_MUTED, letterSpacing: 1, textTransform: 'uppercase', flex: 1 }}>
                     {section.label}
                   </Text>
-                  <View style={{ backgroundColor: section.accentColor + '18', borderRadius: 10, paddingHorizontal: 7, paddingVertical: 2 }}>
+                  <View style={{ backgroundColor: SURFACE, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 2, borderWidth: 1, borderColor: BORDER }}>
                     <Text style={{ fontSize: 11, fontWeight: '700', color: section.accentColor }}>{section.items.length}</Text>
                   </View>
                 </View>
@@ -685,29 +685,29 @@ export function PosTabContent({
             const voidedCount   = posOrders.filter(tx => tx.status === 'voided' || tx.status === 'cancelled').length;
             const refundedCents = posOrders.filter(tx => tx.status === 'refunded').reduce((s, tx) => s + tx.totalCents, 0);
             const rows = [
-              { label: 'Cash',          value: fmtCents(cashCents),   color: GREEN,    show: true },
+              { label: 'Cash Sales',          value: fmtCents(cashCents),   color: GREEN,    show: true },
               { label: 'EFTPOS / Card', value: fmtCents(eftposCents), color: BLUE,     show: true },
-              { label: `Voids (${voidedCount})`, value: `${voidedCount} order${voidedCount !== 1 ? 's' : ''}`, color: RED_CONST, show: voidedCount > 0 },
+              { label: `Voids (${voidedCount})`, value: `${voidedCount} order${voidedCount !== 1 ? 's' : ''}`, color: RED, show: voidedCount > 0 },
               { label: 'Refunds',       value: fmtCents(refundedCents), color: PURPLE, show: refundedCents > 0 },
             ].filter(r => r.show);
             return (
-              <View style={{ marginTop: 16, backgroundColor: CARD, borderRadius: 14, borderWidth: 1, borderColor: BORDER, overflow: 'hidden' }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: BORDER }}>
-                  <Feather name="bar-chart-2" size={13} color={NAVY} />
-                  <Text style={{ fontSize: 12, fontWeight: '700', color: NAVY, letterSpacing: 0.5, textTransform: 'uppercase' }}>Daily Summary</Text>
+              <View style={{ marginTop: 24, backgroundColor: SURFACE_RAISED, borderRadius: 16, borderWidth: 1, borderColor: BORDER, overflow: 'hidden' }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: BORDER, backgroundColor: SURFACE }}>
+                  <Feather name="bar-chart-2" size={14} color={BRAND} />
+                  <Text style={{ fontSize: 11, fontWeight: '800', color: TEXT, letterSpacing: 1, textTransform: 'uppercase' }}>Daily Summary</Text>
                 </View>
                 {rows.map((row) => (
-                  <View key={row.label} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 14, paddingVertical: 9, borderBottomWidth: 1, borderBottomColor: BORDER + '80' }}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7 }}>
+                  <View key={row.label} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: BORDER }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                       <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: row.color }} />
-                      <Text style={{ fontSize: 13, color: TEXT, fontWeight: '500' }}>{row.label}</Text>
+                      <Text style={{ fontSize: 13, color: TEXT_MUTED, fontWeight: '500' }}>{row.label}</Text>
                     </View>
-                    <Text style={{ fontSize: 13, fontWeight: '700', color: row.color }}>{row.value}</Text>
+                    <Text style={{ fontSize: 13, fontWeight: '700', color: TEXT }}>{row.value}</Text>
                   </View>
                 ))}
-                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 14, paddingVertical: 10 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 14, backgroundColor: SURFACE }}>
                   <Text style={{ fontSize: 13, fontWeight: '700', color: TEXT }}>Net total</Text>
-                  <Text style={{ fontSize: 15, fontWeight: '800', color: TEXT }}>{fmtCents(cashCents + eftposCents)}</Text>
+                  <Text style={{ fontSize: 17, fontWeight: '900', color: BRAND }}>{fmtCents(cashCents + eftposCents)}</Text>
                 </View>
               </View>
             );

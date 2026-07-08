@@ -17,6 +17,11 @@ interface Props {
   headerBottom?: ReactNode;
   children: ReactNode;
   backgroundColor?: string;
+  /** Optional overrides — leave unset to keep the default light Director theme. */
+  headerBackgroundColor?: string;
+  titleColor?: string;
+  subtitleColor?: string;
+  statusBarStyle?: 'dark-content' | 'light-content';
 }
 
 export function DirectorTabScreen({
@@ -26,29 +31,33 @@ export function DirectorTabScreen({
   headerBottom,
   children,
   backgroundColor = CONTENT_BG,
+  headerBackgroundColor = HEADER_BG,
+  titleColor = NAVY,
+  subtitleColor = MUTED,
+  statusBarStyle = 'dark-content',
 }: Props) {
   const insets = useSafeAreaInsets();
   const layoutHandledSA = useLayoutHandledSafeArea();
-  useFocusStatusBar('dark-content');
+  useFocusStatusBar(statusBarStyle);
 
   return (
     <View style={{ flex: 1, backgroundColor }}>
-      <StatusBar barStyle="dark-content" translucent backgroundColor="transparent" />
+      <StatusBar barStyle={statusBarStyle} translucent backgroundColor="transparent" />
 
       {/* Fills the status-bar height — skipped when the layout wrapper already did it */}
       {!layoutHandledSA && (
-        <View style={{ height: insets.top, backgroundColor: HEADER_BG }} />
+        <View style={{ height: insets.top, backgroundColor: headerBackgroundColor }} />
       )}
 
       {/* Three-column header row — title is always screen-centred */}
-      <View style={ss.header}>
+      <View style={[ss.header, { backgroundColor: headerBackgroundColor }]}>
         {/* Left side: flex:1 so it mirror-matches the right side width */}
         <View style={ss.sideLeft} />
 
         {/* Centre: title + optional subtitle */}
         <View style={ss.center}>
-          <Text style={ss.title} numberOfLines={1}>{title}</Text>
-          {subtitle ? <Text style={ss.subtitle} numberOfLines={2}>{subtitle}</Text> : null}
+          <Text style={[ss.title, { color: titleColor }]} numberOfLines={1}>{title}</Text>
+          {subtitle ? <Text style={[ss.subtitle, { color: subtitleColor }]} numberOfLines={2}>{subtitle}</Text> : null}
         </View>
 
         {/* Right side: flex:1, content aligned to the trailing edge */}

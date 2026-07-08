@@ -3,13 +3,7 @@ import * as Haptics from 'expo-haptics';
 import React, { useMemo } from 'react';
 import { Modal, Pressable, ScrollView, Text, View } from 'react-native';
 import InlineCalendarPicker from '@/components/InlineCalendarPicker';
-
-const BG     = '#EFF6FF';
-const CARD   = '#FFFFFF';
-const BLUE   = '#1493FF';
-const TEXT   = '#1C1C1E';
-const MUTED  = '#8E8E93';
-const BORDER = '#E5E7EB';
+import { BG, SURFACE, BRAND, TEXT, TEXT_MUTED, BORDER } from './commandCenterColors';
 
 export default function CalendarModal({
   visible, onClose, selectedDate, onSelectDate, ordersByDate,
@@ -25,7 +19,7 @@ export default function CalendarModal({
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
       <View style={{ flex: 1, backgroundColor: BG }}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderBottomColor: BORDER, backgroundColor: CARD }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderBottomColor: BORDER, backgroundColor: SURFACE }}>
           <Pressable onPress={onClose} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: BG, alignItems: 'center', justifyContent: 'center' }}>
             <Feather name="x" size={20} color={TEXT} />
           </Pressable>
@@ -33,16 +27,19 @@ export default function CalendarModal({
           <View style={{ width: 36 }} />
         </View>
         <ScrollView contentContainerStyle={{ padding: 20 }} showsVerticalScrollIndicator={false}>
-          <InlineCalendarPicker
-            selectedDate={selectedDate}
-            onSelectDate={d => { onSelectDate(d); onClose(); Haptics.selectionAsync(); }}
-            accentColor={BLUE}
-            maxDate={today}
-            dotDates={ordersByDate}
-          />
+          {/* InlineCalendarPicker is shared with light-themed screens — wrap in a light card so its text stays legible */}
+          <View style={{ backgroundColor: '#FFFFFF', borderRadius: 16, padding: 12 }}>
+            <InlineCalendarPicker
+              selectedDate={selectedDate}
+              onSelectDate={d => { onSelectDate(d); onClose(); Haptics.selectionAsync(); }}
+              accentColor={BRAND}
+              maxDate={today}
+              dotDates={ordersByDate}
+            />
+          </View>
           <View style={{ marginTop: 16, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-            <View style={{ width: 5, height: 5, borderRadius: 2.5, backgroundColor: BLUE }} />
-            <Text style={{ fontSize: 12, color: MUTED }}>Dot indicates orders on that day</Text>
+            <View style={{ width: 5, height: 5, borderRadius: 2.5, backgroundColor: BRAND }} />
+            <Text style={{ fontSize: 12, color: TEXT_MUTED }}>Dot indicates orders on that day</Text>
           </View>
         </ScrollView>
       </View>

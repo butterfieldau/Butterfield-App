@@ -8,16 +8,12 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
-
-const BG     = '#EFF6FF';
-const CARD   = '#FFFFFF';
-const BLUE   = '#1493FF';
-const TEXT   = '#1C1C1E';
-const MUTED  = '#8E8E93';
-const BORDER = '#E5E7EB';
-const GREEN  = '#22C55E';
-const RED    = '#EF4444';
-const AMBER  = '#F59E0B';
+import { 
+  BG, SURFACE, SURFACE_RAISED, BORDER, 
+  TEXT, TEXT_MUTED, TEXT_FAINT, 
+  BRAND, BRAND_DIM, BRAND_TEXT_ON,
+  GREEN, AMBER, RED, BLUE
+} from './commandCenterColors';
 
 interface EditItem {
   productId: string;
@@ -136,18 +132,18 @@ export function EditWholesaleOrderSheet({ order, visible, onClose, onSaved }: {
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
       <View style={{ flex: 1, backgroundColor: BG }}>
         {/* Header */}
-        <View style={{ backgroundColor: CARD, paddingTop: insets.top + 8, paddingBottom: 12, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: BORDER, flexDirection: 'row', alignItems: 'center' }}>
+        <View style={{ backgroundColor: '#0D131C', paddingTop: insets.top + 8, paddingBottom: 12, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: BORDER, flexDirection: 'row', alignItems: 'center' }}>
           <Pressable onPress={onClose} style={{ padding: 6, marginRight: 8 }}>
             <Feather name="x" size={20} color={TEXT} />
           </Pressable>
           <View style={{ flex: 1 }}>
             <Text style={{ fontSize: 17, fontWeight: '700', color: TEXT }}>Edit Order</Text>
-            <Text style={{ fontSize: 12, color: MUTED, marginTop: 1 }}>
+            <Text style={{ fontSize: 12, color: TEXT_MUTED, marginTop: 1 }}>
               #{order.orderNumber ?? order.poReference ?? order.id.slice(0, 8).toUpperCase()} · {order.customerName ?? ''}
             </Text>
           </View>
           {!isEditable && (
-            <View style={{ backgroundColor: '#FEF3C7', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4 }}>
+            <View style={{ backgroundColor: AMBER + '20', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4 }}>
               <Text style={{ color: AMBER, fontWeight: '700', fontSize: 11 }}>READ ONLY</Text>
             </View>
           )}
@@ -155,47 +151,47 @@ export function EditWholesaleOrderSheet({ order, visible, onClose, onSaved }: {
 
         <ScrollView contentContainerStyle={{ padding: 16, gap: 14, paddingBottom: 40 }} keyboardShouldPersistTaps="handled">
           {!isEditable && (
-            <View style={{ backgroundColor: '#FEF3C7', borderRadius: 12, padding: 14, borderWidth: 1, borderColor: '#FDE68A', flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <View style={{ backgroundColor: AMBER + '10', borderRadius: 12, padding: 14, borderWidth: 1, borderColor: AMBER + '30', flexDirection: 'row', alignItems: 'center', gap: 8 }}>
               <Feather name="alert-circle" size={16} color={AMBER} />
-              <Text style={{ color: '#92400E', fontWeight: '500', fontSize: 13, flex: 1 }}>
+              <Text style={{ color: AMBER, fontWeight: '500', fontSize: 13, flex: 1 }}>
                 {order.isPaid ? 'Paid orders cannot be edited — use Adjust / Credit to issue a partial refund.' : `Orders in "${order.status}" status cannot be edited.`}
               </Text>
             </View>
           )}
 
           {/* Current items */}
-          <View style={{ backgroundColor: CARD, borderRadius: 14, padding: 16, gap: 2 }}>
-            <Text style={{ fontSize: 12, fontWeight: '700', color: MUTED, letterSpacing: 0.6, marginBottom: 10 }}>ORDER ITEMS</Text>
+          <View style={{ backgroundColor: SURFACE, borderRadius: 14, padding: 16, gap: 2 }}>
+            <Text style={{ fontSize: 12, fontWeight: '700', color: TEXT_MUTED, letterSpacing: 0.6, marginBottom: 10 }}>ORDER ITEMS</Text>
             {items.length === 0 && (
-              <Text style={{ color: MUTED, fontSize: 13, textAlign: 'center', paddingVertical: 12 }}>No items. Add products below.</Text>
+              <Text style={{ color: TEXT_MUTED, fontSize: 13, textAlign: 'center', paddingVertical: 12 }}>No items. Add products below.</Text>
             )}
             {items.map((item, idx) => (
               <View key={item.productId + idx} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: idx < items.length - 1 ? 1 : 0, borderBottomColor: BORDER, gap: 10 }}>
                 <View style={{ flex: 1 }}>
                   <Text style={{ color: TEXT, fontWeight: '500', fontSize: 13 }}>{item.productName}</Text>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 }}>
-                    <Text style={{ color: MUTED, fontSize: 11 }}>$</Text>
+                    <Text style={{ color: TEXT_MUTED, fontSize: 11 }}>$</Text>
                     <TextInput
                       editable={isEditable}
-                      style={{ color: TEXT, fontSize: 12, borderWidth: 1, borderColor: BORDER, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2, minWidth: 60 }}
+                      style={{ color: TEXT, fontSize: 12, borderWidth: 1, borderColor: BORDER, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2, minWidth: 60, backgroundColor: SURFACE_RAISED }}
                       value={String(item.unitPriceCents / 100)}
                       keyboardType="decimal-pad"
                       onChangeText={t => updateUnitPrice(idx, t)}
                     />
-                    <Text style={{ color: MUTED, fontSize: 11 }}>ea</Text>
-                    <Text style={{ color: BLUE, fontWeight: '600', fontSize: 12, marginLeft: 4 }}>
+                    <Text style={{ color: TEXT_MUTED, fontSize: 11 }}>ea</Text>
+                    <Text style={{ color: BRAND, fontWeight: '600', fontSize: 12, marginLeft: 4 }}>
                       = ${((item.qty * item.unitPriceCents) / 100).toFixed(2)}
                     </Text>
                   </View>
                 </View>
                 {isEditable ? (
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                    <Pressable onPress={() => updateQty(idx, -1)} style={{ width: 30, height: 30, borderRadius: 15, backgroundColor: item.qty === 1 ? '#FEE2E2' : '#F3F4F6', alignItems: 'center', justifyContent: 'center' }}>
+                    <Pressable onPress={() => updateQty(idx, -1)} style={{ width: 30, height: 30, borderRadius: 15, backgroundColor: item.qty === 1 ? RED + '20' : SURFACE_RAISED, alignItems: 'center', justifyContent: 'center' }}>
                       <Feather name={item.qty === 1 ? 'trash-2' : 'minus'} size={14} color={item.qty === 1 ? RED : TEXT} />
                     </Pressable>
                     <Text style={{ color: TEXT, fontWeight: '700', fontSize: 15, minWidth: 24, textAlign: 'center' }}>{item.qty}</Text>
-                    <Pressable onPress={() => updateQty(idx, 1)} style={{ width: 30, height: 30, borderRadius: 15, backgroundColor: BLUE, alignItems: 'center', justifyContent: 'center' }}>
-                      <Feather name="plus" size={14} color="#fff" />
+                    <Pressable onPress={() => updateQty(idx, 1)} style={{ width: 30, height: 30, borderRadius: 15, backgroundColor: BRAND, alignItems: 'center', justifyContent: 'center' }}>
+                      <Feather name="plus" size={14} color={BRAND_TEXT_ON} />
                     </Pressable>
                   </View>
                 ) : (
@@ -207,15 +203,15 @@ export function EditWholesaleOrderSheet({ order, visible, onClose, onSaved }: {
 
           {/* New product picker */}
           {isEditable && (
-            <View style={{ backgroundColor: CARD, borderRadius: 14, padding: 16 }}>
-              <Text style={{ fontSize: 12, fontWeight: '700', color: MUTED, letterSpacing: 0.6, marginBottom: 10 }}>ADD PRODUCTS</Text>
+            <View style={{ backgroundColor: SURFACE, borderRadius: 14, padding: 16 }}>
+              <Text style={{ fontSize: 12, fontWeight: '700', color: TEXT_MUTED, letterSpacing: 0.6, marginBottom: 10 }}>ADD PRODUCTS</Text>
               {/* Search input */}
-              <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#F5F7FA', borderRadius: 10, borderWidth: 1, borderColor: BORDER, paddingHorizontal: 10, marginBottom: 10, gap: 6 }}>
-                <Feather name="search" size={14} color={MUTED} />
+              <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: SURFACE_RAISED, borderRadius: 10, borderWidth: 1, borderColor: BORDER, paddingHorizontal: 10, marginBottom: 10, gap: 6 }}>
+                <Feather name="search" size={14} color={TEXT_MUTED} />
                 <TextInput
                   style={{ flex: 1, fontSize: 14, color: TEXT, paddingVertical: 8 }}
                   placeholder="Search products…"
-                  placeholderTextColor={MUTED}
+                  placeholderTextColor={TEXT_MUTED}
                   value={productSearch}
                   onChangeText={setProductSearch}
                   clearButtonMode="while-editing"
@@ -225,7 +221,7 @@ export function EditWholesaleOrderSheet({ order, visible, onClose, onSaved }: {
               </View>
               <View style={{ gap: 0 }}>
                 {filteredProducts.length === 0 && (
-                  <Text style={{ color: MUTED, fontSize: 13, textAlign: 'center', paddingVertical: 12 }}>
+                  <Text style={{ color: TEXT_MUTED, fontSize: 13, textAlign: 'center', paddingVertical: 12 }}>
                     {allProducts.length === 0 ? 'Loading products…' : 'No products match your search.'}
                   </Text>
                 )}
@@ -234,10 +230,10 @@ export function EditWholesaleOrderSheet({ order, visible, onClose, onSaved }: {
                     style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: BORDER, gap: 10 }}>
                     <View style={{ flex: 1 }}>
                       <Text style={{ color: TEXT, fontWeight: '500', fontSize: 13 }}>{p.name}</Text>
-                      <Text style={{ color: MUTED, fontSize: 11 }}>${((p.wholesalePriceCents ?? p.priceCents ?? 0) / 100).toFixed(2)} / unit{p.category ? ` · ${p.category}` : ''}</Text>
+                      <Text style={{ color: TEXT_MUTED, fontSize: 11 }}>${((p.wholesalePriceCents ?? p.priceCents ?? 0) / 100).toFixed(2)} / unit{p.category ? ` · ${p.category}` : ''}</Text>
                     </View>
-                    <View style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: '#EFF6FF', borderWidth: 1, borderColor: BLUE, alignItems: 'center', justifyContent: 'center' }}>
-                      <Feather name="plus" size={14} color={BLUE} />
+                    <View style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: BRAND_DIM, borderWidth: 1, borderColor: BRAND, alignItems: 'center', justifyContent: 'center' }}>
+                      <Feather name="plus" size={14} color={BRAND} />
                     </View>
                   </Pressable>
                 ))}
@@ -247,12 +243,12 @@ export function EditWholesaleOrderSheet({ order, visible, onClose, onSaved }: {
 
           {/* Notes */}
           {isEditable && (
-            <View style={{ backgroundColor: CARD, borderRadius: 14, padding: 16 }}>
-              <Text style={{ fontSize: 12, fontWeight: '700', color: MUTED, letterSpacing: 0.6, marginBottom: 8 }}>REASON FOR CHANGE (INTERNAL)</Text>
+            <View style={{ backgroundColor: SURFACE, borderRadius: 14, padding: 16 }}>
+              <Text style={{ fontSize: 12, fontWeight: '700', color: TEXT_MUTED, letterSpacing: 0.6, marginBottom: 8 }}>REASON FOR CHANGE (INTERNAL)</Text>
               <TextInput
-                style={{ borderWidth: 1, borderColor: BORDER, borderRadius: 10, padding: 12, fontSize: 14, color: TEXT, minHeight: 72, textAlignVertical: 'top' }}
+                style={{ borderWidth: 1, borderColor: BORDER, borderRadius: 10, padding: 12, fontSize: 14, color: TEXT, minHeight: 72, textAlignVertical: 'top', backgroundColor: SURFACE_RAISED }}
                 placeholder="e.g. Customer requested product substitution"
-                placeholderTextColor={MUTED}
+                placeholderTextColor={TEXT_FAINT}
                 value={notes}
                 onChangeText={setNotes}
                 multiline
@@ -261,20 +257,20 @@ export function EditWholesaleOrderSheet({ order, visible, onClose, onSaved }: {
           )}
 
           {/* Summary */}
-          <View style={{ backgroundColor: CARD, borderRadius: 14, padding: 16, gap: 8 }}>
-            <Text style={{ fontSize: 12, fontWeight: '700', color: MUTED, letterSpacing: 0.6, marginBottom: 4 }}>ORDER TOTAL</Text>
+          <View style={{ backgroundColor: SURFACE, borderRadius: 14, padding: 16, gap: 8 }}>
+            <Text style={{ fontSize: 12, fontWeight: '700', color: TEXT_MUTED, letterSpacing: 0.6, marginBottom: 4 }}>ORDER TOTAL</Text>
             {(order.deliveryFeeCents ?? 0) > 0 && (
               <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                <Text style={{ color: MUTED, fontSize: 13 }}>Delivery fee</Text>
+                <Text style={{ color: TEXT_MUTED, fontSize: 13 }}>Delivery fee</Text>
                 <Text style={{ color: TEXT, fontSize: 13 }}>${((order.deliveryFeeCents ?? 0) / 100).toFixed(2)}</Text>
               </View>
             )}
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingTop: 8, borderTopWidth: 1, borderTopColor: BORDER }}>
               <Text style={{ color: TEXT, fontWeight: '700', fontSize: 16 }}>New Total</Text>
-              <Text style={{ color: BLUE, fontWeight: '700', fontSize: 18 }}>AUD ${(totalCents / 100).toFixed(2)}</Text>
+              <Text style={{ color: BRAND, fontWeight: '700', fontSize: 18 }}>AUD ${(totalCents / 100).toFixed(2)}</Text>
             </View>
             {totalCents !== order.totalCents && (
-              <Text style={{ color: MUTED, fontSize: 11, textAlign: 'right' }}>
+              <Text style={{ color: TEXT_MUTED, fontSize: 11, textAlign: 'right' }}>
                 Previous: ${(order.totalCents / 100).toFixed(2)} (Δ {totalCents > order.totalCents ? '+' : ''}${((totalCents - order.totalCents) / 100).toFixed(2)})
               </Text>
             )}
@@ -287,10 +283,10 @@ export function EditWholesaleOrderSheet({ order, visible, onClose, onSaved }: {
             <Pressable
               onPress={handleSave}
               disabled={saving}
-              style={{ height: 52, borderRadius: 14, backgroundColor: saving ? MUTED : GREEN, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 8 }}
+              style={{ height: 52, borderRadius: 14, backgroundColor: saving ? TEXT_MUTED : GREEN, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 8 }}
             >
-              {saving ? <ActivityIndicator color="#fff" size="small" /> : <Feather name="check" size={18} color="#fff" />}
-              <Text style={{ color: '#fff', fontWeight: '700', fontSize: 16 }}>{saving ? 'Saving…' : 'Save Changes'}</Text>
+              {saving ? <ActivityIndicator color="#fff" size="small" /> : <Feather name="check" size={18} color={BRAND_TEXT_ON} />}
+              <Text style={{ color: BRAND_TEXT_ON, fontWeight: '700', fontSize: 16 }}>{saving ? 'Saving…' : 'Save Changes'}</Text>
             </Pressable>
           </View>
         )}
