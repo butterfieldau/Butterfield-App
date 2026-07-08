@@ -150,6 +150,7 @@ export default function DirectorOrdersScreen() {
   const [productFilter, setProductFilter] = useState<string | null>(null);
   const [wsFilterParam, setWsFilterParam] = useState<string>('all');
   const drillModeRef = useRef<string | null>(null);
+  const tabParamAppliedRef = useRef<string | null>(null);
 
   const isStaff = user?.role === 'staff';
 
@@ -182,6 +183,7 @@ export default function DirectorOrdersScreen() {
       const compositeKey = dm ? `${dm}:${dv ?? ''}` : null;
       if (dm && compositeKey !== drillModeRef.current) {
         drillModeRef.current = compositeKey;
+        tabParamAppliedRef.current = null;
         setFilter('all');
         setDrillHour(null);
         setProductFilter(null);
@@ -198,19 +200,30 @@ export default function DirectorOrdersScreen() {
         setFilter('active');
         setViewMode(isStaff ? 'week' : 'today');
         setSelectedDate(new Date());
-      }
-      // Handle channel tab deep-link
-      if (params.tab === 'pos' && !isStaff) {
-        setChannelTab('pos');
-      } else if (params.tab === 'wholesale') {
-        setChannelTab('wholesale');
-        setWsFilterParam(params.filterParam ?? 'all');
-      } else if (params.tab === 'app') {
-        setChannelTab('app');
-      }
-      // Override filter chip for app tab
-      if (params.filterParam && params.tab !== 'wholesale') {
-        setFilter(params.filterParam);
+
+        // Apply tab + filter deep-link params only once per unique param combination.
+        // Using a ref prevents re-applying stale params when the screen re-focuses
+        // after the user has manually changed the filter.
+        const tabParamKey = (params.tab || params.filterParam)
+          ? `${params.tab ?? ''}:${params.filterParam ?? ''}`
+          : null;
+
+        if (tabParamKey && tabParamKey !== tabParamAppliedRef.current) {
+          tabParamAppliedRef.current = tabParamKey;
+          if (params.tab === 'pos' && !isStaff) {
+            setChannelTab('pos');
+          } else if (params.tab === 'wholesale') {
+            setChannelTab('wholesale');
+            setWsFilterParam(params.filterParam ?? 'all');
+          } else if (params.tab === 'app') {
+            setChannelTab('app');
+          }
+          if (params.filterParam && params.tab !== 'wholesale') {
+            setFilter(params.filterParam);
+          }
+        } else if (!tabParamKey) {
+          tabParamAppliedRef.current = null;
+        }
       }
     }, [isStaff, params.drillMode, params.drillValue, params.tab, params.filterParam]),
   );
