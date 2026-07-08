@@ -215,12 +215,12 @@ export function WholesaleTabContent({
       >
         {/* Hero Stat */}
         {wholesaleOrders.length > 0 && (
-          <View style={{ paddingHorizontal: 20, paddingTop: 32, paddingBottom: 24, borderBottomWidth: 1, borderBottomColor: BORDER }}>
+          <View style={{ paddingHorizontal: 20, paddingTop: 24, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: BORDER }}>
             <View style={{ alignItems: 'center', justifyContent: 'center' }}>
-              <Text style={{ fontSize: 11, fontWeight: '700', color: TEXT_MUTED, letterSpacing: 1.2, textTransform: 'uppercase', marginBottom: 8 }}>
+              <Text style={{ fontSize: 11, fontWeight: '700', color: TEXT_MUTED, letterSpacing: 1.2, textTransform: 'uppercase', marginBottom: 6 }}>
                 Outstanding Balance
               </Text>
-              <Text style={{ fontSize: 56, fontWeight: '900', color: TEXT, letterSpacing: -1.5, marginBottom: 8 }}>
+              <Text style={{ fontSize: 48, fontWeight: '900', color: TEXT, letterSpacing: -1.5, marginBottom: 0 }}>
                 {fmtCents(kpi.outstandingCents)}
               </Text>
               {kpi.overdueAccountsCount > 0 && (
@@ -237,7 +237,7 @@ export function WholesaleTabContent({
 
         {/* Sub KPIs */}
         {wholesaleOrders.length > 0 && (
-          <View style={{ flexDirection: 'row', gap: 12, paddingHorizontal: 20, paddingTop: 24, marginBottom: 12 }}>
+          <View style={{ flexDirection: 'row', gap: 12, paddingHorizontal: 20, paddingTop: 16, marginBottom: 12 }}>
             <View style={{ flex: 1, backgroundColor: SURFACE, borderRadius: 8, padding: 12, borderWidth: 1, borderColor: BORDER }}>
               <Text style={{ fontSize: 12, fontWeight: '500', color: TEXT_FAINT, marginBottom: 4 }}>Avg Order Value</Text>
               <Text style={{ fontSize: 20, fontWeight: '700', color: TEXT }}>{fmtCents(kpi.avgOrderCents)}</Text>
