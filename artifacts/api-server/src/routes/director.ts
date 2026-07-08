@@ -2560,13 +2560,14 @@ router.patch('/wholesale/:accountId/status', async (req, res) => {
 
   // Fire-and-forget approval confirmation email — only on the transition into 'approved'.
   if (updated && status === 'approved' && existing?.status !== 'approved' && updated.email) {
-    import('../lib/emailService.js').then(({ sendEmail, buildWholesaleApprovedEmail }) => {
+    import('../lib/emailService.js').then(({ sendEmail, buildWholesaleApprovedEmail, getLogoUrl }) => {
       sendEmail({
         to: updated.email!,
         subject: 'Your Butterfield Cookies wholesale account is approved!',
         html: buildWholesaleApprovedEmail({
           contactName: updated.contactName || 'there',
           companyName: updated.companyName || 'Your business',
+          logoUrl: getLogoUrl(req),
         }),
       }).catch((err) => { req.log?.warn({ err }, 'Failed to send wholesale approved email'); });
     }).catch(() => {});

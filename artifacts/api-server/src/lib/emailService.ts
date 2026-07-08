@@ -1074,8 +1074,8 @@ export function buildPaymentReceiptEmail(opts: PaymentReceiptEmailOpts): string 
 function accountEmailFooter(): string {
   return `
         <tr>
-          <td style="background:#F9FAFB;padding:20px 40px;border-top:1px solid #E5E7EB;">
-            <p style="margin:0;font-size:12px;color:#9CA3AF;text-align:center;">
+          <td style="background:#F9FAFB;padding:24px 32px;border-top:1px solid #E5E7EB;" class="footer-pad">
+            <p style="margin:0;font-size:12px;color:#9CA3AF;text-align:center;line-height:1.6;">
               Butterfield Cookies · 2 Main Lane, Merrylands NSW 2160 · ABN: 24 680 761 166<br>
               This is an automated message, please do not reply directly to this email.
             </p>
@@ -1083,34 +1083,84 @@ function accountEmailFooter(): string {
         </tr>`;
 }
 
-export function buildCustomerWelcomeEmail(opts: { name: string; referralCode?: string | null }): string {
-  const { name, referralCode } = opts;
+/**
+ * Resolves a publicly reachable URL for the Butterfield wordmark logo, for use as an
+ * <img> src in emails (email clients fetch images directly, so this must be absolute).
+ */
+export function getLogoUrl(req: { headers: Record<string, any>; protocol?: string }): string {
+  const proto = (req.headers?.['x-forwarded-proto'] as string | undefined)?.split(',')[0]?.trim()
+    ?? req.protocol ?? 'https';
+  const host = req.headers?.host ?? 'localhost';
+  return `${proto}://${host}/api/static/butterfield-logo.png`;
+}
+
+// Shared responsive rules for the lighter, account-style emails (welcome/application/approval/login-alert).
+function accountEmailMobileStyle(): string {
+  return `
+  <style>
+    body { -webkit-text-size-adjust:100%; }
+    @media only screen and (max-width:600px) {
+      .outer-pad { padding:20px 12px !important; }
+      .card { border-radius:14px !important; }
+      .header-pad { padding:28px 24px !important; }
+      .body-pad { padding:28px 24px 24px !important; }
+      .footer-pad { padding:20px 24px !important; }
+      .headline { font-size:20px !important; }
+      .logo-img { max-width:150px !important; }
+    }
+  </style>`;
+}
+
+// Shared centered-logo header used across account/session emails.
+function accountEmailHeader(opts: { logoUrl: string; background: string; badgeText: string; badgeColor?: string }): string {
+  const { logoUrl, background, badgeText, badgeColor = 'rgba(255,255,255,0.7)' } = opts;
+  return `
+        <tr>
+          <td style="background:${background};padding:36px 40px;text-align:center;" class="header-pad">
+            <img src="${logoUrl}" alt="Butterfield Cookies" width="170" class="logo-img" style="display:block;margin:0 auto;width:170px;max-width:170px;height:auto;border:0;outline:none;text-decoration:none;">
+            <div style="font-size:11px;color:${badgeColor};margin-top:14px;letter-spacing:2px;text-transform:uppercase;font-weight:700;">${badgeText}</div>
+          </td>
+        </tr>`;
+}
+
+export function buildCustomerWelcomeEmail(opts: { name: string; logoUrl: string }): string {
+  const { name, logoUrl } = opts;
+  const benefits = [
+    { icon: '☕', title: 'Earn loyalty points', body: 'Collect points on every order and redeem them for free cookies, coffee and desserts.' },
+    { icon: '🎁', title: 'Member-only rewards', body: 'Unlock stamp-card treats, a birthday surprise, and offers we only share with our app members.' },
+    { icon: '⚡', title: 'Skip the queue', body: 'Order ahead for pickup or delivery and we\u2019ll have it ready when you arrive.' },
+    { icon: '🔔', title: 'First to know', body: 'Be the first to hear about new flavours, daily specials and limited drops.' },
+  ];
+  const benefitRows = benefits.map(b => `
+            <tr>
+              <td style="padding:12px 0;border-bottom:1px solid #F0F1F5;" valign="top">
+                <table cellpadding="0" cellspacing="0"><tr>
+                  <td width="40" valign="top" style="font-size:22px;line-height:1;padding-right:12px;">${b.icon}</td>
+                  <td valign="top">
+                    <div style="font-size:15px;font-weight:700;color:#1C1C1E;margin-bottom:3px;">${b.title}</div>
+                    <div style="font-size:13.5px;color:#6B7280;line-height:1.55;">${b.body}</div>
+                  </td>
+                </tr></table>
+              </td>
+            </tr>`).join('');
   return `<!DOCTYPE html>
 <html>
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">${accountEmailMobileStyle()}</head>
 <body style="margin:0;padding:0;background:#F5F6FA;font-family:Arial,sans-serif;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="background:#F5F6FA;padding:40px 0;">
-    <tr><td align="center">
-      <table width="520" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.08);">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#F5F6FA;">
+    <tr><td align="center" class="outer-pad" style="padding:40px 16px;">
+      <table width="520" cellpadding="0" cellspacing="0" style="width:520px;max-width:520px;background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.08);" class="card">
+        ${accountEmailHeader({ logoUrl, background: '#F5F6FA', badgeText: 'Cookies · Coffee · Desserts', badgeColor: '#6B7280' })}
         <tr>
-          <td style="background:linear-gradient(135deg,#1493FF,#3CBBEE);padding:40px 40px;text-align:center;">
-            <div style="font-size:26px;font-weight:800;color:#ffffff;letter-spacing:-0.5px;">Butterfield Cookies</div>
-            <div style="font-size:13px;color:rgba(255,255,255,0.75);margin-top:6px;letter-spacing:1px;">COOKIES · COFFEE · DESSERTS</div>
-          </td>
-        </tr>
-        <tr>
-          <td style="padding:40px 40px 28px;">
-            <p style="margin:0 0 8px;font-size:22px;font-weight:700;color:#1C1C1E;">Welcome, ${name} 👋</p>
+          <td style="padding:36px 40px 28px;" class="body-pad">
+            <p style="margin:0 0 8px;font-size:22px;font-weight:700;color:#1C1C1E;" class="headline">Welcome, ${name} 👋</p>
             <p style="margin:0 0 24px;font-size:15px;color:#6B7280;line-height:1.6;">
-              Your Butterfield Cookies account is ready. Order your favourite cookies, coffee and desserts for pickup or delivery, and start earning loyalty points on every order.
+              Your Butterfield Cookies account is ready. Here's what you get as a member:
             </p>
-            ${referralCode ? `
-            <div style="background:#F5F6FA;border-radius:12px;padding:24px;text-align:center;margin-bottom:24px;">
-              <div style="font-size:12px;color:#8E8E93;letter-spacing:1px;margin-bottom:10px;text-transform:uppercase;">Your referral code</div>
-              <span style="font-size:28px;font-weight:800;color:#1493FF;letter-spacing:4px;">${referralCode}</span>
-              <div style="font-size:12px;color:#8E8E93;margin-top:10px;">Share it with friends — you both earn rewards.</div>
-            </div>` : ''}
-            <p style="margin:0;font-size:13px;color:#8E8E93;line-height:1.6;">
+            <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:8px;">
+              ${benefitRows}
+            </table>
+            <p style="margin:24px 0 0;font-size:13px;color:#8E8E93;line-height:1.6;">
               If you didn't create this account, please contact us right away.
             </p>
           </td>
@@ -1123,25 +1173,20 @@ export function buildCustomerWelcomeEmail(opts: { name: string; referralCode?: s
 </html>`;
 }
 
-export function buildWholesaleApplicationReceivedEmail(opts: { contactName: string; companyName: string }): string {
-  const { contactName, companyName } = opts;
+export function buildWholesaleApplicationReceivedEmail(opts: { contactName: string; companyName: string; logoUrl: string }): string {
+  const { contactName, companyName, logoUrl } = opts;
   return `<!DOCTYPE html>
 <html>
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">${accountEmailMobileStyle()}</head>
 <body style="margin:0;padding:0;background:#F5F6FA;font-family:Arial,sans-serif;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="background:#F5F6FA;padding:40px 0;">
-    <tr><td align="center">
-      <table width="520" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.08);">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#F5F6FA;">
+    <tr><td align="center" class="outer-pad" style="padding:40px 16px;">
+      <table width="520" cellpadding="0" cellspacing="0" style="width:520px;max-width:520px;background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.08);" class="card">
+        ${accountEmailHeader({ logoUrl, background: '#12213A', badgeText: 'Wholesale Accounts' })}
         <tr>
-          <td style="background:linear-gradient(135deg,#12213A,#1A2B4A);padding:40px 40px;text-align:center;">
-            <div style="font-size:26px;font-weight:800;color:#ffffff;letter-spacing:-0.5px;">Butterfield Cookies</div>
-            <div style="font-size:13px;color:rgba(255,255,255,0.7);margin-top:6px;letter-spacing:1px;">WHOLESALE ACCOUNTS</div>
-          </td>
-        </tr>
-        <tr>
-          <td style="padding:40px 40px 28px;">
+          <td style="padding:36px 40px 28px;" class="body-pad">
             <span style="background:#FDE68A;color:#92400E;font-size:11px;font-weight:800;letter-spacing:1px;text-transform:uppercase;padding:6px 14px;border-radius:999px;display:inline-block;margin-bottom:16px;">Application received</span>
-            <p style="margin:0 0 8px;font-size:22px;font-weight:700;color:#1C1C1E;">Thanks for applying, ${contactName}</p>
+            <p style="margin:0 0 8px;font-size:22px;font-weight:700;color:#1C1C1E;" class="headline">Thanks for applying, ${contactName}</p>
             <p style="margin:0 0 24px;font-size:15px;color:#6B7280;line-height:1.6;">
               We've received ${companyName}'s wholesale application. Our team will review your details and get back to you shortly — once approved, you'll get full access to wholesale pricing and ordering.
             </p>
@@ -1158,25 +1203,20 @@ export function buildWholesaleApplicationReceivedEmail(opts: { contactName: stri
 </html>`;
 }
 
-export function buildWholesaleApprovedEmail(opts: { contactName: string; companyName: string }): string {
-  const { contactName, companyName } = opts;
+export function buildWholesaleApprovedEmail(opts: { contactName: string; companyName: string; logoUrl: string }): string {
+  const { contactName, companyName, logoUrl } = opts;
   return `<!DOCTYPE html>
 <html>
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">${accountEmailMobileStyle()}</head>
 <body style="margin:0;padding:0;background:#F5F6FA;font-family:Arial,sans-serif;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="background:#F5F6FA;padding:40px 0;">
-    <tr><td align="center">
-      <table width="520" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.08);">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#F5F6FA;">
+    <tr><td align="center" class="outer-pad" style="padding:40px 16px;">
+      <table width="520" cellpadding="0" cellspacing="0" style="width:520px;max-width:520px;background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.08);" class="card">
+        ${accountEmailHeader({ logoUrl, background: '#0B3B2E', badgeText: 'Wholesale Accounts', badgeColor: 'rgba(255,255,255,0.75)' })}
         <tr>
-          <td style="background:linear-gradient(135deg,#059669,#10B981);padding:40px 40px;text-align:center;">
-            <div style="font-size:26px;font-weight:800;color:#ffffff;letter-spacing:-0.5px;">Butterfield Cookies</div>
-            <div style="font-size:13px;color:rgba(255,255,255,0.8);margin-top:6px;letter-spacing:1px;">WHOLESALE ACCOUNTS</div>
-          </td>
-        </tr>
-        <tr>
-          <td style="padding:40px 40px 28px;">
+          <td style="padding:36px 40px 28px;" class="body-pad">
             <span style="background:#D1FAE5;color:#065F46;font-size:11px;font-weight:800;letter-spacing:1px;text-transform:uppercase;padding:6px 14px;border-radius:999px;display:inline-block;margin-bottom:16px;">Account approved</span>
-            <p style="margin:0 0 8px;font-size:22px;font-weight:700;color:#1C1C1E;">You're approved, ${contactName}!</p>
+            <p style="margin:0 0 8px;font-size:22px;font-weight:700;color:#1C1C1E;" class="headline">You're approved, ${contactName}!</p>
             <p style="margin:0 0 24px;font-size:15px;color:#6B7280;line-height:1.6;">
               ${companyName}'s wholesale account has been approved. You can now log in to the wholesale portal to browse the catalog, view your pricing tier, and place your first order.
             </p>
@@ -1198,28 +1238,24 @@ export function buildLoginAlertEmail(opts: {
   role: string;
   loginAt: Date;
   ip?: string | null;
+  logoUrl: string;
 }): string {
-  const { name, role, loginAt, ip } = opts;
+  const { name, role, loginAt, ip, logoUrl } = opts;
   const roleLabel = role.charAt(0).toUpperCase() + role.slice(1);
   const whenLabel = loginAt.toLocaleString('en-AU', {
     dateStyle: 'medium', timeStyle: 'short', timeZone: 'Australia/Sydney',
   });
   return `<!DOCTYPE html>
 <html>
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">${accountEmailMobileStyle()}</head>
 <body style="margin:0;padding:0;background:#F5F6FA;font-family:Arial,sans-serif;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="background:#F5F6FA;padding:40px 0;">
-    <tr><td align="center">
-      <table width="520" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.08);">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#F5F6FA;">
+    <tr><td align="center" class="outer-pad" style="padding:40px 16px;">
+      <table width="520" cellpadding="0" cellspacing="0" style="width:520px;max-width:520px;background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.08);" class="card">
+        ${accountEmailHeader({ logoUrl, background: '#12213A', badgeText: 'Account Security' })}
         <tr>
-          <td style="background:#12213A;padding:36px 40px;text-align:center;">
-            <div style="font-size:24px;font-weight:800;color:#ffffff;letter-spacing:-0.5px;">Butterfield Cookies</div>
-            <div style="font-size:12px;color:rgba(255,255,255,0.6);margin-top:6px;letter-spacing:1.5px;text-transform:uppercase;">Account Security</div>
-          </td>
-        </tr>
-        <tr>
-          <td style="padding:36px 40px 28px;">
-            <p style="margin:0 0 8px;font-size:20px;font-weight:700;color:#1C1C1E;">New sign-in to your account</p>
+          <td style="padding:32px 40px 28px;" class="body-pad">
+            <p style="margin:0 0 8px;font-size:20px;font-weight:700;color:#1C1C1E;" class="headline">New sign-in to your account</p>
             <p style="margin:0 0 24px;font-size:14px;color:#6B7280;line-height:1.6;">
               Hi ${name}, we noticed a new sign-in to your Butterfield Cookies account.
             </p>

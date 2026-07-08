@@ -7,7 +7,7 @@ import { eq, and, lt, isNull, sql } from 'drizzle-orm';
 import { signToken, requireAuth, getSessionSecret } from '../middlewares/auth.js';
 import {
   sendEmail, buildPasswordResetEmail, buildCustomerWelcomeEmail,
-  buildWholesaleApplicationReceivedEmail, buildLoginAlertEmail,
+  buildWholesaleApplicationReceivedEmail, buildLoginAlertEmail, getLogoUrl,
 } from '../lib/emailService.js';
 import { sendSms, buildPasswordResetSms } from '../lib/smsService.js';
 import { ensureShopDisplaySchemaReady } from '../lib/ensureShopDisplaySchemaReady.js';
@@ -45,6 +45,7 @@ function sendLoginAlertEmail(opts: { email?: string | null; name?: string | null
       role: opts.role,
       loginAt: new Date(),
       ip: extractRequestIp(opts.req),
+      logoUrl: getLogoUrl(opts.req),
     }),
   }).catch((err) => { opts.req?.log?.warn?.({ err }, 'Failed to send login alert email'); });
 }
@@ -218,18 +219,11 @@ router.post('/register', async (req, res) => {
   const token = signToken({ id: userId, email: email.toLowerCase(), role: 'customer', name });
 
   // Fire-and-forget welcome confirmation email — never blocks registration.
-  (async () => {
-    try {
-      const [profile] = await db.select().from(customerProfilesTable).where(eq(customerProfilesTable.userId, userId));
-      await sendEmail({
-        to: email.toLowerCase(),
-        subject: 'Welcome to Butterfield Cookies!',
-        html: buildCustomerWelcomeEmail({ name, referralCode: profile?.referralCode ?? null }),
-      });
-    } catch (err) {
-      req.log?.warn({ err }, 'Failed to send welcome email');
-    }
-  })();
+  sendEmail({
+    to: email.toLowerCase(),
+    subject: 'Welcome to Butterfield Cookies!',
+    html: buildCustomerWelcomeEmail({ name, logoUrl: getLogoUrl(req) }),
+  }).catch((err) => { req.log?.warn({ err }, 'Failed to send welcome email'); });
 
   return res.status(201).json({ token, user: { id: userId, email, role: 'customer', name } });
 });
@@ -442,7 +436,7 @@ router.post('/wholesale-apply', async (req, res) => {
   sendEmail({
     to: normalizedEmail,
     subject: 'We received your wholesale application',
-    html: buildWholesaleApplicationReceivedEmail({ contactName: normalizedName, companyName: normalizedCompany }),
+    html: buildWholesaleApplicationReceivedEmail({ contactName: normalizedName, companyName: normalizedCompany, logoUrl: getLogoUrl(req) }),
   }).catch((err) => { req.log?.warn({ err }, 'Failed to send wholesale application received email'); });
 
   return res.status(201).json({ message: 'Your application has been submitted. Someone from our team will be in contact with you soon.', userId });
