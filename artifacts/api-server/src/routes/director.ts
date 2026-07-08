@@ -126,6 +126,7 @@ function resolveDirectorPermission(method: string, path: string): ManagerPermiss
   // POS analytics — accessible to managers with orders permission
   if (path === '/pos/summary' || path === '/pos/transactions') return 'orders';
   if (path.startsWith('/pos/transactions/') && path.endsWith('/void')) return 'orders';
+  if (path.startsWith('/pos/transactions/') && path.endsWith('/unvoid')) return 'orders';
   if (path.startsWith('/pos/transactions/') && path.endsWith('/refund')) return 'orders';
 
   // POS thresholds — director only
@@ -942,6 +943,68 @@ router.post('/pos/transactions/:id/void', async (req, res) => {
     action: 'director.pos_void',
     before: { status: order.status },
     after: { status: 'voided' },
+  });
+
+  return res.json({
+    data: {
+      id: updated.id,
+      status: updated.status,
+      orderNumber: updated.orderNumber,
+    },
+  });
+});
+
+// ── POST /director/pos/transactions/:id/unvoid ─────────────────────────────
+// Reverse an accidental void. Restores the order's status from the 'before'
+// snapshot recorded on the most recent director.pos_void audit log entry.
+router.post('/pos/transactions/:id/unvoid', async (req, res) => {
+  const { id } = req.params;
+
+  const [order] = await db.select().from(ordersTable).where(eq(ordersTable.id, id));
+  if (!order) return res.status(404).json({ error: 'Transaction not found.' });
+  if (order.source !== 'pos') {
+    return res.status(400).json({ error: 'Only POS transactions can be restored here.' });
+  }
+  if (order.status !== 'voided') {
+    return res.status(400).json({ error: 'Only voided transactions can be restored.' });
+  }
+
+  const [lastVoidLog] = await db
+    .select()
+    .from(auditLogsTable)
+    .where(and(
+      eq(auditLogsTable.entityType, 'order'),
+      eq(auditLogsTable.entityId, id),
+      eq(auditLogsTable.action, 'director.pos_void'),
+    ))
+    .orderBy(desc(auditLogsTable.createdAt))
+    .limit(1);
+
+  let priorStatus = 'received';
+  if (lastVoidLog?.beforeJson) {
+    try {
+      const before = JSON.parse(lastVoidLog.beforeJson) as { status?: string };
+      if (before?.status && !['voided', 'cancelled', 'refunded'].includes(before.status)) {
+        priorStatus = before.status;
+      }
+    } catch {
+      // fall back to default below
+    }
+  }
+
+  const [updated] = await db
+    .update(ordersTable)
+    .set({ status: priorStatus as any, updatedAt: new Date() })
+    .where(eq(ordersTable.id, id))
+    .returning();
+
+  await recordAuditLog({
+    actor: req.user,
+    entityType: 'order',
+    entityId: id,
+    action: 'director.pos_unvoid',
+    before: { status: order.status },
+    after: { status: priorStatus },
   });
 
   return res.json({

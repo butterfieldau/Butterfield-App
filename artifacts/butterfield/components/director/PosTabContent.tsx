@@ -86,11 +86,13 @@ function PosTransactionCard({
   onVoid,
   onRefund,
   onReprint,
+  onRestore,
 }: {
   tx: PosTransaction;
   onVoid?: () => void;
   onRefund?: () => void;
   onReprint?: () => void;
+  onRestore?: () => void;
 }) {
   const statusStyle = POS_STATUS_COLORS[tx.status] ?? { bg: '#F3F4F6', text: '#6B7280' };
   const payMethod   = getPosPaymentLabel(tx);
@@ -100,6 +102,7 @@ function PosTransactionCard({
   const canVoid     = !['voided', 'cancelled', 'refunded', 'completed'].includes(tx.status);
   const canRefund   = tx.status === 'completed';
   const canReprint  = tx.status !== 'cancelled';
+  const canRestore  = tx.status === 'voided';
   return (
     <View style={{ backgroundColor: CARD, borderRadius: 16, padding: 14, borderWidth: 1, borderColor: BORDER, gap: 8, marginBottom: 10 }}>
       <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 12 }}>
@@ -140,8 +143,8 @@ function PosTransactionCard({
           <Text style={{ fontSize: 12, color: MUTED }}>{tx.operatorName}</Text>
         </View>
       ) : null}
-      {/* Per-row actions: void / refund / reprint */}
-      {(canVoid || canRefund || canReprint) && (
+      {/* Per-row actions: void / refund / reprint / restore */}
+      {(canVoid || canRefund || canReprint || canRestore) && (
         <View style={{ flexDirection: 'row', gap: 8, borderTopWidth: 1, borderTopColor: BORDER, paddingTop: 8, marginTop: 2 }}>
           {canReprint && onReprint && (
             <Pressable
@@ -171,6 +174,16 @@ function PosTransactionCard({
             >
               <Feather name="x-circle" size={12} color={RED_CONST} />
               <Text style={{ fontSize: 12, fontWeight: '600', color: RED_CONST }}>Void</Text>
+            </Pressable>
+          )}
+          {canRestore && onRestore && (
+            <Pressable
+              onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); onRestore(); }}
+              style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5,
+                backgroundColor: GREEN + '12', borderWidth: 1, borderColor: GREEN + '30', borderRadius: 10, paddingVertical: 7 }}
+            >
+              <Feather name="rotate-ccw" size={12} color={GREEN} />
+              <Text style={{ fontSize: 12, fontWeight: '600', color: GREEN }}>Restore</Text>
             </Pressable>
           )}
         </View>
@@ -248,6 +261,25 @@ export function PosTabContent({
     onError: (_err, _id, context) => {
       if (context?.previous) queryClient.setQueryData(txQueryKey, context.previous);
       Alert.alert('Void failed', 'Could not void this transaction. Please try again.');
+    },
+    onSuccess: () => {
+      summaryRefetch();
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: txQueryKey });
+    },
+  });
+
+  const restoreMutation = useMutation({
+    mutationFn: (id: string) => api.director.unvoidPosTransaction(id),
+    onMutate: async (id: string) => {
+      await queryClient.cancelQueries({ queryKey: txQueryKey });
+      const previous = queryClient.getQueryData<{ data: PosTransaction[] }>(txQueryKey);
+      return { previous };
+    },
+    onError: (_err, _id, context) => {
+      if (context?.previous) queryClient.setQueryData(txQueryKey, context.previous);
+      Alert.alert('Restore failed', 'Could not restore this transaction. Please try again.');
     },
     onSuccess: () => {
       summaryRefetch();
@@ -335,6 +367,21 @@ export function PosTabContent({
           text: 'Void',
           style: 'destructive',
           onPress: () => voidMutation.mutate(tx.id),
+        },
+      ],
+    );
+  };
+
+  const handleRestore = (tx: PosTransaction) => {
+    const label = tx.orderNumber ?? tx.id.slice(0, 8).toUpperCase();
+    Alert.alert(
+      'Restore Transaction',
+      `Restore ${label} back to its status before it was voided?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Restore',
+          onPress: () => restoreMutation.mutate(tx.id),
         },
       ],
     );
@@ -598,6 +645,7 @@ export function PosTabContent({
                       onVoid={() => handleVoid(tx)}
                       onRefund={() => handleRefund(tx)}
                       onReprint={() => handleReprint(tx)}
+                      onRestore={() => handleRestore(tx)}
                     />
                   ))}
                 </View>
@@ -622,6 +670,7 @@ export function PosTabContent({
                     onVoid={() => handleVoid(tx)}
                     onRefund={() => handleRefund(tx)}
                     onReprint={() => handleReprint(tx)}
+                    onRestore={() => handleRestore(tx)}
                   />
                 ))}
               </View>
