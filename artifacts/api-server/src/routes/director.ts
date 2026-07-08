@@ -126,6 +126,7 @@ function resolveDirectorPermission(method: string, path: string): ManagerPermiss
   // POS analytics — accessible to managers with orders permission
   if (path === '/pos/summary' || path === '/pos/transactions') return 'orders';
   if (path.startsWith('/pos/transactions/') && path.endsWith('/void')) return 'orders';
+  if (path.startsWith('/pos/transactions/') && path.endsWith('/refund')) return 'orders';
 
   // POS thresholds — director only
   if (path === '/pos-thresholds') return 'director_only';
@@ -948,6 +949,87 @@ router.post('/pos/transactions/:id/void', async (req, res) => {
       id: updated.id,
       status: updated.status,
       orderNumber: updated.orderNumber,
+    },
+  });
+});
+
+// ── POST /director/pos/transactions/:id/refund ─────────────────────────────
+// Refund a completed POS transaction. Director/manager (with orders permission) only.
+// Stripe-paid transactions get an actual Stripe refund; cash transactions are
+// simply marked refunded with a manual/cash refund note.
+router.post('/pos/transactions/:id/refund', async (req, res) => {
+  const { id } = req.params;
+  const reason = typeof req.body?.reason === 'string' && req.body.reason.trim() ? req.body.reason.trim() : null;
+
+  const [order] = await db.select().from(ordersTable).where(eq(ordersTable.id, id));
+  if (!order) return res.status(404).json({ error: 'Transaction not found.' });
+  if (order.source !== 'pos') {
+    return res.status(400).json({ error: 'Only POS transactions can be refunded here.' });
+  }
+  if (['voided', 'cancelled', 'refunded'].includes(order.status as string)) {
+    return res.status(400).json({ error: `Transaction is already ${order.status}.` });
+  }
+  // Refunds are only for sales that already settled. Anything still in
+  // progress (received / being_prepared) hasn't been paid out to the
+  // customer yet — that's what Void is for.
+  if (order.status !== 'completed') {
+    return res.status(400).json({ error: 'Only completed transactions can be refunded. Void this transaction instead.' });
+  }
+
+  let refundType: 'stripe' | 'cash' = 'cash';
+
+  if (order.stripePaymentIntentId) {
+    try {
+      const result = await refundOrderStripePayment({
+        orderId: order.id,
+        stripePaymentIntentId: order.stripePaymentIntentId,
+        stripePaymentStatus: order.stripePaymentStatus ?? null,
+        log: req.log,
+      });
+      if (result === 'skipped') {
+        // The order has a payment intent but it's not in a state Stripe will
+        // actually refund (e.g. still pending / never succeeded). Do NOT
+        // silently fall back to a cash-style refund — that would mislabel
+        // an unpaid/failed card transaction as manually refunded cash.
+        return res.status(409).json({
+          error: 'This transaction has a Stripe payment that is not in a refundable state (e.g. not yet settled). Contact support if this persists.',
+        });
+      }
+      refundType = 'stripe';
+    } catch (err) {
+      req.log?.warn?.({ err, orderId: order.id }, 'Stripe refund failed for POS transaction');
+      return res.status(502).json({ error: 'Could not process the Stripe refund. Please try again.' });
+    }
+  }
+
+  const refundNote = refundType === 'stripe'
+    ? `Refunded via Stripe${reason ? ` — ${reason}` : ''}`
+    : `Refunded manually (cash)${reason ? ` — ${reason}` : ''}`;
+  const combinedNotes = [order.notes, refundNote].filter(Boolean).join(' | ');
+
+  const [updated] = await db
+    .update(ordersTable)
+    .set({ status: 'refunded' as any, notes: combinedNotes, updatedAt: new Date() })
+    .where(eq(ordersTable.id, id))
+    .returning();
+
+  await recordAuditLog({
+    actor: req.user,
+    entityType: 'order',
+    entityId: id,
+    action: 'pos.refund',
+    reason,
+    before: { status: order.status },
+    after: { status: 'refunded' },
+    metadata: { refundAmountCents: order.totalCents, refundType, reason },
+  });
+
+  return res.json({
+    data: {
+      id: updated.id,
+      status: updated.status,
+      orderNumber: updated.orderNumber,
+      refundType,
     },
   });
 });

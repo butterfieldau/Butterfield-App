@@ -539,6 +539,8 @@ export const api = {
     },
     voidPosTransaction:  (id: string) =>
       request<{ data: { id: string; status: string; orderNumber: string | null } }>(`/director/pos/transactions/${id}/void`, { method: 'POST' }),
+    refundPosTransaction: (id: string, reason?: string) =>
+      request<{ data: { id: string; status: string; orderNumber: string | null; refundType: 'stripe' | 'cash' } }>(`/director/pos/transactions/${id}/refund`, { method: 'POST', body: JSON.stringify(reason ? { reason } : {}) }),
     acceptOrder:         (id: string) => request<{ data: ApiOrder }>(`/director/orders/${id}/accept`, { method: 'POST' }),
     updateOrderStatus:   (id: string, status: string, cancelReason?: string) => request<{ data: ApiOrder }>(`/director/orders/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status, ...(cancelReason ? { cancelReason } : {}) }) }),
     users:               () => request<{ data: DirectorUserSummary[] }>('/director/users'),

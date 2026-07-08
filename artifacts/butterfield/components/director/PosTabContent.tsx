@@ -84,16 +84,21 @@ const POS_STATUS_COLORS: Record<string, { bg: string; text: string }> = {
 function PosTransactionCard({
   tx,
   onVoid,
+  onRefund,
   onReprint,
 }: {
   tx: PosTransaction;
   onVoid?: () => void;
+  onRefund?: () => void;
   onReprint?: () => void;
 }) {
   const statusStyle = POS_STATUS_COLORS[tx.status] ?? { bg: '#F3F4F6', text: '#6B7280' };
   const payMethod   = getPosPaymentLabel(tx);
   const hasExtras   = tx.tipCents > 0 || tx.surchargeCents > 0 || tx.discountCents > 0;
-  const canVoid     = !['voided', 'cancelled', 'refunded'].includes(tx.status);
+  // Void is for sales that haven't settled yet; once a POS sale is completed
+  // (paid out), use Refund instead so refunds are tracked and reconciled properly.
+  const canVoid     = !['voided', 'cancelled', 'refunded', 'completed'].includes(tx.status);
+  const canRefund   = tx.status === 'completed';
   const canReprint  = tx.status !== 'cancelled';
   return (
     <View style={{ backgroundColor: CARD, borderRadius: 16, padding: 14, borderWidth: 1, borderColor: BORDER, gap: 8, marginBottom: 10 }}>
@@ -135,8 +140,8 @@ function PosTransactionCard({
           <Text style={{ fontSize: 12, color: MUTED }}>{tx.operatorName}</Text>
         </View>
       ) : null}
-      {/* Per-row actions: void / reprint */}
-      {(canVoid || canReprint) && (
+      {/* Per-row actions: void / refund / reprint */}
+      {(canVoid || canRefund || canReprint) && (
         <View style={{ flexDirection: 'row', gap: 8, borderTopWidth: 1, borderTopColor: BORDER, paddingTop: 8, marginTop: 2 }}>
           {canReprint && onReprint && (
             <Pressable
@@ -146,6 +151,16 @@ function PosTransactionCard({
             >
               <Feather name="printer" size={12} color={BLUE} />
               <Text style={{ fontSize: 12, fontWeight: '600', color: BLUE }}>Reprint</Text>
+            </Pressable>
+          )}
+          {canRefund && onRefund && (
+            <Pressable
+              onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); onRefund(); }}
+              style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5,
+                backgroundColor: PURPLE + '12', borderWidth: 1, borderColor: PURPLE + '30', borderRadius: 10, paddingVertical: 7 }}
+            >
+              <Feather name="rotate-ccw" size={12} color={PURPLE} />
+              <Text style={{ fontSize: 12, fontWeight: '600', color: PURPLE }}>Refund</Text>
             </Pressable>
           )}
           {canVoid && onVoid && (
@@ -242,6 +257,29 @@ export function PosTabContent({
     },
   });
 
+  const refundMutation = useMutation({
+    mutationFn: ({ id, reason }: { id: string; reason?: string }) => api.director.refundPosTransaction(id, reason),
+    onMutate: async ({ id }: { id: string; reason?: string }) => {
+      await queryClient.cancelQueries({ queryKey: txQueryKey });
+      const previous = queryClient.getQueryData<{ data: PosTransaction[] }>(txQueryKey);
+      queryClient.setQueryData<{ data: PosTransaction[] } | undefined>(txQueryKey, (old) => {
+        if (!old) return old;
+        return { ...old, data: old.data.map(tx => tx.id === id ? { ...tx, status: 'refunded' } : tx) };
+      });
+      return { previous };
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.previous) queryClient.setQueryData(txQueryKey, context.previous);
+      Alert.alert('Refund failed', 'Could not refund this transaction. Please try again.');
+    },
+    onSuccess: () => {
+      summaryRefetch();
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: txQueryKey });
+    },
+  });
+
   const [refreshing, setRefreshing] = useState(false);
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -305,6 +343,27 @@ export function PosTabContent({
   const handleReprint = (tx: PosTransaction) => {
     const label = tx.orderNumber ?? tx.id.slice(0, 8).toUpperCase();
     Alert.alert('Reprint', `Receipt for ${label} sent to the printer.`);
+  };
+
+  const handleRefund = (tx: PosTransaction) => {
+    const label      = tx.orderNumber ?? tx.id.slice(0, 8).toUpperCase();
+    const method     = (tx.paymentMethod ?? '').toLowerCase();
+    const isCash     = method === 'cash';
+    const description = isCash
+      ? `Refund ${label} (${fmtCents(tx.totalCents)})? This will mark it refunded as a manual cash refund.`
+      : `Refund ${label} (${fmtCents(tx.totalCents)})? This will issue a Stripe refund to the customer.`;
+    Alert.alert(
+      'Refund Transaction',
+      description,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Refund',
+          style: 'destructive',
+          onPress: () => refundMutation.mutate({ id: tx.id }),
+        },
+      ],
+    );
   };
 
   return (
@@ -537,6 +596,7 @@ export function PosTabContent({
                       key={tx.id}
                       tx={tx}
                       onVoid={() => handleVoid(tx)}
+                      onRefund={() => handleRefund(tx)}
                       onReprint={() => handleReprint(tx)}
                     />
                   ))}
@@ -560,6 +620,7 @@ export function PosTabContent({
                     key={tx.id}
                     tx={tx}
                     onVoid={() => handleVoid(tx)}
+                    onRefund={() => handleRefund(tx)}
                     onReprint={() => handleReprint(tx)}
                   />
                 ))}
