@@ -12,3 +12,4 @@
 - [Expo Router Stack inside Tabs](expo-router-stack-in-tabs.md) — never pair foo.tsx with foo/ directory; use only foo/_layout.tsx + foo/index.tsx pattern.
 - [Canvas align/distribute param names](canvas-align-distribute-params.md) — use `alignment` (not `edge`) and `direction` (not `axis`) or the action errors with a bare `'alignment'` message.
 - [Per-screen theme override props pattern](theme-override-props-pattern.md) — reskin one screen via optional default-preserving props on shared components instead of forking/hardcoding a new palette into them.
+- [checkDatabase() false negative](checkdatabase-false-negative.md) — can report "not provisioned" even though DATABASE_URL works fine; verify with psql directly instead of trusting it.
