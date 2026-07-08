@@ -79,13 +79,13 @@ function WholesaleOrderCard({ order, onPress }: { order: ApiOrder; onPress: () =
       onPress={onPress}
       style={({ pressed }) => ({
         backgroundColor: SURFACE,
-        borderRadius: 16,
+        borderRadius: 12,
         borderWidth: 1,
         borderColor: isOverdue ? RED : BORDER,
         borderLeftWidth: isOverdue ? 4 : 1,
         borderLeftColor: borderColor,
-        padding: 14,
-        marginBottom: 10,
+        padding: 12,
+        marginBottom: 8,
         opacity: pressed ? 0.92 : 1,
       })}
     >
@@ -215,44 +215,46 @@ export function WholesaleTabContent({
       >
         {/* Hero Stat */}
         {wholesaleOrders.length > 0 && (
-          <View style={{ paddingHorizontal: 20, paddingTop: 32, paddingBottom: 24, alignItems: 'center', justifyContent: 'center' }}>
-            <Text style={{ fontSize: 13, fontWeight: '700', color: TEXT_MUTED, letterSpacing: 1.2, textTransform: 'uppercase', marginBottom: 8 }}>
-              Outstanding Balance
-            </Text>
-            <Text style={{ fontSize: 56, fontWeight: '900', color: TEXT, letterSpacing: -1.5, marginBottom: 12 }}>
-              {fmtCents(kpi.outstandingCents)}
-            </Text>
-            {kpi.overdueAccountsCount > 0 && (
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: RED_DIM, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20 }}>
-                <Feather name="alert-circle" size={14} color={RED} />
-                <Text style={{ color: RED, fontWeight: '600', fontSize: 13 }}>
-                  {kpi.overdueAccountsCount} accounts overdue ({fmtCents(kpi.overdueAmountCents)})
-                </Text>
-              </View>
-            )}
+          <View style={{ paddingHorizontal: 20, paddingTop: 32, paddingBottom: 24, borderBottomWidth: 1, borderBottomColor: BORDER }}>
+            <View style={{ alignItems: 'center', justifyContent: 'center' }}>
+              <Text style={{ fontSize: 11, fontWeight: '700', color: TEXT_MUTED, letterSpacing: 1.2, textTransform: 'uppercase', marginBottom: 8 }}>
+                Outstanding Balance
+              </Text>
+              <Text style={{ fontSize: 56, fontWeight: '900', color: TEXT, letterSpacing: -1.5, marginBottom: 8 }}>
+                {fmtCents(kpi.outstandingCents)}
+              </Text>
+              {kpi.overdueAccountsCount > 0 && (
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: RED_DIM, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, marginTop: 4 }}>
+                  <Feather name="alert-circle" size={14} color={RED} />
+                  <Text style={{ color: RED, fontWeight: '600', fontSize: 13 }}>
+                    {kpi.overdueAccountsCount} accounts overdue ({fmtCents(kpi.overdueAmountCents)})
+                  </Text>
+                </View>
+              )}
+            </View>
           </View>
         )}
 
         {/* Sub KPIs */}
         {wholesaleOrders.length > 0 && (
-          <View style={{ flexDirection: 'row', gap: 12, paddingHorizontal: 20, marginBottom: 32, marginTop: 24 }}>
-            <View style={{ flex: 1, backgroundColor: SURFACE_RAISED, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: BORDER }}>
-              <Text style={{ fontSize: 12, fontWeight: '600', color: TEXT_MUTED, marginBottom: 4 }}>Avg Order Value</Text>
+          <View style={{ flexDirection: 'row', gap: 12, paddingHorizontal: 20, paddingTop: 24, marginBottom: 12 }}>
+            <View style={{ flex: 1, backgroundColor: SURFACE, borderRadius: 8, padding: 12, borderWidth: 1, borderColor: BORDER }}>
+              <Text style={{ fontSize: 12, fontWeight: '500', color: TEXT_FAINT, marginBottom: 4 }}>Avg Order Value</Text>
               <Text style={{ fontSize: 20, fontWeight: '700', color: TEXT }}>{fmtCents(kpi.avgOrderCents)}</Text>
             </View>
-            <View style={{ flex: 1, backgroundColor: SURFACE_RAISED, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: BORDER }}>
-              <Text style={{ fontSize: 12, fontWeight: '600', color: TEXT_MUTED, marginBottom: 4 }}>Orders This Week</Text>
+            <View style={{ flex: 1, backgroundColor: SURFACE, borderRadius: 8, padding: 12, borderWidth: 1, borderColor: BORDER }}>
+              <Text style={{ fontSize: 12, fontWeight: '500', color: TEXT_FAINT, marginBottom: 4 }}>Orders This Week</Text>
               <Text style={{ fontSize: 20, fontWeight: '700', color: TEXT }}>{kpi.thisWeekOrders}</Text>
             </View>
           </View>
         )}
 
         {/* Filter chips */}
-        <View style={{ marginBottom: 24 }}>
+        <View>
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
-            contentContainerStyle={{ paddingHorizontal: 20, gap: 8 }}
+            contentContainerStyle={{ paddingHorizontal: 20, gap: 8, paddingBottom: 4 }}
           >
             {WS_FILTER_TABS.map((tab) => {
               const active = filter === tab.key;
@@ -285,15 +287,15 @@ export function WholesaleTabContent({
         ) : (
           <View style={{ paddingHorizontal: 20 }}>
             {filteredOrders.length === 0 ? (
-              <View style={{ alignItems: 'center', paddingVertical: 60, gap: 12 }}>
+              <View style={{ alignItems: 'center', paddingVertical: 16, gap: 8 }}>
                 <Feather name="package" size={48} color={BORDER} />
-                <Text style={{ color: TEXT_FAINT, fontWeight: '600', fontSize: 15 }}>
+                <Text style={{ color: TEXT_FAINT, fontWeight: '600', fontSize: 12 }}>
                   {filter === 'all' ? 'No wholesale orders yet' : `No ${WS_FILTER_TABS.find(t => t.key === filter)?.label ?? filter} orders`}
                 </Text>
               </View>
             ) : sections.length > 0 ? (
               sections.map((section) => (
-                <View key={section.label} style={{ marginBottom: 16 }}>
+                <View key={section.label} style={{ marginBottom: 8 }}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 }}>
                     <Text style={{ fontSize: 11, fontWeight: '800', color: TEXT_MUTED, letterSpacing: 1, textTransform: 'uppercase' }}>
                       {section.label}
