@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { db, productsTable, productVariantsTable, productOptionGroupsTable, productOptionsTable, ordersTable, productCategoriesTable } from '@workspace/db';
-import { eq, and, asc, ne, sql } from 'drizzle-orm';
+import { eq, and, asc, ne, sql, ilike, or, inArray } from 'drizzle-orm';
 
 const router = Router();
 const SYDNEY_DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] as const;
@@ -306,26 +306,89 @@ router.get('/top-sellers', async (_req, res) => {
 });
 
 // ── GET /products — public list (with variants, no options for perf) ───────
-router.get('/', async (_req, res) => {
+// Supports optional server-side filtering/pagination so the client never has
+// to download the full catalog just to show a filtered page:
+//   category     — exact category slug match (omit or 'all' for no filter)
+//   search       — case-insensitive substring match on name/description
+//   dietaryTags  — comma-separated list; product must include ALL listed tags
+//   ids          — comma-separated list of product IDs (exact lookup, e.g. for
+//                  resolving specific products referenced by past orders)
+//   featured     — 'true' to only return isFeatured products
+//   limit/offset — when `limit` is provided the response is paginated and
+//                  includes `total`/`hasMore`/`nextOffset`. Omitting `limit`
+//                  preserves the original "return everything" behavior for
+//                  existing callers that still need the full catalog.
+router.get('/', async (req, res) => {
   try {
     const sydNow = getSydneyNow();
+    const { category, search, dietaryTags, ids, featured } = req.query;
+
+    const conditions = [eq(productsTable.isActive, true), eq(productsTable.isStaffOnly, false), eq(productsTable.isPosOnly, false)];
+
+    if (typeof category === 'string' && category.trim() && category !== 'all') {
+      conditions.push(eq(productsTable.category, category.trim()));
+    }
+    if (typeof search === 'string' && search.trim()) {
+      const term = `%${search.trim()}%`;
+      conditions.push(or(ilike(productsTable.name, term), ilike(productsTable.description, term))!);
+    }
+    if (typeof featured === 'string' && featured === 'true') {
+      conditions.push(eq(productsTable.isFeatured, true));
+    }
+    if (typeof ids === 'string' && ids.trim()) {
+      const idList = ids.split(',').map((s) => s.trim()).filter(Boolean);
+      if (idList.length > 0) conditions.push(inArray(productsTable.id, idList));
+    }
+
     const products = await db
       .select()
       .from(productsTable)
-      .where(and(eq(productsTable.isActive, true), eq(productsTable.isStaffOnly, false), eq(productsTable.isPosOnly, false)))
+      .where(and(...conditions))
       .orderBy(asc(productsTable.sortOrder), asc(productsTable.name));
 
-    const variants = await db.select().from(productVariantsTable)
-      .where(eq(productVariantsTable.isActive, true))
-      .orderBy(asc(productVariantsTable.sortOrder));
+    let candidates = products.filter((p) => isProductOrderableNow(p, sydNow));
 
-    const data = products.filter((p) => isProductOrderableNow(p, sydNow)).map(p => ({
+    if (typeof dietaryTags === 'string' && dietaryTags.trim()) {
+      const tagList = dietaryTags.split(',').map((s) => s.trim()).filter(Boolean);
+      if (tagList.length > 0) {
+        candidates = candidates.filter((p) => {
+          const productTags = parseArr(p.dietaryTags);
+          return tagList.every((t) => productTags.includes(t));
+        });
+      }
+    }
+
+    const total = candidates.length;
+
+    // Pagination is opt-in: only paginate when `limit` is explicitly provided,
+    // so existing callers that expect the full filtered list keep working.
+    let page = candidates;
+    let hasMore = false;
+    let nextOffset: number | null = null;
+    const limitRaw = typeof req.query.limit === 'string' ? parseInt(req.query.limit, 10) : NaN;
+    if (Number.isFinite(limitRaw) && limitRaw > 0) {
+      const limit = Math.min(limitRaw, 100);
+      const offsetRaw = typeof req.query.offset === 'string' ? parseInt(req.query.offset, 10) : NaN;
+      const offset = Number.isFinite(offsetRaw) && offsetRaw > 0 ? offsetRaw : 0;
+      page = candidates.slice(offset, offset + limit);
+      hasMore = offset + limit < total;
+      nextOffset = hasMore ? offset + limit : null;
+    }
+
+    const pageIds = page.map((p) => p.id);
+    const variants = pageIds.length > 0
+      ? await db.select().from(productVariantsTable)
+          .where(and(eq(productVariantsTable.isActive, true), inArray(productVariantsTable.productId, pageIds)))
+          .orderBy(asc(productVariantsTable.sortOrder))
+      : [];
+
+    const data = page.map(p => ({
       ...mapProduct(p),
       variants: variants.filter(v => v.productId === p.id),
       hasVariants: variants.some(v => v.productId === p.id),
     }));
 
-    return res.json({ data });
+    return res.json({ data, total, hasMore, nextOffset });
   } catch {
     return res.json({ data: [] });
   }

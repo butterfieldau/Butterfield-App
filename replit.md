@@ -47,7 +47,7 @@ scripts/
 | POST /api/auth/wholesale-apply | — | Wholesale application (pending status) |
 | POST /api/auth/seed-demo | — | Create/verify all 4 demo accounts |
 | GET /api/auth/me | JWT | Current user + profile |
-| GET /api/products | — | All active products from stripe.products |
+| GET /api/products | — | Active products. Optional query params: `category`, `search`, `dietaryTags` (comma list), `ids` (comma list), `featured`, `limit`, `offset`. Pagination is opt-in — omitting `limit` returns the full filtered list (back-compat for full-catalog lookups); passing `limit` returns `{ data, total, hasMore, nextOffset }` |
 | GET /api/orders | JWT | Customer's own orders |
 | POST /api/orders | JWT | Create order (earns loyalty points) |
 | PATCH /api/orders/:id/status | JWT | Advance order status |

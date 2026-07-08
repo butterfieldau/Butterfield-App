@@ -92,6 +92,11 @@ const queryClient = new QueryClient({
 
 const PERSIST_ALLOW_LIST = new Set([
   'pos-products', 'pos-store-settings', 'pos-surcharges', 'pos-loyalty-config',
+  // Customer-facing product queries (home bounded list, menu pagination,
+  // "usual items" lookup, categories) — persisted for stale-while-revalidate
+  // so the menu/home screens render instantly from cache on cold start while
+  // a background refetch keeps them fresh.
+  'products', 'categories',
 ]);
 
 const persister = createAsyncStoragePersister({

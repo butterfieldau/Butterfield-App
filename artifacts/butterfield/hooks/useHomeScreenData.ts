@@ -8,6 +8,8 @@ import { buildGreeting } from '@/lib/greetings';
 import { api, type ApiOrder, type ApiProduct, type AuthProfile, type HomeBannerSlide, type LiveContext, type LoyaltyProfile, type LoyaltyReward } from '@/lib/api';
 import type { SelectedCartOption } from '@/types';
 
+const HOME_PRODUCTS_LIMIT = 40;
+
 export type UsualItem = {
   product: ApiProduct;
   variantId?: string;
@@ -27,10 +29,13 @@ export function useHomeScreenData() {
     return () => clearInterval(id);
   }, []);
 
+  // Home screen only needs a bounded set for the fan-favourites / category
+  // grid — not the full catalog. Persisted + stale-while-revalidate to keep
+  // the home screen fast on cold start.
   const { data: productsData, isLoading, refetch, isRefetching } = useQuery({
-    queryKey: ['products'],
-    queryFn: () => api.products.list(),
-    staleTime: 0,
+    queryKey: ['products', 'home'],
+    queryFn: () => api.products.list({ limit: HOME_PRODUCTS_LIMIT }),
+    staleTime: 5 * 60 * 1000,
     retry: 2,
   });
   const { data: loyaltyData, refetch: refetchLoyalty, isRefetching: loyaltyRefreshing } = useQuery({
@@ -74,6 +79,34 @@ export function useHomeScreenData() {
     queryKey: ['orders'],
     queryFn: () => api.orders.list(),
     enabled: !!user,
+    staleTime: 5 * 60 * 1000,
+    retry: 1,
+  });
+
+  // "Usual items" needs the exact products behind the customer's most recent
+  // orders — those may fall outside the bounded home-screen product list, so
+  // resolve them via a dedicated ids-scoped fetch instead of widening the
+  // main list.
+  const recentOrderProductIds = useMemo(() => {
+    const orders: ApiOrder[] = ordersData?.data ?? [];
+    const sorted = [...orders].sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+    );
+    const ids: string[] = [];
+    for (const order of sorted) {
+      for (const item of (order.items ?? [])) {
+        const pid = item.productId as string | undefined;
+        if (pid && !ids.includes(pid)) ids.push(pid);
+      }
+      if (ids.length >= 3) break;
+    }
+    return ids.slice(0, 3);
+  }, [ordersData]);
+
+  const { data: usualProductsData } = useQuery({
+    queryKey: ['products', 'usual-items', recentOrderProductIds],
+    queryFn: () => api.products.list({ ids: recentOrderProductIds }),
+    enabled: recentOrderProductIds.length > 0,
     staleTime: 5 * 60 * 1000,
     retry: 1,
   });
@@ -149,8 +182,9 @@ export function useHomeScreenData() {
 
   const usualItems = useMemo<UsualItem[]>(() => {
     const orders: ApiOrder[] = ordersData?.data ?? [];
-    if (orders.length === 0 || products.length === 0) return [];
-    const productMap = new Map(products.map((p) => [p.id, p]));
+    const usualProducts = usualProductsData?.data ?? [];
+    if (orders.length === 0 || usualProducts.length === 0) return [];
+    const productMap = new Map(usualProducts.map((p) => [p.id, p]));
     const seen = new Set<string>();
     const result: UsualItem[] = [];
     const sorted = [...orders].sort(
@@ -179,7 +213,7 @@ export function useHomeScreenData() {
       }
     }
     return result;
-  }, [ordersData, products]);
+  }, [ordersData, usualProductsData]);
 
   const greeting = useMemo(() => {
     try {

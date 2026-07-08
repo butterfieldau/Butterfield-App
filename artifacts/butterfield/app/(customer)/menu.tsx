@@ -5,6 +5,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useFocusStatusBar } from '@/hooks/useScrollStatusBar';
 import { useScrollToTopCompat as useScrollToTop } from '@/hooks/useScrollToTopCompat';
 import {
+  ActivityIndicator,
   FlatList,
   Pressable,
   RefreshControl,
@@ -28,7 +29,7 @@ import { useNavScrollHandler } from '@/hooks/useNavScroll';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRefreshControl } from '@/hooks/useRefreshControl';
 import { useCart } from '@/context/CartContext';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, type ApiProduct, type ProductCategory } from '@/lib/api';
 import SharedProductTile, { PRODUCT_IMAGES } from '@/components/ProductTile';
 import OfflineBanner from '@/components/OfflineBanner';
@@ -66,6 +67,18 @@ function parseArr(val: any): string[] {
   return [];
 }
 
+const PAGE_SIZE = 24;
+const SEARCH_DEBOUNCE_MS = 350;
+
+function useDebouncedValue<T>(value: T, delayMs: number): T {
+  const [debounced, setDebounced] = useState(value);
+  useEffect(() => {
+    const id = setTimeout(() => setDebounced(value), delayMs);
+    return () => clearTimeout(id);
+  }, [value, delayMs]);
+  return debounced;
+}
+
 
 
 export default function MenuScreen() {
@@ -89,9 +102,32 @@ export default function MenuScreen() {
     if (params.category) { setActiveCategory(params.category); setSelectedDietaryTags([]); }
   }, [params.category]);
 
-  const { data, isLoading, refetch } = useQuery({ queryKey: ['products'], queryFn: () => api.products.list(), staleTime: 0, retry: 2 });
+  const debouncedSearch = useDebouncedValue(search, SEARCH_DEBOUNCE_MS);
+
+  const {
+    data,
+    isLoading,
+    isRefetching,
+    refetch,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useInfiniteQuery({
+    queryKey: ['products', 'menu', activeCategory, debouncedSearch, selectedDietaryTags.slice().sort().join(',')],
+    queryFn: ({ pageParam }) => api.products.list({
+      category:    activeCategory === 'all' ? undefined : activeCategory,
+      search:      debouncedSearch || undefined,
+      dietaryTags: selectedDietaryTags.length > 0 ? selectedDietaryTags : undefined,
+      limit:       PAGE_SIZE,
+      offset:      pageParam,
+    }),
+    initialPageParam: 0,
+    getNextPageParam: (lastPage) => (lastPage.hasMore ? (lastPage.nextOffset ?? undefined) : undefined),
+    staleTime: 5 * 60 * 1000,
+    retry: 2,
+  });
   const { refreshing, onRefresh }    = useRefreshControl(refetch);
-  const { data: categoriesData }     = useQuery({ queryKey: ['categories'], queryFn: () => api.products.categories(), staleTime: 0 });
+  const { data: categoriesData }     = useQuery({ queryKey: ['categories'], queryFn: () => api.products.categories(), staleTime: 5 * 60 * 1000 });
 
   const categories = useMemo(() => {
     const backendCats: ProductCategory[] = categoriesData?.data ?? [];
@@ -130,7 +166,10 @@ export default function MenuScreen() {
   }, [isLoading]);
   const contentAnimStyle = useAnimatedStyle(() => ({ opacity: contentOpacity.value }));
 
-  const products = data?.data ?? [];
+  // Server already applies category/search/dietaryTags filtering + pagination;
+  // we just flatten the loaded pages here.
+  const products = useMemo(() => data?.pages.flatMap(page => page.data) ?? [], [data]);
+  const total = data?.pages[0]?.total ?? products.length;
 
   // Build a set of slugs that are visible to customers. When no categories
   // have loaded yet (null) we skip the filter so nothing disappears on first load.
@@ -140,36 +179,36 @@ export default function MenuScreen() {
     return new Set(backendCats.map(c => c.slug));
   }, [categoriesData]);
 
-  const categoryFiltered = useMemo(() => products.filter(p => {
+  // Only a client-side safety net for categories the director has hidden
+  // since the page was fetched — the heavy category/search/dietary filtering
+  // itself now happens server-side.
+  const filtered = useMemo(() => products.filter(p => {
     const cat = p.metadata?.category as string | undefined;
-    // Hide products whose category has been disabled by the director.
     if (visibleSlugs && cat && !visibleSlugs.has(cat)) return false;
-    const matchCat    = activeCategory === 'all' || cat === activeCategory;
-    const matchSearch = !search || p.name.toLowerCase().includes(search.toLowerCase()) || (p.description ?? '').toLowerCase().includes(search.toLowerCase());
-    return matchCat && matchSearch;
-  }), [products, activeCategory, search, visibleSlugs]);
+    return true;
+  }), [products, visibleSlugs]);
 
+  // Available dietary chips are derived from the currently loaded page(s) for
+  // this category/search — good enough for chip visibility without requiring
+  // a separate full-catalog fetch (facet pre-aggregation is out of scope).
   const availableChips = useMemo(() => {
     const tagSet = new Set<string>();
-    for (const p of categoryFiltered) {
+    for (const p of filtered) {
       const tags = p.dietaryTags ?? parseArr(p.metadata?.dietaryTags);
       for (const t of tags) if (t) tagSet.add(t);
     }
+    for (const t of selectedDietaryTags) tagSet.add(t);
     return Object.keys(DIETARY_ICONS).filter(k => tagSet.has(k));
-  }, [categoryFiltered]);
-
-  const filtered = useMemo(() => {
-    if (selectedDietaryTags.length === 0) return categoryFiltered;
-    return categoryFiltered.filter(p => {
-      const tags = p.dietaryTags ?? parseArr(p.metadata?.dietaryTags);
-      return selectedDietaryTags.every(t => tags.includes(t));
-    });
-  }, [categoryFiltered, selectedDietaryTags]);
+  }, [filtered, selectedDietaryTags]);
 
   const catalogHasDietaryTags = useMemo(
-    () => products.some(p => (p.dietaryTags ?? parseArr(p.metadata?.dietaryTags)).length > 0),
-    [products],
+    () => filtered.some(p => (p.dietaryTags ?? parseArr(p.metadata?.dietaryTags)).length > 0) || selectedDietaryTags.length > 0,
+    [filtered, selectedDietaryTags],
   );
+
+  const handleEndReached = () => {
+    if (hasNextPage && !isFetchingNextPage) fetchNextPage();
+  };
 
   const toggleDietaryTag = (tag: string) => {
     setSelectedDietaryTags(prev => prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]);
@@ -250,12 +289,14 @@ export default function MenuScreen() {
             showsVerticalScrollIndicator={false}
             scrollEventThrottle={16}
             onScroll={scrollHandler}
-            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={BLUE} />}
+            onEndReached={handleEndReached}
+            onEndReachedThreshold={0.5}
+            refreshControl={<RefreshControl refreshing={refreshing && !isRefetching} onRefresh={onRefresh} tintColor={BLUE} />}
             ListHeaderComponent={
               <>
                 {activeCategory === 'cookies' && <BuildABoxBanner />}
                 <Text style={[s.count, { fontWeight: '400' }]}>
-                  {filtered.length} item{filtered.length !== 1 ? 's' : ''}
+                  {total} item{total !== 1 ? 's' : ''}
                   {activeCategory !== 'all' ? ` · ${categories.find((c: any) => c.id === activeCategory)?.label ?? activeCategory}` : ''}
                   {selectedDietaryTags.length > 0 ? ` · ${selectedDietaryTags.join(', ')}` : ''}
                 </Text>
@@ -275,6 +316,11 @@ export default function MenuScreen() {
                   </Pressable>
                 )}
               </View>
+            }
+            ListFooterComponent={
+              isFetchingNextPage
+                ? <ActivityIndicator style={{ marginVertical: 20 }} color={BLUE} />
+                : null
             }
             renderItem={({ item: p }) => (
               <View style={{ width: Math.floor((width - 2 * hPad - (numColumns - 1) * tileGap) / numColumns) }}>

@@ -125,7 +125,27 @@ export const api = {
       request<{ success: boolean; message: string }>('/auth/account', { method: 'DELETE' }),
   },
   products: {
-    list:       ()         => request<{ data: ApiProduct[] }>('/products'),
+    list: (params?: {
+      category?: string;
+      search?: string;
+      dietaryTags?: string[];
+      ids?: string[];
+      featured?: boolean;
+      limit?: number;
+      offset?: number;
+    }) => {
+      if (!params) return request<ProductListResponse>('/products');
+      const qs = new URLSearchParams();
+      if (params.category) qs.set('category', params.category);
+      if (params.search) qs.set('search', params.search);
+      if (params.dietaryTags?.length) qs.set('dietaryTags', params.dietaryTags.join(','));
+      if (params.ids?.length) qs.set('ids', params.ids.join(','));
+      if (params.featured) qs.set('featured', 'true');
+      if (params.limit != null) qs.set('limit', String(params.limit));
+      if (params.offset != null) qs.set('offset', String(params.offset));
+      const s = qs.toString();
+      return request<ProductListResponse>(`/products${s ? `?${s}` : ''}`);
+    },
     get:        (id: string) => request<{ data: ApiProduct }>(`/products/${id}`),
     categories: ()         => request<{ data: ProductCategory[] }>('/products/categories'),
     topSellers: ()         => request<{ data: ApiProduct[] }>('/products/top-sellers'),
@@ -1468,6 +1488,13 @@ export interface ApiProduct {
   variants?: Array<{ id: string; name: string; priceCents: number; isActive: boolean; sortOrder?: number }>;
   buildABoxSurchargeCents?: number;
   createdAt?: string;
+}
+
+export interface ProductListResponse {
+  data: ApiProduct[];
+  total?: number;
+  hasMore?: boolean;
+  nextOffset?: number | null;
 }
 
 export interface ApiOrder {
