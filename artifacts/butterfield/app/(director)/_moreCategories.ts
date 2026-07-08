@@ -112,7 +112,7 @@ const ALL_CATEGORIES: Category[] = [
     label: 'Operations',
     icon: 'tool',
     color: BLUE,
-    description: 'Store setup, stock, timesheets & hardware',
+    description: 'Store setup, stock & hardware',
     groups: [
       {
         label: 'Store Setup',
@@ -140,19 +140,43 @@ const ALL_CATEGORIES: Category[] = [
         ],
       },
       {
-        label: 'Timesheets',
-        items: [
-          { icon: 'clock',    label: 'Staff Hours',    sub: 'Weekly timesheets & shift breakdown',  color: BLUE,   perm: 'timesheets', onPress: () => router.push('/director-staff-hours' as any) },
-          { icon: 'download', label: 'Payroll Export', sub: 'Export hours as CSV for payroll',      color: BLUE,   perm: 'timesheets', soon: true },
-        ],
-      },
-      {
         label: 'Hardware & Devices',
         items: [
           { icon: 'monitor',  label: 'POS Devices',      sub: 'Counter iPad logins, store assignments & permissions', color: BLUE,   directorOnly: true, onPress: () => router.push({ pathname: '/(director)/users', params: { mode: 'pos' } } as any) },
           { icon: 'server',   label: 'Kitchen Printers', sub: 'Kitchen display & order tickets',                      color: BLUE,   directorOnly: true, soon: true },
           { icon: 'tag',      label: 'Label Printers',   sub: 'Product label & barcode printers',                     color: BLUE,   directorOnly: true, soon: true },
           { icon: 'maximize', label: 'Scanner Devices',  sub: 'Barcode & QR scanners',                                color: BLUE,   directorOnly: true, soon: true },
+        ],
+      },
+    ],
+  },
+
+  // ── STAFF ──────────────────────────────────────────────────────────────────
+  {
+    key: 'staff',
+    label: 'Staff',
+    icon: 'users',
+    color: BLUE,
+    description: 'Accounts, roster, hours & payroll',
+    groups: [
+      {
+        label: 'Staff Directory',
+        items: [
+          { icon: 'user',    label: 'Staff Accounts', sub: 'Approvals, profiles & invite links', color: BLUE, perm: 'users', onPress: () => router.push('/director-staff-accounts' as any) },
+        ],
+      },
+      {
+        label: 'Rostering & Time',
+        items: [
+          { icon: 'calendar', label: 'Roster',         sub: 'Build & publish the weekly shift schedule', color: BLUE, perm: 'timesheets', onPress: () => router.push('/director-roster' as any) },
+          { icon: 'clock',    label: 'Staff Hours',    sub: 'Weekly timesheets & shift breakdown',       color: BLUE, perm: 'timesheets', onPress: () => router.push('/director-staff-hours' as any) },
+          { icon: 'download', label: 'Payroll Export', sub: 'Export hours as CSV for payroll',           color: BLUE, perm: 'timesheets', soon: true },
+        ],
+      },
+      {
+        label: 'Tasks & Wellbeing',
+        items: [
+          { icon: 'clipboard', label: 'Staff Hub', sub: 'Tasks, issues, wastage & leave requests', color: BLUE, onPress: () => router.push('/(director)/staffhub' as any) },
         ],
       },
     ],
