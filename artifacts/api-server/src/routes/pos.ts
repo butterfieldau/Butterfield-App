@@ -258,6 +258,13 @@ async function ensurePosSchemaReady() {
         await db.execute(sql.raw(
           `CREATE INDEX IF NOT EXISTS idx_orders_register_session_created_at ON orders(register_session_id, created_at DESC)`
         ));
+        // Serves: /director/pos/summary and /director/pos/transactions — a covering
+        // index scoped to POS rows only (partial index) so Postgres can satisfy the
+        // summary aggregate with an Index Only Scan (no heap fetch needed) and speed
+        // up the transactions list even as row counts grow into the hundreds/day.
+        await db.execute(sql.raw(
+          `CREATE INDEX IF NOT EXISTS idx_orders_pos_covering ON orders(created_at DESC) INCLUDE (total_cents, status, payment_method, items) WHERE source = 'pos'`
+        ));
       } catch (err) {
         posSchemaReady = null;
         throw err;
