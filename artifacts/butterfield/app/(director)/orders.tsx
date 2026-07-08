@@ -80,7 +80,7 @@ function LiveOrderCard({ order, onPress }: { order: ApiOrder; onPress: () => voi
       style={({ pressed }) => ({
         width: 200, backgroundColor: SURFACE_RAISED, borderRadius: 14, padding: 12,
         borderWidth: 1, borderColor: BORDER, marginRight: 10,
-        borderTopWidth: 3, borderTopColor: col?.text ?? BRAND,
+        borderTopWidth: 3, borderTopColor: BRAND,
         opacity: pressed ? 0.9 : 1,
       })}
     >
