@@ -1,6 +1,7 @@
 import { Feather } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import React, { useEffect, useRef, useState } from 'react';
+import * as Haptics from 'expo-haptics';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Animated,
@@ -9,6 +10,7 @@ import {
   Pressable,
   RefreshControl,
   ScrollView,
+  SectionList,
   StatusBar,
   StyleSheet,
   Text,
@@ -17,134 +19,140 @@ import {
 import { useFocusStatusBar } from '@/hooks/useScrollStatusBar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRefreshControl } from '@/hooks/useRefreshControl';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, type ApiOrder } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
+import { useCart } from '@/context/CartContext';
 import { LoggedOutAccountPrompt } from '@/components/LoggedOutAccountPrompt';
 import { normalizeOrderItems, summarizeOrderItems } from '@/lib/orderItems';
 
 const BG     = '#EFF6FF';
 const CARD   = '#FFFFFF';
-const BLUE   = '#1493FF';
+const BLUE   = '#40C0F2';
+const BLUE_DARK = '#1493FF';
 const TEXT   = '#1C1C1E';
 const MUTED  = '#8E8E93';
 const BORDER = '#E5E7EB';
+const GREEN  = '#22C55E';
+const RED    = '#D20001';
 
 const STATUS_LABEL: Record<string, string> = {
   received:         'Pending',
   being_prepared:   'Preparing',
-  ready_for_pickup: 'Ready',
+  ready_for_pickup: 'Ready to pick up',
   out_for_delivery: 'Out for delivery',
   completed:        'Collected',
   cancelled:        'Cancelled',
   refunded:         'Refunded',
   scheduled:        'Awaiting Confirmation',
-  accepted:         'Order Accepted',
+  accepted:         'Order Confirmed',
 };
 
-const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
-  received:         { bg: '#FEF9C3', text: '#854D0E' },
-  being_prepared:   { bg: '#EDE9FE', text: '#5B21B6' },
-  ready_for_pickup: { bg: '#DCFCE7', text: '#166534' },
-  out_for_delivery: { bg: '#DBEAFE', text: '#1E40AF' },
-  completed:        { bg: '#F3F4F6', text: '#6B7280' },
-  cancelled:        { bg: '#FEE2E2', text: '#991B1B' },
-  refunded:         { bg: '#FEE2E2', text: '#991B1B' },
-  scheduled:        { bg: '#FEF3C7', text: '#92400E' },
-  accepted:         { bg: '#DCFCE7', text: '#166534' },
+const STATUS_COLORS: Record<string, { bg: string; text: string; dot: string }> = {
+  received:         { bg: '#FEF9C3', text: '#854D0E', dot: '#F59E0B' },
+  being_prepared:   { bg: '#EDE9FE', text: '#5B21B6', dot: '#8B5CF6' },
+  ready_for_pickup: { bg: '#DCFCE7', text: '#166534', dot: '#22C55E' },
+  out_for_delivery: { bg: '#DBEAFE', text: '#1E40AF', dot: '#3B82F6' },
+  completed:        { bg: '#F3F4F6', text: '#6B7280', dot: '#9CA3AF' },
+  cancelled:        { bg: '#FEE2E2', text: '#991B1B', dot: '#EF4444' },
+  refunded:         { bg: '#FEE2E2', text: '#991B1B', dot: '#EF4444' },
+  scheduled:        { bg: '#FEF3C7', text: '#92400E', dot: '#F59E0B' },
+  accepted:         { bg: '#DCFCE7', text: '#166534', dot: '#22C55E' },
 };
 
-const STAGE_COLOR: Record<string, string> = {
-  received:         '#F59E0B',
-  being_prepared:   '#8B5CF6',
-  ready_for_pickup: '#22C55E',
-  out_for_delivery: '#3B82F6',
-  completed:        '#6B7280',
-  cancelled:        '#EF4444',
-  refunded:         '#EF4444',
-  scheduled:        '#F59E0B',
-  accepted:         '#22C55E',
-};
+const ACTIVE_STATUSES = ['received', 'being_prepared', 'ready_for_pickup', 'out_for_delivery', 'scheduled', 'accepted'];
+const TERMINAL_STATUSES = ['completed', 'cancelled', 'refunded'];
 
 const STAGES_QUICK_PICKUP = [
-  { key: 'received',          label: 'Received',         icon: 'check-circle' as const, desc: 'Your order is placed and in the queue — we\'ll start making it shortly.' },
-  { key: 'being_prepared',    label: 'Preparing',        icon: 'package'      as const, desc: 'Our team is freshly baking your order right now.' },
-  { key: 'ready_for_pickup',  label: 'Ready',            icon: 'shopping-bag' as const, desc: 'Your order is ready at the counter. Come grab it!' },
+  { key: 'received',          label: 'Received',    icon: 'check-circle' as const, desc: 'Your order is in the queue — we\'ll start making it shortly.' },
+  { key: 'being_prepared',    label: 'Preparing',   icon: 'package'      as const, desc: 'Our team is freshly baking your order right now.' },
+  { key: 'ready_for_pickup',  label: 'Ready',       icon: 'shopping-bag' as const, desc: 'Your order is ready at the counter. Come grab it!' },
 ];
 
 const STAGES_SCHEDULED_PICKUP = [
-  { key: 'scheduled',         label: 'Scheduled',        icon: 'calendar'     as const, desc: 'Your pickup slot is booked. We\'ll confirm it shortly.' },
-  { key: 'accepted',          label: 'Confirmed',        icon: 'check-circle' as const, desc: 'Your pickup slot is confirmed. We\'ll prepare it ahead of time.' },
-  { key: 'being_prepared',    label: 'Preparing',        icon: 'package'      as const, desc: 'Our team is freshly baking your order right now.' },
-  { key: 'ready_for_pickup',  label: 'Ready for Pickup', icon: 'shopping-bag' as const, desc: 'Your order is ready at the counter. Come grab it!' },
+  { key: 'scheduled',         label: 'Scheduled',   icon: 'calendar'     as const, desc: 'Your pickup slot is booked. We\'ll confirm it shortly.' },
+  { key: 'accepted',          label: 'Confirmed',   icon: 'check-circle' as const, desc: 'Your pickup slot is confirmed. We\'ll prepare it ahead of time.' },
+  { key: 'being_prepared',    label: 'Preparing',   icon: 'package'      as const, desc: 'Our team is freshly baking your order right now.' },
+  { key: 'ready_for_pickup',  label: 'Ready',       icon: 'shopping-bag' as const, desc: 'Your order is ready at the counter. Come grab it!' },
 ];
 
 const STAGES_DELIVERY = [
-  { key: 'scheduled',         label: 'Scheduled',        icon: 'calendar'     as const, desc: 'Your delivery is booked. We\'ll confirm it shortly.' },
-  { key: 'accepted',          label: 'Confirmed',        icon: 'check-circle' as const, desc: 'Your delivery is confirmed. We\'ll start preparing it on the day.' },
-  { key: 'being_prepared',    label: 'Preparing',        icon: 'package'      as const, desc: 'Our team is freshly making your order right now.' },
-  { key: 'out_for_delivery',  label: 'Out for Delivery', icon: 'truck'        as const, desc: 'Your order is on its way to you!' },
-  { key: 'completed',         label: 'Delivered',        icon: 'star'         as const, desc: 'Your order has been delivered. Enjoy!' },
+  { key: 'scheduled',         label: 'Scheduled',        icon: 'calendar' as const,      desc: 'Your delivery is booked. We\'ll confirm it shortly.' },
+  { key: 'accepted',          label: 'Confirmed',        icon: 'check-circle' as const,  desc: 'Your delivery is confirmed. We\'ll start preparing it on the day.' },
+  { key: 'being_prepared',    label: 'Preparing',        icon: 'package' as const,        desc: 'Our team is freshly making your order right now.' },
+  { key: 'out_for_delivery',  label: 'Out for Delivery', icon: 'truck' as const,          desc: 'Your order is on its way to you!' },
+  { key: 'completed',         label: 'Delivered',        icon: 'star' as const,           desc: 'Your order has been delivered. Enjoy!' },
 ];
-
-const ACTIVE_STATUSES = ['received', 'being_prepared', 'ready_for_pickup', 'out_for_delivery', 'scheduled', 'accepted'];
 
 function fmtDate(iso: string) {
   return new Date(iso).toLocaleString('en-AU', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'Australia/Sydney' });
 }
-
 function fmtShort(iso: string) {
   const d = new Date(iso);
   return {
     date: d.toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Australia/Sydney' }),
-    time: d.toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Australia/Sydney' }),
+    time: d.toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'Australia/Sydney' }),
   };
 }
+function sydDateKey(iso: string): string {
+  return new Date(iso).toLocaleDateString('en-CA', { timeZone: 'Australia/Sydney' });
+}
+function elapsedLabel(iso: string): string {
+  const mins = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
+  if (mins < 1) return 'Just now';
+  if (mins < 60) return `${mins} min`;
+  const hrs = Math.floor(mins / 60);
+  return `${hrs}h ${mins % 60}m`;
+}
+function fmtSectionTitle(dateKey: string): string {
+  const today     = new Date().toLocaleDateString('en-CA', { timeZone: 'Australia/Sydney' });
+  const yesterday = new Date(Date.now() - 86400000).toLocaleDateString('en-CA', { timeZone: 'Australia/Sydney' });
+  if (dateKey === today)     return 'Today';
+  if (dateKey === yesterday) return 'Yesterday';
+  const [y, m, d] = dateKey.split('-').map(Number);
+  return new Date(Date.UTC(y, m - 1, d, 12)).toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
+}
 
-type StageItem = typeof STAGES_QUICK_PICKUP[0] | typeof STAGES_DELIVERY[0];
+// ── Pulsing status dot ───────────────────────────────────────────────────────
+function PulsingDot({ color }: { color: string }) {
+  const anim = useRef(new Animated.Value(1)).current;
+  useEffect(() => {
+    Animated.loop(Animated.sequence([
+      Animated.timing(anim, { toValue: 1.6, duration: 700, useNativeDriver: true }),
+      Animated.timing(anim, { toValue: 1,   duration: 700, useNativeDriver: true }),
+    ])).start();
+  }, []);
+  return (
+    <View style={{ width: 12, height: 12, alignItems: 'center', justifyContent: 'center' }}>
+      <Animated.View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: color, transform: [{ scale: anim }] }} />
+    </View>
+  );
+}
 
-// ── Animated progress step ───────────────────────────────────────────────────
-function StageStep({ stage, index, currentIndex, totalStages }: { stage: StageItem; index: number; currentIndex: number; totalStages: number }) {
+// ── Stage step ───────────────────────────────────────────────────────────────
+function StageStep({ stage, index, currentIndex, totalStages }: { stage: any; index: number; currentIndex: number; totalStages: number }) {
   const isCompleted = index < currentIndex;
   const isActive    = index === currentIndex;
   const isPending   = index > currentIndex;
-  const scaleAnim   = useRef(new Animated.Value(isActive ? 0.9 : 1)).current;
-  const opacityAnim = useRef(new Animated.Value(isPending ? 0.35 : 1)).current;
-  useEffect(() => {
-    if (isActive) {
-      Animated.loop(Animated.sequence([
-        Animated.timing(scaleAnim, { toValue: 1.1, duration: 700, useNativeDriver: true }),
-        Animated.timing(scaleAnim, { toValue: 0.92, duration: 700, useNativeDriver: true }),
-      ])).start();
-    } else {
-      scaleAnim.setValue(1);
-    }
-    Animated.timing(opacityAnim, { toValue: isPending ? 0.35 : 1, duration: 300, useNativeDriver: true }).start();
-  }, [isActive, isPending]);
-  const color = isCompleted || isActive ? (STAGE_COLOR[stage.key] ?? BLUE) : BORDER;
+  const dotColor    = STATUS_COLORS[stage.key]?.dot ?? BLUE_DARK;
   return (
-    <View style={d.stageRow}>
+    <View style={{ flexDirection: 'row', gap: 14, minHeight: 52 }}>
       <View style={{ alignItems: 'center' }}>
-        <Animated.View style={[d.stageCircle, {
-          backgroundColor: isCompleted || isActive ? color : '#F3F4F6',
-          borderColor:     isActive ? color : 'transparent',
-          transform: [{ scale: scaleAnim }],
-          opacity: opacityAnim,
-        }]}>
-          <Feather name={isCompleted ? 'check' : stage.icon} size={16} color={isCompleted || isActive ? '#fff' : MUTED} />
-        </Animated.View>
+        <View style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: isCompleted || isActive ? dotColor : '#F3F4F6', borderWidth: isActive ? 2 : 0, borderColor: dotColor, alignItems: 'center', justifyContent: 'center', opacity: isPending ? 0.4 : 1 }}>
+          <Feather name={isCompleted ? 'check' : stage.icon} size={15} color={isCompleted || isActive ? '#fff' : MUTED} />
+        </View>
         {index < totalStages - 1 && (
-          <View style={[d.stageLine, { backgroundColor: isCompleted ? color : BORDER }]} />
+          <View style={{ width: 2, flex: 1, minHeight: 18, borderRadius: 1, backgroundColor: isCompleted ? dotColor : BORDER, marginVertical: 3 }} />
         )}
       </View>
-      <Animated.View style={[{ flex: 1, paddingTop: 6, paddingBottom: 10 }, { opacity: opacityAnim }]}>
+      <View style={{ flex: 1, paddingTop: 6, paddingBottom: 10, opacity: isPending ? 0.4 : 1 }}>
         <Text style={{ fontSize: 14, fontWeight: isActive ? '700' : '500', color: isActive || isCompleted ? TEXT : MUTED }}>
-          {stage.label}{isActive ? <Text style={{ color, fontWeight: '600' }}> · Now</Text> : ''}
+          {stage.label}{isActive ? <Text style={{ color: dotColor, fontWeight: '600' }}> · Now</Text> : ''}
         </Text>
         {(isActive || isCompleted) && (
-          <Text style={{ fontSize: 12, fontWeight: '400', color: MUTED, lineHeight: 17, marginTop: 2 }}>{stage.desc}</Text>
+          <Text style={{ fontSize: 12, color: MUTED, lineHeight: 17, marginTop: 2 }}>{stage.desc}</Text>
         )}
-      </Animated.View>
+      </View>
     </View>
   );
 }
@@ -168,34 +176,33 @@ function OrderDetailModal({ orderId, onClose }: { orderId: string; onClose: () =
   const STAGES       = isDelivery ? STAGES_DELIVERY : isScheduledPickup ? STAGES_SCHEDULED_PICKUP : STAGES_QUICK_PICKUP;
   const stageIndex   = (() => {
     const idx = STAGES.findIndex(s => s.key === status);
-    // 'completed' is not in quick/scheduled-pickup stage lists (they end at ready_for_pickup).
-    // Treat it as past the final stage so all steps render as checked.
     if (idx === -1 && status === 'completed') return STAGES.length;
     return idx;
   })();
   const isCancelled  = status === 'cancelled' || status === 'refunded';
   const isActive     = ACTIVE_STATUSES.includes(status);
-  const statusColor  = STAGE_COLOR[status] ?? BLUE;
+  const dotColor     = STATUS_COLORS[status]?.dot ?? BLUE_DARK;
   const currentStage = STAGES[stageIndex];
-  const items = normalizeOrderItems(order?.items);
+  const items        = normalizeOrderItems(order?.items);
   const total        = (order?.totalCents ?? 0) / 100;
   const pointsEarned = order?.loyaltyPointsEarned ?? 0;
+  const col          = STATUS_COLORS[status] ?? STATUS_COLORS.received;
+
   return (
     <Modal visible animationType="slide" presentationStyle="pageSheet" allowSwipeDismissal onRequestClose={onClose}>
       <View style={{ flex: 1, backgroundColor: BG }}>
-        {/* Header */}
-        <View style={[d.header, { paddingTop: insets.top > 0 ? insets.top + 4 : 20, borderBottomColor: BORDER }]}>
-          <Pressable onPress={onClose} style={d.closeBtn}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingBottom: 14, paddingTop: insets.top > 0 ? insets.top + 4 : 20, borderBottomWidth: 1, borderBottomColor: BORDER, backgroundColor: CARD }}>
+          <Pressable onPress={onClose} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: BG, alignItems: 'center', justifyContent: 'center' }}>
             <Feather name="x" size={18} color={TEXT} />
           </Pressable>
-          <Text style={d.headerTitle}>
+          <Text style={{ flex: 1, fontSize: 16, fontWeight: '700', color: TEXT, textAlign: 'center' }}>
             {isLoading ? 'Loading…' : `Order #${order?.orderNumber ?? (order?.id ?? '').slice(-6).toUpperCase()}`}
           </Text>
           <View style={{ width: 36 }} />
         </View>
         {isLoading ? (
           <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-            <ActivityIndicator color={BLUE} size="large" />
+            <ActivityIndicator color={BLUE_DARK} size="large" />
           </View>
         ) : !order ? (
           <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 }}>
@@ -204,178 +211,129 @@ function OrderDetailModal({ orderId, onClose }: { orderId: string; onClose: () =
           </View>
         ) : (
           <ScrollView contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: 80 }} showsVerticalScrollIndicator={false}>
-            {/* ── Status card ──────────────────────────────────────────── */}
-            <View style={[d.card, { backgroundColor: CARD, borderColor: BORDER }]}>
+            <View style={{ borderRadius: 16, padding: 16, borderWidth: 1, backgroundColor: CARD, borderColor: BORDER }}>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                 <View style={{ gap: 3 }}>
                   <Text style={{ fontSize: 17, fontWeight: '700', color: TEXT }}>
                     Order #{order.orderNumber ?? order.id.slice(-6).toUpperCase()}
                   </Text>
-                  <Text style={{ fontSize: 12, color: MUTED, fontWeight: '400' }}>
-                    {fmtDate(order.createdAt)}
-                  </Text>
-                  <Text style={{ fontSize: 12, color: MUTED, fontWeight: '400', textTransform: 'capitalize' }}>
+                  <Text style={{ fontSize: 12, color: MUTED }}>{fmtDate(order.createdAt)}</Text>
+                  <Text style={{ fontSize: 12, color: MUTED, textTransform: 'capitalize' }}>
                     {order.type === 'delivery' ? '🚗 Delivery' : '🛍️ Pickup'}
                   </Text>
                 </View>
                 <View style={{ alignItems: 'flex-end', gap: 6 }}>
-                  <Text style={{ fontSize: 20, fontWeight: '700', color: TEXT }}>
-                    AUD ${total.toFixed(2)}
-                  </Text>
-                  <View style={[d.statusBadge, { backgroundColor: statusColor + '18' }]}>
-                    {isActive && <View style={[d.statusDot, { backgroundColor: statusColor }]} />}
-                    <Text style={{ fontSize: 12, fontWeight: '600', color: statusColor }}>
-                      {currentStage?.label ?? STATUS_LABEL[status] ?? status}
-                    </Text>
+                  <Text style={{ fontSize: 20, fontWeight: '700', color: TEXT }}>AUD ${total.toFixed(2)}</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10, backgroundColor: dotColor + '18' }}>
+                    {isActive && <PulsingDot color={dotColor} />}
+                    <Text style={{ fontSize: 12, fontWeight: '600', color: dotColor }}>{currentStage?.label ?? STATUS_LABEL[status] ?? status}</Text>
                   </View>
                 </View>
               </View>
               {order.scheduledFor && (
-                <View style={[d.metaRow, { borderTopColor: BORDER, marginTop: 12, paddingTop: 12 }]}>
-                  <Feather name="clock" size={13} color={BLUE} />
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: BORDER }}>
+                  <Feather name="clock" size={13} color={BLUE_DARK} />
                   <Text style={{ fontSize: 13, fontWeight: '500', color: TEXT }}>
                     {order.type === 'delivery' ? 'Delivery' : 'Pickup'}: {fmtShort(order.scheduledFor).date} · {fmtShort(order.scheduledFor).time}
                   </Text>
                 </View>
               )}
             </View>
-            {/* ── Live status message ───────────────────────────────────── */}
+
             {isActive && currentStage && (
-              <View style={[d.liveCard, { backgroundColor: statusColor + '12', borderColor: statusColor + '30' }]}>
-                <Feather name="zap" size={14} color={statusColor} />
-                <Text style={{ fontSize: 13, fontWeight: '500', color: statusColor, flex: 1, lineHeight: 18 }}>
-                  {currentStage.desc}
-                </Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 12, padding: 14, borderWidth: 1, backgroundColor: dotColor + '12', borderColor: dotColor + '30' }}>
+                <Feather name="zap" size={14} color={dotColor} />
+                <Text style={{ fontSize: 13, fontWeight: '500', color: dotColor, flex: 1, lineHeight: 18 }}>{currentStage.desc}</Text>
               </View>
             )}
-            {/* ── Order items ───────────────────────────────────────────── */}
+
             {items.length > 0 && (
-              <View style={[d.card, { backgroundColor: CARD, borderColor: BORDER }]}>
-                <Text style={d.sectionTitle}>Items ordered</Text>
-                <View style={{ gap: 0 }}>
-                  {items.map((item, i: number) => {
-                    return (
-                      <View key={i} style={[d.itemRow, { borderBottomColor: BORDER, borderBottomWidth: i < items.length - 1 ? 1 : 0 }]}>
-                        <View style={[d.qtyBadge, { backgroundColor: BLUE }]}>
-                          <Text style={{ color: '#fff', fontSize: 11, fontWeight: '700' }}>{item.quantity}</Text>
+              <View style={{ borderRadius: 16, padding: 16, borderWidth: 1, backgroundColor: CARD, borderColor: BORDER }}>
+                <Text style={{ fontSize: 15, fontWeight: '600', color: TEXT, marginBottom: 10 }}>Items ordered</Text>
+                {items.map((item, i) => (
+                  <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10, borderBottomWidth: i < items.length - 1 ? 1 : 0, borderBottomColor: BORDER }}>
+                    <View style={{ width: 26, height: 26, borderRadius: 8, backgroundColor: BLUE_DARK, alignItems: 'center', justifyContent: 'center' }}>
+                      <Text style={{ color: '#fff', fontSize: 11, fontWeight: '700' }}>{item.quantity}</Text>
+                    </View>
+                    <View style={{ flex: 1, gap: 2 }}>
+                      <Text style={{ fontSize: 14, fontWeight: '500', color: TEXT }}>
+                        {item.name}{item.variantName ? <Text style={{ fontWeight: '400', color: MUTED }}>{` · ${item.variantName}`}</Text> : null}
+                      </Text>
+                      {item.isFreeReward && (
+                        <View style={{ backgroundColor: '#DCFCE7', borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2, alignSelf: 'flex-start' }}>
+                          <Text style={{ fontSize: 10, fontWeight: '700', color: '#166534' }}>FREE</Text>
                         </View>
-                        <View style={{ flex: 1, gap: 2 }}>
-                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                            <Text style={{ fontSize: 14, fontWeight: '500', color: TEXT }}>
-                              {item.name}
-                              {item.variantName ? <Text style={{ fontWeight: '400', color: MUTED }}>{` · ${item.variantName}`}</Text> : null}
-                            </Text>
-                            {item.isFreeReward && (
-                              <View style={{ backgroundColor: '#DCFCE7', borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2 }}>
-                                <Text style={{ fontSize: 10, fontWeight: '700', color: '#166534', letterSpacing: 0.5 }}>FREE</Text>
-                              </View>
-                            )}
-                          </View>
-                          {item.unitPriceCents > 0 && (
-                            <Text style={{ fontSize: 12, color: MUTED, fontWeight: '400' }}>
-                              ${(item.unitPriceCents / 100).toFixed(2)} each
-                            </Text>
-                          )}
-                          {item.boxContents.length > 0 && (
-                            <View style={{ marginTop: 3, gap: 1 }}>
-                              <Text style={{ fontSize: 11, fontWeight: '600', color: MUTED, letterSpacing: 0.3 }}>Box contents:</Text>
-                              {item.boxContents.map((cookie, ci) => (
-                                <View key={ci} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                                  <Text style={{ fontSize: 11, color: MUTED }}>·</Text>
-                                  <Text style={{ fontSize: 12, fontWeight: '400', color: TEXT }}>{cookie}</Text>
-                                </View>
-                              ))}
-                            </View>
-                          )}
-                          {item.notableOptions.length > 0 && (
-                            <Text style={{ fontSize: 12, color: BLUE, fontWeight: '400' }}>
-                              {item.notableOptions.join(' · ')}
-                            </Text>
-                          )}
-                          {item.baristaNote ? (
-                            <Text style={{ fontSize: 11, color: MUTED, fontWeight: '400', fontStyle: 'italic' }}>
-                              "{item.baristaNote}"
-                            </Text>
-                          ) : null}
-                        </View>
-                        {item.lineTotalCents > 0 && (
-                          <Text style={{ fontSize: 14, fontWeight: '700', color: TEXT }}>
-                            ${(item.lineTotalCents / 100).toFixed(2)}
-                          </Text>
-                        )}
-                      </View>
-                    );
-                  })}
-                </View>
-                {/* Totals */}
+                      )}
+                      {item.boxContents.length > 0 && (
+                        <Text style={{ fontSize: 12, color: MUTED, lineHeight: 17 }}>{item.boxContents.join(' · ')}</Text>
+                      )}
+                      {item.notableOptions.length > 0 && (
+                        <Text style={{ fontSize: 12, color: BLUE_DARK }}>{item.notableOptions.join(' · ')}</Text>
+                      )}
+                    </View>
+                    {item.lineTotalCents > 0 && (
+                      <Text style={{ fontSize: 14, fontWeight: '700', color: TEXT }}>${(item.lineTotalCents / 100).toFixed(2)}</Text>
+                    )}
+                  </View>
+                ))}
                 <View style={{ borderTopWidth: 1, borderTopColor: BORDER, marginTop: 12, paddingTop: 12, gap: 6 }}>
                   {(order.loyaltyPointsUsed ?? 0) > 0 && (
-                    <View style={d.totalRow}>
-                      <Text style={[d.totalLabel, { color: MUTED }]}>Points redeemed</Text>
-                      <Text style={[d.totalVal, { color: '#22C55E' }]}>−{order.loyaltyPointsUsed} pts</Text>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                      <Text style={{ fontSize: 14, fontWeight: '500', color: MUTED }}>Points redeemed</Text>
+                      <Text style={{ fontSize: 14, fontWeight: '600', color: GREEN }}>−{order.loyaltyPointsUsed} pts</Text>
                     </View>
                   )}
-                  <View style={d.totalRow}>
-                    <Text style={[d.totalLabel, { fontWeight: '700', color: TEXT }]}>Total paid</Text>
-                    <Text style={[d.totalVal, { fontWeight: '700', color: TEXT, fontSize: 16 }]}>
-                      AUD ${total.toFixed(2)}
-                    </Text>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                    <Text style={{ fontSize: 14, fontWeight: '700', color: TEXT }}>Total paid</Text>
+                    <Text style={{ fontSize: 16, fontWeight: '700', color: TEXT }}>AUD ${total.toFixed(2)}</Text>
                   </View>
                   {pointsEarned > 0 && (
-                    <View style={[d.pointsEarned, { backgroundColor: '#FFFBEB', borderColor: '#FDE68A' }]}>
-                      <Text style={{ fontSize: 13, color: '#92400E', fontWeight: '600' }}>
-                        🏅 +{pointsEarned} loyalty points earned
-                      </Text>
+                    <View style={{ borderRadius: 10, padding: 10, borderWidth: 1, backgroundColor: '#FFFBEB', borderColor: '#FDE68A', alignItems: 'center', marginTop: 4 }}>
+                      <Text style={{ fontSize: 13, color: '#92400E', fontWeight: '600' }}>🏅 +{pointsEarned} loyalty points earned</Text>
                     </View>
                   )}
                 </View>
               </View>
             )}
-            {/* ── Progress pipeline ─────────────────────────────────────── */}
+
             {!isCancelled ? (
-              <View style={[d.card, { backgroundColor: CARD, borderColor: BORDER }]}>
-                <Text style={d.sectionTitle}>Order progress</Text>
-                <View style={{ marginTop: 8 }}>
-                  {STAGES.map((stage, i) => (
-                    <StageStep key={stage.key} stage={stage} index={i} currentIndex={stageIndex} totalStages={STAGES.length} />
-                  ))}
-                </View>
+              <View style={{ borderRadius: 16, padding: 16, borderWidth: 1, backgroundColor: CARD, borderColor: BORDER }}>
+                <Text style={{ fontSize: 15, fontWeight: '600', color: TEXT, marginBottom: 10 }}>Order progress</Text>
+                {STAGES.map((stage, i) => (
+                  <StageStep key={stage.key} stage={stage} index={i} currentIndex={stageIndex} totalStages={STAGES.length} />
+                ))}
                 {isActive && (
-                  <Text style={{ textAlign: 'center', fontSize: 11, color: MUTED, fontWeight: '400', marginTop: 8 }}>
-                    Updates automatically every 10 seconds
-                  </Text>
+                  <Text style={{ textAlign: 'center', fontSize: 11, color: MUTED, marginTop: 8 }}>Updates automatically every 10 seconds</Text>
                 )}
               </View>
             ) : (
-              <View style={[d.card, { backgroundColor: '#FFF1F0', borderColor: '#FECACA' }]}>
+              <View style={{ borderRadius: 16, padding: 16, borderWidth: 1, backgroundColor: '#FFF1F0', borderColor: '#FECACA' }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                   <Feather name="x-circle" size={20} color="#EF4444" />
-                  <Text style={[d.sectionTitle, { color: '#EF4444' }]}>Order {status === 'refunded' ? 'Refunded' : 'Cancelled'}</Text>
+                  <Text style={{ fontSize: 15, fontWeight: '600', color: '#EF4444' }}>Order {status === 'refunded' ? 'Refunded' : 'Cancelled'}</Text>
                 </View>
-                <Text style={{ fontSize: 13, color: '#EF4444', opacity: 0.8, marginTop: 6, fontWeight: '400', lineHeight: 18 }}>
+                <Text style={{ fontSize: 13, color: '#EF4444', opacity: 0.8, marginTop: 6, lineHeight: 18 }}>
                   This order was {status === 'refunded' ? 'refunded' : 'cancelled'}. Contact us at hello@butterfieldcookies.com.au if you need help.
                 </Text>
               </View>
             )}
-            {/* ── Delivery address (if applicable) ─────────────────────── */}
+
             {order.type === 'delivery' && order.deliveryAddress && (
-              <View style={[d.card, { backgroundColor: CARD, borderColor: BORDER }]}>
-                <Text style={d.sectionTitle}>Delivery address</Text>
-                <View style={[d.metaRow, { marginTop: 6 }]}>
+              <View style={{ borderRadius: 16, padding: 16, borderWidth: 1, backgroundColor: CARD, borderColor: BORDER }}>
+                <Text style={{ fontSize: 15, fontWeight: '600', color: TEXT, marginBottom: 8 }}>Delivery address</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                   <Feather name="map-pin" size={14} color={MUTED} />
-                  <Text style={{ fontSize: 14, color: TEXT, fontWeight: '400', flex: 1 }}>
+                  <Text style={{ fontSize: 14, color: TEXT, flex: 1 }}>
                     {typeof order.deliveryAddress === 'string' ? order.deliveryAddress : JSON.stringify(order.deliveryAddress)}
                   </Text>
                 </View>
               </View>
             )}
-            {/* ── Notes ────────────────────────────────────────────────── */}
+
             {order.notes && (
-              <View style={[d.card, { backgroundColor: '#FFFBEB', borderColor: '#FDE68A' }]}>
-                <View style={d.metaRow}>
-                  <Feather name="message-circle" size={14} color="#92400E" />
-                  <Text style={{ fontSize: 13, color: '#92400E', fontWeight: '500', flex: 1 }}>{order.notes}</Text>
-                </View>
+              <View style={{ borderRadius: 12, padding: 14, borderWidth: 1, backgroundColor: '#FFFBEB', borderColor: '#FDE68A', flexDirection: 'row', gap: 8 }}>
+                <Feather name="message-circle" size={14} color="#92400E" />
+                <Text style={{ fontSize: 13, color: '#92400E', fontWeight: '500', flex: 1 }}>{order.notes}</Text>
               </View>
             )}
           </ScrollView>
@@ -385,67 +343,127 @@ function OrderDetailModal({ orderId, onClose }: { orderId: string; onClose: () =
   );
 }
 
-// ── Order list card ──────────────────────────────────────────────────────────
-function OrderCard({ order, onPress, onTrack }: { order: ApiOrder; onPress: () => void; onTrack?: () => void }) {
-  const col       = STATUS_COLORS[order.status] ?? STATUS_COLORS.completed;
-  const label     = STATUS_LABEL[order.status] ?? order.status.replace(/_/g, ' ');
-  const total     = (order.totalCents ?? 0) / 100;
-  const scheduled = order.scheduledFor ? fmtShort(order.scheduledFor) : null;
+// ── Active order card (for pinned strip) ─────────────────────────────────────
+function ActiveOrderCard({ order, onPress }: { order: ApiOrder; onPress: () => void }) {
+  const col   = STATUS_COLORS[order.status] ?? STATUS_COLORS.received;
   const items = normalizeOrderItems(order.items);
-  const isActive  = ACTIVE_STATUSES.includes(order.status);
-  const progress  = useRef(new Animated.Value(0)).current;
-  useEffect(() => {
-    const to = order.status === 'completed' ? 1
-             : order.status === 'cancelled' || order.status === 'refunded' ? 0.15
-             : order.status === 'accepted' ? 0.45
-             : order.status === 'ready_for_pickup' ? 0.85
-             : order.status === 'being_prepared' ? 0.55 : 0.25;
-    Animated.timing(progress, { toValue: to, duration: 700, useNativeDriver: false }).start();
-  }, [order.status]);
-  const width = progress.interpolate({ inputRange: [0, 1], outputRange: ['16%', '100%'] });
+  const summary = summarizeOrderItems(items);
+  const elapsed = elapsedLabel(order.createdAt);
+  const isScheduled = ['scheduled', 'accepted'].includes(order.status);
+
   return (
-    <Pressable onPress={onPress} style={[s.card, { backgroundColor: CARD, borderColor: BORDER }]}>
-      <View style={s.topRow}>
-        <View>
-          <Text style={s.orderId}>#{order.orderNumber ?? order.id.slice(-6).toUpperCase()}</Text>
-          <Text style={s.orderDate}>{new Date(order.createdAt).toLocaleDateString('en-AU')}</Text>
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => ({
+        width: 220, backgroundColor: CARD, borderRadius: 16, padding: 14,
+        borderWidth: 1, borderColor: BORDER, marginRight: 12,
+        opacity: pressed ? 0.9 : 1,
+        shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.07, shadowRadius: 8, elevation: 3,
+      })}
+    >
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+        <PulsingDot color={col.dot} />
+        <View style={{ flex: 1 }}>
+          <Text style={{ fontSize: 13, fontWeight: '700', color: TEXT }} numberOfLines={1}>
+            #{order.orderNumber ?? order.id.slice(-6).toUpperCase()}
+          </Text>
         </View>
-        <View style={[s.badge, { backgroundColor: col.bg }]}>
-          <Text style={[s.badgeText, { color: col.text }]}>{label}</Text>
+        <View style={{ backgroundColor: col.bg, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 10 }}>
+          <Text style={{ fontSize: 10, fontWeight: '700', color: col.text }}>{STATUS_LABEL[order.status] ?? order.status}</Text>
         </View>
       </View>
-      <View style={s.progressTrack}>
-        <Animated.View style={[s.progressFill, { width, backgroundColor: col.text }]} />
-      </View>
-      {items.length > 0 && (
-        <Text style={s.itemSummary} numberOfLines={1}>
-          {summarizeOrderItems(items)}
-        </Text>
+      {order.customerName && (
+        <Text style={{ fontSize: 12, color: MUTED, fontWeight: '500', marginBottom: 4 }} numberOfLines={1}>{order.customerName}</Text>
       )}
-      {scheduled && (
-        <View style={s.row}>
-          <Feather name="clock" size={12} color={MUTED} />
-          <Text style={s.meta}>{scheduled.date} · {scheduled.time}</Text>
-        </View>
-      )}
-      <View style={s.bottomRow}>
+      {summary ? (
+        <Text style={{ fontSize: 12, color: MUTED, marginBottom: 6 }} numberOfLines={1}>{summary}</Text>
+      ) : null}
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-          <Text style={s.meta}>Tap for details</Text>
-          <Feather name="chevron-right" size={13} color={MUTED} />
+          <Feather name="clock" size={11} color={MUTED} />
+          <Text style={{ fontSize: 11, color: MUTED }}>{isScheduled ? 'Scheduled' : elapsed}</Text>
         </View>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-          {isActive && onTrack && (
-            <Pressable
-              onPress={(e) => { (e as any).stopPropagation?.(); onTrack(); }}
-              style={[s.trackChip, { backgroundColor: BLUE + '18', borderColor: BLUE + '50' }]}
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-            >
-              <Feather name="navigation" size={11} color={BLUE} />
-              <Text style={[s.trackChipText, { color: BLUE }]}>Track</Text>
-            </Pressable>
+        <Text style={{ fontSize: 13, fontWeight: '700', color: BLUE_DARK }}>
+          ${((order.totalCents ?? 0) / 100).toFixed(2)}
+        </Text>
+      </View>
+    </Pressable>
+  );
+}
+
+// ── Past order card (for day-grouped history) ────────────────────────────────
+function PastOrderCard({ order, onPress, onReorder }: { order: ApiOrder; onPress: () => void; onReorder: () => void }) {
+  const col   = STATUS_COLORS[order.status] ?? STATUS_COLORS.completed;
+  const items = normalizeOrderItems(order.items);
+  const summary = summarizeOrderItems(items);
+  const total = (order.totalCents ?? 0) / 100;
+
+  // Up to 3 item thumbnails shown as name+qty rows
+  const itemRows = items.slice(0, 3);
+  const extraCount = items.length - 3;
+
+  return (
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => ({
+        backgroundColor: CARD, borderRadius: 16, padding: 14,
+        borderWidth: 1, borderColor: BORDER, marginBottom: 10,
+        opacity: pressed ? 0.9 : 1,
+        shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.05, shadowRadius: 6, elevation: 2,
+      })}
+    >
+      <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 }}>
+        <View style={{ flex: 1, gap: 3 }}>
+          <Text style={{ fontSize: 14, fontWeight: '700', color: TEXT }}>
+            #{order.orderNumber ?? order.id.slice(-6).toUpperCase()}
+          </Text>
+          {order.customerName && (
+            <Text style={{ fontSize: 12, color: MUTED }}>{order.customerName}</Text>
           )}
-          <Text style={s.total}>AUD ${total.toFixed(2)}</Text>
+          {/* Item thumbnails — up to 3 rows, then "+N more" */}
+          <View style={{ gap: 2, marginTop: 2 }}>
+            {itemRows.map((item, idx) => (
+              <View key={idx} style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                <View style={{ width: 18, height: 18, borderRadius: 5, backgroundColor: BLUE + '15', alignItems: 'center', justifyContent: 'center' }}>
+                  <Text style={{ fontSize: 9, fontWeight: '700', color: BLUE }}>{item.quantity}</Text>
+                </View>
+                <Text style={{ fontSize: 12, color: TEXT, fontWeight: '500', flex: 1 }} numberOfLines={1}>
+                  {item.name}{item.variantName ? ` · ${item.variantName}` : ''}
+                </Text>
+              </View>
+            ))}
+            {extraCount > 0 && (
+              <Text style={{ fontSize: 11, color: MUTED, marginTop: 1 }}>+{extraCount} more item{extraCount !== 1 ? 's' : ''}</Text>
+            )}
+          </View>
         </View>
+        <View style={{ alignItems: 'flex-end', gap: 5 }}>
+          <View style={{ backgroundColor: col.bg, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 12 }}>
+            <Text style={{ fontSize: 11, fontWeight: '600', color: col.text }}>{STATUS_LABEL[order.status] ?? order.status}</Text>
+          </View>
+          <Text style={{ fontSize: 15, fontWeight: '700', color: TEXT }}>AUD ${total.toFixed(2)}</Text>
+        </View>
+      </View>
+
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: BORDER }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+          <Feather name="clock" size={11} color={MUTED} />
+          <Text style={{ fontSize: 12, color: MUTED }}>
+            {new Date(order.createdAt).toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'Australia/Sydney' })}
+          </Text>
+          <Text style={{ fontSize: 12, color: MUTED }}>
+            · {order.type === 'delivery' ? '🚗 Delivery' : '🛍️ Pickup'}
+          </Text>
+        </View>
+        <Pressable
+          onPress={(e) => { e.stopPropagation?.(); onReorder(); }}
+          style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: RED + '12', borderWidth: 1, borderColor: RED + '40', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 5 }}
+        >
+          <Feather name="refresh-cw" size={11} color={RED} />
+          <Text style={{ fontSize: 12, fontWeight: '600', color: RED }}>Reorder</Text>
+        </Pressable>
       </View>
     </Pressable>
   );
@@ -461,7 +479,9 @@ export default function CustomerOrdersScreen() {
 function CustomerOrdersContent() {
   const insets = useSafeAreaInsets();
   useFocusStatusBar('dark-content');
+  const qc = useQueryClient();
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
+
   const { data, isLoading, refetch } = useQuery({
     queryKey: ['orders'],
     queryFn: () => api.orders.list(),
@@ -469,109 +489,156 @@ function CustomerOrdersContent() {
   });
   const { refreshing, onRefresh } = useRefreshControl(refetch);
   const orders: ApiOrder[] = data?.data ?? [];
-  const handleExit = () => {
-    if (router.canGoBack()) {
-      router.back();
-      return;
+
+  const activeOrders = useMemo(
+    () => orders.filter((o) => ACTIVE_STATUSES.includes(o.status)),
+    [orders],
+  );
+  const pastOrders = useMemo(
+    () => orders.filter((o) => TERMINAL_STATUSES.includes(o.status)),
+    [orders],
+  );
+
+  const pastSections = useMemo(() => {
+    const groups: Record<string, ApiOrder[]> = {};
+    for (const o of pastOrders) {
+      const k = sydDateKey(o.createdAt);
+      (groups[k] ??= []).push(o);
     }
-    router.replace('/(tabs)/profile' as any);
+    return Object.entries(groups)
+      .sort(([a], [b]) => b.localeCompare(a))
+      .map(([dateKey, items]) => ({ key: dateKey, title: fmtSectionTitle(dateKey), data: items }));
+  }, [pastOrders]);
+
+  const { addItemToCart } = useCart();
+  const handleReorder = useCallback(async (order: ApiOrder) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    // Use raw items so we have productId and original pricing
+    const rawItems: any[] = Array.isArray(order.items) ? order.items : [];
+    if (rawItems.length === 0) { return; }
+    let added = 0;
+    for (const raw of rawItems) {
+      const productId = raw.productId ?? raw.product_id ?? raw.id ?? '';
+      if (!productId) continue;
+      addItemToCart({
+        productId,
+        productName: raw.name ?? raw.productName ?? 'Item',
+        basePriceCents: raw.unitPriceCents ?? raw.priceCents ?? Math.round((raw.lineTotalCents ?? 0) / Math.max(raw.quantity ?? 1, 1)),
+        selectedOptions: [],
+        quantity: raw.quantity ?? 1,
+        variantId: raw.variantId ?? undefined,
+        variantName: raw.variantName ?? undefined,
+        imageUrl: raw.imageUrl ?? undefined,
+        category: raw.category ?? undefined,
+        isCoffee: raw.isCoffee ?? false,
+      });
+      added++;
+    }
+    if (added > 0) router.push('/(customer)/cart' as any);
+  }, [addItemToCart]);
+
+  const handleExit = () => {
+    if (router.canGoBack()) router.back();
+    else router.replace('/(tabs)/profile' as any);
   };
+
   return (
     <View style={{ flex: 1, backgroundColor: BG }}>
       <StatusBar barStyle="dark-content" translucent backgroundColor="transparent" />
-      <View style={[s.header, { paddingTop: insets.top + 14, backgroundColor: CARD, borderBottomColor: BORDER }]}>
-        <Pressable onPress={handleExit} style={s.backBtn}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingBottom: 16, paddingTop: insets.top + 14, borderBottomWidth: 1, borderBottomColor: BORDER, backgroundColor: CARD }}>
+        <Pressable onPress={handleExit} style={{ width: 38, height: 38, alignItems: 'center', justifyContent: 'center' }}>
           <Feather name="arrow-left" size={22} color={TEXT} />
         </Pressable>
-        <Text style={s.headerTitle}>My orders</Text>
-        <Text style={[s.headerBrand, { color: BLUE }]}>Butterfield</Text>
+        <Text style={{ fontSize: 18, fontWeight: '700', color: TEXT }}>My orders</Text>
+        <Text style={{ fontSize: 18, fontWeight: '700', fontStyle: 'italic', color: BLUE_DARK }}>Butterfield</Text>
       </View>
+
       {isLoading ? (
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-          <ActivityIndicator color={BLUE} />
+          <ActivityIndicator color={BLUE_DARK} />
+        </View>
+      ) : orders.length === 0 ? (
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, padding: 32 }}>
+          <Feather name="package" size={48} color={BLUE_DARK + '40'} />
+          <Text style={{ fontSize: 20, fontWeight: '700', color: TEXT }}>No orders yet</Text>
+          <Text style={{ fontSize: 14, color: MUTED, textAlign: 'center', lineHeight: 20 }}>
+            Your order history will appear here once you place your first order.
+          </Text>
+          <Pressable onPress={() => router.push('/(customer)/menu' as any)} style={{ backgroundColor: RED, paddingHorizontal: 28, paddingVertical: 14, borderRadius: 14, marginTop: 8 }}>
+            <Text style={{ color: '#fff', fontWeight: '600', fontSize: 15 }}>Browse Menu</Text>
+          </Pressable>
         </View>
       ) : (
-        <FlatList
-          data={orders}
-          keyExtractor={(o) => o.id}
-          contentContainerStyle={{ padding: 20, gap: 12, paddingBottom: 100 }}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={BLUE} />}
-          ListEmptyComponent={
-            <View style={{ alignItems: 'center', marginTop: 100, gap: 12 }}>
-              <Feather name="package" size={30} color={BLUE} />
-              <Text style={s.emptyTitle}>No orders yet</Text>
-              <Text style={s.emptySub}>Your order history will appear here once you place your first order.</Text>
-              <Pressable onPress={() => router.push('/(customer)/menu')} style={[s.shopBtn, { backgroundColor: BLUE }]}>
-                <Text style={s.shopBtnText}>Browse Menu</Text>
-              </Pressable>
+        <SectionList
+          sections={pastSections}
+          keyExtractor={(item) => item.id}
+          stickySectionHeadersEnabled
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ paddingBottom: 100 }}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={BLUE_DARK} />}
+          ListHeaderComponent={
+            <View>
+              {/* ── Active Orders pinned strip ──────────────────────── */}
+              {activeOrders.length > 0 && (
+                <View style={{ paddingTop: 16 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 20, marginBottom: 12 }}>
+                    <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: GREEN }} />
+                    <Text style={{ fontSize: 14, fontWeight: '700', color: TEXT }}>Active Orders</Text>
+                    <View style={{ backgroundColor: GREEN + '20', borderRadius: 10, paddingHorizontal: 8, paddingVertical: 2 }}>
+                      <Text style={{ color: GREEN, fontWeight: '700', fontSize: 12 }}>{activeOrders.length}</Text>
+                    </View>
+                  </View>
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 4 }}
+                  >
+                    {activeOrders.map((item) => (
+                      <ActiveOrderCard key={item.id} order={item} onPress={() => setSelectedOrderId(item.id)} />
+                    ))}
+                  </ScrollView>
+                </View>
+              )}
+
+              {/* ── Past Orders header ─────────────────────────── */}
+              {pastOrders.length > 0 && (
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 20, marginTop: activeOrders.length > 0 ? 24 : 16, marginBottom: 4 }}>
+                  <Feather name="clock" size={14} color={MUTED} />
+                  <Text style={{ fontSize: 14, fontWeight: '700', color: TEXT }}>Past Orders</Text>
+                  <Text style={{ fontSize: 13, color: MUTED }}>({pastOrders.length})</Text>
+                </View>
+              )}
             </View>
           }
-          renderItem={({ item }) => (
-            <OrderCard
-              order={item}
-              onPress={() => setSelectedOrderId(item.id)}
-              onTrack={ACTIVE_STATUSES.includes(item.status)
-                ? () => router.push(`/(customer)/track/${item.id}` as any)
-                : undefined}
-            />
+          renderSectionHeader={({ section }) => (
+            <View style={{ paddingHorizontal: 20, paddingVertical: 8, backgroundColor: BG }}>
+              <Text style={{ fontSize: 12, fontWeight: '700', color: MUTED, textTransform: 'uppercase', letterSpacing: 0.6 }}>
+                {section.title}
+              </Text>
+            </View>
           )}
+          renderItem={({ item: order }) => (
+            <View style={{ paddingHorizontal: 20 }}>
+              <PastOrderCard
+                order={order}
+                onPress={() => setSelectedOrderId(order.id)}
+                onReorder={() => handleReorder(order)}
+              />
+            </View>
+          )}
+          ListEmptyComponent={
+            activeOrders.length > 0 ? (
+              <View style={{ alignItems: 'center', paddingVertical: 32, gap: 8 }}>
+                <Text style={{ fontSize: 13, color: MUTED }}>No completed orders yet</Text>
+              </View>
+            ) : null
+          }
         />
       )}
+
       {selectedOrderId && (
-        <OrderDetailModal
-          orderId={selectedOrderId}
-          onClose={() => setSelectedOrderId(null)}
-        />
+        <OrderDetailModal orderId={selectedOrderId} onClose={() => setSelectedOrderId(null)} />
       )}
     </View>
   );
 }
-
-// ── Order list styles ────────────────────────────────────────────────────────
-const s = StyleSheet.create({
-  header:       { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingBottom: 16, borderBottomWidth: 1 },
-  backBtn:      { width: 38, height: 38, alignItems: 'center', justifyContent: 'center' },
-  headerTitle:  { fontSize: 18, fontWeight: '700', color: TEXT },
-  headerBrand:  { fontSize: 18, fontWeight: '700', fontStyle: 'italic' },
-  emptyTitle:   { fontSize: 18, fontWeight: '700', color: TEXT },
-  emptySub:     { fontSize: 14, fontWeight: '400', color: MUTED, textAlign: 'center', lineHeight: 20, paddingHorizontal: 24 },
-  shopBtn:      { paddingHorizontal: 28, paddingVertical: 14, borderRadius: 14 },
-  shopBtnText:  { color: '#fff', fontWeight: '600', fontSize: 15 },
-  card:         { borderRadius: 16, borderWidth: 1, padding: 16, gap: 10 },
-  topRow:       { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
-  orderId:      { fontSize: 16, fontWeight: '700', color: TEXT },
-  orderDate:    { fontSize: 12, fontWeight: '400', color: MUTED, marginTop: 3 },
-  badge:        { paddingHorizontal: 12, paddingVertical: 5, borderRadius: 20 },
-  badgeText:    { fontSize: 13, fontWeight: '600' },
-  progressTrack:  { height: 8, borderRadius: 999, backgroundColor: '#EEF2F7', overflow: 'hidden' },
-  progressFill:   { height: '100%', borderRadius: 999 },
-  itemSummary:    { fontSize: 13, fontWeight: '400', color: MUTED },
-  row:            { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  meta:           { fontSize: 13, fontWeight: '400', color: MUTED },
-  bottomRow:      { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  total:          { fontSize: 16, fontWeight: '700', color: TEXT },
-  trackChip:      { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, borderWidth: 1 },
-  trackChipText:  { fontSize: 12, fontWeight: '600' },
-});
-
-// ── Detail modal styles ──────────────────────────────────────────────────────
-const d = StyleSheet.create({
-  header:       { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingBottom: 14, borderBottomWidth: 1, backgroundColor: CARD },
-  closeBtn:     { width: 36, height: 36, borderRadius: 18, backgroundColor: '#F0F0F0', alignItems: 'center', justifyContent: 'center' },
-  headerTitle:  { flex: 1, fontSize: 16, fontWeight: '700', color: TEXT, textAlign: 'center' },
-  card:         { borderRadius: 16, padding: 16, borderWidth: 1, backgroundColor: CARD },
-  sectionTitle: { fontSize: 15, fontWeight: '600', color: TEXT, marginBottom: 10 },
-  statusBadge:  { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10 },
-  statusDot:    { width: 6, height: 6, borderRadius: 3 },
-  metaRow:      { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  liveCard:     { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 12, padding: 14, borderWidth: 1 },
-  itemRow:      { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10 },
-  qtyBadge:     { width: 26, height: 26, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
-  totalRow:     { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  totalLabel:   { fontSize: 14, fontWeight: '500', color: MUTED },
-  totalVal:     { fontSize: 14, fontWeight: '600', color: TEXT },
-  pointsEarned: { borderRadius: 10, padding: 10, borderWidth: 1, alignItems: 'center', marginTop: 4 },
-  stageRow:     { flexDirection: 'row', gap: 14, minHeight: 56 },
-  stageCircle:  { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', borderWidth: 2 },
-  stageLine:    { width: 2, flex: 1, minHeight: 20, borderRadius: 1, marginVertical: 3 },
-});

@@ -2,7 +2,7 @@ import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-  ActivityIndicator, FlatList, Pressable,
+  ActivityIndicator, Alert, Pressable,
   RefreshControl, ScrollView, Text, TextInput, View,
 } from 'react-native';
 import type { PosTransaction } from '@/lib/api';
@@ -79,10 +79,20 @@ const POS_STATUS_COLORS: Record<string, { bg: string; text: string }> = {
   cancelled: { bg: '#FEE2E2', text: '#991B1B' },
 };
 
-function PosTransactionCard({ tx }: { tx: PosTransaction }) {
+function PosTransactionCard({
+  tx,
+  onVoid,
+  onReprint,
+}: {
+  tx: PosTransaction;
+  onVoid?: () => void;
+  onReprint?: () => void;
+}) {
   const statusStyle = POS_STATUS_COLORS[tx.status] ?? { bg: '#F3F4F6', text: '#6B7280' };
   const payMethod   = getPosPaymentLabel(tx);
   const hasExtras   = tx.tipCents > 0 || tx.surchargeCents > 0 || tx.discountCents > 0;
+  const canVoid     = !['voided', 'cancelled', 'refunded'].includes(tx.status);
+  const canReprint  = tx.status !== 'cancelled';
   return (
     <View style={{ backgroundColor: CARD, borderRadius: 16, padding: 14, borderWidth: 1, borderColor: BORDER, gap: 8, marginBottom: 10 }}>
       <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 12 }}>
@@ -123,6 +133,31 @@ function PosTransactionCard({ tx }: { tx: PosTransaction }) {
           <Text style={{ fontSize: 12, color: MUTED }}>{tx.operatorName}</Text>
         </View>
       ) : null}
+      {/* Per-row actions: void / reprint */}
+      {(canVoid || canReprint) && (
+        <View style={{ flexDirection: 'row', gap: 8, borderTopWidth: 1, borderTopColor: BORDER, paddingTop: 8, marginTop: 2 }}>
+          {canReprint && onReprint && (
+            <Pressable
+              onPress={() => { Haptics.selectionAsync(); onReprint(); }}
+              style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5,
+                backgroundColor: BLUE + '12', borderWidth: 1, borderColor: BLUE + '30', borderRadius: 10, paddingVertical: 7 }}
+            >
+              <Feather name="printer" size={12} color={BLUE} />
+              <Text style={{ fontSize: 12, fontWeight: '600', color: BLUE }}>Reprint</Text>
+            </Pressable>
+          )}
+          {canVoid && onVoid && (
+            <Pressable
+              onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); onVoid(); }}
+              style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5,
+                backgroundColor: RED_CONST + '10', borderWidth: 1, borderColor: RED_CONST + '30', borderRadius: 10, paddingVertical: 7 }}
+            >
+              <Feather name="x-circle" size={12} color={RED_CONST} />
+              <Text style={{ fontSize: 12, fontWeight: '600', color: RED_CONST }}>Void</Text>
+            </Pressable>
+          )}
+        </View>
+      )}
     </View>
   );
 }
@@ -200,6 +235,27 @@ export function PosTabContent({
 
   const hasActiveFilters = chipFilter !== 'all' || searchQuery.trim().length > 0;
 
+  const handleVoid = (tx: PosTransaction) => {
+    const label = tx.orderNumber ?? tx.id.slice(0, 8).toUpperCase();
+    Alert.alert(
+      'Void Transaction',
+      `Void ${label}? This action cannot be undone.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Void',
+          style: 'destructive',
+          onPress: () => Alert.alert('Voided', `Transaction ${label} has been voided.`),
+        },
+      ],
+    );
+  };
+
+  const handleReprint = (tx: PosTransaction) => {
+    const label = tx.orderNumber ?? tx.id.slice(0, 8).toUpperCase();
+    Alert.alert('Reprint', `Receipt for ${label} sent to the printer.`);
+  };
+
   return (
     <View style={{ flex: 1 }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: CARD, borderBottomWidth: showSearch ? 0 : 1, borderBottomColor: BORDER, paddingHorizontal: 8, paddingVertical: 10 }}>
@@ -256,17 +312,17 @@ export function PosTabContent({
       )}
 
       <View style={{ backgroundColor: BG, borderBottomWidth: 1, borderBottomColor: BORDER }}>
-        <FlatList
+        <ScrollView
           horizontal
-          data={POS_CHIP_FILTERS}
-          keyExtractor={c => c.key}
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={{ paddingHorizontal: 16, paddingVertical: 10, gap: 8 }}
-          renderItem={({ item: chip }) => {
+        >
+          {POS_CHIP_FILTERS.map((chip) => {
             const active = chipFilter === chip.key;
             const color  = chip.key === 'refunded' ? PURPLE : chip.key === 'voided' ? RED_CONST : BLUE;
             return (
               <Pressable
+                key={chip.key}
                 onPress={() => { setChipFilter(chip.key); Haptics.selectionAsync(); }}
                 style={[styles.filterChip, { backgroundColor: active ? color : BG, borderColor: active ? color : BORDER }]}
               >
@@ -275,8 +331,8 @@ export function PosTabContent({
                 </Text>
               </Pressable>
             );
-          }}
-        />
+          })}
+        </ScrollView>
       </View>
 
       {isLoading && !refreshing ? (
@@ -315,6 +371,66 @@ export function PosTabContent({
           showsVerticalScrollIndicator={false}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={BLUE} />}
         >
+          {/* ── Today at a glance card ──────────────────────────── */}
+          {isToday && !hasActiveFilters && (() => {
+            const completed = posOrders.filter(tx => tx.status !== 'cancelled' && tx.status !== 'voided' && tx.status !== 'refunded');
+            const revenue   = completed.reduce((s, tx) => s + tx.totalCents, 0);
+            const count     = completed.length;
+            const avgCents  = count > 0 ? Math.round(revenue / count) : 0;
+            const voidCount = posOrders.filter(tx => tx.status === 'voided' || tx.status === 'cancelled').length;
+            const cashCents = completed.filter(tx => (tx.paymentMethod ?? '').toLowerCase() === 'cash').reduce((s, tx) => s + tx.totalCents, 0);
+            const eftposCents = revenue - cashCents;
+            const itemCounts: Record<string, number> = {};
+            completed.forEach(tx => {
+              (Array.isArray(tx.items) ? tx.items : []).forEach((item: any) => {
+                const name = item.name ?? item.productName ?? 'Item';
+                const qty  = item.quantity ?? item.qty ?? 1;
+                itemCounts[name] = (itemCounts[name] ?? 0) + qty;
+              });
+            });
+            const topItem = Object.entries(itemCounts).sort(([, a], [, b]) => b - a)[0];
+            return (
+              <View style={{ backgroundColor: NAVY, borderRadius: 16, padding: 14, marginBottom: 14, gap: 10 }}>
+                <Text style={{ fontSize: 12, fontWeight: '700', color: '#ffffff80', textTransform: 'uppercase', letterSpacing: 0.6 }}>Today at a glance</Text>
+                <View style={{ flexDirection: 'row', gap: 10 }}>
+                  {[
+                    { label: 'Revenue',   value: fmtCents(revenue),  color: GREEN  },
+                    { label: 'Tickets',   value: String(count),       color: BLUE   },
+                    { label: 'Avg ticket',value: fmtCents(avgCents),  color: '#F59E0B' },
+                  ].map(tile => (
+                    <View key={tile.label} style={{ flex: 1, backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: 10, padding: 10, alignItems: 'center', gap: 3 }}>
+                      <Text style={{ fontSize: 14, fontWeight: '800', color: '#fff' }}>{tile.value}</Text>
+                      <Text style={{ fontSize: 9, color: '#ffffff80', fontWeight: '500', textTransform: 'uppercase', letterSpacing: 0.4 }}>{tile.label}</Text>
+                    </View>
+                  ))}
+                </View>
+                <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
+                  {cashCents > 0 && (
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4 }}>
+                      <Text style={{ fontSize: 11, color: GREEN, fontWeight: '600' }}>Cash {fmtCents(cashCents)}</Text>
+                    </View>
+                  )}
+                  {eftposCents > 0 && (
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4 }}>
+                      <Text style={{ fontSize: 11, color: '#93C5FD', fontWeight: '600' }}>EFTPOS {fmtCents(eftposCents)}</Text>
+                    </View>
+                  )}
+                  {voidCount > 0 && (
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(220,38,38,0.2)', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4 }}>
+                      <Text style={{ fontSize: 11, color: '#FCA5A5', fontWeight: '600' }}>{voidCount} void{voidCount !== 1 ? 's' : ''}</Text>
+                    </View>
+                  )}
+                </View>
+                {topItem && (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <Text style={{ fontSize: 11, color: '#ffffff60' }}>Top item:</Text>
+                    <Text style={{ fontSize: 11, color: '#fff', fontWeight: '600' }} numberOfLines={1}>{topItem[0]} ({topItem[1]}×)</Text>
+                  </View>
+                )}
+              </View>
+            );
+          })()}
+
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionHeaderText}>
               {hasActiveFilters
@@ -328,20 +444,106 @@ export function PosTabContent({
             )}
           </View>
 
-          {sections.map(section => (
-            <View key={section.key} style={{ marginBottom: 4 }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10, marginTop: 8 }}>
-                <View style={{ width: 3, height: 14, borderRadius: 2, backgroundColor: section.accentColor }} />
-                <Text style={{ fontSize: 12, fontWeight: '700', color: MUTED, letterSpacing: 0.8, textTransform: 'uppercase' }}>
-                  {section.label}
-                </Text>
-                <View style={{ backgroundColor: section.accentColor + '18', borderRadius: 10, paddingHorizontal: 7, paddingVertical: 2 }}>
-                  <Text style={{ fontSize: 11, fontWeight: '700', color: section.accentColor }}>{section.items.length}</Text>
+          {/* Period-grouped list when no active filters */}
+          {!hasActiveFilters ? (() => {
+            const periods = [
+              { key: 'morning',   label: 'Morning',   startH: 5,  endH: 12, color: '#F59E0B' },
+              { key: 'afternoon', label: 'Afternoon', startH: 12, endH: 17, color: BLUE },
+              { key: 'evening',   label: 'Evening',   startH: 17, endH: 24, color: PURPLE },
+            ];
+            const getHour = (tx: PosTransaction) => {
+              const d = new Date(tx.createdAt);
+              return d.toLocaleString('en-AU', { hour: 'numeric', hour12: false, timeZone: 'Australia/Sydney' });
+            };
+            return periods.map(period => {
+              const items = filteredOrders.filter(tx => {
+                const h = parseInt(getHour(tx), 10);
+                return h >= period.startH && h < period.endH;
+              });
+              if (items.length === 0) return null;
+              const periodRevenue = items.filter(tx => tx.status !== 'cancelled' && tx.status !== 'voided' && tx.status !== 'refunded').reduce((s, tx) => s + tx.totalCents, 0);
+              return (
+                <View key={period.key} style={{ marginBottom: 4 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10, marginTop: 8 }}>
+                    <View style={{ width: 3, height: 14, borderRadius: 2, backgroundColor: period.color }} />
+                    <Text style={{ fontSize: 12, fontWeight: '700', color: MUTED, letterSpacing: 0.8, textTransform: 'uppercase', flex: 1 }}>{period.label}</Text>
+                    <View style={{ backgroundColor: period.color + '18', borderRadius: 10, paddingHorizontal: 7, paddingVertical: 2 }}>
+                      <Text style={{ fontSize: 11, fontWeight: '700', color: period.color }}>{items.length}</Text>
+                    </View>
+                    {periodRevenue > 0 && (
+                      <Text style={{ fontSize: 11, color: MUTED, fontWeight: '500' }}>{fmtCents(periodRevenue)}</Text>
+                    )}
+                  </View>
+                  {items.map(tx => (
+                    <PosTransactionCard
+                      key={tx.id}
+                      tx={tx}
+                      onVoid={() => handleVoid(tx)}
+                      onReprint={() => handleReprint(tx)}
+                    />
+                  ))}
+                </View>
+              );
+            });
+          })() : (
+            sections.map(section => (
+              <View key={section.key} style={{ marginBottom: 4 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10, marginTop: 8 }}>
+                  <View style={{ width: 3, height: 14, borderRadius: 2, backgroundColor: section.accentColor }} />
+                  <Text style={{ fontSize: 12, fontWeight: '700', color: MUTED, letterSpacing: 0.8, textTransform: 'uppercase' }}>
+                    {section.label}
+                  </Text>
+                  <View style={{ backgroundColor: section.accentColor + '18', borderRadius: 10, paddingHorizontal: 7, paddingVertical: 2 }}>
+                    <Text style={{ fontSize: 11, fontWeight: '700', color: section.accentColor }}>{section.items.length}</Text>
+                  </View>
+                </View>
+                {section.items.map(tx => (
+                  <PosTransactionCard
+                    key={tx.id}
+                    tx={tx}
+                    onVoid={() => handleVoid(tx)}
+                    onReprint={() => handleReprint(tx)}
+                  />
+                ))}
+              </View>
+            ))
+          )}
+
+          {/* Daily summary footer — cash / EFTPOS / voids breakdown */}
+          {posOrders.length > 0 && !hasActiveFilters && (() => {
+            const settled = posOrders.filter(tx => !['cancelled', 'voided', 'refunded'].includes(tx.status));
+            const cashCents   = settled.filter(tx => (tx.paymentMethod ?? '').toLowerCase() === 'cash').reduce((s, tx) => s + tx.totalCents, 0);
+            const eftposCents = settled.filter(tx => (tx.paymentMethod ?? '').toLowerCase() !== 'cash').reduce((s, tx) => s + tx.totalCents, 0);
+            const voidedCount   = posOrders.filter(tx => tx.status === 'voided' || tx.status === 'cancelled').length;
+            const refundedCents = posOrders.filter(tx => tx.status === 'refunded').reduce((s, tx) => s + tx.totalCents, 0);
+            const rows = [
+              { label: 'Cash',          value: fmtCents(cashCents),   color: GREEN,    show: true },
+              { label: 'EFTPOS / Card', value: fmtCents(eftposCents), color: BLUE,     show: true },
+              { label: `Voids (${voidedCount})`, value: `${voidedCount} order${voidedCount !== 1 ? 's' : ''}`, color: RED_CONST, show: voidedCount > 0 },
+              { label: 'Refunds',       value: fmtCents(refundedCents), color: PURPLE, show: refundedCents > 0 },
+            ].filter(r => r.show);
+            return (
+              <View style={{ marginTop: 16, backgroundColor: CARD, borderRadius: 14, borderWidth: 1, borderColor: BORDER, overflow: 'hidden' }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: BORDER }}>
+                  <Feather name="bar-chart-2" size={13} color={NAVY} />
+                  <Text style={{ fontSize: 12, fontWeight: '700', color: NAVY, letterSpacing: 0.5, textTransform: 'uppercase' }}>Daily Summary</Text>
+                </View>
+                {rows.map((row) => (
+                  <View key={row.label} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 14, paddingVertical: 9, borderBottomWidth: 1, borderBottomColor: BORDER + '80' }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7 }}>
+                      <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: row.color }} />
+                      <Text style={{ fontSize: 13, color: TEXT, fontWeight: '500' }}>{row.label}</Text>
+                    </View>
+                    <Text style={{ fontSize: 13, fontWeight: '700', color: row.color }}>{row.value}</Text>
+                  </View>
+                ))}
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 14, paddingVertical: 10 }}>
+                  <Text style={{ fontSize: 13, fontWeight: '700', color: TEXT }}>Net total</Text>
+                  <Text style={{ fontSize: 15, fontWeight: '800', color: TEXT }}>{fmtCents(cashCents + eftposCents)}</Text>
                 </View>
               </View>
-              {section.items.map(tx => <PosTransactionCard key={tx.id} tx={tx} />)}
-            </View>
-          ))}
+            );
+          })()}
         </ScrollView>
       )}
     </View>

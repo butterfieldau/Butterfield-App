@@ -53,11 +53,11 @@ const INV_STATUS: Record<string, { label: string; color: string; bg: string }> =
 };
 
 const STATUS_STEPS = ['pending', 'processing', 'dispatched', 'delivered'];
-const FILTERS = ['All', 'Overdue', 'pending', 'processing', 'dispatched', 'delivered', 'cancelled'];
+const FILTERS = ['All', 'Active', 'Overdue', 'Completed'];
 const FILTER_LABELS: Record<string, string> = {
-  All: 'All', Overdue: 'Overdue', pending: 'Pending', processing: 'Processing',
-  dispatched: 'Dispatched', delivered: 'Delivered', cancelled: 'Cancelled',
+  All: 'All', Active: 'Active', Overdue: 'Overdue', Completed: 'Completed',
 };
+const ACTIVE_WS_STATUSES = ['pending', 'processing', 'dispatched'];
 
 function isOverdue(order: any): boolean {
   if (!order.scheduledDate) return false;
@@ -324,9 +324,11 @@ export default function WholesaleOrdersScreen() {
 
   const allOrders: any[] = data?.data ?? [];
   const filteredOrders = allOrders.filter(o => {
-    if (filter === 'All') return true;
-    if (filter === 'Overdue') return isOverdue(o);
-    return o.status === filter;
+    if (filter === 'All')      return true;
+    if (filter === 'Active')   return ACTIVE_WS_STATUSES.includes(o.status);
+    if (filter === 'Overdue')  return isOverdue(o);
+    if (filter === 'Completed') return ['delivered', 'cancelled'].includes(o.status);
+    return true;
   });
   const overdueCount = allOrders.filter(isOverdue).length;
 
@@ -439,18 +441,50 @@ export default function WholesaleOrdersScreen() {
       />
 
       {/* Header */}
-      <View style={{ backgroundColor: BG, paddingHorizontal: 16, paddingTop: 14, paddingBottom: 10, gap: 10 }}>
+      <View style={{ backgroundColor: BG, paddingHorizontal: 16, paddingTop: 14, paddingBottom: 6, gap: 8 }}>
         <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 8 }}>
-          <Text style={{ fontSize: 28, fontWeight: '700', color: TEXT }}>Orders</Text>
-          <Text style={{ color: MUTED, fontWeight: '400', fontSize: 15 }}>{allOrders.length} total</Text>
+          <Text style={{ fontSize: 26, fontWeight: '700', color: TEXT }}>Orders</Text>
+          <Text style={{ color: MUTED, fontWeight: '400', fontSize: 14 }}>{allOrders.length} total</Text>
         </View>
-        {/* Status filter chips */}
+      </View>
+
+      {/* KPI strip */}
+      {allOrders.length > 0 && (() => {
+        const now = new Date();
+        const monthKey = now.toLocaleDateString('en-CA', { timeZone: 'Australia/Sydney' }).slice(0, 7);
+        const thisMonth = allOrders.filter(o => new Date(o.createdAt).toLocaleDateString('en-CA', { timeZone: 'Australia/Sydney' }).slice(0, 7) === monthKey);
+        const monthSpend = thisMonth.filter(o => o.status !== 'cancelled').reduce((s: number, o: any) => s + (o.totalCents ?? 0), 0);
+        const outstanding = allOrders.filter((o: any) => !o.isPaid && !['cancelled', 'delivered'].includes(o.status));
+        const lastOrder = allOrders.length > 0 ? new Date(allOrders[0].createdAt) : null;
+        const lastOrderStr = lastOrder ? lastOrder.toLocaleDateString('en-AU', { day: 'numeric', month: 'short', timeZone: 'Australia/Sydney' }) : '—';
+
+        return (
+          <View style={{ flexDirection: 'row', gap: 8, paddingHorizontal: 16, paddingVertical: 10, backgroundColor: BG }}>
+            {[
+              { label: 'This month',   value: `$${(monthSpend / 100).toFixed(0)}`, icon: 'calendar' as const, color: BLUE },
+              { label: 'Outstanding',  value: String(outstanding.length),           icon: 'clock'    as const, color: outstanding.length > 0 ? '#F59E0B' : MUTED },
+              { label: 'Last order',   value: lastOrderStr,                          icon: 'package'  as const, color: MUTED },
+            ].map(tile => (
+              <View key={tile.label} style={{ flex: 1, backgroundColor: CARD, borderRadius: 12, padding: 10, borderWidth: 1, borderColor: GLASS_BORDER, alignItems: 'center', gap: 3, ...GLASS_SHADOW }}>
+                <View style={{ width: 26, height: 26, borderRadius: 8, backgroundColor: tile.color + '18', alignItems: 'center', justifyContent: 'center' }}>
+                  <Feather name={tile.icon} size={13} color={tile.color} />
+                </View>
+                <Text style={{ fontSize: 13, fontWeight: '700', color: TEXT }}>{tile.value}</Text>
+                <Text style={{ fontSize: 9, color: MUTED, fontWeight: '500', textTransform: 'uppercase', letterSpacing: 0.4, textAlign: 'center' }}>{tile.label}</Text>
+              </View>
+            ))}
+          </View>
+        );
+      })()}
+
+      {/* Status filter chips */}
+      <View style={{ backgroundColor: BG, borderBottomWidth: 1, borderBottomColor: BORDER }}>
         <FlatList
           data={FILTERS}
           horizontal
           showsHorizontalScrollIndicator={false}
           keyExtractor={f => f}
-          contentContainerStyle={{ gap: 8 }}
+          contentContainerStyle={{ gap: 8, paddingHorizontal: 16, paddingVertical: 10 }}
           renderItem={({ item: f }) => {
             const active = filter === f;
             const isOvdFilter = f === 'Overdue';
@@ -471,166 +505,189 @@ export default function WholesaleOrdersScreen() {
         />
       </View>
 
-      {/* Orders list */}
+      {/* Orders list — month-grouped */}
       {isLoading ? (
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
           <ActivityIndicator color={BLUE} />
         </View>
-      ) : (
-        <FlatList
-          data={filteredOrders}
-          keyExtractor={(o: any) => o.id}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={BLUE} />}
-          contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: 100 }}
-          ListEmptyComponent={
-            <View style={{ alignItems: 'center', marginTop: 80, gap: 12 }}>
-              <Feather name="file-text" size={36} color={BORDER} />
-              <Text style={{ color: MUTED, fontWeight: '400', fontSize: 14, textAlign: 'center' }}>
-                {filter === 'Overdue' ? 'No overdue orders.' : 'No orders yet.\nBrowse the catalog to place your first order.'}
-              </Text>
-            </View>
-          }
-          renderItem={({ item: order }: { item: any }) => {
-            const cfg     = STATUS_CONFIG[order.status] ?? { label: order.status, color: '#6B7280', bg: '#F3F4F6' };
-            const items   = normalizeOrderItems(order.items);
-            const stepIdx = STATUS_STEPS.indexOf(order.status);
-            const overdue = isOverdue(order);
-            const inv     = getInvoice(order);
-            const invCfg  = INV_STATUS[inv.status] ?? null;
+      ) : (() => {
+        // Build month-grouped sections
+        const groups: Record<string, any[]> = {};
+        for (const o of filteredOrders) {
+          const d = new Date(o.createdAt);
+          const key = d.toLocaleDateString('en-AU', { month: 'long', year: 'numeric', timeZone: 'Australia/Sydney' });
+          (groups[key] ??= []).push(o);
+        }
+        const sections = Object.entries(groups);
 
-            return (
-              <Pressable
-                onPress={() => { setSelectedOrder(order); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }}
-                style={[st.orderCard, { borderLeftColor: overdue ? RED : cfg.color }]}
-              >
-                {/* Top row */}
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                  <View style={{ flex: 1, gap: 2 }}>
-                    <Text style={{ color: TEXT, fontWeight: '700', fontSize: 15 }}>
-                      #{order.orderNumber ?? order.poReference ?? order.id.slice(0, 8).toUpperCase()}
-                    </Text>
-                    <Text style={{ color: MUTED, fontWeight: '400', fontSize: 11 }}>
-                      {new Date(order.createdAt).toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}
-                    </Text>
-                    {overdue && (
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                        <Feather name="alert-circle" size={11} color={RED} />
-                        <Text style={{ color: RED, fontWeight: '600', fontSize: 11 }}>Overdue</Text>
-                      </View>
-                    )}
-                  </View>
-                  <View style={{ alignItems: 'flex-end', gap: 5 }}>
-                    <View style={{ backgroundColor: cfg.bg, borderColor: cfg.color, borderWidth: 1, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 }}>
-                      <Text style={{ color: cfg.color, fontWeight: '600', fontSize: 11 }}>{cfg.label}</Text>
-                    </View>
-                    <View style={{ flexDirection: 'row', gap: 4, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-                      {Array.isArray(order.editHistory) && order.editHistory.length > 0 && (() => {
-                        const latest = order.editHistory[order.editHistory.length - 1];
-                        const dateStr = (latest?.editedAt ?? latest?.at) ? new Date(latest.editedAt ?? latest.at).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' }) : '';
-                        const note    = latest?.note ?? latest?.reason ?? 'Order items were updated by the team.';
-                        return (
-                          <Pressable
-                            onPress={(e) => { e.stopPropagation?.(); Haptics.selectionAsync(); Alert.alert('Order Modified', `${note}${dateStr ? `\n\n${dateStr}` : ''}`); }}
-                            style={{ backgroundColor: '#EFF6FF', borderWidth: 1, borderColor: '#BFDBFE', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 8 }}
-                          >
-                            <Text style={{ color: '#1D4ED8', fontWeight: '600', fontSize: 9 }}>MODIFIED ›</Text>
-                          </Pressable>
-                        );
-                      })()}
-                      {Array.isArray(order.creditMemos) && order.creditMemos.length > 0 && (() => {
-                        const latest = order.creditMemos[order.creditMemos.length - 1];
-                        const dateStr = latest?.createdAt ? new Date(latest.createdAt).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' }) : '';
-                        const amtStr  = latest?.amountCents ? ` · −$${(latest.amountCents / 100).toFixed(2)}` : '';
-                        const note    = latest?.reason ?? latest?.type ?? 'Credit memo issued.';
-                        return (
-                          <Pressable
-                            onPress={(e) => { e.stopPropagation?.(); Haptics.selectionAsync(); Alert.alert('Credit Issued', `${note}${amtStr}${dateStr ? `\n\n${dateStr}` : ''}`); }}
-                            style={{ backgroundColor: '#FEE2E2', borderWidth: 1, borderColor: '#FCA5A5', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 8 }}
-                          >
-                            <Text style={{ color: '#991B1B', fontWeight: '600', fontSize: 9 }}>CREDIT ISSUED ›</Text>
-                          </Pressable>
-                        );
-                      })()}
-                    </View>
-                    <Text style={{ color: BLUE, fontWeight: '700', fontSize: 15 }}>${(order.totalCents / 100).toFixed(2)}</Text>
-                    {(order.refundedCents ?? 0) > 0 && (
-                      <Text style={{ color: '#EF4444', fontWeight: '500', fontSize: 11 }}>
-                        −${((order.refundedCents ?? 0) / 100).toFixed(2)} refunded
-                      </Text>
-                    )}
-                  </View>
-                </View>
+        if (sections.length === 0) {
+          return (
+            <ScrollView
+              contentContainerStyle={{ flexGrow: 1 }}
+              refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={BLUE} />}
+            >
+              <View style={{ alignItems: 'center', marginTop: 80, gap: 12, padding: 16 }}>
+                <Feather name="file-text" size={36} color={BORDER} />
+                <Text style={{ color: MUTED, fontWeight: '400', fontSize: 14, textAlign: 'center' }}>
+                  {filter === 'Overdue' ? 'No overdue orders.' : 'No orders yet.\nBrowse the catalog to place your first order.'}
+                </Text>
+              </View>
+            </ScrollView>
+          );
+        }
 
-                {/* Progress bar */}
-                {stepIdx >= 0 && (
-                  <View style={{ flexDirection: 'row', gap: 4, marginTop: 8 }}>
-                    {STATUS_STEPS.map((step, i) => (
-                      <View key={step} style={{ flex: 1, height: 3, borderRadius: 2, backgroundColor: i <= stepIdx ? cfg.color : BORDER }} />
-                    ))}
-                  </View>
-                )}
+        return (
+          <ScrollView
+            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={BLUE} />}
+            contentContainerStyle={{ padding: 16, gap: 16, paddingBottom: 100 }}
+          >
+            {sections.map(([month, orders]) => (
+              <View key={month}>
+                <Text style={{ fontSize: 11, fontWeight: '700', color: MUTED, textTransform: 'uppercase', letterSpacing: 0.9, marginBottom: 10 }}>
+                  {month}
+                </Text>
+                <View style={{ gap: 12 }}>
+                  {orders.map((order: any) => {
+                    const cfg     = STATUS_CONFIG[order.status] ?? { label: order.status, color: '#6B7280', bg: '#F3F4F6' };
+                    const items   = normalizeOrderItems(order.items);
+                    const stepIdx = STATUS_STEPS.indexOf(order.status);
+                    const overdue = isOverdue(order);
+                    const inv     = getInvoice(order);
+                    const invCfg  = INV_STATUS[inv.status] ?? null;
 
-                {/* Items summary */}
-                <View style={{ gap: 2, marginTop: 8 }}>
-                  {items.slice(0, 2).map((item, i) => (
-                    <View key={i} style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                      <Text style={{ color: TEXT, fontWeight: '400', fontSize: 12, flex: 1 }}>{item.quantity}× {item.name}</Text>
-                      <Text style={{ color: MUTED, fontWeight: '400', fontSize: 12 }}>${(item.lineTotalCents / 100).toFixed(2)}</Text>
-                    </View>
-                  ))}
-                  {items.length > 2 && (
-                    <Text style={{ color: BLUE, fontWeight: '400', fontSize: 11, marginTop: 2 }}>+{items.length - 2} more items</Text>
-                  )}
-                </View>
-
-                {/* Footer: delivery + invoice badge + details link */}
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 }}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                    {order.scheduledDate ? (
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
-                        <Feather name="truck" size={11} color={overdue ? RED : MUTED} />
-                        <Text style={{ color: overdue ? RED : MUTED, fontWeight: '400', fontSize: 11 }}>
-                          {order.deliveryType === 'pickup' ? 'Pickup' : 'Delivery'} · {new Date(order.scheduledDate).toLocaleDateString('en-AU', { day: 'numeric', month: 'short' })}
-                        </Text>
-                      </View>
-                    ) : null}
-                    {invCfg && (
-                      <View style={{ backgroundColor: invCfg.bg, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 8 }}>
-                        <Text style={{ color: invCfg.color, fontWeight: '600', fontSize: 10 }}>{invCfg.label}</Text>
-                      </View>
-                    )}
-                  </View>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                    {/* Quick Pay Now button — only for payable net-terms invoices */}
-                    {isInvoicePayable(order) && (inv.status === 'pending' || inv.status === 'overdue') && (
+                    return (
                       <Pressable
-                        onPress={(e) => {
-                          e.stopPropagation?.();
-                          handlePay(inv, order);
-                        }}
-                        style={{
-                          flexDirection: 'row', alignItems: 'center', gap: 4,
-                          backgroundColor: inv.status === 'overdue' ? '#FEE2E2' : '#EFF6FF',
-                          borderWidth: 1,
-                          borderColor: inv.status === 'overdue' ? '#FCA5A5' : '#BFDBFE',
-                          paddingHorizontal: 8, paddingVertical: 4, borderRadius: 10,
-                        }}
+                        key={order.id}
+                        onPress={() => { setSelectedOrder(order); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }}
+                        style={[st.orderCard, { borderLeftColor: overdue ? RED : cfg.color }]}
                       >
-                        <Feather name="credit-card" size={10} color={inv.status === 'overdue' ? '#DC2626' : BLUE} />
-                        <Text style={{ color: inv.status === 'overdue' ? '#DC2626' : BLUE, fontWeight: '700', fontSize: 10 }}>Pay Now</Text>
+                        {/* Top row */}
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                          <View style={{ flex: 1, gap: 2 }}>
+                            <Text style={{ color: TEXT, fontWeight: '700', fontSize: 15 }}>
+                              #{order.orderNumber ?? order.poReference ?? order.id.slice(0, 8).toUpperCase()}
+                            </Text>
+                            <Text style={{ color: MUTED, fontWeight: '400', fontSize: 11 }}>
+                              {new Date(order.createdAt).toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}
+                            </Text>
+                            {overdue && (
+                              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                                <Feather name="alert-circle" size={11} color={RED} />
+                                <Text style={{ color: RED, fontWeight: '600', fontSize: 11 }}>Overdue</Text>
+                              </View>
+                            )}
+                          </View>
+                          <View style={{ alignItems: 'flex-end', gap: 5 }}>
+                            <View style={{ backgroundColor: cfg.bg, borderColor: cfg.color, borderWidth: 1, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 }}>
+                              <Text style={{ color: cfg.color, fontWeight: '600', fontSize: 11 }}>{cfg.label}</Text>
+                            </View>
+                            <View style={{ flexDirection: 'row', gap: 4, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                              {Array.isArray(order.editHistory) && order.editHistory.length > 0 && (() => {
+                                const latest = order.editHistory[order.editHistory.length - 1];
+                                const dateStr = (latest?.editedAt ?? latest?.at) ? new Date(latest.editedAt ?? latest.at).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' }) : '';
+                                const note    = latest?.note ?? latest?.reason ?? 'Order items were updated by the team.';
+                                return (
+                                  <Pressable
+                                    onPress={(e) => { e.stopPropagation?.(); Haptics.selectionAsync(); Alert.alert('Order Modified', `${note}${dateStr ? `\n\n${dateStr}` : ''}`); }}
+                                    style={{ backgroundColor: '#EFF6FF', borderWidth: 1, borderColor: '#BFDBFE', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 8 }}
+                                  >
+                                    <Text style={{ color: '#1D4ED8', fontWeight: '600', fontSize: 9 }}>MODIFIED ›</Text>
+                                  </Pressable>
+                                );
+                              })()}
+                              {Array.isArray(order.creditMemos) && order.creditMemos.length > 0 && (() => {
+                                const latest = order.creditMemos[order.creditMemos.length - 1];
+                                const dateStr = latest?.createdAt ? new Date(latest.createdAt).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' }) : '';
+                                const amtStr  = latest?.amountCents ? ` · −$${(latest.amountCents / 100).toFixed(2)}` : '';
+                                const note    = latest?.reason ?? latest?.type ?? 'Credit memo issued.';
+                                return (
+                                  <Pressable
+                                    onPress={(e) => { e.stopPropagation?.(); Haptics.selectionAsync(); Alert.alert('Credit Issued', `${note}${amtStr}${dateStr ? `\n\n${dateStr}` : ''}`); }}
+                                    style={{ backgroundColor: '#FEE2E2', borderWidth: 1, borderColor: '#FCA5A5', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 8 }}
+                                  >
+                                    <Text style={{ color: '#991B1B', fontWeight: '600', fontSize: 9 }}>CREDIT ISSUED ›</Text>
+                                  </Pressable>
+                                );
+                              })()}
+                            </View>
+                            <Text style={{ color: BLUE, fontWeight: '700', fontSize: 15 }}>${(order.totalCents / 100).toFixed(2)}</Text>
+                            {(order.refundedCents ?? 0) > 0 && (
+                              <Text style={{ color: '#EF4444', fontWeight: '500', fontSize: 11 }}>
+                                −${((order.refundedCents ?? 0) / 100).toFixed(2)} refunded
+                              </Text>
+                            )}
+                          </View>
+                        </View>
+
+                        {/* Progress bar */}
+                        {stepIdx >= 0 && (
+                          <View style={{ flexDirection: 'row', gap: 4, marginTop: 8 }}>
+                            {STATUS_STEPS.map((step, i) => (
+                              <View key={step} style={{ flex: 1, height: 3, borderRadius: 2, backgroundColor: i <= stepIdx ? cfg.color : BORDER }} />
+                            ))}
+                          </View>
+                        )}
+
+                        {/* Items summary */}
+                        <View style={{ gap: 2, marginTop: 8 }}>
+                          {items.slice(0, 2).map((item, i) => (
+                            <View key={i} style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                              <Text style={{ color: TEXT, fontWeight: '400', fontSize: 12, flex: 1 }}>{item.quantity}× {item.name}</Text>
+                              <Text style={{ color: MUTED, fontWeight: '400', fontSize: 12 }}>${(item.lineTotalCents / 100).toFixed(2)}</Text>
+                            </View>
+                          ))}
+                          {items.length > 2 && (
+                            <Text style={{ color: BLUE, fontWeight: '400', fontSize: 11, marginTop: 2 }}>+{items.length - 2} more items</Text>
+                          )}
+                        </View>
+
+                        {/* Footer: delivery + invoice badge + details link */}
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 }}>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                            {order.scheduledDate ? (
+                              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+                                <Feather name="truck" size={11} color={overdue ? RED : MUTED} />
+                                <Text style={{ color: overdue ? RED : MUTED, fontWeight: '400', fontSize: 11 }}>
+                                  {order.deliveryType === 'pickup' ? 'Pickup' : 'Delivery'} · {new Date(order.scheduledDate).toLocaleDateString('en-AU', { day: 'numeric', month: 'short' })}
+                                </Text>
+                              </View>
+                            ) : null}
+                            {invCfg && (
+                              <View style={{ backgroundColor: invCfg.bg, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 8 }}>
+                                <Text style={{ color: invCfg.color, fontWeight: '600', fontSize: 10 }}>{invCfg.label}</Text>
+                              </View>
+                            )}
+                          </View>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                            {isInvoicePayable(order) && (inv.status === 'pending' || inv.status === 'overdue') && (
+                              <Pressable
+                                onPress={(e) => { e.stopPropagation?.(); handlePay(inv, order); }}
+                                style={{
+                                  flexDirection: 'row', alignItems: 'center', gap: 4,
+                                  backgroundColor: inv.status === 'overdue' ? '#FEE2E2' : '#EFF6FF',
+                                  borderWidth: 1, borderColor: inv.status === 'overdue' ? '#FCA5A5' : '#BFDBFE',
+                                  paddingHorizontal: 8, paddingVertical: 4, borderRadius: 10,
+                                }}
+                              >
+                                <Feather name="credit-card" size={10} color={inv.status === 'overdue' ? '#DC2626' : BLUE} />
+                                <Text style={{ color: inv.status === 'overdue' ? '#DC2626' : BLUE, fontWeight: '700', fontSize: 10 }}>Pay Now</Text>
+                              </Pressable>
+                            )}
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+                              <Text style={{ color: BLUE, fontWeight: '500', fontSize: 11 }}>Details</Text>
+                              <Feather name="chevron-right" size={12} color={BLUE} />
+                            </View>
+                          </View>
+                        </View>
                       </Pressable>
-                    )}
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
-                      <Text style={{ color: BLUE, fontWeight: '500', fontSize: 11 }}>Details</Text>
-                      <Feather name="chevron-right" size={12} color={BLUE} />
-                    </View>
-                  </View>
+                    );
+                  })}
                 </View>
-              </Pressable>
-            );
-          }}
-        />
-      )}
+              </View>
+            ))}
+          </ScrollView>
+        );
+      })()}
     </View>
   );
 }

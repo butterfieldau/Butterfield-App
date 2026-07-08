@@ -33,6 +33,7 @@ export { default as OrdersSectionHeader }   from './OrdersSectionHeader';
 export { default as CalendarModal }         from './CalendarModal';
 export { default as PosTransactionCard }    from './PosTransactionCard';
 export { PosTabContent }                    from './PosTabContent';
+export { WholesaleTabContent }              from './WholesaleTabContent';
 export { EditWholesaleOrderSheet }          from './EditWholesaleOrderSheet';
 export { AdjustWholesaleOrderSheet }        from './AdjustWholesaleOrderSheet';
 export { CreateWholesaleOrderSheet }        from './CreateWholesaleOrderSheet';
