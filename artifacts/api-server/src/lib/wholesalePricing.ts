@@ -6,7 +6,7 @@ import {
   customerPricingTable,
   wholesaleAccountsTable,
 } from '@workspace/db';
-import { and, eq, lte, gte, isNull, or, desc } from 'drizzle-orm';
+import { and, eq, lte, gte, isNull, or, desc, inArray } from 'drizzle-orm';
 
 export type PriceSource =
   | 'manual_override'
@@ -214,6 +214,164 @@ export async function canCustomerAccessProduct(
 
 function safeJsonArr(s: string): string[] {
   try { const r = JSON.parse(s); return Array.isArray(r) ? r : []; } catch { return []; }
+}
+
+/**
+ * Batch version of calculateWholesalePrice for listing/browsing many products at once
+ * (e.g. the wholesale catalog screen). Mirrors the exact same priority order as
+ * calculateWholesalePrice, but loads all customer-pricing and quantity-break rows for
+ * the whole product set in a handful of queries instead of ~5 sequential queries PER
+ * product. Order placement still uses calculateWholesalePrice per-line (small, and
+ * must independently re-verify each line at submit time) — this bulk path is for
+ * read-only display where products/qty are already known and trusted server-side.
+ */
+export async function calculateWholesalePricesBulk(
+  requests: Array<{ product: typeof productsTable.$inferSelect; qty: number }>,
+  ctx: { customerId: string; tierId?: string | null },
+): Promise<Map<string, PriceResult | { error: string }>> {
+  const { customerId, tierId } = ctx;
+  const results = new Map<string, PriceResult | { error: string }>();
+  if (requests.length === 0) return results;
+
+  const productIds = requests.map((r) => r.product.id);
+  const categories = [...new Set(requests.map((r) => r.product.category).filter((c): c is string => !!c))];
+
+  const [customerProductPrices, customerCategoryPrices, customerQtyBreaks, tierQtyBreaks] = await Promise.all([
+    db.select().from(customerPricingTable).where(and(
+      eq(customerPricingTable.customerId, customerId),
+      inArray(customerPricingTable.productId, productIds),
+      eq(customerPricingTable.isActive, true),
+    )).orderBy(desc(customerPricingTable.createdAt)),
+    categories.length > 0
+      ? db.select().from(customerPricingTable).where(and(
+          eq(customerPricingTable.customerId, customerId),
+          inArray(customerPricingTable.category, categories),
+          isNull(customerPricingTable.productId),
+          eq(customerPricingTable.isActive, true),
+        )).orderBy(desc(customerPricingTable.createdAt))
+      : Promise.resolve([]),
+    db.select().from(quantityPriceBreaksTable).where(and(
+      inArray(quantityPriceBreaksTable.productId, productIds),
+      eq(quantityPriceBreaksTable.scope, 'customer'),
+      eq(quantityPriceBreaksTable.customerId, customerId),
+      eq(quantityPriceBreaksTable.isActive, true),
+    )).orderBy(desc(quantityPriceBreaksTable.minQty), desc(quantityPriceBreaksTable.createdAt)),
+    tierId
+      ? db.select().from(quantityPriceBreaksTable).where(and(
+          inArray(quantityPriceBreaksTable.productId, productIds),
+          eq(quantityPriceBreaksTable.scope, 'tier'),
+          eq(quantityPriceBreaksTable.tierId, tierId),
+          eq(quantityPriceBreaksTable.isActive, true),
+        )).orderBy(desc(quantityPriceBreaksTable.minQty), desc(quantityPriceBreaksTable.createdAt))
+      : Promise.resolve([]),
+  ]);
+
+  const groupBy = <T, K>(rows: T[], keyFn: (row: T) => K | null | undefined): Map<K, T[]> => {
+    const map = new Map<K, T[]>();
+    for (const row of rows) {
+      const key = keyFn(row);
+      if (key == null) continue;
+      const arr = map.get(key);
+      if (arr) arr.push(row); else map.set(key, [row]);
+    }
+    return map;
+  };
+
+  const productPricesByProduct = groupBy(customerProductPrices, (r) => r.productId);
+  const categoryPricesByCategory = groupBy(customerCategoryPrices, (r) => r.category);
+  const customerQtyBreaksByProduct = groupBy(customerQtyBreaks, (r) => r.productId);
+  const tierQtyBreaksByProduct = groupBy(tierQtyBreaks, (r) => r.productId);
+
+  for (const { product, qty } of requests) {
+    try {
+      if (qty <= 0) throw new Error(`Invalid quantity for product ${product.id}`);
+      if (!product.isActive)             throw new Error(`Product unavailable: ${product.name}`);
+      if (!product.isWholesaleAvailable) throw new Error(`Not wholesale available: ${product.name}`);
+      if (product.isSoldOut)             throw new Error(`Sold out: ${product.name}`);
+
+      const baseCents = product.wholesalePriceCents ?? product.priceCents;
+
+      const productPrice = (productPricesByProduct.get(product.id) ?? []).find((cp) => cp.unitPriceCents != null);
+      if (productPrice) {
+        results.set(product.id, {
+          unitCents: productPrice.unitPriceCents!,
+          totalCents: productPrice.unitPriceCents! * qty,
+          source: 'customer_product_price',
+          sourceLabel: 'Custom customer price',
+          sourceId: productPrice.id,
+          basePriceCents: baseCents,
+          productId: product.id, qty,
+        });
+        continue;
+      }
+
+      if (product.category) {
+        const categoryPrice = (categoryPricesByCategory.get(product.category) ?? []).find((cp) => cp.unitPriceCents != null);
+        if (categoryPrice) {
+          results.set(product.id, {
+            unitCents: categoryPrice.unitPriceCents!,
+            totalCents: categoryPrice.unitPriceCents! * qty,
+            source: 'customer_category_price',
+            sourceLabel: 'Custom category price',
+            sourceId: categoryPrice.id,
+            basePriceCents: baseCents,
+            productId: product.id, qty,
+          });
+          continue;
+        }
+      }
+
+      const customerQtyBreak = (customerQtyBreaksByProduct.get(product.id) ?? [])
+        .filter((qb) => qb.minQty <= qty && (qb.maxQty == null || qb.maxQty >= qty) && qb.unitPriceCents != null)[0];
+      if (customerQtyBreak) {
+        results.set(product.id, {
+          unitCents: customerQtyBreak.unitPriceCents!,
+          totalCents: customerQtyBreak.unitPriceCents! * qty,
+          source: 'quantity_break_customer',
+          sourceLabel: `Qty break (${customerQtyBreak.minQty}+)`,
+          sourceId: customerQtyBreak.id,
+          basePriceCents: baseCents,
+          productId: product.id, qty,
+        });
+        continue;
+      }
+
+      if (tierId) {
+        const tierQtyBreak = (tierQtyBreaksByProduct.get(product.id) ?? [])
+          .filter((qb) => qb.minQty <= qty && (qb.maxQty == null || qb.maxQty >= qty) && qb.unitPriceCents != null)[0];
+        if (tierQtyBreak) {
+          results.set(product.id, {
+            unitCents: tierQtyBreak.unitPriceCents!,
+            totalCents: tierQtyBreak.unitPriceCents! * qty,
+            source: 'quantity_break_tier',
+            sourceLabel: `Tier qty break (${tierQtyBreak.minQty}+)`,
+            sourceId: tierQtyBreak.id,
+            basePriceCents: baseCents,
+            productId: product.id, qty,
+          });
+          continue;
+        }
+      }
+
+      if (product.wholesalePriceCents != null && product.wholesalePriceCents > 0) {
+        results.set(product.id, {
+          unitCents: product.wholesalePriceCents,
+          totalCents: product.wholesalePriceCents * qty,
+          source: 'standard_wholesale',
+          sourceLabel: 'Standard wholesale price',
+          basePriceCents: baseCents,
+          productId: product.id, qty,
+        });
+        continue;
+      }
+
+      throw new Error(`No wholesale price configured for ${product.name}`);
+    } catch (err: any) {
+      results.set(product.id, { error: err?.message ?? 'Unable to calculate price' });
+    }
+  }
+
+  return results;
 }
 
 /**

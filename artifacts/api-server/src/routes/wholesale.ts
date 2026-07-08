@@ -22,6 +22,7 @@ import { buildInvoiceHtml } from '../lib/invoiceTemplate.js';
 import { generateWholesaleOrderNumber } from '../lib/orderNumber.js';
 import {
   calculateWholesalePrice,
+  calculateWholesalePricesBulk,
   canCustomerAccessProduct,
   loadPriceContextForAccount,
   priceAndValidateOrder,
@@ -151,27 +152,24 @@ router.get('/catalog', async (req, res) => {
     .where(and(eq(productsTable.isActive, true), eq(productsTable.isPosOnly, false)))
     .orderBy(asc(productsTable.sortOrder), asc(productsTable.name));
 
+  // Access checks are pure in-memory, but pricing previously issued ~5 sequential DB
+  // queries PER product (calculateWholesalePrice), which made this route scale
+  // linearly with catalog size (multi-second responses at 1000+ products). Batch all
+  // pricing lookups for the accessible set in a handful of queries instead.
+  const accessChecks = await Promise.all(products.map((p) => canCustomerAccessProduct(p, { customerId: req.user!.id, tierId: ctx.tierId })));
+  const accessible = products.filter((_, i) => accessChecks[i].ok);
+  const priceMap = await calculateWholesalePricesBulk(
+    accessible.map((p) => ({ product: p, qty: Math.max(p.minOrderQty ?? 1, 1) })),
+    { customerId: req.user!.id, tierId: ctx.tierId },
+  );
+
   const out: any[] = [];
-  for (const p of products) {
-    const access = await canCustomerAccessProduct(p, { customerId: req.user!.id, tierId: ctx.tierId });
-    if (!access.ok) continue;
-    let unitPriceCents: number | null = null;
-    let priceSource: string | null = null;
-    let priceLabel: string | null = null;
-    try {
-      const price = await calculateWholesalePrice({
-        productId: p.id, qty: Math.max(p.minOrderQty ?? 1, 1),
-        customerId: req.user!.id,
-        accountId: ctx.accountId,
-        tierId: ctx.tierId,
-      });
-      unitPriceCents = price.unitCents;
-      priceSource = price.source;
-      priceLabel = price.sourceLabel;
-    } catch {
-      // skip products with no valid wholesale price
-      continue;
-    }
+  for (const p of accessible) {
+    const priceResult = priceMap.get(p.id);
+    if (!priceResult || 'error' in priceResult) continue; // skip products with no valid wholesale price
+    const unitPriceCents = priceResult.unitCents;
+    const priceSource = priceResult.source;
+    const priceLabel = priceResult.sourceLabel;
     out.push({
       id: p.id,
       name: p.name,

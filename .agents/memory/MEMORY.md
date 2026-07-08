@@ -15,3 +15,4 @@
 - [checkDatabase() false negative](checkdatabase-false-negative.md) — can report "not provisioned" even though DATABASE_URL works fine; verify with psql directly instead of trusting it.
 - [Command Center theme single source](command-center-theme-token-file.md) — Director Orders screens retheme entirely by editing one color-token file; don't rewrite JSX per screen.
 - [POS TestFlight empty-data dead end](pos-testflight-empty-data.md) — repeated deep dives found no code bug; add error-vs-empty UI distinction and move on rather than re-investigating the same ruled-out causes.
+- [Wholesale catalog N+1 pricing query](wholesale-catalog-n-plus-1.md) — never loop calculateWholesalePrice() per-product for a listing endpoint; use calculateWholesalePricesBulk() instead.
