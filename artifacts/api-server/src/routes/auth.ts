@@ -5,7 +5,10 @@ import jwt from 'jsonwebtoken';
 import { db, usersTable, customerProfilesTable, staffProfilesTable, wholesaleAccountsTable, managerProfilesTable, passwordResetTokensTable, storesTable, storeOpeningHoursTable, loyaltyTransactionsTable, favouritesTable, staffStoreAssignmentsTable, staffInviteTokensTable, storeSettingsTable, loginHistoryTable } from '@workspace/db';
 import { eq, and, lt, isNull, sql } from 'drizzle-orm';
 import { signToken, requireAuth, getSessionSecret } from '../middlewares/auth.js';
-import { sendEmail, buildPasswordResetEmail } from '../lib/emailService.js';
+import {
+  sendEmail, buildPasswordResetEmail, buildCustomerWelcomeEmail,
+  buildWholesaleApplicationReceivedEmail, buildLoginAlertEmail,
+} from '../lib/emailService.js';
 import { sendSms, buildPasswordResetSms } from '../lib/smsService.js';
 import { ensureShopDisplaySchemaReady } from '../lib/ensureShopDisplaySchemaReady.js';
 import { ensureStoreConfigSchemaReady } from '../lib/ensureStoreConfigSchemaReady.js';
@@ -24,6 +27,28 @@ function getCoffeeStampGoalForNewUser(): number {
 
 const router = Router();
 
+function extractRequestIp(req: any): string | null {
+  const fwd = req.headers?.['x-forwarded-for'];
+  if (Array.isArray(fwd)) return fwd[0] ?? req.ip ?? null;
+  if (typeof fwd === 'string' && fwd.trim()) return fwd.split(',')[0]!.trim();
+  return req.ip ?? req.socket?.remoteAddress ?? null;
+}
+
+/** Fire-and-forget "new sign-in" confirmation email. Never blocks or fails the login response. */
+function sendLoginAlertEmail(opts: { email?: string | null; name?: string | null; role: string; req: any }) {
+  if (!opts.email) return;
+  sendEmail({
+    to: opts.email,
+    subject: 'New sign-in to your Butterfield Cookies account',
+    html: buildLoginAlertEmail({
+      name: opts.name ?? 'there',
+      role: opts.role,
+      loginAt: new Date(),
+      ip: extractRequestIp(opts.req),
+    }),
+  }).catch((err) => { opts.req?.log?.warn?.({ err }, 'Failed to send login alert email'); });
+}
+
 function recordLoginHistory(opts: {
   userId?: string | null;
   email?: string | null;
@@ -32,12 +57,7 @@ function recordLoginHistory(opts: {
   failReason?: string | null;
   req: any;
 }) {
-  const ip = (() => {
-    const fwd = opts.req.headers?.['x-forwarded-for'];
-    if (Array.isArray(fwd)) return fwd[0] ?? opts.req.ip ?? null;
-    if (typeof fwd === 'string' && fwd.trim()) return fwd.split(',')[0]!.trim();
-    return opts.req.ip ?? opts.req.socket?.remoteAddress ?? null;
-  })();
+  const ip = extractRequestIp(opts.req);
   const ua = opts.req.headers?.['user-agent'] ?? null;
   db.insert(loginHistoryTable).values({
     id: randomUUID(),
@@ -196,6 +216,21 @@ router.post('/register', async (req, res) => {
   });
   await getOrCreateCustomerLoyaltyProfile(userId, name);
   const token = signToken({ id: userId, email: email.toLowerCase(), role: 'customer', name });
+
+  // Fire-and-forget welcome confirmation email — never blocks registration.
+  (async () => {
+    try {
+      const [profile] = await db.select().from(customerProfilesTable).where(eq(customerProfilesTable.userId, userId));
+      await sendEmail({
+        to: email.toLowerCase(),
+        subject: 'Welcome to Butterfield Cookies!',
+        html: buildCustomerWelcomeEmail({ name, referralCode: profile?.referralCode ?? null }),
+      });
+    } catch (err) {
+      req.log?.warn({ err }, 'Failed to send welcome email');
+    }
+  })();
+
   return res.status(201).json({ token, user: { id: userId, email, role: 'customer', name } });
 });
 
@@ -262,6 +297,7 @@ router.post('/login', loginRateLimit, async (req, res) => {
 
   recordLoginHistory({ userId: user.id, email: user.email, role: user.role, success: true, req });
   recordAuditLog({ actor: { id: user.id, email: user.email, role: user.role, name: user.name ?? '' }, action: 'auth.login', entityType: 'user', entityId: user.id }).catch(() => {});
+  sendLoginAlertEmail({ email: user.email, name: user.name, role: user.role, req });
   const token = signToken({ id: user.id, email: user.email, role: user.role, name: user.name });
   return res.json({ token, user: { id: user.id, email: user.email, role: user.role, name: user.name } });
 });
@@ -341,6 +377,9 @@ router.post('/staff-login', loginRateLimit, async (req, res) => {
 
   recordLoginHistory({ userId: user.id, email: user.email, role: user.role, success: true, req });
   recordAuditLog({ actor: { id: user.id, email: user.email, role: user.role, name: user.name ?? '' }, action: 'auth.login', entityType: 'user', entityId: user.id }).catch(() => {});
+  if (user.role !== 'shop_display') {
+    sendLoginAlertEmail({ email: user.email, name: user.name, role: user.role, req });
+  }
   const token = signToken(
     { id: user.id, email: user.email, role: user.role, name: user.name },
     user.role === 'shop_display' ? '30d' : '7d',
@@ -398,6 +437,14 @@ router.post('/wholesale-apply', async (req, res) => {
       data: { accountId, companyName: normalizedCompany },
     }).catch(() => {});
   }).catch(() => {});
+
+  // Fire-and-forget "application received" confirmation email to the applicant.
+  sendEmail({
+    to: normalizedEmail,
+    subject: 'We received your wholesale application',
+    html: buildWholesaleApplicationReceivedEmail({ contactName: normalizedName, companyName: normalizedCompany }),
+  }).catch((err) => { req.log?.warn({ err }, 'Failed to send wholesale application received email'); });
+
   return res.status(201).json({ message: 'Your application has been submitted. Someone from our team will be in contact with you soon.', userId });
 });
 

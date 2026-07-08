@@ -1070,6 +1070,192 @@ export function buildPaymentReceiptEmail(opts: PaymentReceiptEmailOpts): string 
 </html>`;
 }
 
+// ── Shared lightweight footer for account/session emails ──────────────────────
+function accountEmailFooter(): string {
+  return `
+        <tr>
+          <td style="background:#F9FAFB;padding:20px 40px;border-top:1px solid #E5E7EB;">
+            <p style="margin:0;font-size:12px;color:#9CA3AF;text-align:center;">
+              Butterfield Cookies · 2 Main Lane, Merrylands NSW 2160 · ABN: 24 680 761 166<br>
+              This is an automated message, please do not reply directly to this email.
+            </p>
+          </td>
+        </tr>`;
+}
+
+export function buildCustomerWelcomeEmail(opts: { name: string; referralCode?: string | null }): string {
+  const { name, referralCode } = opts;
+  return `<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#F5F6FA;font-family:Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#F5F6FA;padding:40px 0;">
+    <tr><td align="center">
+      <table width="520" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.08);">
+        <tr>
+          <td style="background:linear-gradient(135deg,#1493FF,#3CBBEE);padding:40px 40px;text-align:center;">
+            <div style="font-size:26px;font-weight:800;color:#ffffff;letter-spacing:-0.5px;">Butterfield Cookies</div>
+            <div style="font-size:13px;color:rgba(255,255,255,0.75);margin-top:6px;letter-spacing:1px;">COOKIES · COFFEE · DESSERTS</div>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:40px 40px 28px;">
+            <p style="margin:0 0 8px;font-size:22px;font-weight:700;color:#1C1C1E;">Welcome, ${name} 👋</p>
+            <p style="margin:0 0 24px;font-size:15px;color:#6B7280;line-height:1.6;">
+              Your Butterfield Cookies account is ready. Order your favourite cookies, coffee and desserts for pickup or delivery, and start earning loyalty points on every order.
+            </p>
+            ${referralCode ? `
+            <div style="background:#F5F6FA;border-radius:12px;padding:24px;text-align:center;margin-bottom:24px;">
+              <div style="font-size:12px;color:#8E8E93;letter-spacing:1px;margin-bottom:10px;text-transform:uppercase;">Your referral code</div>
+              <span style="font-size:28px;font-weight:800;color:#1493FF;letter-spacing:4px;">${referralCode}</span>
+              <div style="font-size:12px;color:#8E8E93;margin-top:10px;">Share it with friends — you both earn rewards.</div>
+            </div>` : ''}
+            <p style="margin:0;font-size:13px;color:#8E8E93;line-height:1.6;">
+              If you didn't create this account, please contact us right away.
+            </p>
+          </td>
+        </tr>
+        ${accountEmailFooter()}
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`;
+}
+
+export function buildWholesaleApplicationReceivedEmail(opts: { contactName: string; companyName: string }): string {
+  const { contactName, companyName } = opts;
+  return `<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#F5F6FA;font-family:Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#F5F6FA;padding:40px 0;">
+    <tr><td align="center">
+      <table width="520" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.08);">
+        <tr>
+          <td style="background:linear-gradient(135deg,#12213A,#1A2B4A);padding:40px 40px;text-align:center;">
+            <div style="font-size:26px;font-weight:800;color:#ffffff;letter-spacing:-0.5px;">Butterfield Cookies</div>
+            <div style="font-size:13px;color:rgba(255,255,255,0.7);margin-top:6px;letter-spacing:1px;">WHOLESALE ACCOUNTS</div>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:40px 40px 28px;">
+            <span style="background:#FDE68A;color:#92400E;font-size:11px;font-weight:800;letter-spacing:1px;text-transform:uppercase;padding:6px 14px;border-radius:999px;display:inline-block;margin-bottom:16px;">Application received</span>
+            <p style="margin:0 0 8px;font-size:22px;font-weight:700;color:#1C1C1E;">Thanks for applying, ${contactName}</p>
+            <p style="margin:0 0 24px;font-size:15px;color:#6B7280;line-height:1.6;">
+              We've received ${companyName}'s wholesale application. Our team will review your details and get back to you shortly — once approved, you'll get full access to wholesale pricing and ordering.
+            </p>
+            <p style="margin:0;font-size:13px;color:#8E8E93;line-height:1.6;">
+              Questions in the meantime? Just reply to this email and our accounts team will help.
+            </p>
+          </td>
+        </tr>
+        ${accountEmailFooter()}
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`;
+}
+
+export function buildWholesaleApprovedEmail(opts: { contactName: string; companyName: string }): string {
+  const { contactName, companyName } = opts;
+  return `<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#F5F6FA;font-family:Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#F5F6FA;padding:40px 0;">
+    <tr><td align="center">
+      <table width="520" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.08);">
+        <tr>
+          <td style="background:linear-gradient(135deg,#059669,#10B981);padding:40px 40px;text-align:center;">
+            <div style="font-size:26px;font-weight:800;color:#ffffff;letter-spacing:-0.5px;">Butterfield Cookies</div>
+            <div style="font-size:13px;color:rgba(255,255,255,0.8);margin-top:6px;letter-spacing:1px;">WHOLESALE ACCOUNTS</div>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:40px 40px 28px;">
+            <span style="background:#D1FAE5;color:#065F46;font-size:11px;font-weight:800;letter-spacing:1px;text-transform:uppercase;padding:6px 14px;border-radius:999px;display:inline-block;margin-bottom:16px;">Account approved</span>
+            <p style="margin:0 0 8px;font-size:22px;font-weight:700;color:#1C1C1E;">You're approved, ${contactName}!</p>
+            <p style="margin:0 0 24px;font-size:15px;color:#6B7280;line-height:1.6;">
+              ${companyName}'s wholesale account has been approved. You can now log in to the wholesale portal to browse the catalog, view your pricing tier, and place your first order.
+            </p>
+            <p style="margin:0;font-size:13px;color:#8E8E93;line-height:1.6;">
+              Need help getting started? Reply to this email and your account manager will be in touch.
+            </p>
+          </td>
+        </tr>
+        ${accountEmailFooter()}
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`;
+}
+
+export function buildLoginAlertEmail(opts: {
+  name: string;
+  role: string;
+  loginAt: Date;
+  ip?: string | null;
+}): string {
+  const { name, role, loginAt, ip } = opts;
+  const roleLabel = role.charAt(0).toUpperCase() + role.slice(1);
+  const whenLabel = loginAt.toLocaleString('en-AU', {
+    dateStyle: 'medium', timeStyle: 'short', timeZone: 'Australia/Sydney',
+  });
+  return `<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#F5F6FA;font-family:Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#F5F6FA;padding:40px 0;">
+    <tr><td align="center">
+      <table width="520" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.08);">
+        <tr>
+          <td style="background:#12213A;padding:36px 40px;text-align:center;">
+            <div style="font-size:24px;font-weight:800;color:#ffffff;letter-spacing:-0.5px;">Butterfield Cookies</div>
+            <div style="font-size:12px;color:rgba(255,255,255,0.6);margin-top:6px;letter-spacing:1.5px;text-transform:uppercase;">Account Security</div>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:36px 40px 28px;">
+            <p style="margin:0 0 8px;font-size:20px;font-weight:700;color:#1C1C1E;">New sign-in to your account</p>
+            <p style="margin:0 0 24px;font-size:14px;color:#6B7280;line-height:1.6;">
+              Hi ${name}, we noticed a new sign-in to your Butterfield Cookies account.
+            </p>
+            <table width="100%" cellpadding="0" cellspacing="0" style="background:#F8F9FB;border-radius:12px;border:1px solid #E5E7EB;margin-bottom:24px;">
+              <tr>
+                <td style="padding:14px 20px;border-bottom:1px solid #E5E7EB;">
+                  <span style="font-size:13px;color:#6B7280;">Account type</span>
+                  <span style="font-size:13px;font-weight:600;color:#1C1C1E;float:right;">${roleLabel}</span>
+                </td>
+              </tr>
+              <tr>
+                <td style="padding:14px 20px;${ip ? 'border-bottom:1px solid #E5E7EB;' : ''}">
+                  <span style="font-size:13px;color:#6B7280;">Time</span>
+                  <span style="font-size:13px;font-weight:600;color:#1C1C1E;float:right;">${whenLabel} (Sydney)</span>
+                </td>
+              </tr>
+              ${ip ? `<tr>
+                <td style="padding:14px 20px;">
+                  <span style="font-size:13px;color:#6B7280;">IP address</span>
+                  <span style="font-size:13px;font-weight:600;color:#1C1C1E;float:right;">${ip}</span>
+                </td>
+              </tr>` : ''}
+            </table>
+            <p style="margin:0;font-size:13px;color:#8E8E93;line-height:1.6;">
+              Wasn't you? Reset your password immediately and contact us so we can help secure your account.
+            </p>
+          </td>
+        </tr>
+        ${accountEmailFooter()}
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`;
+}
+
 export function buildPasswordResetEmail(otp: string, name: string): string {
   return `<!DOCTYPE html>
 <html>

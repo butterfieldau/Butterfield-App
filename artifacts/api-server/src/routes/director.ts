@@ -2553,8 +2553,25 @@ router.patch('/wholesale/:accountId/status', async (req, res) => {
   const { accountId } = req.params;
   const { status } = req.body;
   if (!['approved','pending','rejected'].includes(status)) return res.status(400).json({ error: 'Invalid status.' });
+  const [existing] = await db.select({ status: wholesaleAccountsTable.status })
+    .from(wholesaleAccountsTable).where(eq(wholesaleAccountsTable.id, accountId));
   const [updated] = await db.update(wholesaleAccountsTable)
     .set({ status }).where(eq(wholesaleAccountsTable.id, accountId)).returning();
+
+  // Fire-and-forget approval confirmation email — only on the transition into 'approved'.
+  if (updated && status === 'approved' && existing?.status !== 'approved' && updated.email) {
+    import('../lib/emailService.js').then(({ sendEmail, buildWholesaleApprovedEmail }) => {
+      sendEmail({
+        to: updated.email!,
+        subject: 'Your Butterfield Cookies wholesale account is approved!',
+        html: buildWholesaleApprovedEmail({
+          contactName: updated.contactName || 'there',
+          companyName: updated.companyName || 'Your business',
+        }),
+      }).catch((err) => { req.log?.warn({ err }, 'Failed to send wholesale approved email'); });
+    }).catch(() => {});
+  }
+
   return res.json({ data: updated });
 });
 
