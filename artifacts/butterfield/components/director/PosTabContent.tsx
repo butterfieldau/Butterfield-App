@@ -543,37 +543,53 @@ export function PosTabContent({
             const cashCents   = useSummary ? (summary?.cashCents ?? settled.filter(tx => (tx.paymentMethod ?? '').toLowerCase() === 'cash').reduce((s, tx) => s + tx.totalCents, 0)) : settled.filter(tx => (tx.paymentMethod ?? '').toLowerCase() === 'cash').reduce((s, tx) => s + tx.totalCents, 0);
             const eftposCents = useSummary ? (summary?.eftposCents ?? (revenue - cashCents)) : (revenue - cashCents);
 
+            const isRefundedView = chipFilter === 'refunded';
+            const isVoidedView   = chipFilter === 'voided';
+            const isNonRevenueView = isRefundedView || isVoidedView;
+
+            // For refunded/voided chips, sum the filtered orders directly (they are
+            // excluded from `settled`, so revenue would be $0 without this override).
+            const displayRevenue = isNonRevenueView
+              ? filteredOrders.reduce((s, tx) => s + tx.totalCents, 0)
+              : revenue;
+            const displayCount   = isNonRevenueView ? filteredOrders.length : count;
+
             const heroTitle = chipFilter === 'eftpos'   ? 'EFTPOS Revenue'
                             : chipFilter === 'cash'     ? 'Cash Revenue'
-                            : chipFilter === 'refunded' ? 'Refunded'
-                            : chipFilter === 'voided'   ? 'Voided'
+                            : isRefundedView            ? 'Refunded Amount'
+                            : isVoidedView              ? 'Voided Amount'
                             : 'Total Revenue';
 
+            // Accent colour for the hero bar — red for refunded/voided to signal loss
+            const heroBarColor = isNonRevenueView ? RED : BRAND;
+
             let topItem: [string, number] | null = null;
-            if (useSummary && summary?.topItem) {
-              topItem = [summary.topItem.name, summary.topItem.qty];
-            } else {
-              const itemCounts: Record<string, number> = {};
-              settled.forEach(tx => {
-                (Array.isArray(tx.items) ? tx.items : []).forEach((item: any) => {
-                  const name = item.name ?? item.productName ?? 'Item';
-                  const qty  = item.quantity ?? item.qty ?? 1;
-                  itemCounts[name] = (itemCounts[name] ?? 0) + qty;
+            if (!isNonRevenueView) {
+              if (useSummary && summary?.topItem) {
+                topItem = [summary.topItem.name, summary.topItem.qty];
+              } else {
+                const itemCounts: Record<string, number> = {};
+                settled.forEach(tx => {
+                  (Array.isArray(tx.items) ? tx.items : []).forEach((item: any) => {
+                    const name = item.name ?? item.productName ?? 'Item';
+                    const qty  = item.quantity ?? item.qty ?? 1;
+                    itemCounts[name] = (itemCounts[name] ?? 0) + qty;
+                  });
                 });
-              });
-              const top = Object.entries(itemCounts).sort(([, a], [, b]) => b - a)[0];
-              if (top) topItem = top;
+                const top = Object.entries(itemCounts).sort(([, a], [, b]) => b - a)[0];
+                if (top) topItem = top;
+              }
             }
 
             return (
               <>
                 <View style={{ backgroundColor: SURFACE_RAISED, borderRadius: 20, padding: 20, marginBottom: 16, borderWidth: 1, borderColor: BORDER, overflow: 'hidden' }}>
-                  <View style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, backgroundColor: BRAND }} />
-                  <Text style={{ fontSize: 11, fontWeight: '800', color: BRAND, textTransform: 'uppercase', letterSpacing: 1.2, marginBottom: 16, textAlign: 'center' }}>{heroTitle}</Text>
+                  <View style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, backgroundColor: heroBarColor }} />
+                  <Text style={{ fontSize: 11, fontWeight: '800', color: isNonRevenueView ? RED : BRAND, textTransform: 'uppercase', letterSpacing: 1.2, marginBottom: 16, textAlign: 'center' }}>{heroTitle}</Text>
                   <View style={{ alignItems: 'center' }}>
-                    <Text style={{ fontSize: 44, fontWeight: '900', color: TEXT, letterSpacing: -1 }}>{fmtCents(revenue)}</Text>
+                    <Text style={{ fontSize: 44, fontWeight: '900', color: TEXT, letterSpacing: -1 }}>{fmtCents(displayRevenue)}</Text>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 8 }}>
-                      <Text style={{ fontSize: 14, color: TEXT_MUTED }}>{count} ticket{count !== 1 ? 's' : ''}</Text>
+                      <Text style={{ fontSize: 14, color: TEXT_MUTED }}>{displayCount} transaction{displayCount !== 1 ? 's' : ''}</Text>
                       {isToday && !isFiltered && (
                         <>
                           <View style={{ width: 4, height: 4, borderRadius: 2, backgroundColor: BORDER }} />
@@ -587,7 +603,8 @@ export function PosTabContent({
                   </View>
                 </View>
 
-                {/* ── At a glance ──────────────────────────── */}
+                {/* ── At a glance — hidden for refunded/voided (no meaningful avg or top seller) ── */}
+                {!isNonRevenueView && (
                 <View style={{ flexDirection: 'row', gap: 12, marginBottom: 12 }}>
                   <View style={{ flex: 1, backgroundColor: SURFACE, borderRadius: 12, padding: 14, borderWidth: 1, borderColor: BORDER }}>
                     <Text style={{ fontSize: 11, fontWeight: '700', color: TEXT_MUTED, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>Avg Ticket</Text>
@@ -598,6 +615,7 @@ export function PosTabContent({
                     <Text style={{ fontSize: 14, fontWeight: '700', color: TEXT, marginTop: 3 }} numberOfLines={1}>{topItem ? topItem[0] : '—'}</Text>
                   </View>
                 </View>
+                )}
                 {/* EFTPOS/Cash split bar — only meaningful for the combined "All" view */}
                 {!isFiltered && (
                   <View style={{ backgroundColor: SURFACE, borderRadius: 12, padding: 14, borderWidth: 1, borderColor: BORDER, marginBottom: 24, gap: 8 }}>
