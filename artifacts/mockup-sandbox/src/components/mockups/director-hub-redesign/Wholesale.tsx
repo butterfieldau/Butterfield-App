@@ -123,38 +123,40 @@ export function Wholesale() {
   return (
     <Shell activeTab="wholesale" title="Wholesale" subtitle="B2B accounts & orders">
       {/* Hero Stat */}
-      <div className="px-5 pt-8 pb-6 flex flex-col items-center justify-center text-center">
-        <div className="text-[13px] font-bold tracking-widest uppercase mb-2" style={{ color: TEXT_MUTED }}>
-          Outstanding Balance
-        </div>
-        <div className="text-6xl font-black tracking-tighter mb-3" style={{ color: TEXT }}>
-          ${outstandingBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-        </div>
-        {overdueAccountsCount > 0 && (
-          <div 
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-semibold"
-            style={{ background: RED_DIM, color: RED }}
-          >
-            <AlertCircle size={16} />
-            <span>{overdueAccountsCount} accounts overdue (${overdueAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })})</span>
+      <div className="px-5 pt-8 pb-6 border-b" style={{ borderColor: BORDER }}>
+        <div className="flex flex-col items-center justify-center text-center">
+          <div className="text-[11px] font-bold tracking-widest uppercase mb-2" style={{ color: TEXT_MUTED }}>
+            Outstanding Balance
           </div>
-        )}
+          <div className="text-6xl font-black tracking-tighter mb-2" style={{ color: TEXT }}>
+            ${outstandingBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          </div>
+          {overdueAccountsCount > 0 && (
+            <div 
+              className="mt-1 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-semibold"
+              style={{ background: RED_DIM, color: RED }}
+            >
+              <AlertCircle size={16} />
+              <span>{overdueAccountsCount} accounts overdue (${overdueAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })})</span>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Sub KPIs */}
-      <div className="px-5 mb-8 grid grid-cols-2 gap-3">
-        <div className="p-4 rounded-2xl flex flex-col gap-1" style={{ background: SURFACE_RAISED, border: `1px solid ${BORDER}` }}>
-          <div className="text-xs font-semibold" style={{ color: TEXT_MUTED }}>Avg Order Value</div>
+      <div className="px-5 pt-6 mb-3 grid grid-cols-2 gap-3">
+        <div className="p-3 rounded-lg border" style={{ background: SURFACE, borderColor: BORDER }}>
+          <div className="text-xs font-medium mb-1" style={{ color: TEXT_FAINT }}>Avg Order Value</div>
           <div className="text-xl font-bold" style={{ color: TEXT }}>${aov.toFixed(2)}</div>
         </div>
-        <div className="p-4 rounded-2xl flex flex-col gap-1" style={{ background: SURFACE_RAISED, border: `1px solid ${BORDER}` }}>
-          <div className="text-xs font-semibold" style={{ color: TEXT_MUTED }}>Orders This Week</div>
+        <div className="p-3 rounded-lg border" style={{ background: SURFACE, borderColor: BORDER }}>
+          <div className="text-xs font-medium mb-1" style={{ color: TEXT_FAINT }}>Orders This Week</div>
           <div className="text-xl font-bold" style={{ color: TEXT }}>24</div>
         </div>
       </div>
 
       {/* Filters */}
-      <div className="px-5 mb-6 flex gap-2 overflow-x-auto no-scrollbar pb-1">
+      <div className="px-5 flex gap-2 overflow-x-auto no-scrollbar pb-1">
         {(['All Active', 'Overdue', 'Due This Week', 'Paid'] as FilterType[]).map(filter => (
           <button 
             key={filter}
@@ -176,27 +178,27 @@ export function Wholesale() {
         {activeFilter === 'All Active' ? (
           <>
             <SectionLabel>Requires Attention</SectionLabel>
-            <div className="px-5 flex flex-col gap-3 mb-6">
+            <div className="px-5 flex flex-col gap-2">
               {orders.filter(o => o.status === 'overdue').map(order => (
                 <OrderCard key={order.id} order={order} onClick={() => setSelectedOrder(order)} />
               ))}
               {orders.filter(o => o.status === 'overdue').length === 0 && (
-                <div className="p-8 text-center text-sm" style={{ color: TEXT_FAINT }}>No overdue orders</div>
+                <div className="py-4 text-center text-xs" style={{ color: TEXT_FAINT }}>No overdue orders</div>
               )}
             </div>
 
             <SectionLabel>Upcoming Deliveries</SectionLabel>
-            <div className="px-5 flex flex-col gap-3 pb-24">
+            <div className="px-5 flex flex-col gap-2 pb-24">
               {orders.filter(o => o.status === 'pending').map(order => (
                 <OrderCard key={order.id} order={order} onClick={() => setSelectedOrder(order)} />
               ))}
               {orders.filter(o => o.status === 'pending').length === 0 && (
-                <div className="p-8 text-center text-sm" style={{ color: TEXT_FAINT }}>No pending orders</div>
+                <div className="py-4 text-center text-xs" style={{ color: TEXT_FAINT }}>No pending orders</div>
               )}
             </div>
           </>
         ) : (
-          <div className="px-5 flex flex-col gap-3 pb-24">
+          <div className="px-5 flex flex-col gap-2 pb-24">
             <SectionLabel>{activeFilter}</SectionLabel>
             {orders.filter(o => {
               if (activeFilter === 'Overdue') return o.status === 'overdue';
@@ -250,7 +252,7 @@ function OrderCard({ order, onClick }: { order: Order; onClick: () => void }) {
   return (
     <div 
       onClick={onClick}
-      className="p-4 rounded-2xl relative overflow-hidden flex flex-col gap-3 cursor-pointer transition-transform active:scale-[0.98]"
+      className="p-3 rounded-lg relative overflow-hidden flex flex-col gap-2 cursor-pointer transition-transform active:scale-[0.98]"
       style={{ 
         background: SURFACE, 
         border: `1px solid ${isOverdue ? RED : BORDER}`,
