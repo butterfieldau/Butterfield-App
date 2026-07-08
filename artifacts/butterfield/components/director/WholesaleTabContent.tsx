@@ -19,7 +19,16 @@ function fmtCents(cents: number): string {
   return `$${(cents / 100).toLocaleString('en-AU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
+function isWholesalePaid(order: ApiOrder): boolean {
+  return !!(
+    (order as any).isPaid ||
+    String((order as any).stripePaymentStatus ?? '').toLowerCase() === 'paid' ||
+    String((order as any).invoiceStatus ?? '').toLowerCase() === 'paid'
+  );
+}
+
 function isOverdueWholesale(order: ApiOrder): boolean {
+  if (isWholesalePaid(order)) return false;
   if (!order.scheduledDate && !(order as any).deliveryDate) return false;
   if (['delivered', 'cancelled', 'completed'].includes(order.status)) return false;
   const dateStr = (order.scheduledDate ?? (order as any).deliveryDate) as string;
@@ -51,7 +60,7 @@ function WholesaleOrderCard({ order, onPress }: { order: ApiOrder; onPress: () =
   const subtotal = order.totalCents ?? 0;
   const gst      = Math.round(subtotal / 11);
   const exGst    = subtotal - gst;
-  const isPaid   = !!(order as any).isPaid;
+  const isPaid   = isWholesalePaid(order);
 
   const borderColor = isOverdue ? RED : order.status === 'dispatched' || order.status === 'delivered' ? GREEN : BORDER;
 
@@ -182,7 +191,7 @@ export function WholesaleTabContent({
   }, [filteredOrders]);
 
   const kpi = useMemo(() => {
-    const outstanding = wholesaleOrders.filter((o) => !(o as any).isPaid && !['cancelled', 'refunded', 'completed'].includes(o.status));
+    const outstanding = wholesaleOrders.filter((o) => !isWholesalePaid(o) && !['cancelled', 'refunded', 'completed'].includes(o.status));
     const outstandingCents = outstanding.reduce((s, o) => s + (o.totalCents ?? 0), 0);
     const overdueOrders = wholesaleOrders.filter(isOverdueWholesale);
     const overdueCount     = overdueOrders.length;

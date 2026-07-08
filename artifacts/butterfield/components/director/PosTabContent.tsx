@@ -11,7 +11,7 @@ import type { PosTransaction, PosSummary } from '@/lib/api';
 import { styles } from './directorOrdersStyles';
 import { fmtTime } from './ordersHelpers';
 import {
-  BG, SURFACE, SURFACE_RAISED, BORDER,
+  BG, HEADER_BG, SURFACE, SURFACE_RAISED, BORDER,
   TEXT, TEXT_MUTED, TEXT_FAINT,
   BRAND, BRAND_DARK, BRAND_DIM, BRAND_TEXT_ON,
   GREEN, GREEN_DIM, AMBER, AMBER_DIM,
@@ -225,7 +225,7 @@ export function PosTabContent({
   const todayStr = sydneyDateStr();
   const isToday  = dayStr === todayStr;
 
-  const { data: txData, isLoading: txLoading, refetch: txRefetch } = useQuery({
+  const { data: txData, isLoading: txLoading, isError: txIsError, error: txError, refetch: txRefetch } = useQuery({
     queryKey: ['director-pos-transactions', dayStr],
     queryFn: () => api.director.posTransactions({ date: dayStr }),
     staleTime: 30_000,
@@ -318,6 +318,7 @@ export function PosTabContent({
   }, [txRefetch, summaryRefetch]);
 
   const [searchQuery, setSearchQuery] = useState('');
+  const [searchOpen, setSearchOpen]   = useState(false);
   const [chipFilter, setChipFilter]   = useState<PosChipKey>('all');
 
   useEffect(() => {
@@ -407,9 +408,9 @@ export function PosTabContent({
 
   return (
     <View style={{ flex: 1, backgroundColor: BG }}>
-      <View style={{ backgroundColor: '#0D131C', borderBottomWidth: 1, borderBottomColor: BORDER, paddingHorizontal: 16, paddingTop: 10, paddingBottom: 12, gap: 12 }}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: SURFACE, borderRadius: 10 }}>
+      <View style={{ backgroundColor: HEADER_BG, borderBottomWidth: 1, borderBottomColor: BORDER, paddingHorizontal: 16, paddingTop: 10, paddingBottom: 12, gap: 12 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+          <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: SURFACE, borderRadius: 10, borderWidth: 1, borderColor: BORDER }}>
             <Pressable onPress={() => onSetDay(shiftPosDate(dayStr, -1))} style={{ padding: 8 }} hitSlop={12}>
               <Feather name="chevron-left" size={18} color={TEXT_MUTED} />
             </Pressable>
@@ -425,27 +426,41 @@ export function PosTabContent({
               <Feather name="chevron-right" size={18} color={isToday ? TEXT_FAINT : TEXT_MUTED} />
             </Pressable>
           </View>
+          <Pressable
+            onPress={() => setSearchOpen((v) => !v)}
+            hitSlop={8}
+            style={{
+              width: 40, height: 40, borderRadius: 10, alignItems: 'center', justifyContent: 'center',
+              backgroundColor: searchOpen || searchQuery.length > 0 ? BRAND_DIM : SURFACE,
+              borderWidth: 1, borderColor: searchOpen || searchQuery.length > 0 ? BRAND : BORDER,
+            }}
+          >
+            <Feather name="search" size={17} color={searchOpen || searchQuery.length > 0 ? BRAND : TEXT_MUTED} />
+          </Pressable>
         </View>
 
-        <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: SURFACE, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, gap: 8, borderWidth: 1, borderColor: BORDER }}>
-          <Feather name="search" size={16} color={TEXT_MUTED} />
-          <TextInput
-            style={{ flex: 1, fontSize: 14, color: TEXT, padding: 0 }}
-            placeholder="Search receipt #, item, or amount…"
-            placeholderTextColor={TEXT_FAINT}
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-            returnKeyType="search"
-            clearButtonMode="while-editing"
-            autoCorrect={false}
-            autoCapitalize="none"
-          />
-          {searchQuery.length > 0 && (
-            <Pressable onPress={() => setSearchQuery('')} hitSlop={8}>
-              <Feather name="x-circle" size={15} color={TEXT_MUTED} />
-            </Pressable>
-          )}
-        </View>
+        {searchOpen && (
+          <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: SURFACE, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, gap: 8, borderWidth: 1, borderColor: BORDER }}>
+            <Feather name="search" size={16} color={TEXT_MUTED} />
+            <TextInput
+              autoFocus
+              style={{ flex: 1, fontSize: 14, color: TEXT, padding: 0 }}
+              placeholder="Search receipt #, item, or amount…"
+              placeholderTextColor={TEXT_FAINT}
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              returnKeyType="search"
+              clearButtonMode="while-editing"
+              autoCorrect={false}
+              autoCapitalize="none"
+            />
+            {searchQuery.length > 0 && (
+              <Pressable onPress={() => { setSearchQuery(''); setSearchOpen(false); }} hitSlop={8}>
+                <Feather name="x-circle" size={15} color={TEXT_MUTED} />
+              </Pressable>
+            )}
+          </View>
+        )}
       </View>
 
       <View style={{ backgroundColor: BG, borderBottomWidth: 1, borderBottomColor: BORDER }}>
@@ -475,6 +490,23 @@ export function PosTabContent({
       {isLoading && !refreshing ? (
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: BG }}>
           <ActivityIndicator color={BRAND} size="large" />
+        </View>
+      ) : txIsError ? (
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24, backgroundColor: BG }}>
+          <Feather name="alert-triangle" size={36} color={RED} style={{ opacity: 0.7 }} />
+          <Text style={{ color: TEXT, marginTop: 12, fontSize: 15, fontWeight: '700', textAlign: 'center' }}>
+            Couldn't load transactions
+          </Text>
+          <Text style={{ color: TEXT_MUTED, marginTop: 4, fontSize: 13, textAlign: 'center' }}>
+            {(txError as any)?.message ?? 'Check your connection and try again.'}
+          </Text>
+          <Pressable
+            onPress={() => txRefetch()}
+            style={{ marginTop: 16, flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: BRAND_DIM, borderWidth: 1, borderColor: BRAND, borderRadius: 10, paddingHorizontal: 16, paddingVertical: 10 }}
+          >
+            <Feather name="refresh-cw" size={14} color={BRAND} />
+            <Text style={{ color: BRAND, fontWeight: '700', fontSize: 13 }}>Retry</Text>
+          </Pressable>
         </View>
       ) : posOrders.length === 0 ? (
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24, backgroundColor: BG }}>

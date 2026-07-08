@@ -6,9 +6,10 @@ import * as Sharing from 'expo-sharing';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator, Alert,
-  Linking, Pressable,
+  KeyboardAvoidingView, Linking, Modal, Platform, Pressable,
   RefreshControl, ScrollView, Text, TextInput, View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRefreshControl } from '@/hooks/useRefreshControl';
 import { DirectorTabScreen } from '@/components/DirectorTabScreen';
 import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -155,6 +156,8 @@ export default function DirectorOrdersScreen() {
   const [adjustWholesaleOrder, setAdjustWholesaleOrder] = useState<ApiOrder | null>(null);
   const [showCreateWholesale, setShowCreateWholesale]   = useState(false);
   const [sendingRevisedInvoice, setSendingRevisedInvoice] = useState(false);
+  const [markPaidOrder, setMarkPaidOrder]   = useState<ApiOrder | null>(null);
+  const [markingPaid, setMarkingPaid]       = useState(false);
   const [drillHour, setDrillHour]         = useState<number | null>(null);
   const [productFilter, setProductFilter] = useState<string | null>(null);
   const [wsFilterParam, setWsFilterParam] = useState<string>('all');
@@ -727,6 +730,7 @@ export default function DirectorOrdersScreen() {
         canCancelRefund={canCancelRefund}
         onEditWholesale={(order) => { setSelectedOrder(null); setTimeout(() => setEditWholesaleOrder(order), 300); }}
         onAdjustWholesale={(order) => { setSelectedOrder(null); setTimeout(() => setAdjustWholesaleOrder(order), 300); }}
+        onMarkPaid={(order) => { setSelectedOrder(null); setTimeout(() => setMarkPaidOrder(order), 300); }}
         onSendRevisedInvoice={async (order) => {
           if (sendingRevisedInvoice) return;
           setSendingRevisedInvoice(true);
@@ -736,6 +740,25 @@ export default function DirectorOrdersScreen() {
             Alert.alert('Invoice Sent', `Revised invoice emailed to ${result.sentTo}.`);
           } catch (err: any) { Alert.alert('Error', err?.message ?? 'Could not send invoice email.'); }
           finally { setSendingRevisedInvoice(false); }
+        }}
+      />
+
+      <MarkPaidModal
+        order={markPaidOrder}
+        onClose={() => setMarkPaidOrder(null)}
+        marking={markingPaid}
+        onConfirm={async (orderId, paymentReference) => {
+          setMarkingPaid(true);
+          try {
+            await api.director.markWholesaleInvoicePaid(orderId, paymentReference);
+            await qc.invalidateQueries({ queryKey: ['director-orders'] });
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            setMarkPaidOrder(null);
+          } catch (err: any) {
+            Alert.alert('Error', err?.message ?? 'Could not mark invoice as paid.');
+          } finally {
+            setMarkingPaid(false);
+          }
         }}
       />
 
@@ -769,5 +792,65 @@ export default function DirectorOrdersScreen() {
         ordersByDate={ordersByDate}
       />
     </DirectorTabScreen>
+  );
+}
+
+function MarkPaidModal({ order, onClose, onConfirm, marking }: {
+  order: ApiOrder | null;
+  onClose: () => void;
+  onConfirm: (orderId: string, paymentReference?: string) => void;
+  marking: boolean;
+}) {
+  const insets = useSafeAreaInsets();
+  const [ref, setRef] = useState('');
+  useEffect(() => { setRef(''); }, [order?.id]);
+  if (!order) return null;
+  return (
+    <Modal visible animationType="fade" transparent onRequestClose={onClose}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' }}
+      >
+        <View style={{ backgroundColor: SURFACE, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: insets.bottom + 16, gap: 12, borderWidth: 1, borderColor: BORDER, borderBottomWidth: 0 }}>
+          <View style={{ width: 40, height: 4, borderRadius: 2, backgroundColor: BORDER, alignSelf: 'center', marginBottom: 4 }} />
+          <Text style={{ fontSize: 17, fontWeight: '700', color: TEXT }}>Mark as Paid</Text>
+          <Text style={{ fontSize: 13, color: TEXT_MUTED }}>
+            #{order.orderNumber ?? order.poReference ?? order.id.slice(0, 8).toUpperCase()} · {order.customerName ?? ''}
+          </Text>
+          <Text style={{ fontSize: 24, fontWeight: '800', color: TEXT }}>{fmtCents(order.totalCents ?? 0)}</Text>
+
+          <Text style={{ fontSize: 12, fontWeight: '600', color: TEXT_MUTED, marginTop: 4 }}>Payment Reference (optional)</Text>
+          <TextInput
+            style={{ backgroundColor: SURFACE_RAISED, borderWidth: 1, borderColor: BORDER, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, color: TEXT, fontSize: 14 }}
+            placeholder="e.g. EFT receipt 20240610, BSB transfer"
+            placeholderTextColor={TEXT_MUTED}
+            value={ref}
+            onChangeText={setRef}
+            returnKeyType="done"
+            autoCapitalize="none"
+          />
+
+          <View style={{ flexDirection: 'row', gap: 10, marginTop: 6 }}>
+            <Pressable
+              onPress={onClose}
+              style={({ pressed }) => ({ flex: 1, height: 46, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: SURFACE_RAISED, borderWidth: 1, borderColor: BORDER, opacity: pressed ? 0.7 : 1 })}
+            >
+              <Text style={{ color: TEXT, fontWeight: '600', fontSize: 14 }}>Cancel</Text>
+            </Pressable>
+            <Pressable
+              onPress={() => onConfirm(order.id, ref.trim() || undefined)}
+              disabled={marking}
+              style={({ pressed }) => ({ flex: 2, height: 46, borderRadius: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: GREEN, opacity: pressed || marking ? 0.7 : 1 })}
+            >
+              {marking
+                ? <ActivityIndicator size="small" color="#fff" />
+                : <Feather name="check-circle" size={16} color="#fff" />
+              }
+              <Text style={{ color: '#fff', fontWeight: '700', fontSize: 14 }}>{marking ? 'Marking…' : 'Mark as Paid'}</Text>
+            </Pressable>
+          </View>
+        </View>
+      </KeyboardAvoidingView>
+    </Modal>
   );
 }

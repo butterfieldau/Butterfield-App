@@ -26,7 +26,7 @@ export const styles = StyleSheet.create({
   statusPill:     { paddingHorizontal: 12, paddingVertical: 5, borderRadius: 20, alignSelf: 'flex-start' },
   statusPillText: { fontSize: 13, fontWeight: '600' },
   updateStatusBtn:{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 9, borderRadius: 12 },
-  printBtn:       { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 10, borderRadius: 12, marginHorizontal: 16, marginTop: 2 },
+  printBtn:       { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 10, borderRadius: 12 },
   detailRow:      { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
   detailText:     { color: TEXT, fontWeight: '400', fontSize: 14, lineHeight: 20 },
   itemRow:        { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', paddingVertical: 10, gap: 8 },

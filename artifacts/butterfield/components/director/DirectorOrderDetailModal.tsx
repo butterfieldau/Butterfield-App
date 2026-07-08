@@ -21,7 +21,15 @@ import {
 
 const TWO_WEEKS_MS = 14 * 24 * 60 * 60 * 1000;
 
-export default function DirectorOrderDetailModal({ order, visible, onClose, onStatusChange, onAcceptOrder, onPrintReceipt, onViewInvoice, printing, canCancelRefund, onEditWholesale, onAdjustWholesale, onSendRevisedInvoice }: {
+function isWholesaleOrderPaid(order: ApiOrder): boolean {
+  return !!(
+    (order as any).isPaid ||
+    String((order as any).stripePaymentStatus ?? '').toLowerCase() === 'paid' ||
+    String((order as any).invoiceStatus ?? '').toLowerCase() === 'paid'
+  );
+}
+
+export default function DirectorOrderDetailModal({ order, visible, onClose, onStatusChange, onAcceptOrder, onPrintReceipt, onViewInvoice, printing, canCancelRefund, onEditWholesale, onAdjustWholesale, onSendRevisedInvoice, onMarkPaid }: {
   order: ApiOrder | null; visible: boolean; onClose: () => void;
   onStatusChange: (id: string, status: string, cancelReason?: string) => Promise<void>;
   onAcceptOrder: (id: string) => Promise<void>;
@@ -32,6 +40,7 @@ export default function DirectorOrderDetailModal({ order, visible, onClose, onSt
   onEditWholesale?: (order: ApiOrder) => void;
   onAdjustWholesale?: (order: ApiOrder) => void;
   onSendRevisedInvoice?: (order: ApiOrder) => void;
+  onMarkPaid?: (order: ApiOrder) => void;
 }) {
   const insets = useSafeAreaInsets();
   const [updating, setUpdating] = useState(false);
@@ -196,7 +205,7 @@ export default function DirectorOrderDetailModal({ order, visible, onClose, onSt
           {isWholesale && (
             <View style={{ flexDirection: 'row', gap: 8, marginTop: 2 }}>
               {/* Edit Items: available for any unpaid wholesale order not yet dispatched/delivered/cancelled */}
-              {onEditWholesale && !order.isPaid && !['dispatched', 'delivered', 'cancelled', 'refunded', 'completed'].includes(order.status) && (
+              {onEditWholesale && !isWholesaleOrderPaid(order) && !['dispatched', 'delivered', 'cancelled', 'refunded', 'completed'].includes(order.status) && (
                 <Pressable
                   onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); onEditWholesale(order); }}
                   style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, height: 42, borderRadius: 12, backgroundColor: BRAND + '18', borderWidth: 1, borderColor: BRAND + '50' }}
@@ -205,8 +214,18 @@ export default function DirectorOrderDetailModal({ order, visible, onClose, onSt
                   <Text style={{ color: BRAND, fontWeight: '600', fontSize: 13 }}>Edit Items</Text>
                 </Pressable>
               )}
+              {/* Mark Paid: available for any unpaid wholesale order */}
+              {onMarkPaid && !isWholesaleOrderPaid(order) && (
+                <Pressable
+                  onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); onMarkPaid(order); }}
+                  style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, height: 42, borderRadius: 12, backgroundColor: GREEN_DIM, borderWidth: 1, borderColor: GREEN + '50' }}
+                >
+                  <Feather name="check-circle" size={14} color={GREEN} />
+                  <Text style={{ color: GREEN, fontWeight: '600', fontSize: 13 }}>Mark Paid</Text>
+                </Pressable>
+              )}
               {/* Adjust / Credit: only for PAID wholesale orders (credit/refund against a paid invoice) */}
-              {onAdjustWholesale && order.isPaid && (
+              {onAdjustWholesale && isWholesaleOrderPaid(order) && (
                 <Pressable
                   onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); onAdjustWholesale(order); }}
                   style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, height: 42, borderRadius: 12, backgroundColor: RED_DIM, borderWidth: 1, borderColor: RED + '50' }}
@@ -325,7 +344,7 @@ export default function DirectorOrderDetailModal({ order, visible, onClose, onSt
                 <Text style={{ color: BRAND, fontWeight: '700', fontSize: 15 }}>AUD ${((order.totalCents ?? 0) / 100).toFixed(2)}</Text>
               </View>
               {loyaltyEarned > 0 && (<View style={{ flexDirection: 'row', justifyContent: 'space-between' }}><Text style={{ color: TEXT_MUTED, fontWeight: '400', fontSize: 12 }}>Points earned</Text><Text style={{ color: AMBER, fontWeight: '500', fontSize: 12 }}>+{loyaltyEarned} pts</Text></View>)}
-              {isWholesale && order.isPaid != null && (<View style={{ flexDirection: 'row', justifyContent: 'space-between' }}><Text style={{ color: TEXT_MUTED, fontWeight: '400', fontSize: 12 }}>Payment</Text><Text style={{ color: order.isPaid ? GREEN : RED, fontWeight: '500', fontSize: 12 }}>{order.isPaid ? 'Paid' : 'Awaiting Payment'}</Text></View>)}
+              {isWholesale && (<View style={{ flexDirection: 'row', justifyContent: 'space-between' }}><Text style={{ color: TEXT_MUTED, fontWeight: '400', fontSize: 12 }}>Payment</Text><Text style={{ color: isWholesaleOrderPaid(order) ? GREEN : RED, fontWeight: '500', fontSize: 12 }}>{isWholesaleOrderPaid(order) ? 'Paid' : 'Awaiting Payment'}</Text></View>)}
               {isWholesale && order.receiptEmailSentAt ? (
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
@@ -336,7 +355,7 @@ export default function DirectorOrderDetailModal({ order, visible, onClose, onSt
                     {new Date(order.receiptEmailSentAt).toLocaleString('en-AU', { timeZone: 'Australia/Sydney', day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit' })}
                   </Text>
                 </View>
-              ) : isWholesale && order.isPaid ? (
+              ) : isWholesale && isWholesaleOrderPaid(order) ? (
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                     <Feather name="mail" size={11} color={TEXT_MUTED} />

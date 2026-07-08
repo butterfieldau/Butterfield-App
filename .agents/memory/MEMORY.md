@@ -13,3 +13,5 @@
 - [Canvas align/distribute param names](canvas-align-distribute-params.md) — use `alignment` (not `edge`) and `direction` (not `axis`) or the action errors with a bare `'alignment'` message.
 - [Per-screen theme override props pattern](theme-override-props-pattern.md) — reskin one screen via optional default-preserving props on shared components instead of forking/hardcoding a new palette into them.
 - [checkDatabase() false negative](checkdatabase-false-negative.md) — can report "not provisioned" even though DATABASE_URL works fine; verify with psql directly instead of trusting it.
+- [Command Center theme single source](command-center-theme-token-file.md) — Director Orders screens retheme entirely by editing one color-token file; don't rewrite JSX per screen.
+- [POS TestFlight empty-data dead end](pos-testflight-empty-data.md) — repeated deep dives found no code bug; add error-vs-empty UI distinction and move on rather than re-investigating the same ruled-out causes.
