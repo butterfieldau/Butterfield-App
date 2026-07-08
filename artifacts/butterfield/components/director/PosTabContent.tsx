@@ -527,15 +527,30 @@ export function PosTabContent({
         >
           {/* ── Hero: Total Revenue ──────────────────────────── */}
           {(() => {
-            const settled     = posOrders.filter(tx => !['cancelled', 'voided', 'refunded'].includes(tx.status));
-            const revenue     = isToday ? (summary?.totalRevenueCents ?? settled.reduce((s, tx) => s + tx.totalCents, 0)) : settled.reduce((s, tx) => s + tx.totalCents, 0);
-            const count       = isToday ? (summary?.ticketCount       ?? settled.length) : settled.length;
-            const avgCents    = isToday ? (summary?.avgTicketCents    ?? (count > 0 ? Math.round(revenue / count) : 0)) : (count > 0 ? Math.round(revenue / count) : 0);
-            const cashCents   = isToday ? (summary?.cashCents ?? settled.filter(tx => (tx.paymentMethod ?? '').toLowerCase() === 'cash').reduce((s, tx) => s + tx.totalCents, 0)) : settled.filter(tx => (tx.paymentMethod ?? '').toLowerCase() === 'cash').reduce((s, tx) => s + tx.totalCents, 0);
-            const eftposCents = isToday ? (summary?.eftposCents ?? (revenue - cashCents)) : (revenue - cashCents);
+            // When a chip filter is active, scope the revenue block to the filtered
+            // set. When "All" is selected, use the full posOrders list (and fall back
+            // to the live summary API for today's totals).
+            const isFiltered  = chipFilter !== 'all';
+            const baseOrders  = isFiltered ? filteredOrders : posOrders;
+            const settled     = baseOrders.filter(tx => !['cancelled', 'voided', 'refunded'].includes(tx.status));
+
+            // Only use the live summary shortcut for the unfiltered "All" view —
+            // summary data is always a full-day total.
+            const useSummary  = !isFiltered && isToday;
+            const revenue     = useSummary ? (summary?.totalRevenueCents ?? settled.reduce((s, tx) => s + tx.totalCents, 0)) : settled.reduce((s, tx) => s + tx.totalCents, 0);
+            const count       = useSummary ? (summary?.ticketCount       ?? settled.length) : settled.length;
+            const avgCents    = useSummary ? (summary?.avgTicketCents    ?? (count > 0 ? Math.round(revenue / count) : 0)) : (count > 0 ? Math.round(revenue / count) : 0);
+            const cashCents   = useSummary ? (summary?.cashCents ?? settled.filter(tx => (tx.paymentMethod ?? '').toLowerCase() === 'cash').reduce((s, tx) => s + tx.totalCents, 0)) : settled.filter(tx => (tx.paymentMethod ?? '').toLowerCase() === 'cash').reduce((s, tx) => s + tx.totalCents, 0);
+            const eftposCents = useSummary ? (summary?.eftposCents ?? (revenue - cashCents)) : (revenue - cashCents);
+
+            const heroTitle = chipFilter === 'eftpos'   ? 'EFTPOS Revenue'
+                            : chipFilter === 'cash'     ? 'Cash Revenue'
+                            : chipFilter === 'refunded' ? 'Refunded'
+                            : chipFilter === 'voided'   ? 'Voided'
+                            : 'Total Revenue';
 
             let topItem: [string, number] | null = null;
-            if (isToday && summary?.topItem) {
+            if (useSummary && summary?.topItem) {
               topItem = [summary.topItem.name, summary.topItem.qty];
             } else {
               const itemCounts: Record<string, number> = {};
@@ -554,12 +569,12 @@ export function PosTabContent({
               <>
                 <View style={{ backgroundColor: SURFACE_RAISED, borderRadius: 20, padding: 20, marginBottom: 16, borderWidth: 1, borderColor: BORDER, overflow: 'hidden' }}>
                   <View style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, backgroundColor: BRAND }} />
-                  <Text style={{ fontSize: 11, fontWeight: '800', color: BRAND, textTransform: 'uppercase', letterSpacing: 1.2, marginBottom: 16, textAlign: 'center' }}>Total Revenue</Text>
+                  <Text style={{ fontSize: 11, fontWeight: '800', color: BRAND, textTransform: 'uppercase', letterSpacing: 1.2, marginBottom: 16, textAlign: 'center' }}>{heroTitle}</Text>
                   <View style={{ alignItems: 'center' }}>
                     <Text style={{ fontSize: 44, fontWeight: '900', color: TEXT, letterSpacing: -1 }}>{fmtCents(revenue)}</Text>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 8 }}>
                       <Text style={{ fontSize: 14, color: TEXT_MUTED }}>{count} ticket{count !== 1 ? 's' : ''}</Text>
-                      {isToday && (
+                      {isToday && !isFiltered && (
                         <>
                           <View style={{ width: 4, height: 4, borderRadius: 2, backgroundColor: BORDER }} />
                           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
@@ -583,16 +598,19 @@ export function PosTabContent({
                     <Text style={{ fontSize: 14, fontWeight: '700', color: TEXT, marginTop: 3 }} numberOfLines={1}>{topItem ? topItem[0] : '—'}</Text>
                   </View>
                 </View>
-                <View style={{ backgroundColor: SURFACE, borderRadius: 12, padding: 14, borderWidth: 1, borderColor: BORDER, marginBottom: 24, gap: 8 }}>
-                  <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                    <Text style={{ fontSize: 11, fontWeight: '700', color: TEXT_MUTED }}>EFTPOS ({revenue > 0 ? Math.round(eftposCents / revenue * 100) : 0}%)</Text>
-                    <Text style={{ fontSize: 11, fontWeight: '700', color: TEXT_MUTED }}>CASH ({revenue > 0 ? Math.round(cashCents / revenue * 100) : 0}%)</Text>
+                {/* EFTPOS/Cash split bar — only meaningful for the combined "All" view */}
+                {!isFiltered && (
+                  <View style={{ backgroundColor: SURFACE, borderRadius: 12, padding: 14, borderWidth: 1, borderColor: BORDER, marginBottom: 24, gap: 8 }}>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                      <Text style={{ fontSize: 11, fontWeight: '700', color: TEXT_MUTED }}>EFTPOS ({revenue > 0 ? Math.round(eftposCents / revenue * 100) : 0}%)</Text>
+                      <Text style={{ fontSize: 11, fontWeight: '700', color: TEXT_MUTED }}>CASH ({revenue > 0 ? Math.round(cashCents / revenue * 100) : 0}%)</Text>
+                    </View>
+                    <View style={{ height: 8, backgroundColor: BG, borderRadius: 4, overflow: 'hidden', flexDirection: 'row' }}>
+                      <View style={{ flex: eftposCents || 0.0001, backgroundColor: BLUE }} />
+                      <View style={{ flex: cashCents || 0.0001, backgroundColor: GREEN }} />
+                    </View>
                   </View>
-                  <View style={{ height: 8, backgroundColor: BG, borderRadius: 4, overflow: 'hidden', flexDirection: 'row' }}>
-                    <View style={{ flex: eftposCents || 0.0001, backgroundColor: BLUE }} />
-                    <View style={{ flex: cashCents || 0.0001, backgroundColor: GREEN }} />
-                  </View>
-                </View>
+                )}
               </>
             );
           })()}
