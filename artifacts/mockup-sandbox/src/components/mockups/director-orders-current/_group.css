@@ -1,0 +1,36 @@
+:root {
+  --director-bg: #EFF6FF;
+  --director-card: #FFFFFF;
+  --director-blue: #1493FF;
+  --director-navy: #1A2B4A;
+  --director-text: #1C1C1E;
+  --director-muted: #8E8E93;
+  --director-border: #E5E7EB;
+  --director-green: #22C55E;
+  --director-amber: #F59E0B;
+  --director-red: #EF4444;
+  --director-purple: #8B5CF6;
+  --director-glass-bg: rgba(255, 255, 255, 0.6);
+  --director-glass-border: rgba(255, 255, 255, 0.85);
+}
+
+.director-phone-frame {
+  width: 390px;
+  min-height: 844px;
+  background-color: var(--director-bg);
+  color: var(--director-text);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  overflow-x: hidden;
+  position: relative;
+  box-shadow: 0 0 20px rgba(0,0,0,0.1);
+  margin: 0 auto;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.animate-pulse-subtle {
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
