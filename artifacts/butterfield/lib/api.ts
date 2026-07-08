@@ -537,6 +537,8 @@ export const api = {
       const qs = params.toString();
       return request<{ data: PosTransaction[] }>(`/director/pos/transactions${qs ? `?${qs}` : ''}`);
     },
+    voidPosTransaction:  (id: string) =>
+      request<{ data: { id: string; status: string; orderNumber: string | null } }>(`/director/pos/transactions/${id}/void`, { method: 'POST' }),
     acceptOrder:         (id: string) => request<{ data: ApiOrder }>(`/director/orders/${id}/accept`, { method: 'POST' }),
     updateOrderStatus:   (id: string, status: string, cancelReason?: string) => request<{ data: ApiOrder }>(`/director/orders/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status, ...(cancelReason ? { cancelReason } : {}) }) }),
     users:               () => request<{ data: DirectorUserSummary[] }>('/director/users'),

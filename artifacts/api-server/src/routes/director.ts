@@ -125,6 +125,7 @@ function resolveDirectorPermission(method: string, path: string): ManagerPermiss
 
   // POS analytics — accessible to managers with orders permission
   if (path === '/pos/summary' || path === '/pos/transactions') return 'orders';
+  if (path.startsWith('/pos/transactions/') && path.endsWith('/void')) return 'orders';
 
   // POS thresholds — director only
   if (path === '/pos-thresholds') return 'director_only';
@@ -910,6 +911,44 @@ router.get('/pos/transactions', async (req, res) => {
       operatorName:     r.operator_name ?? null,
       registerSessionId: null,
     })),
+  });
+});
+
+// ── POST /director/pos/transactions/:id/void ──────────────────────────────
+// Void a POS transaction. Director/manager (with orders permission) only.
+router.post('/pos/transactions/:id/void', async (req, res) => {
+  const { id } = req.params;
+
+  const [order] = await db.select().from(ordersTable).where(eq(ordersTable.id, id));
+  if (!order) return res.status(404).json({ error: 'Transaction not found.' });
+  if (order.source !== 'pos') {
+    return res.status(400).json({ error: 'Only POS transactions can be voided here.' });
+  }
+  if (['voided', 'cancelled', 'refunded'].includes(order.status as string)) {
+    return res.status(400).json({ error: `Transaction is already ${order.status}.` });
+  }
+
+  const [updated] = await db
+    .update(ordersTable)
+    .set({ status: 'voided' as any, updatedAt: new Date() })
+    .where(eq(ordersTable.id, id))
+    .returning();
+
+  await recordAuditLog({
+    actor: req.user,
+    entityType: 'order',
+    entityId: id,
+    action: 'director.pos_void',
+    before: { status: order.status },
+    after: { status: 'voided' },
+  });
+
+  return res.json({
+    data: {
+      id: updated.id,
+      status: updated.status,
+      orderNumber: updated.orderNumber,
+    },
   });
 });
 

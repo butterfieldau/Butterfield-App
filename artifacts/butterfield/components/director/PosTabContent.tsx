@@ -5,7 +5,7 @@ import {
   ActivityIndicator, Alert, Pressable,
   RefreshControl, ScrollView, Text, TextInput, View,
 } from 'react-native';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import type { PosTransaction, PosSummary } from '@/lib/api';
 import { styles } from './ordersStyles';
@@ -216,6 +216,32 @@ export function PosTabContent({
   const summary: PosSummary | undefined = summaryData?.data;
   const isLoading = txLoading;
 
+  const queryClient = useQueryClient();
+  const txQueryKey = ['director-pos-transactions', dayStr];
+
+  const voidMutation = useMutation({
+    mutationFn: (id: string) => api.director.voidPosTransaction(id),
+    onMutate: async (id: string) => {
+      await queryClient.cancelQueries({ queryKey: txQueryKey });
+      const previous = queryClient.getQueryData<{ data: PosTransaction[] }>(txQueryKey);
+      queryClient.setQueryData<{ data: PosTransaction[] } | undefined>(txQueryKey, (old) => {
+        if (!old) return old;
+        return { ...old, data: old.data.map(tx => tx.id === id ? { ...tx, status: 'voided' } : tx) };
+      });
+      return { previous };
+    },
+    onError: (_err, _id, context) => {
+      if (context?.previous) queryClient.setQueryData(txQueryKey, context.previous);
+      Alert.alert('Void failed', 'Could not void this transaction. Please try again.');
+    },
+    onSuccess: () => {
+      summaryRefetch();
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: txQueryKey });
+    },
+  });
+
   const [refreshing, setRefreshing] = useState(false);
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -270,7 +296,7 @@ export function PosTabContent({
         {
           text: 'Void',
           style: 'destructive',
-          onPress: () => Alert.alert('Voided', `Transaction ${label} has been voided.`),
+          onPress: () => voidMutation.mutate(tx.id),
         },
       ],
     );
