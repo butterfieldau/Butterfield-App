@@ -1,5 +1,5 @@
 // Shared design tokens for the Director Hub redesign — "Command Center" direction.
-// High-contrast dark chrome, one warm gold brand accent, clear semantic status colors.
+// High-contrast dark chrome, Butterfield sky-blue brand accent, clear semantic status colors.
 
 export const BG = '#0A0E14';
 export const SURFACE = '#141A24';
@@ -10,8 +10,10 @@ export const TEXT = '#F5F7FA';
 export const TEXT_MUTED = '#8B96A8';
 export const TEXT_FAINT = '#5B6576';
 
-export const GOLD = '#F2B84B';
-export const GOLD_DIM = 'rgba(242, 184, 75, 0.14)';
+export const BRAND = '#40C0F2';
+export const BRAND_DARK = '#2AA8DC';
+export const BRAND_DIM = 'rgba(64, 192, 242, 0.16)';
+export const BRAND_TEXT_ON = '#04202E';
 
 export const GREEN = '#34D399';
 export const GREEN_DIM = 'rgba(52, 211, 153, 0.14)';

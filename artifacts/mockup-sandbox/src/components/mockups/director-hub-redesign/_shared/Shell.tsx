@@ -1,6 +1,6 @@
 import { ReactNode } from 'react';
 import { Bell, ChevronDown } from 'lucide-react';
-import { BG, SURFACE, BORDER, TEXT, TEXT_MUTED, GOLD, GOLD_DIM, TABS, TabKey } from './tokens';
+import { BG, SURFACE, BORDER, TEXT, TEXT_MUTED, BRAND, BRAND_DIM, BRAND_TEXT_ON, TABS, TabKey } from './tokens';
 
 export function Shell({
   activeTab,
@@ -27,7 +27,7 @@ export function Shell({
           <div className="flex items-center gap-2">
             <div
               className="px-2 py-0.5 rounded text-[10px] font-bold tracking-wider"
-              style={{ background: GOLD_DIM, color: GOLD }}
+              style={{ background: BRAND_DIM, color: BRAND }}
             >
               DIRECTOR
             </div>
@@ -65,7 +65,7 @@ export function Shell({
                 className="flex-1 text-center py-2 rounded-lg text-[12px] font-semibold transition-colors"
                 style={
                   isActive
-                    ? { background: GOLD, color: '#1A1206' }
+                    ? { background: BRAND, color: BRAND_TEXT_ON }
                     : { color: TEXT_MUTED }
                 }
               >
@@ -99,7 +99,7 @@ export function FilterChip({ label, active }: { label: string; active?: boolean 
       className="px-3 py-1.5 rounded-full text-[12px] font-semibold whitespace-nowrap flex items-center gap-1"
       style={
         active
-          ? { background: GOLD, color: '#1A1206' }
+          ? { background: BRAND, color: BRAND_TEXT_ON }
           : { background: SURFACE, color: TEXT_MUTED, border: `1px solid ${BORDER}` }
       }
     >

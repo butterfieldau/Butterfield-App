@@ -10,3 +10,4 @@
 - [pg session timezone must be UTC](pg-session-timezone-utc.md) — TZ=Australia/Sydney on Node process does NOT set pg session TZ; must use pool options: "-c timezone=UTC" or timestamp comparisons break.
 - [Client-side Sydney date comparison pattern](client-sydney-date.md) — Use toLocaleDateString('en-CA', {timeZone:'Australia/Sydney'}) for all date comparisons; never getDate/getMonth on device-local time.
 - [Expo Router Stack inside Tabs](expo-router-stack-in-tabs.md) — never pair foo.tsx with foo/ directory; use only foo/_layout.tsx + foo/index.tsx pattern.
+- [Canvas align/distribute param names](canvas-align-distribute-params.md) — use `alignment` (not `edge`) and `direction` (not `axis`) or the action errors with a bare `'alignment'` message.
