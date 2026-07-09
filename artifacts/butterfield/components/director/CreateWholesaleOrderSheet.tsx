@@ -182,17 +182,37 @@ export function CreateWholesaleOrderSheet({ visible, onClose, onCreated, presele
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
       <View style={{ flex: 1, backgroundColor: BG }}>
         {/* Header */}
-        <View style={{ backgroundColor: '#0D131C', paddingTop: insets.top + 8, paddingBottom: 0, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: BORDER }}>
+        <View style={{ backgroundColor: SURFACE, paddingTop: insets.top + 8, paddingBottom: 0, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: BORDER }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', paddingBottom: 10 }}>
-            <Pressable onPress={onClose} style={{ padding: 6, marginRight: 8 }}>
-              <Feather name="x" size={20} color={TEXT} />
-            </Pressable>
+            {/* Back / close button — step-aware */}
+            {step === 'account' ? (
+              <Pressable onPress={onClose} style={{ padding: 6, marginRight: 8 }} accessibilityLabel="Close">
+                <Feather name="x" size={20} color={TEXT_MUTED} />
+              </Pressable>
+            ) : (
+              <Pressable
+                onPress={() => {
+                  Haptics.selectionAsync();
+                  if (step === 'summary') setStep('items');
+                  else setStep('account');
+                }}
+                style={{ padding: 6, marginRight: 8 }}
+                accessibilityLabel="Go back"
+              >
+                <Feather name="arrow-left" size={20} color={BRAND} />
+              </Pressable>
+            )}
             <Text style={{ flex: 1, fontSize: 17, fontWeight: '700', color: TEXT }}>New Wholesale Order</Text>
-            {cart.length > 0 && (
+            {/* Close always available on items/summary too */}
+            {step !== 'account' ? (
+              <Pressable onPress={onClose} style={{ padding: 6 }} accessibilityLabel="Dismiss">
+                <Feather name="x" size={18} color={TEXT_MUTED} />
+              </Pressable>
+            ) : cart.length > 0 ? (
               <View style={{ backgroundColor: BRAND, borderRadius: 12, paddingHorizontal: 10, paddingVertical: 4 }}>
                 <Text style={{ color: BRAND_TEXT_ON, fontWeight: '700', fontSize: 12 }}>{cart.length} items · ${(totalCents / 100).toFixed(2)}</Text>
               </View>
-            )}
+            ) : null}
           </View>
           <StepIndicator />
         </View>
