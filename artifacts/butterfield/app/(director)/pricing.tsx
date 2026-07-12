@@ -1,6 +1,6 @@
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import type { ComponentProps } from 'react';
 import {
   ActivityIndicator,
@@ -260,6 +260,10 @@ export default function DirectorPricing() {
   const customersOnTier = (tierId: string) =>
     wholesaleUsers.filter((user) => user.wholesaleAccount?.tierId === tierId).length;
 
+  // Inline price editing state (productId → price string)
+  const [inlinePrices,  setInlinePrices]  = useState<Record<string, string>>({});
+  const [inlineSaving,  setInlineSaving]  = useState<Set<string>>(new Set());
+
   // Group product rules by productId for the tier detail view
   const rulesByProduct = new Map<string, TierProductRule[]>();
   for (const rule of tierProductRules) {
@@ -268,14 +272,32 @@ export default function DirectorPricing() {
     rulesByProduct.set(rule.productId, arr);
   }
 
+  // Sync inline prices from loaded tier rules
+  useEffect(() => {
+    const next: Record<string, string> = {};
+    rulesByProduct.forEach((rules, productId) => {
+      const flat = rules.length === 1 && rules[0].minQty === 1 && rules[0].unitPriceCents != null && rules[0].discountPct == null
+        ? rules[0] : null;
+      if (flat) next[productId] = (flat.unitPriceCents! / 100).toFixed(2);
+    });
+    setInlinePrices(next);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tierRulesData]);
+
   // Filter products for search
   const searchLower = debouncedSearch.toLowerCase().trim();
-  const searchedProducts = searchLower
+  const visibleProducts = searchLower
     ? allProducts.filter((p) =>
         p.name.toLowerCase().includes(searchLower) ||
         (p.category ?? '').toLowerCase().includes(searchLower),
       )
-    : [];
+    : [...allProducts].sort((a, b) => {
+        const ca = (a.category ?? '').toLowerCase();
+        const cb = (b.category ?? '').toLowerCase();
+        return ca !== cb ? ca.localeCompare(cb) : a.name.localeCompare(b.name);
+      });
+  // keep legacy alias for search-result display counts
+  const searchedProducts = visibleProducts;
 
   // ── Action handlers ───────────────────────────────────────────────────────
   const openNewTier  = () => { setTierForm(EMPTY_TIER); setTierModal(true); };
@@ -358,6 +380,38 @@ export default function DirectorPricing() {
     assignTierMut.mutate({ accountId, tierId });
   };
 
+  async function handleInlinePriceBlur(productId: string) {
+    if (!selectedTier) return;
+    const text  = (inlinePrices[productId] ?? '').trim();
+    const cents = Math.round(parseFloat(text) * 100);
+    if (!text || isNaN(cents) || cents <= 0) return;
+
+    const existingRules = rulesByProduct.get(productId) ?? [];
+    const savedFlat = existingRules.length === 1 && existingRules[0].minQty === 1 &&
+      existingRules[0].unitPriceCents != null && existingRules[0].discountPct == null
+      ? existingRules[0] : null;
+    if (savedFlat && savedFlat.unitPriceCents === cents) return; // unchanged
+
+    setInlineSaving((prev) => new Set([...prev, productId]));
+    try {
+      // Create new rule first so pricing is never gapped
+      await api.director.createQtyBreak({
+        productId, minQty: 1, unitPriceCents: cents,
+        scope: 'tier', tierId: selectedTier.id,
+      });
+      // Then remove old rules
+      if (existingRules.length > 0) {
+        await Promise.all(existingRules.map((r) => api.director.deleteQtyBreak(r.id)));
+      }
+      invalidateTierRules();
+      invalidateBreaks();
+    } catch (e) {
+      Alert.alert('Error', getErrorMessage(e));
+    } finally {
+      setInlineSaving((prev) => { const n = new Set(prev); n.delete(productId); return n; });
+    }
+  }
+
   function ruleDescription(rules: TierProductRule[]): string {
     if (rules.length === 0) return '';
     if (rules.length === 1) {
@@ -425,9 +479,6 @@ export default function DirectorPricing() {
     const discPct = tier.defaultDiscountPct ?? 0;
     const count   = customersOnTier(tier.id);
 
-    const productsWithRules = [...rulesByProduct.keys()];
-    const showSearchResults  = searchLower.length > 0;
-
     return (
       <View style={{ flex: 1 }}>
         <Pressable onPress={() => { setSelectedTier(null); setProductSearch(''); setDebouncedSearch(''); }} style={styles.backBtn}>
@@ -435,7 +486,7 @@ export default function DirectorPricing() {
           <Text style={{ color: BLUE, fontSize: 14, fontWeight: '600' }}>All Tiers</Text>
         </Pressable>
 
-        <ScrollView contentContainerStyle={[styles.listContent, { gap: 16 }]}>
+        <ScrollView contentContainerStyle={[styles.listContent, { gap: 16 }]} keyboardShouldPersistTaps="handled">
           {/* Tier header card */}
           <View style={[styles.card, { padding: 16, gap: 10 }]}>
             <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' }}>
@@ -466,13 +517,23 @@ export default function DirectorPricing() {
           {/* Product Pricing section */}
           <View style={{ gap: 10 }}>
             <View style={styles.sectionHeader}>
-              <Text style={[styles.sectionTitle, { fontSize: 15 }]}>Product Pricing Rules</Text>
+              <Text style={[styles.sectionTitle, { fontSize: 15 }]}>Product Prices</Text>
             </View>
+
+            {/* Hint */}
+            <View style={[styles.infoBox, { backgroundColor: '#EBF8FF', borderColor: '#BEE3F8' }]}>
+              <Feather name="info" size={13} color={BLUE} />
+              <Text style={[styles.infoText, { color: '#1E3A5F', fontSize: 12 }]}>
+                Enter a flat price per product and it saves automatically on blur. For volume or percentage rules, tap the edit icon.
+              </Text>
+            </View>
+
+            {/* Search */}
             <View style={[styles.searchBar, { borderColor: BORDER, backgroundColor: CARD }]}>
               <Feather name="search" size={15} color={MUTED} />
               <TextInput
                 style={{ flex: 1, fontSize: 14, color: TEXT, paddingVertical: 0 }}
-                placeholder="Search products to add a rule…"
+                placeholder="Filter products…"
                 placeholderTextColor={MUTED}
                 value={productSearch}
                 onChangeText={handleSearchChange}
@@ -488,63 +549,79 @@ export default function DirectorPricing() {
 
             {tierRulesLoading ? (
               <ActivityIndicator color={BLUE} style={{ marginTop: 20 }} />
-            ) : showSearchResults ? (
-              <View style={{ gap: 8 }}>
-                <Text style={[styles.cardMeta, { paddingHorizontal: 4 }]}>
-                  {searchedProducts.length === 0 ? 'No products found' : `${searchedProducts.length} result${searchedProducts.length !== 1 ? 's' : ''}`}
-                </Text>
-                {searchedProducts.map((p) => {
-                  const rules = rulesByProduct.get(p.id) ?? [];
-                  const hasRule = rules.length > 0;
+            ) : visibleProducts.length === 0 ? (
+              <View style={styles.emptyWrap}>
+                <Text style={styles.emptyTitle}>No products found</Text>
+              </View>
+            ) : (
+              <View style={{ gap: 6 }}>
+                {searchLower.length > 0 && (
+                  <Text style={[styles.cardMeta, { paddingHorizontal: 4 }]}>
+                    {visibleProducts.length} result{visibleProducts.length !== 1 ? 's' : ''}
+                  </Text>
+                )}
+                {visibleProducts.map((p) => {
+                  const rules    = rulesByProduct.get(p.id) ?? [];
+                  const isComplex = rules.length > 1 ||
+                    (rules.length === 1 && (rules[0].discountPct != null || rules[0].minQty > 1));
+                  const isSaving = inlineSaving.has(p.id);
+                  const priceVal = inlinePrices[p.id] ?? '';
+                  const hasPrice = !!priceVal;
+
                   return (
-                    <View key={p.id} style={styles.productRuleCard}>
-                      <View style={{ flex: 1, gap: 3 }}>
-                        <Text style={styles.cardTitle} numberOfLines={1}>{p.name}</Text>
-                        <Text style={styles.cardMeta}>{p.category ?? 'No category'}</Text>
-                        {hasRule && (
-                          <Text style={{ fontSize: 12, color: GREEN, fontWeight: '600' }}>
+                    <View key={p.id} style={[styles.productRuleCard, { alignItems: 'center' }]}>
+                      {/* Left: name + category + complex rule badge */}
+                      <View style={{ flex: 1, gap: 2 }}>
+                        <Text style={[styles.cardTitle, { fontSize: 13 }]} numberOfLines={1}>{p.name}</Text>
+                        {!!p.category && <Text style={[styles.cardMeta, { fontSize: 11 }]}>{p.category}</Text>}
+                        {isComplex && (
+                          <Text style={{ fontSize: 11, color: GREEN, fontWeight: '600' }}>
                             {ruleDescription(rules)}
                           </Text>
                         )}
                       </View>
-                      <Pressable
-                        onPress={() => { Haptics.selectionAsync(); openAddRule(p.id, p.name); }}
-                        style={[styles.addRuleBtn, { backgroundColor: hasRule ? '#EBF8FF' : BLUE }]}
-                      >
-                        <Feather name={hasRule ? 'edit-2' : 'plus'} size={13} color={hasRule ? BLUE : '#fff'} />
-                        <Text style={[styles.addRuleBtnText, { color: hasRule ? BLUE : '#fff' }]}>
-                          {hasRule ? 'Edit' : 'Add Rule'}
-                        </Text>
-                      </Pressable>
-                    </View>
-                  );
-                })}
-              </View>
-            ) : productsWithRules.length === 0 ? (
-              <View style={styles.emptyWrap}>
-                <Feather name="package" size={28} color={BORDER} />
-                <Text style={styles.emptyTitle}>No product rules yet</Text>
-                <Text style={styles.emptySub}>Search for a product above to add a price rule for this tier.</Text>
-              </View>
-            ) : (
-              <View style={{ gap: 8 }}>
-                {productsWithRules.map((productId) => {
-                  const rules = rulesByProduct.get(productId) ?? [];
-                  const pName = rules[0]?.productName ?? productName(productId);
-                  const pCat  = rules[0]?.productCategory ?? '';
-                  return (
-                    <View key={productId} style={styles.productRuleCard}>
-                      <View style={{ flex: 1, gap: 3 }}>
-                        <Text style={styles.cardTitle} numberOfLines={1}>{pName}</Text>
-                        {!!pCat && <Text style={styles.cardMeta}>{pCat}</Text>}
-                        <Text style={{ fontSize: 12, color: GREEN, fontWeight: '600' }}>
-                          {ruleDescription(rules)}
-                        </Text>
-                      </View>
-                      <View style={{ flexDirection: 'row', gap: 8 }}>
-                        <IconBtn icon="edit-2" color={BLUE} bg="#EBF8FF" onPress={() => openAddRule(productId, pName)} />
-                        <IconBtn icon="trash-2" color={RED} bg="#FFF5F5" onPress={() => confirmDeleteRule(productId, pName)} />
-                      </View>
+
+                      {/* Right: price input (simple/no rule) or edit btn (complex) */}
+                      {isComplex ? (
+                        <View style={{ flexDirection: 'row', gap: 6 }}>
+                          <IconBtn icon="edit-2" color={BLUE} bg="#EBF8FF" onPress={() => { Haptics.selectionAsync(); openAddRule(p.id, p.name); }} />
+                          <IconBtn icon="trash-2" color={RED} bg="#FFF5F5" onPress={() => confirmDeleteRule(p.id, p.name)} />
+                        </View>
+                      ) : (
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                          {isSaving ? (
+                            <ActivityIndicator size="small" color={BLUE} style={{ width: 90 }} />
+                          ) : (
+                            <View style={{
+                              flexDirection: 'row', alignItems: 'center',
+                              borderWidth: 1, borderRadius: 10,
+                              borderColor: hasPrice ? GREEN : BORDER,
+                              backgroundColor: hasPrice ? '#F0FFF4' : CARD,
+                              paddingHorizontal: 10, paddingVertical: 6,
+                              width: 90,
+                            }}>
+                              <Text style={{ fontSize: 13, color: MUTED, marginRight: 2 }}>$</Text>
+                              <TextInput
+                                style={{ flex: 1, fontSize: 13, color: TEXT, paddingVertical: 0 }}
+                                value={priceVal}
+                                onChangeText={(t) => setInlinePrices((prev) => ({ ...prev, [p.id]: t }))}
+                                onBlur={() => handleInlinePriceBlur(p.id)}
+                                keyboardType="decimal-pad"
+                                placeholder="0.00"
+                                placeholderTextColor={MUTED}
+                                returnKeyType="done"
+                              />
+                            </View>
+                          )}
+                          {/* Edit btn to open full rule modal (for qty-break / % upgrade) */}
+                          <IconBtn
+                            icon="sliders"
+                            color={MUTED}
+                            bg={CARD}
+                            onPress={() => { Haptics.selectionAsync(); openAddRule(p.id, p.name); }}
+                          />
+                        </View>
+                      )}
                     </View>
                   );
                 })}
