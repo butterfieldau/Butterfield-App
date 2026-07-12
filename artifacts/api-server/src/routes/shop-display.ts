@@ -805,48 +805,55 @@ router.get('/staff-assigned', async (req, res) => {
   // If no store assigned to this display, fall through with eligibleIds = []
   // and the profile query below will fetch all staff (setup / unassigned fallback)
 
-  const profileQuery = db.select({
-    userId: staffProfilesTable.userId,
-    employeeId: staffProfilesTable.employeeId,
-    position: staffProfilesTable.position,
-    clockPin: staffProfilesTable.clockPin,
-    approvedByAdmin: staffProfilesTable.approvedByAdmin,
-    isManager: staffProfilesTable.isManager,
-  }).from(staffProfilesTable);
+  // Run profiles, users, and active shifts in parallel — all scoped to eligibleIds
+  const { startUtc: dayStart } = sydneyDateToUtcBounds(getSydneyTodayStr());
 
-  const rawProfiles = eligibleIds.length > 0
-    ? await profileQuery.where(inArray(staffProfilesTable.userId, eligibleIds))
-    : await profileQuery;
+  const userRoleFilter = or(eq(usersTable.role, 'staff'), eq(usersTable.role, 'manager'));
+
+  const [rawProfiles, allUsers, allShifts] = await Promise.all([
+    eligibleIds.length > 0
+      ? db.select({
+          userId: staffProfilesTable.userId,
+          employeeId: staffProfilesTable.employeeId,
+          position: staffProfilesTable.position,
+          clockPin: staffProfilesTable.clockPin,
+          approvedByAdmin: staffProfilesTable.approvedByAdmin,
+          isManager: staffProfilesTable.isManager,
+        }).from(staffProfilesTable).where(inArray(staffProfilesTable.userId, eligibleIds))
+      : db.select({
+          userId: staffProfilesTable.userId,
+          employeeId: staffProfilesTable.employeeId,
+          position: staffProfilesTable.position,
+          clockPin: staffProfilesTable.clockPin,
+          approvedByAdmin: staffProfilesTable.approvedByAdmin,
+          isManager: staffProfilesTable.isManager,
+        }).from(staffProfilesTable),
+    eligibleIds.length > 0
+      ? db.select({ id: usersTable.id, name: usersTable.name, role: usersTable.role })
+          .from(usersTable).where(and(inArray(usersTable.id, eligibleIds), userRoleFilter))
+      : db.select({ id: usersTable.id, name: usersTable.name, role: usersTable.role })
+          .from(usersTable).where(userRoleFilter),
+    eligibleIds.length > 0
+      ? db.select({ userId: staffShiftsTable.userId, id: staffShiftsTable.id, clockIn: staffShiftsTable.clockIn })
+          .from(staffShiftsTable).where(and(
+            inArray(staffShiftsTable.userId, eligibleIds),
+            isNull(staffShiftsTable.clockOut),
+            gte(staffShiftsTable.clockIn, dayStart),
+          ))
+      : db.select({ userId: staffShiftsTable.userId, id: staffShiftsTable.id, clockIn: staffShiftsTable.clockIn })
+          .from(staffShiftsTable).where(and(isNull(staffShiftsTable.clockOut), gte(staffShiftsTable.clockIn, dayStart))),
+  ]);
 
   // Only keep staff with a PIN and that are approved (approvedByAdmin OR isManager)
   const eligibleProfiles = rawProfiles.filter((p) => p.clockPin && (p.approvedByAdmin || p.isManager));
   if (eligibleProfiles.length === 0) return res.json({ data: [] });
 
-  const finalIds = eligibleProfiles.map((p) => p.userId);
+  const finalIdSet = new Set(eligibleProfiles.map((p) => p.userId));
   const profileMap = Object.fromEntries(eligibleProfiles.map((p) => [p.userId, p]));
-
-  const staffUsers = await db.select({
-    id: usersTable.id,
-    name: usersTable.name,
-    role: usersTable.role,
-  }).from(usersTable)
-    .where(and(
-      inArray(usersTable.id, finalIds),
-      or(eq(usersTable.role, 'staff'), eq(usersTable.role, 'manager')),
-    ));
-
-  const { startUtc: dayStart } = sydneyDateToUtcBounds(getSydneyTodayStr());
-  const activeShifts = await db.select({
-    userId: staffShiftsTable.userId,
-    id: staffShiftsTable.id,
-    clockIn: staffShiftsTable.clockIn,
-  }).from(staffShiftsTable)
-    .where(and(
-      inArray(staffShiftsTable.userId, finalIds),
-      isNull(staffShiftsTable.clockOut),
-      gte(staffShiftsTable.clockIn, dayStart),
-    ));
-  const shiftMap = Object.fromEntries(activeShifts.map((s) => [s.userId, s]));
+  const staffUsers = allUsers.filter((u) => finalIdSet.has(u.id));
+  const shiftMap = Object.fromEntries(
+    allShifts.filter((s) => finalIdSet.has(s.userId)).map((s) => [s.userId, s]),
+  );
 
   const data = staffUsers
     .map((u) => {
