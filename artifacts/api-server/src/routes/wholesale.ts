@@ -9,7 +9,7 @@ import {
   getOrCreateWholesaleDeliverySettings,
   DEFAULT_DELIVERY_SLOTS,
 } from '../lib/wholesaleCutoffReminder.js';
-import { eq, desc, asc, and, ne, sum, sql } from 'drizzle-orm';
+import { eq, desc, asc, and, ne, sum, sql, isNotNull } from 'drizzle-orm';
 import { requireRole } from '../middlewares/auth.js';
 import { sendNotification } from '../lib/notificationService.js';
 import { ensureWholesalePaymentSchemaReady } from '../lib/ensureWholesalePaymentSchemaReady.js';
@@ -152,6 +152,7 @@ router.get('/catalog', async (req, res) => {
     .where(and(
       eq(productsTable.isActive, true),
       eq(productsTable.isWholesaleAvailable, true),
+      isNotNull(productsTable.wholesalePriceCents),
       eq(productsTable.isPosOnly, false),
       eq(productsTable.isStaffOnly, false),
       eq(productsTable.isAppOnly, false),
