@@ -272,15 +272,17 @@ export default function DirectorPricing() {
     rulesByProduct.set(rule.productId, arr);
   }
 
-  // Sync inline prices from loaded tier rules
+  // Sync inline prices from loaded tier rules — merge so in-progress typing is preserved
   useEffect(() => {
-    const next: Record<string, string> = {};
-    rulesByProduct.forEach((rules, productId) => {
-      const flat = rules.length === 1 && rules[0].minQty === 1 && rules[0].unitPriceCents != null && rules[0].discountPct == null
-        ? rules[0] : null;
-      if (flat) next[productId] = (flat.unitPriceCents! / 100).toFixed(2);
+    setInlinePrices((prev) => {
+      const next = { ...prev };
+      rulesByProduct.forEach((rules, productId) => {
+        const flat = rules.length === 1 && rules[0].minQty === 1 && rules[0].unitPriceCents != null && rules[0].discountPct == null
+          ? rules[0] : null;
+        if (flat) next[productId] = (flat.unitPriceCents! / 100).toFixed(2);
+      });
+      return next;
     });
-    setInlinePrices(next);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tierRulesData]);
 
@@ -352,7 +354,10 @@ export default function DirectorPricing() {
     const ruleIds = (rulesByProduct.get(productId) ?? []).map((r) => r.id);
     Alert.alert(`Remove rule for "${name}"?`, 'The product will fall back to the tier default discount.', [
       { text: 'Cancel', style: 'cancel' },
-      { text: 'Remove', style: 'destructive', onPress: () => deleteRulesMut.mutate(ruleIds) },
+      { text: 'Remove', style: 'destructive', onPress: () => {
+        deleteRulesMut.mutate(ruleIds);
+        setInlinePrices((prev) => { const n = { ...prev }; delete n[productId]; return n; });
+      }},
     ]);
   };
 
