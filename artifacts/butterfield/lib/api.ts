@@ -623,6 +623,7 @@ export const api = {
     updateBuildABoxConfig: (data: { sizes?: BuildABoxSize[]; products?: BuildABoxProductConfig[] }) =>
       request<{ success: boolean }>('/director/build-a-box/config', { method: 'PATCH', body: JSON.stringify(data) }),
     products:            () => request<{ data: DirectorCatalogProduct[] }>('/director/products'),
+    wholesaleProducts:   () => request<{ data: DirectorProduct[] }>('/director/products?wholesale=true'),
     createProduct:       (data: DirectorProductInput) => request<{ data: DirectorCatalogProduct }>('/director/products', { method: 'POST', body: JSON.stringify(data) }),
     updateProduct:       (id: string, updates: Partial<DirectorProductInput>) => request<{ data: DirectorCatalogProduct }>(`/director/products/${id}`, { method: 'PATCH', body: JSON.stringify(updates) }),
     archiveProduct:      (id: string) => request<{ success: boolean }>(`/director/products/${id}`, { method: 'DELETE' }),
@@ -1905,7 +1906,9 @@ export interface DirectorProduct {
   name: string;
   priceCents?: number | null;
   isActive?: boolean;
+  isWholesaleAvailable?: boolean;
   category?: string | null;
+  wholesalePriceCents?: number | null;
 }
 
 export interface DirectorReward {

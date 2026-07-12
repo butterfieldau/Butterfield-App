@@ -129,11 +129,11 @@ export default function DirectorPricing() {
   const customPrices: CustomerPricingRule[] = customData?.data ?? [];
 
   const { data: productsData } = useQuery({
-    queryKey: ['director-products'],
-    queryFn: () => api.director.products(),
+    queryKey: ['director-wholesale-products'],
+    queryFn: () => api.director.wholesaleProducts(),
     staleTime: 60_000,
   });
-  const allProducts: DirectorProduct[] = (productsData?.data ?? []).filter((p) => p.isActive !== false);
+  const allProducts: DirectorProduct[] = productsData?.data ?? [];
 
   const { data: usersData } = useQuery({
     queryKey: ['director-users'],

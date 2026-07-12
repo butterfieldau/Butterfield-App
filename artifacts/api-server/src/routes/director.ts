@@ -2835,7 +2835,13 @@ function absolutizeProductUrl(url: string | null | undefined): string | null {
 }
 
 router.get('/products', async (req, res) => {
-  const products = await db.select().from(productsTable).orderBy(productsTable.sortOrder, productsTable.name);
+  const wholesaleOnly = req.query.wholesale === 'true';
+  const conditions = wholesaleOnly
+    ? [eq(productsTable.isWholesaleAvailable, true), eq(productsTable.isActive, true)]
+    : [];
+  const products = await db.select().from(productsTable)
+    .where(conditions.length ? and(...conditions) : undefined)
+    .orderBy(productsTable.sortOrder, productsTable.name);
   const data = products.map((p) => {
     let galleryUrls = p.galleryUrls;
     if (galleryUrls) {
