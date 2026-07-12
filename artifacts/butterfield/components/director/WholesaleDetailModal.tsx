@@ -11,7 +11,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { AddressSearchInput } from '@/components/AddressSearchInput';
-import type { DirectorUserSummary, WholesaleAccount, WholesaleCard } from '@/lib/api';
+import type { DirectorUserSummary, PricingTier, WholesaleAccount, WholesaleCard } from '@/lib/api';
 import { wdl, modal } from '@/components/director/usersStyles';
 
 const BG     = '#EFF6FF';
@@ -55,7 +55,7 @@ function WholesaleDetailModal({ user, wa, visible, onClose, onRefresh, onDelete 
   const [bizContact, setBizContact]         = useState('');
   const [bizPhone, setBizPhone]             = useState('');
   const [bizEmail, setBizEmail]             = useState('');
-  const [bizTier, setBizTier]               = useState('');
+  const [selectedTierId, setSelectedTierId]  = useState<string | null>(null);
   const [bizHours, setBizHours]             = useState('');
   const [creditEnabled, setCreditEnabled]   = useState(false);
   const [creditAud, setCreditAud]           = useState('');
@@ -79,6 +79,14 @@ function WholesaleDetailModal({ user, wa, visible, onClose, onRefresh, onDelete 
     enabled: visible && !!wa?.id,
   });
   const cards: WholesaleCard[] = cardsData?.data ?? [];
+
+  const { data: tiersData } = useQuery({
+    queryKey: ['director-tiers'],
+    queryFn: () => api.director.tiers(),
+    enabled: visible,
+    staleTime: 60_000,
+  });
+  const tiers: PricingTier[] = tiersData?.data ?? [];
   useEffect(() => {
     if (wa) {
       setBizCompany(wa.companyName ?? '');
@@ -86,7 +94,7 @@ function WholesaleDetailModal({ user, wa, visible, onClose, onRefresh, onDelete 
       setBizContact(wa.contactName ?? user?.name ?? '');
       setBizPhone(wa.phone ?? (user as any)?.phone ?? '');
       setBizEmail(wa.email ?? user?.email ?? '');
-      setBizTier(wa.pricingTier ?? '');
+      setSelectedTierId(wa.tierId ?? null);
       setBizHours(wa.businessHours ?? '');
       setCreditEnabled(wa.creditEnabled ?? false);
       setCreditAud(wa.creditLimitCents ? String(wa.creditLimitCents / 100) : '');
@@ -142,7 +150,6 @@ function WholesaleDetailModal({ user, wa, visible, onClose, onRefresh, onDelete 
         contactName:         bizContact.trim()  || null,
         phone:               bizPhone.trim()    || null,
         email:               bizEmail.trim()    || null,
-        pricingTier:         bizTier.trim()     || null,
         businessHours:       bizHours.trim()    || null,
         creditEnabled,
         creditLimitCents:    isNaN(creditCents) ? 0 : creditCents,
@@ -156,6 +163,9 @@ function WholesaleDetailModal({ user, wa, visible, onClose, onRefresh, onDelete 
         accountManagerEmail: accountMgrEmail.trim() || null,
         accountsEmail:       acctEmail.trim()       || null,
       });
+      if (selectedTierId !== (wa.tierId ?? null)) {
+        await api.director.assignTier(wa.id, { tierId: selectedTierId });
+      }
       Alert.alert('Saved', 'Wholesale account updated.');
       setEditMode(false);
       onRefresh();
@@ -229,12 +239,37 @@ function WholesaleDetailModal({ user, wa, visible, onClose, onRefresh, onDelete 
                   />
                 </View>
                 <Text style={[wdl.fieldLabel, { marginTop: 12 }]}>Pricing Tier</Text>
-                <View style={[wdl.inputRow, { borderColor: BORDER }]}>
-                  <TextInput style={[wdl.input, { color: TEXT }]} placeholderTextColor={MUTED}
-                    placeholder="e.g. standard, bronze, silver, gold"
-                    value={bizTier} onChangeText={setBizTier}
-                    autoCapitalize="none"
-                  />
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4 }}>
+                  <Pressable
+                    onPress={() => { setSelectedTierId(null); Haptics.selectionAsync(); }}
+                    style={{
+                      paddingVertical: 7, paddingHorizontal: 14, borderRadius: 20,
+                      borderWidth: 1,
+                      backgroundColor: selectedTierId === null ? NAVY : '#F3F4F6',
+                      borderColor:     selectedTierId === null ? NAVY : BORDER,
+                    }}
+                  >
+                    <Text style={{ fontSize: 13, fontWeight: '600', color: selectedTierId === null ? '#fff' : MUTED }}>No Tier</Text>
+                  </Pressable>
+                  {tiers.map((t) => {
+                    const active = selectedTierId === t.id;
+                    return (
+                      <Pressable
+                        key={t.id}
+                        onPress={() => { setSelectedTierId(t.id); Haptics.selectionAsync(); }}
+                        style={{
+                          paddingVertical: 7, paddingHorizontal: 14, borderRadius: 20,
+                          borderWidth: 1,
+                          backgroundColor: active ? BLUE : '#F3F4F6',
+                          borderColor:     active ? BLUE : BORDER,
+                        }}
+                      >
+                        <Text style={{ fontSize: 13, fontWeight: '600', color: active ? '#fff' : TEXT }}>
+                          {t.name}{(t.defaultDiscountPct ?? 0) > 0 ? ` (${t.defaultDiscountPct}% off)` : ''}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
                 </View>
                 <Text style={[wdl.fieldLabel, { marginTop: 12 }]}>Business Hours</Text>
                 <View style={[wdl.inputRow, { borderColor: BORDER }]}>
@@ -268,7 +303,15 @@ function WholesaleDetailModal({ user, wa, visible, onClose, onRefresh, onDelete 
                 </View>
                 <View style={wdl.infoRow}>
                   <Text style={wdl.infoLabel}>Pricing Tier</Text>
-                  <Text style={wdl.infoValue}>{bizTier || '—'}</Text>
+                  {selectedTierId ? (
+                    <View style={{ backgroundColor: '#EBF8FF', borderRadius: 12, paddingVertical: 3, paddingHorizontal: 10 }}>
+                      <Text style={{ fontSize: 13, fontWeight: '600', color: BLUE }}>
+                        {tiers.find(t => t.id === selectedTierId)?.name ?? selectedTierId}
+                      </Text>
+                    </View>
+                  ) : (
+                    <Text style={wdl.infoValue}>—</Text>
+                  )}
                 </View>
                 <View style={wdl.infoRow}>
                   <Text style={wdl.infoLabel}>Business Hours</Text>
