@@ -63,6 +63,7 @@ export function startLinklyStream(
 
     try {
       const pollRes = await api.pos.linklyPoll(sessionId) as any;
+      if (cancelled) return;
       const pd = pollRes?.data;
       if (pd?.responseText) onText(pd.responseText);
 

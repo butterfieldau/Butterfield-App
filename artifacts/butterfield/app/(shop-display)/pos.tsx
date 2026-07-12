@@ -585,6 +585,7 @@ function PosScreenInner() {
   });
 
   const handleChargeConfirm = useCallback((params: { method: 'cash' | 'eftpos' | 'split'; amountTenderedCents?: number; surchargeCents: number; splitPayments?: { method: string; amountCents: number; linklySessionId?: string | null }[]; linklySessionId?: string }) => {
+    if (createOrderMutation.isPending) return;
     const mutateVars = { paymentMethod: params.method, amountTenderedCents: params.amountTenderedCents, surchargeCents: params.surchargeCents, splitPayments: params.splitPayments, linklySessionId: params.linklySessionId };
     if (!isOnline) {
       const payload = buildOrderPayload(mutateVars);

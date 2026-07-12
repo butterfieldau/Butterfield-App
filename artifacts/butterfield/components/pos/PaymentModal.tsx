@@ -151,10 +151,13 @@ export default function PaymentModal({
         LINKLY_ACTIVE_SESSION_KEY,
         JSON.stringify({ sessionId, amountCents: chargeTotalCents, startedAt: Date.now() }),
       ).catch(() => {});
+      let completeFired = false;
       linklyPollRef.current = startLinklyStream(
         sessionId,
         (text) => setLinklyText(text),
         (pd) => {
+          if (completeFired) return;
+          completeFired = true;
           linklyPollRef.current = null;
           setLinklyConsecErrors(0);
           AsyncStorage.removeItem(LINKLY_ACTIVE_SESSION_KEY).catch(() => {});
