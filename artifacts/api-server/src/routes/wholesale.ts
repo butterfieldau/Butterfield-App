@@ -149,7 +149,13 @@ router.get('/catalog', async (req, res) => {
   if (ctx.status !== 'approved') return res.status(403).json({ error: 'Your account is pending approval. You will be notified once it is approved.' });
 
   const products = await db.select().from(productsTable)
-    .where(and(eq(productsTable.isActive, true), eq(productsTable.isPosOnly, false)))
+    .where(and(
+      eq(productsTable.isActive, true),
+      eq(productsTable.isWholesaleAvailable, true),
+      eq(productsTable.isPosOnly, false),
+      eq(productsTable.isStaffOnly, false),
+      eq(productsTable.isAppOnly, false),
+    ))
     .orderBy(asc(productsTable.sortOrder), asc(productsTable.name));
 
   // Access checks are pure in-memory, but pricing previously issued ~5 sequential DB
