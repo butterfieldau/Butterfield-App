@@ -699,6 +699,7 @@ export const api = {
       ),
 
     // Quantity price breaks
+    tierProductRules:    (tierId: string) => request<{ data: TierProductRule[] }>(`/director/tiers/${tierId}/product-rules`),
     qtyBreaks:           (params?: { productId?: string; tierId?: string; customerId?: string }) => {
       const q = new URLSearchParams(
         Object.entries(params ?? {}).reduce<Record<string, string>>((acc, [key, value]) => {
@@ -3092,6 +3093,7 @@ export interface PricingTier {
   description?: string | null;
   status?: string | null;
   isActive?: boolean;
+  defaultDiscountPct?: number;
   minOrderCents?: number | null;
   createdAt?: string;
   updatedAt?: string;
@@ -3102,6 +3104,7 @@ export interface PricingTierInput {
   description?: string | null;
   status?: string | null;
   isActive?: boolean;
+  defaultDiscountPct?: number;
 }
 
 export interface QuantityPriceBreak {
@@ -3111,14 +3114,21 @@ export interface QuantityPriceBreak {
   tierId?: string | null;
   customerId?: string | null;
   minQty: number;
-  unitPriceCents: number;
+  unitPriceCents?: number | null;
+  discountPct?: number | null;
   isActive?: boolean;
+}
+
+export interface TierProductRule extends QuantityPriceBreak {
+  productName?: string | null;
+  productCategory?: string | null;
 }
 
 export interface QuantityPriceBreakInput {
   productId: string;
   minQty: number;
-  unitPriceCents: number;
+  unitPriceCents?: number | null;
+  discountPct?: number | null;
   scope?: string | null;
   tierId?: string | null;
   customerId?: string | null;

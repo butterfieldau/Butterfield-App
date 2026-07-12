@@ -8,16 +8,13 @@ import {
   wholesaleAccountsTable,
   productsTable,
 } from '@workspace/db';
-import { eq, desc, and, ne, isNull, or } from 'drizzle-orm';
+import { eq, desc, and, ne, isNull, or, inArray } from 'drizzle-orm';
 import { requireRole } from '../middlewares/auth.js';
 import { requireManagerPermission } from '../middlewares/managerPermission.js';
 import { calculateWholesalePrice, loadPriceContextForAccount } from '../lib/wholesalePricing.js';
 
 const router = Router();
 
-// Wholesale pricing management: directors, masters, and managers with 'pricing' permission.
-// Apply role check per-route (not globally) so that requests destined for
-// other /director routers can pass through without being blocked here.
 const directorOnly = [requireRole('director', 'manager', 'master'), requireManagerPermission('pricing')];
 
 function getRouteParam(value: string | string[] | undefined): string {
@@ -40,15 +37,45 @@ router.get('/tiers/:id', directorOnly, async (req: Request, res: Response) => {
   return res.json({ data: tier });
 });
 
+// ── Tier product rules (qty breaks scoped to this tier, joined with product info)
+router.get('/tiers/:id/product-rules', directorOnly, async (req: Request, res: Response) => {
+  const tierId = getRouteParam(req.params.id);
+  const breaks = await db.select().from(quantityPriceBreaksTable)
+    .where(and(
+      eq(quantityPriceBreaksTable.tierId, tierId),
+      eq(quantityPriceBreaksTable.scope, 'tier'),
+      eq(quantityPriceBreaksTable.isActive, true),
+    ))
+    .orderBy(quantityPriceBreaksTable.productId, quantityPriceBreaksTable.minQty);
+
+  const productIds = [...new Set(breaks.map((b) => b.productId))];
+  const products = productIds.length > 0
+    ? await db.select({ id: productsTable.id, name: productsTable.name, category: productsTable.category })
+        .from(productsTable).where(inArray(productsTable.id, productIds))
+    : [];
+
+  const productMap = new Map(products.map((p) => [p.id, p]));
+  const data = breaks.map((b) => ({
+    ...b,
+    productName: productMap.get(b.productId)?.name ?? null,
+    productCategory: productMap.get(b.productId)?.category ?? null,
+  }));
+
+  return res.json({ data });
+});
+
 router.post('/tiers', directorOnly, async (req: Request, res: Response) => {
   const b = req.body ?? {};
   if (!b.name?.trim()) return res.status(400).json({ error: 'Tier name is required.' });
+  const defaultDiscount = typeof b.defaultDiscountPct === 'number'
+    ? Math.max(0, Math.min(100, Math.round(b.defaultDiscountPct)))
+    : 0;
   const [tier] = await db.insert(pricingTiersTable).values({
     id: randomUUID(),
     name: b.name.trim(),
     description: b.description ?? '',
     status: b.status === 'inactive' ? 'inactive' : 'active',
-    defaultDiscountPct: 0,
+    defaultDiscountPct: defaultDiscount,
     minOrderCents: 0,
     minOrderQty: 0,
     paymentTerms: 'net14',
@@ -74,6 +101,11 @@ router.patch('/tiers/:id', directorOnly, async (req: Request, res: Response) => 
     if (!['active', 'inactive'].includes(b.status)) return res.status(400).json({ error: 'Status must be active or inactive.' });
     updates.status = b.status;
   }
+  if (b.defaultDiscountPct !== undefined) {
+    const pct = Number(b.defaultDiscountPct);
+    if (isNaN(pct) || pct < 0 || pct > 100) return res.status(400).json({ error: 'defaultDiscountPct must be 0–100.' });
+    updates.defaultDiscountPct = Math.round(pct);
+  }
   if (Object.keys(updates).length === 0) return res.status(400).json({ error: 'No valid fields to update.' });
   updates.updatedAt = new Date();
   const [tier] = await db.update(pricingTiersTable).set(updates)
@@ -82,12 +114,10 @@ router.patch('/tiers/:id', directorOnly, async (req: Request, res: Response) => 
   return res.json({ data: tier });
 });
 
-// Delete a tier — automatically unassigns all customers from that tier first
 router.delete('/tiers/:id', directorOnly, async (req: Request, res: Response) => {
   const tierId = getRouteParam(req.params.id);
   const { force } = req.body ?? {};
 
-  // Count how many wholesale accounts are on this tier
   const assigned = await db.select().from(wholesaleAccountsTable)
     .where(eq(wholesaleAccountsTable.tierId, tierId));
 
@@ -99,14 +129,12 @@ router.delete('/tiers/:id', directorOnly, async (req: Request, res: Response) =>
     });
   }
 
-  // Unassign all customers from this tier
   if (assigned.length > 0) {
     await db.update(wholesaleAccountsTable)
       .set({ tierId: null, updatedAt: new Date() })
       .where(eq(wholesaleAccountsTable.tierId, tierId));
   }
 
-  // Archive the tier (preserve for order audit trail)
   const [tier] = await db.update(pricingTiersTable)
     .set({ status: 'archived', updatedAt: new Date() })
     .where(eq(pricingTiersTable.id, tierId))
@@ -134,7 +162,13 @@ router.post('/quantity-breaks', directorOnly, async (req: Request, res: Response
   const b = req.body ?? {};
   if (!b.productId) return res.status(400).json({ error: 'productId is required.' });
   if (typeof b.minQty !== 'number' || b.minQty < 1) return res.status(400).json({ error: 'minQty must be a positive number.' });
-  if (!b.unitPriceCents || b.unitPriceCents <= 0) return res.status(400).json({ error: 'unitPriceCents (price per unit) is required.' });
+
+  const hasUnitPrice = b.unitPriceCents != null && Number(b.unitPriceCents) > 0;
+  const hasDiscountPct = b.discountPct != null && Number(b.discountPct) > 0 && Number(b.discountPct) < 100;
+  if (!hasUnitPrice && !hasDiscountPct) {
+    return res.status(400).json({ error: 'Either unitPriceCents (flat price) or discountPct (% off) is required.' });
+  }
+
   const scope = b.scope === 'customer' ? 'customer' : 'tier';
   if (scope === 'tier' && !b.tierId)        return res.status(400).json({ error: 'tierId required for tier scope.' });
   if (scope === 'customer' && !b.customerId) return res.status(400).json({ error: 'customerId required for customer scope.' });
@@ -147,8 +181,8 @@ router.post('/quantity-breaks', directorOnly, async (req: Request, res: Response
     customerId: scope === 'customer' ? b.customerId : null,
     minQty: b.minQty,
     maxQty: null,
-    unitPriceCents: b.unitPriceCents,
-    discountPct: null,
+    unitPriceCents: hasUnitPrice ? Number(b.unitPriceCents) : null,
+    discountPct: hasDiscountPct ? Math.round(Number(b.discountPct)) : null,
     isActive: b.isActive !== false,
     createdBy: req.user!.id,
   }).returning();
@@ -159,9 +193,10 @@ router.patch('/quantity-breaks/:id', directorOnly, async (req: Request, res: Res
   const breakId = getRouteParam(req.params.id);
   const b = req.body ?? {};
   const updates: Record<string, any> = {};
-  if (b.minQty !== undefined)       updates.minQty = b.minQty;
-  if (b.unitPriceCents !== undefined) updates.unitPriceCents = b.unitPriceCents;
-  if (b.isActive !== undefined)     updates.isActive = b.isActive;
+  if (b.minQty !== undefined)         updates.minQty = b.minQty;
+  if (b.unitPriceCents !== undefined)  updates.unitPriceCents = b.unitPriceCents;
+  if (b.discountPct !== undefined)     updates.discountPct = b.discountPct;
+  if (b.isActive !== undefined)        updates.isActive = b.isActive;
   if (Object.keys(updates).length === 0) return res.status(400).json({ error: 'No valid fields to update.' });
   updates.updatedAt = new Date();
   const [updated] = await db.update(quantityPriceBreaksTable).set(updates)
@@ -170,7 +205,6 @@ router.patch('/quantity-breaks/:id', directorOnly, async (req: Request, res: Res
   return res.json({ data: updated });
 });
 
-// Hard delete — immediately removes from pricing; order history retains the priceSource label
 router.delete('/quantity-breaks/:id', directorOnly, async (req: Request, res: Response) => {
   const breakId = getRouteParam(req.params.id);
   const [deleted] = await db.delete(quantityPriceBreaksTable)
@@ -225,7 +259,6 @@ router.patch('/customer-pricing/:id', directorOnly, async (req: Request, res: Re
   return res.json({ data: updated });
 });
 
-// Hard delete — immediately removes from pricing; order history retains priceSource label
 router.delete('/customer-pricing/:id', directorOnly, async (req: Request, res: Response) => {
   const customerPricingId = getRouteParam(req.params.id);
   const [deleted] = await db.delete(customerPricingTable)

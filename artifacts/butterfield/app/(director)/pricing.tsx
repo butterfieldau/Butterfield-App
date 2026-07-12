@@ -1,6 +1,6 @@
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
-import React, { useState } from 'react';
+import React, { useState, useRef, useCallback } from 'react';
 import type { ComponentProps } from 'react';
 import {
   ActivityIndicator,
@@ -22,28 +22,62 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { DirectorTabScreen } from '@/components/DirectorTabScreen';
 import { api } from '@/lib/api';
-import type { DirectorProduct, DirectorUserSummary, CustomerPricingRule, PricingTier, QuantityPriceBreak } from '@/lib/api';
-import { BG, CARD, BLUE, NAVY, TEXT, MUTED, BORDER, GREEN, AMBER, RED, PURPLE, PINK, TEAL, ROSE, GOLD, GLASS_BG, GLASS_BORDER } from '@/components/director/directorColors';
+import type {
+  DirectorProduct,
+  DirectorUserSummary,
+  CustomerPricingRule,
+  PricingTier,
+  QuantityPriceBreak,
+  TierProductRule,
+} from '@/lib/api';
+import {
+  BG, CARD, BLUE, NAVY, TEXT, MUTED, BORDER, GREEN, AMBER, RED,
+  GLASS_BG, GLASS_BORDER,
+} from '@/components/director/directorColors';
 
 type Tab = 'tiers' | 'breaks' | 'custom' | 'assign';
+type RuleType = 'percentage' | 'flat' | 'qty_break';
 type FeatherIconName = ComponentProps<typeof Feather>['name'];
+
 const TABS: { id: Tab; label: string; icon: FeatherIconName }[] = [
-  { id: 'tiers',  label: 'Tiers',      icon: 'layers' },
-  { id: 'breaks', label: 'Qty Breaks', icon: 'trending-down' },
-  { id: 'custom', label: 'Custom',     icon: 'user' },
-  { id: 'assign', label: 'Assign',     icon: 'tag' },
+  { id: 'tiers',  label: 'Tiers',              icon: 'layers' },
+  { id: 'breaks', label: 'All Volume Rules',    icon: 'trending-down' },
+  { id: 'custom', label: 'Customer Overrides',  icon: 'user' },
+  { id: 'assign', label: 'Assign',              icon: 'tag' },
 ];
 
-interface TierForm  { id?: string; name: string; description: string; status: 'active' | 'inactive' }
-interface BreakForm {
-  id?: string; productId: string; scope: 'tier' | 'customer';
-  tierId: string; customerId: string; minQty: string; unitPrice: string; isActive: boolean;
+interface TierForm {
+  id?: string;
+  name: string;
+  description: string;
+  status: 'active' | 'inactive';
+  defaultDiscountPct: string;
 }
-interface CustomForm { id?: string; customerId: string; productId: string; unitPrice: string; isActive: boolean }
+interface CustomForm {
+  id?: string;
+  customerId: string;
+  productId: string;
+  unitPrice: string;
+  isActive: boolean;
+}
+interface QtyBreakRow { minQty: string; price: string }
+interface TierRuleForm {
+  productId: string;
+  productName: string;
+  type: RuleType;
+  discountPct: string;
+  flatPrice: string;
+  qtyBreaks: QtyBreakRow[];
+  existingRuleIds: string[];
+}
 
-const EMPTY_TIER:   TierForm   = { name: '', description: '', status: 'active' };
-const EMPTY_BREAK:  BreakForm  = { productId: '', scope: 'tier', tierId: '', customerId: '', minQty: '', unitPrice: '', isActive: true };
+const EMPTY_TIER: TierForm = { name: '', description: '', status: 'active', defaultDiscountPct: '' };
 const EMPTY_CUSTOM: CustomForm = { customerId: '', productId: '', unitPrice: '', isActive: true };
+const EMPTY_TIER_RULE: TierRuleForm = {
+  productId: '', productName: '', type: 'percentage',
+  discountPct: '', flatPrice: '', qtyBreaks: [{ minQty: '1', price: '' }],
+  existingRuleIds: [],
+};
 
 function getErrorMessage(error: unknown, fallback = 'Something went wrong.') {
   return error instanceof Error ? error.message : fallback;
@@ -54,12 +88,24 @@ export default function DirectorPricing() {
   const insets = useSafeAreaInsets();
   const [tab, setTab] = useState<Tab>('tiers');
 
-  const [tierModal,   setTierModal]   = useState(false);
-  const [tierForm,    setTierForm]    = useState<TierForm>(EMPTY_TIER);
-  const [breakModal,  setBreakModal]  = useState(false);
-  const [breakForm,   setBreakForm]   = useState<BreakForm>(EMPTY_BREAK);
-  const [customModal, setCustomModal] = useState(false);
-  const [customForm,  setCustomForm]  = useState<CustomForm>(EMPTY_CUSTOM);
+  const [selectedTier, setSelectedTier] = useState<PricingTier | null>(null);
+
+  const [tierModal,    setTierModal]    = useState(false);
+  const [tierForm,     setTierForm]     = useState<TierForm>(EMPTY_TIER);
+  const [customModal,  setCustomModal]  = useState(false);
+  const [customForm,   setCustomForm]   = useState<CustomForm>(EMPTY_CUSTOM);
+  const [ruleModal,    setRuleModal]    = useState(false);
+  const [ruleForm,     setRuleForm]     = useState<TierRuleForm>(EMPTY_TIER_RULE);
+  const [productSearch, setProductSearch] = useState('');
+
+  const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+
+  const handleSearchChange = useCallback((text: string) => {
+    setProductSearch(text);
+    if (searchTimer.current) clearTimeout(searchTimer.current);
+    searchTimer.current = setTimeout(() => setDebouncedSearch(text), 300);
+  }, []);
 
   // ── Queries ──────────────────────────────────────────────────────────────
   const { data: tiersData, isLoading: tiersLoading } = useQuery({
@@ -87,7 +133,7 @@ export default function DirectorPricing() {
     queryFn: () => api.director.products(),
     staleTime: 60_000,
   });
-  const products: DirectorProduct[] = (productsData?.data ?? []).filter((product) => product.isActive !== false);
+  const allProducts: DirectorProduct[] = (productsData?.data ?? []).filter((p) => p.isActive !== false);
 
   const { data: usersData } = useQuery({
     queryKey: ['director-users'],
@@ -98,49 +144,81 @@ export default function DirectorPricing() {
     (user) => user.role === 'wholesale' && user.wholesaleAccount,
   );
 
+  const { data: tierRulesData, isLoading: tierRulesLoading } = useQuery({
+    queryKey: ['director-tier-product-rules', selectedTier?.id],
+    queryFn: () => api.director.tierProductRules(selectedTier!.id),
+    enabled: !!selectedTier,
+  });
+  const tierProductRules: TierProductRule[] = tierRulesData?.data ?? [];
+
   // ── Mutations ────────────────────────────────────────────────────────────
   const invalidateTiers  = () => qc.invalidateQueries({ queryKey: ['director-tiers'] });
   const invalidateBreaks = () => qc.invalidateQueries({ queryKey: ['director-qty-breaks'] });
   const invalidateCustom = () => qc.invalidateQueries({ queryKey: ['director-customer-pricing'] });
   const invalidateUsers  = () => qc.invalidateQueries({ queryKey: ['director-users'] });
+  const invalidateTierRules = () => qc.invalidateQueries({ queryKey: ['director-tier-product-rules', selectedTier?.id] });
 
   const saveTierMut = useMutation({
-    mutationFn: (f: TierForm) =>
-      f.id
-        ? api.director.updateTier(f.id, { name: f.name, description: f.description, status: f.status })
-        : api.director.createTier({ name: f.name, description: f.description, status: f.status }),
-    onSuccess: () => { invalidateTiers(); setTierModal(false); },
+    mutationFn: (f: TierForm) => {
+      const pct = f.defaultDiscountPct ? Math.max(0, Math.min(100, parseInt(f.defaultDiscountPct, 10) || 0)) : 0;
+      const payload = { name: f.name, description: f.description, status: f.status, defaultDiscountPct: pct };
+      return f.id
+        ? api.director.updateTier(f.id, payload)
+        : api.director.createTier(payload);
+    },
+    onSuccess: (res) => {
+      invalidateTiers();
+      setTierModal(false);
+      if (selectedTier && res.data.id === selectedTier.id) setSelectedTier(res.data);
+    },
   });
 
   const deleteTierMut = useMutation({
-    mutationFn: ({ id, force }: { id: string; force: boolean }) =>
-      api.director.deleteTier(id, force),
-    onSuccess: () => invalidateTiers(),
+    mutationFn: ({ id, force }: { id: string; force: boolean }) => api.director.deleteTier(id, force),
+    onSuccess: () => { invalidateTiers(); setSelectedTier(null); },
   });
 
-  const saveBreakMut = useMutation({
-    mutationFn: (f: BreakForm) => {
-      const priceCents = Math.round(parseFloat(f.unitPrice) * 100);
-      const qty        = parseInt(f.minQty, 10);
-      if (!priceCents || priceCents <= 0) throw new Error('Enter a valid price');
-      if (!qty || qty < 1)               throw new Error('Enter a valid minimum quantity');
-      const data = {
-        productId: f.productId,
-        scope: f.scope,
-        tierId:     f.scope === 'tier'     ? f.tierId     : undefined,
-        customerId: f.scope === 'customer' ? f.customerId : undefined,
-        minQty: qty,
-        unitPriceCents: priceCents,
-        isActive: f.isActive,
-      };
-      return f.id ? api.director.updateQtyBreak(f.id, data) : api.director.createQtyBreak(data);
+  const saveRuleMut = useMutation({
+    mutationFn: async (f: TierRuleForm) => {
+      if (!selectedTier) throw new Error('No tier selected');
+      if (!f.productId) throw new Error('Select a product');
+
+      // 1. Validate all inputs before touching the database
+      let newRules: Parameters<typeof api.director.createQtyBreak>[0][] = [];
+
+      if (f.type === 'percentage') {
+        const pct = parseFloat(f.discountPct);
+        if (isNaN(pct) || pct <= 0 || pct >= 100) throw new Error('Enter a valid discount % (1–99)');
+        newRules = [{ productId: f.productId, minQty: 1, discountPct: Math.round(pct), scope: 'tier', tierId: selectedTier.id }];
+      } else if (f.type === 'flat') {
+        const cents = Math.round(parseFloat(f.flatPrice) * 100);
+        if (!cents || cents <= 0) throw new Error('Enter a valid flat price');
+        newRules = [{ productId: f.productId, minQty: 1, unitPriceCents: cents, scope: 'tier', tierId: selectedTier.id }];
+      } else {
+        if (f.qtyBreaks.length === 0) throw new Error('Add at least one qty break');
+        newRules = f.qtyBreaks.map((row) => {
+          const qty   = parseInt(row.minQty, 10);
+          const cents = Math.round(parseFloat(row.price) * 100);
+          if (!qty || qty < 1) throw new Error('Each break needs a valid minimum qty');
+          if (!cents || cents <= 0) throw new Error('Each break needs a valid price');
+          return { productId: f.productId, minQty: qty, unitPriceCents: cents, scope: 'tier', tierId: selectedTier.id };
+        });
+      }
+
+      // 2. Create new rules first — if this fails, old rules are untouched
+      await Promise.all(newRules.map((rule) => api.director.createQtyBreak(rule)));
+
+      // 3. Only now delete the old rules (new pricing is already live)
+      if (f.existingRuleIds.length > 0) {
+        await Promise.all(f.existingRuleIds.map((id) => api.director.deleteQtyBreak(id)));
+      }
     },
-    onSuccess: () => { invalidateBreaks(); setBreakModal(false); },
+    onSuccess: () => { invalidateTierRules(); invalidateBreaks(); setRuleModal(false); },
   });
 
-  const deleteBreakMut = useMutation({
-    mutationFn: (id: string) => api.director.deleteQtyBreak(id),
-    onSuccess: () => invalidateBreaks(),
+  const deleteRulesMut = useMutation({
+    mutationFn: (ruleIds: string[]) => Promise.all(ruleIds.map((id) => api.director.deleteQtyBreak(id))),
+    onSuccess: () => { invalidateTierRules(); invalidateBreaks(); },
   });
 
   const saveCustomMut = useMutation({
@@ -168,12 +246,12 @@ export default function DirectorPricing() {
 
   // ── Helpers ──────────────────────────────────────────────────────────────
   const productName = (id: string) => {
-    const p = products.find((product) => product.id === id);
+    const p = allProducts.find((pr) => pr.id === id);
     return p?.name ?? id.slice(0, 12) + '…';
   };
   const tierName = (id: string | null) => {
     if (!id) return 'No tier';
-    return tiers.find((tier) => tier.id === id)?.name ?? 'Unknown';
+    return tiers.find((t) => t.id === id)?.name ?? 'Unknown';
   };
   const userLabel = (userId: string) => {
     const u = wholesaleUsers.find((user) => user.id === userId);
@@ -182,10 +260,31 @@ export default function DirectorPricing() {
   const customersOnTier = (tierId: string) =>
     wholesaleUsers.filter((user) => user.wholesaleAccount?.tierId === tierId).length;
 
+  // Group product rules by productId for the tier detail view
+  const rulesByProduct = new Map<string, TierProductRule[]>();
+  for (const rule of tierProductRules) {
+    const arr = rulesByProduct.get(rule.productId) ?? [];
+    arr.push(rule);
+    rulesByProduct.set(rule.productId, arr);
+  }
+
+  // Filter products for search
+  const searchLower = debouncedSearch.toLowerCase().trim();
+  const searchedProducts = searchLower
+    ? allProducts.filter((p) =>
+        p.name.toLowerCase().includes(searchLower) ||
+        (p.category ?? '').toLowerCase().includes(searchLower),
+      )
+    : [];
+
   // ── Action handlers ───────────────────────────────────────────────────────
-  const openNewTier  = () => { setTierForm(EMPTY_TIER);  setTierModal(true); };
+  const openNewTier  = () => { setTierForm(EMPTY_TIER); setTierModal(true); };
   const openEditTier = (t: PricingTier) => {
-    setTierForm({ id: t.id, name: t.name, description: t.description ?? '', status: t.status === 'active' ? 'active' : 'inactive' });
+    setTierForm({
+      id: t.id, name: t.name, description: t.description ?? '',
+      status: t.status === 'active' ? 'active' : 'inactive',
+      defaultDiscountPct: t.defaultDiscountPct ? String(t.defaultDiscountPct) : '',
+    });
     setTierModal(true);
   };
   const confirmDeleteTier = (t: PricingTier) => {
@@ -199,28 +298,43 @@ export default function DirectorPricing() {
     ]);
   };
 
-  const openNewBreak  = () => { setBreakForm(EMPTY_BREAK);  setBreakModal(true); };
-  const openEditBreak = (b: QuantityPriceBreak) => {
-    setBreakForm({
-      id: b.id, productId: b.productId, scope: (b.scope ?? 'tier') as 'tier' | 'customer',
-      tierId: b.tierId ?? '', customerId: b.customerId ?? '',
-      minQty: String(b.minQty),
-      unitPrice: b.unitPriceCents ? (b.unitPriceCents / 100).toFixed(2) : '',
-      isActive: b.isActive !== false,
-    });
-    setBreakModal(true);
-  };
-  const confirmDeleteBreak = (b: QuantityPriceBreak) => {
-    Alert.alert('Delete Qty Break?',
-      `${productName(b.productId)}: ${b.minQty}+ units → $${(b.unitPriceCents / 100).toFixed(2)}/unit`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Delete', style: 'destructive', onPress: () => deleteBreakMut.mutate(b.id) },
-      ],
-    );
+  const openAddRule = (productId: string, productName: string) => {
+    const existing = rulesByProduct.get(productId) ?? [];
+    if (existing.length > 0) {
+      const firstRule = existing[0];
+      const hasMultiple = existing.length > 1 || (existing[0].minQty > 1);
+      let type: RuleType = 'percentage';
+      if (hasMultiple || existing.some((r) => r.minQty > 1)) type = 'qty_break';
+      else if (firstRule.unitPriceCents != null) type = 'flat';
+      else if (firstRule.discountPct != null) type = 'percentage';
+
+      setRuleForm({
+        productId,
+        productName,
+        type,
+        discountPct: firstRule.discountPct != null ? String(firstRule.discountPct) : '',
+        flatPrice: firstRule.unitPriceCents != null ? (firstRule.unitPriceCents / 100).toFixed(2) : '',
+        qtyBreaks: existing.map((r) => ({
+          minQty: String(r.minQty),
+          price: r.unitPriceCents != null ? (r.unitPriceCents / 100).toFixed(2) : '',
+        })),
+        existingRuleIds: existing.map((r) => r.id),
+      });
+    } else {
+      setRuleForm({ ...EMPTY_TIER_RULE, productId, productName });
+    }
+    setRuleModal(true);
   };
 
-  const openNewCustom  = () => { setCustomForm(EMPTY_CUSTOM);  setCustomModal(true); };
+  const confirmDeleteRule = (productId: string, name: string) => {
+    const ruleIds = (rulesByProduct.get(productId) ?? []).map((r) => r.id);
+    Alert.alert(`Remove rule for "${name}"?`, 'The product will fall back to the tier default discount.', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Remove', style: 'destructive', onPress: () => deleteRulesMut.mutate(ruleIds) },
+    ]);
+  };
+
+  const openNewCustom  = () => { setCustomForm(EMPTY_CUSTOM); setCustomModal(true); };
   const openEditCustom = (cp: CustomerPricingRule) => {
     setCustomForm({
       id: cp.id, customerId: cp.customerId, productId: cp.productId,
@@ -231,7 +345,7 @@ export default function DirectorPricing() {
   };
   const confirmDeleteCustom = (cp: CustomerPricingRule) => {
     Alert.alert('Delete Custom Price?',
-      `${userLabel(cp.customerId)} · ${productName(cp.productId)} · $${(cp.unitPriceCents / 100).toFixed(2)}/unit`,
+      `${userLabel(cp.customerId)} · ${productName(cp.productId)} · $${((cp.unitPriceCents ?? 0) / 100).toFixed(2)}/unit`,
       [
         { text: 'Cancel', style: 'cancel' },
         { text: 'Delete', style: 'destructive', onPress: () => deleteCustomMut.mutate(cp.id) },
@@ -244,8 +358,19 @@ export default function DirectorPricing() {
     assignTierMut.mutate({ accountId, tierId });
   };
 
+  function ruleDescription(rules: TierProductRule[]): string {
+    if (rules.length === 0) return '';
+    if (rules.length === 1) {
+      const r = rules[0];
+      if (r.discountPct != null) return `${r.discountPct}% off wholesale`;
+      if (r.unitPriceCents != null) return `$${(r.unitPriceCents / 100).toFixed(2)}/unit`;
+    }
+    return `${rules.length}-tier qty break`;
+  }
+
   // ── Tab renderers ─────────────────────────────────────────────────────────
-  function renderTiers() {
+
+  function renderTierList() {
     return (
       <View style={{ flex: 1 }}>
         <View style={styles.sectionHeader}>
@@ -260,30 +385,173 @@ export default function DirectorPricing() {
           <View style={styles.emptyWrap}>
             <Feather name="layers" size={32} color={BORDER} />
             <Text style={styles.emptyTitle}>No tiers yet</Text>
-            <Text style={styles.emptySub}>Create tiers to group customers, then add pricing rules with Qty Breaks or Custom Pricing.</Text>
+            <Text style={styles.emptySub}>Create tiers to group customers and set per-product pricing within each tier.</Text>
           </View>
         ) : (
           <ScrollView contentContainerStyle={styles.listContent}>
-            {tiers.map((t) => (
-              <View key={t.id} style={styles.card}>
-                <View style={{ flex: 1, gap: 4 }}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                    <Text style={styles.cardTitle}>{t.name}</Text>
-                    <StatusBadge status={t.status ?? ''} />
+            {tiers.map((t) => {
+              const count = customersOnTier(t.id);
+              const discPct = t.defaultDiscountPct ?? 0;
+              return (
+                <Pressable key={t.id} style={styles.tierCard} onPress={() => { Haptics.selectionAsync(); setSelectedTier(t); setProductSearch(''); setDebouncedSearch(''); }}>
+                  <View style={{ flex: 1, gap: 6 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                      <Text style={styles.cardTitle}>{t.name}</Text>
+                      <StatusBadge status={t.status ?? ''} />
+                      {discPct > 0 && (
+                        <View style={styles.discBadge}>
+                          <Text style={styles.discBadgeText}>{discPct}% default off</Text>
+                        </View>
+                      )}
+                    </View>
+                    {!!t.description && <Text style={styles.cardSub} numberOfLines={1}>{t.description}</Text>}
+                    <Text style={styles.cardMeta}>{count} customer{count !== 1 ? 's' : ''} · Tap to manage product pricing</Text>
                   </View>
-                  {!!t.description && <Text style={styles.cardSub} numberOfLines={2}>{t.description}</Text>}
-                  <Text style={styles.cardMeta}>
-                    {customersOnTier(t.id)} customer{customersOnTier(t.id) !== 1 ? 's' : ''} assigned
-                  </Text>
-                </View>
-                <View style={styles.cardActions}>
-                  <IconBtn icon="edit-2" color={BLUE} bg="#EBF8FF" onPress={() => openEditTier(t)} />
-                  <IconBtn icon="trash-2" color={RED} bg="#FFF5F5" onPress={() => confirmDeleteTier(t)} />
-                </View>
-              </View>
-            ))}
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    <IconBtn icon="edit-2" color={BLUE} bg="#EBF8FF" onPress={() => openEditTier(t)} />
+                    <IconBtn icon="trash-2" color={RED} bg="#FFF5F5" onPress={() => confirmDeleteTier(t)} />
+                    <Feather name="chevron-right" size={16} color={MUTED} />
+                  </View>
+                </Pressable>
+              );
+            })}
           </ScrollView>
         )}
+      </View>
+    );
+  }
+
+  function renderTierDetail(tier: PricingTier) {
+    const discPct = tier.defaultDiscountPct ?? 0;
+    const count   = customersOnTier(tier.id);
+
+    const productsWithRules = [...rulesByProduct.keys()];
+    const showSearchResults  = searchLower.length > 0;
+
+    return (
+      <View style={{ flex: 1 }}>
+        <Pressable onPress={() => { setSelectedTier(null); setProductSearch(''); setDebouncedSearch(''); }} style={styles.backBtn}>
+          <Feather name="arrow-left" size={16} color={BLUE} />
+          <Text style={{ color: BLUE, fontSize: 14, fontWeight: '600' }}>All Tiers</Text>
+        </Pressable>
+
+        <ScrollView contentContainerStyle={[styles.listContent, { gap: 16 }]}>
+          {/* Tier header card */}
+          <View style={[styles.card, { padding: 16, gap: 10 }]}>
+            <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+              <View style={{ flex: 1, gap: 4 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                  <Text style={[styles.cardTitle, { fontSize: 17 }]}>{tier.name}</Text>
+                  <StatusBadge status={tier.status ?? ''} />
+                </View>
+                {!!tier.description && <Text style={styles.cardSub}>{tier.description}</Text>}
+              </View>
+              <IconBtn icon="edit-2" color={BLUE} bg="#EBF8FF" onPress={() => openEditTier(tier)} />
+            </View>
+            <View style={styles.tierStatRow}>
+              <TierStat label="Customers" value={String(count)} />
+              <TierStat label="Default Discount" value={discPct > 0 ? `${discPct}% off` : 'None'} />
+            </View>
+            {discPct === 0 && (
+              <View style={[styles.infoBox, { backgroundColor: '#FFF7ED', borderColor: '#FED7AA' }]}>
+                <Feather name="info" size={13} color="#C2410C" />
+                <Text style={[styles.infoText, { color: '#9A3412', fontSize: 12 }]}>
+                  No default discount set. Products without a specific rule will use standard wholesale price.
+                  Set a default discount % to apply a blanket tier discount.
+                </Text>
+              </View>
+            )}
+          </View>
+
+          {/* Product Pricing section */}
+          <View style={{ gap: 10 }}>
+            <View style={styles.sectionHeader}>
+              <Text style={[styles.sectionTitle, { fontSize: 15 }]}>Product Pricing Rules</Text>
+            </View>
+            <View style={[styles.searchBar, { borderColor: BORDER, backgroundColor: CARD }]}>
+              <Feather name="search" size={15} color={MUTED} />
+              <TextInput
+                style={{ flex: 1, fontSize: 14, color: TEXT, paddingVertical: 0 }}
+                placeholder="Search products to add a rule…"
+                placeholderTextColor={MUTED}
+                value={productSearch}
+                onChangeText={handleSearchChange}
+                autoCorrect={false}
+                autoCapitalize="none"
+              />
+              {productSearch.length > 0 && (
+                <Pressable onPress={() => { setProductSearch(''); setDebouncedSearch(''); }}>
+                  <Feather name="x" size={15} color={MUTED} />
+                </Pressable>
+              )}
+            </View>
+
+            {tierRulesLoading ? (
+              <ActivityIndicator color={BLUE} style={{ marginTop: 20 }} />
+            ) : showSearchResults ? (
+              <View style={{ gap: 8 }}>
+                <Text style={[styles.cardMeta, { paddingHorizontal: 4 }]}>
+                  {searchedProducts.length === 0 ? 'No products found' : `${searchedProducts.length} result${searchedProducts.length !== 1 ? 's' : ''}`}
+                </Text>
+                {searchedProducts.map((p) => {
+                  const rules = rulesByProduct.get(p.id) ?? [];
+                  const hasRule = rules.length > 0;
+                  return (
+                    <View key={p.id} style={styles.productRuleCard}>
+                      <View style={{ flex: 1, gap: 3 }}>
+                        <Text style={styles.cardTitle} numberOfLines={1}>{p.name}</Text>
+                        <Text style={styles.cardMeta}>{p.category ?? 'No category'}</Text>
+                        {hasRule && (
+                          <Text style={{ fontSize: 12, color: GREEN, fontWeight: '600' }}>
+                            {ruleDescription(rules)}
+                          </Text>
+                        )}
+                      </View>
+                      <Pressable
+                        onPress={() => { Haptics.selectionAsync(); openAddRule(p.id, p.name); }}
+                        style={[styles.addRuleBtn, { backgroundColor: hasRule ? '#EBF8FF' : BLUE }]}
+                      >
+                        <Feather name={hasRule ? 'edit-2' : 'plus'} size={13} color={hasRule ? BLUE : '#fff'} />
+                        <Text style={[styles.addRuleBtnText, { color: hasRule ? BLUE : '#fff' }]}>
+                          {hasRule ? 'Edit' : 'Add Rule'}
+                        </Text>
+                      </Pressable>
+                    </View>
+                  );
+                })}
+              </View>
+            ) : productsWithRules.length === 0 ? (
+              <View style={styles.emptyWrap}>
+                <Feather name="package" size={28} color={BORDER} />
+                <Text style={styles.emptyTitle}>No product rules yet</Text>
+                <Text style={styles.emptySub}>Search for a product above to add a price rule for this tier.</Text>
+              </View>
+            ) : (
+              <View style={{ gap: 8 }}>
+                {productsWithRules.map((productId) => {
+                  const rules = rulesByProduct.get(productId) ?? [];
+                  const pName = rules[0]?.productName ?? productName(productId);
+                  const pCat  = rules[0]?.productCategory ?? '';
+                  return (
+                    <View key={productId} style={styles.productRuleCard}>
+                      <View style={{ flex: 1, gap: 3 }}>
+                        <Text style={styles.cardTitle} numberOfLines={1}>{pName}</Text>
+                        {!!pCat && <Text style={styles.cardMeta}>{pCat}</Text>}
+                        <Text style={{ fontSize: 12, color: GREEN, fontWeight: '600' }}>
+                          {ruleDescription(rules)}
+                        </Text>
+                      </View>
+                      <View style={{ flexDirection: 'row', gap: 8 }}>
+                        <IconBtn icon="edit-2" color={BLUE} bg="#EBF8FF" onPress={() => openAddRule(productId, pName)} />
+                        <IconBtn icon="trash-2" color={RED} bg="#FFF5F5" onPress={() => confirmDeleteRule(productId, pName)} />
+                      </View>
+                    </View>
+                  );
+                })}
+              </View>
+            )}
+          </View>
+        </ScrollView>
       </View>
     );
   }
@@ -292,39 +560,44 @@ export default function DirectorPricing() {
     return (
       <View style={{ flex: 1 }}>
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Quantity Breaks</Text>
-          <Pressable onPress={openNewBreak} style={styles.newBtn}>
-            <Feather name="plus" size={14} color="#fff" />
-            <Text style={styles.newBtnText}>New Break</Text>
-          </Pressable>
+          <Text style={styles.sectionTitle}>All Volume Rules</Text>
+        </View>
+        <View style={[styles.infoBox, { marginHorizontal: 16, backgroundColor: '#EBF8FF', borderColor: '#BEE3F8' }]}>
+          <Feather name="info" size={14} color={BLUE} />
+          <Text style={[styles.infoText, { color: '#1E3A5F' }]}>
+            Read-only audit view of all tier and customer volume rules. To add or edit rules, open a tier from the Tiers tab or use Customer Overrides.
+          </Text>
         </View>
         {breaksLoading ? <ActivityIndicator color={BLUE} style={styles.loader} /> :
          breaks.length === 0 ? (
           <View style={styles.emptyWrap}>
             <Feather name="trending-down" size={32} color={BORDER} />
-            <Text style={styles.emptyTitle}>No qty breaks</Text>
-            <Text style={styles.emptySub}>Set an explicit unit price that kicks in when a customer orders a minimum quantity of a product.</Text>
+            <Text style={styles.emptyTitle}>No volume rules</Text>
+            <Text style={styles.emptySub}>Rules created in the Tiers tab will appear here.</Text>
           </View>
         ) : (
           <ScrollView contentContainerStyle={styles.listContent}>
-            {breaks.map((b) => (
-              <View key={b.id} style={styles.card}>
-                <View style={{ flex: 1, gap: 4 }}>
-                  <Text style={styles.cardTitle} numberOfLines={1}>{productName(b.productId)}</Text>
-                  <Text style={styles.cardSub}>
-                    {b.minQty}+ units → ${(b.unitPriceCents / 100).toFixed(2)} each
-                  </Text>
-                  <Text style={styles.cardMeta}>
-                    {b.scope === 'tier' ? `Tier: ${tierName(b.tierId ?? null)}` : `Customer: ${userLabel(b.customerId ?? '')}`}
-                    {!b.isActive && ' · Inactive'}
-                  </Text>
+            {breaks.map((b) => {
+              const priceStr = b.unitPriceCents != null
+                ? `$${(b.unitPriceCents / 100).toFixed(2)}/unit`
+                : b.discountPct != null
+                  ? `${b.discountPct}% off`
+                  : 'Unknown';
+              return (
+                <View key={b.id} style={styles.card}>
+                  <View style={{ flex: 1, gap: 4 }}>
+                    <Text style={styles.cardTitle} numberOfLines={1}>{productName(b.productId)}</Text>
+                    <Text style={styles.cardSub}>
+                      {b.minQty === 1 ? 'All qtys' : `${b.minQty}+ units`} → {priceStr}
+                    </Text>
+                    <Text style={styles.cardMeta}>
+                      {b.scope === 'tier' ? `Tier: ${tierName(b.tierId ?? null)}` : `Customer: ${userLabel(b.customerId ?? '')}`}
+                      {!b.isActive && ' · Inactive'}
+                    </Text>
+                  </View>
                 </View>
-                <View style={styles.cardActions}>
-                  <IconBtn icon="edit-2" color={BLUE} bg="#EBF8FF" onPress={() => openEditBreak(b)} />
-                  <IconBtn icon="trash-2" color={RED} bg="#FFF5F5" onPress={() => confirmDeleteBreak(b)} />
-                </View>
-              </View>
-            ))}
+              );
+            })}
           </ScrollView>
         )}
       </View>
@@ -335,17 +608,23 @@ export default function DirectorPricing() {
     return (
       <View style={{ flex: 1 }}>
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Custom Pricing</Text>
+          <Text style={styles.sectionTitle}>Customer Overrides</Text>
           <Pressable onPress={openNewCustom} style={styles.newBtn}>
             <Feather name="plus" size={14} color="#fff" />
-            <Text style={styles.newBtnText}>New Price</Text>
+            <Text style={styles.newBtnText}>New Override</Text>
           </Pressable>
+        </View>
+        <View style={[styles.infoBox, { marginHorizontal: 16, backgroundColor: '#FFF7ED', borderColor: '#FED7AA' }]}>
+          <Feather name="alert-triangle" size={14} color="#C2410C" />
+          <Text style={[styles.infoText, { color: '#9A3412' }]}>
+            These prices override a customer's tier for a specific product. Use sparingly — tier rules are the primary pricing control.
+          </Text>
         </View>
         {customLoading ? <ActivityIndicator color={BLUE} style={styles.loader} /> :
          customPrices.length === 0 ? (
           <View style={styles.emptyWrap}>
             <Feather name="user" size={32} color={BORDER} />
-            <Text style={styles.emptyTitle}>No custom prices</Text>
+            <Text style={styles.emptyTitle}>No customer overrides</Text>
             <Text style={styles.emptySub}>Set a specific per-unit price for a product for an individual wholesale customer.</Text>
           </View>
         ) : (
@@ -354,7 +633,7 @@ export default function DirectorPricing() {
               <View key={cp.id} style={styles.card}>
                 <View style={{ flex: 1, gap: 4 }}>
                   <Text style={styles.cardTitle} numberOfLines={1}>{productName(cp.productId)}</Text>
-                  <Text style={styles.cardSub}>${(cp.unitPriceCents / 100).toFixed(2)} per unit</Text>
+                  <Text style={styles.cardSub}>${((cp.unitPriceCents ?? 0) / 100).toFixed(2)} per unit</Text>
                   <Text style={styles.cardMeta}>
                     {userLabel(cp.customerId)}{!cp.isActive && ' · Inactive'}
                   </Text>
@@ -383,6 +662,7 @@ export default function DirectorPricing() {
         ) : wholesaleUsers.map((u) => {
           const wa          = u.wholesaleAccount;
           const currentTier = wa?.tierId ?? null;
+          const assignedTierObj = tiers.find((t) => t.id === currentTier);
           return (
             <View key={u.id} style={styles.assignCard}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 12 }}>
@@ -390,10 +670,17 @@ export default function DirectorPricing() {
                   <Text style={styles.cardTitle}>{wa?.companyName ?? u.name}</Text>
                   <Text style={styles.cardMeta}>{u.email}</Text>
                 </View>
-                <View style={[styles.tierBadge, { backgroundColor: currentTier ? '#EBF8FF' : '#F3F4F6' }]}>
-                  <Text style={[styles.tierBadgeText, { color: currentTier ? BLUE : MUTED }]}>
-                    {tierName(currentTier)}
-                  </Text>
+                <View style={{ alignItems: 'flex-end', gap: 4 }}>
+                  <View style={[styles.tierBadge, { backgroundColor: currentTier ? '#EBF8FF' : '#F3F4F6' }]}>
+                    <Text style={[styles.tierBadgeText, { color: currentTier ? BLUE : MUTED }]}>
+                      {tierName(currentTier)}
+                    </Text>
+                  </View>
+                  {assignedTierObj && (assignedTierObj.defaultDiscountPct ?? 0) > 0 && (
+                    <Text style={{ fontSize: 11, color: GREEN, fontWeight: '600' }}>
+                      {assignedTierObj.defaultDiscountPct}% default off
+                    </Text>
+                  )}
                 </View>
               </View>
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
@@ -429,20 +716,23 @@ export default function DirectorPricing() {
   }
 
   const tierSaveErr   = saveTierMut.error ? getErrorMessage(saveTierMut.error) : undefined;
-  const breakSaveErr  = saveBreakMut.error ? getErrorMessage(saveBreakMut.error) : undefined;
+  const ruleSaveErr   = saveRuleMut.error ? getErrorMessage(saveRuleMut.error) : undefined;
   const customSaveErr = saveCustomMut.error ? getErrorMessage(saveCustomMut.error) : undefined;
-  const breakFormValid = !!breakForm.productId && !!breakForm.minQty && !!breakForm.unitPrice &&
-    (breakForm.scope === 'tier' ? !!breakForm.tierId : !!breakForm.customerId);
   const customFormValid = !!customForm.customerId && !!customForm.productId && !!customForm.unitPrice;
+  const ruleFormValid = !!ruleForm.productId && (
+    ruleForm.type === 'percentage' ? !!ruleForm.discountPct :
+    ruleForm.type === 'flat' ? !!ruleForm.flatPrice :
+    ruleForm.qtyBreaks.length > 0 && ruleForm.qtyBreaks.every((r) => !!r.minQty && !!r.price)
+  );
 
   return (
-    <DirectorTabScreen title="Pricing Management" subtitle="Tiers · quantity breaks · custom pricing">
+    <DirectorTabScreen title="Pricing Management" subtitle="Tiers · volume rules · customer overrides">
 
       <View style={[styles.tabBar, { backgroundColor: CARD, borderBottomColor: BORDER }]}>
         {TABS.map((t) => {
           const active = tab === t.id;
           return (
-            <Pressable key={t.id} onPress={() => { setTab(t.id); Haptics.selectionAsync(); }} style={styles.tabItem}>
+            <Pressable key={t.id} onPress={() => { setTab(t.id); setSelectedTier(null); Haptics.selectionAsync(); }} style={styles.tabItem}>
               <Feather name={t.icon} size={15} color={active ? BLUE : MUTED} />
               <Text style={[styles.tabLabel, { color: active ? BLUE : MUTED, fontWeight: active ? '700' : '400' }]}>
                 {t.label}
@@ -454,7 +744,7 @@ export default function DirectorPricing() {
       </View>
 
       <View style={{ flex: 1 }}>
-        {tab === 'tiers'  && renderTiers()}
+        {tab === 'tiers'  && (selectedTier ? renderTierDetail(selectedTier) : renderTierList())}
         {tab === 'breaks' && renderBreaks()}
         {tab === 'custom' && renderCustom()}
         {tab === 'assign' && renderAssign()}
@@ -484,6 +774,16 @@ export default function DirectorPricing() {
                 value={tierForm.description} onChangeText={(v) => setTierForm((f) => ({ ...f, description: v }))}
                 multiline numberOfLines={3} textAlignVertical="top" />
             </Field>
+            <Field label="Default Discount % (off standard wholesale)">
+              <TextInput style={[styles.input, { color: TEXT, borderColor: BORDER }]}
+                placeholder="e.g. 15 (leave blank for no blanket discount)" placeholderTextColor={MUTED}
+                value={tierForm.defaultDiscountPct}
+                onChangeText={(v) => setTierForm((f) => ({ ...f, defaultDiscountPct: v.replace(/[^0-9]/g, '') }))}
+                keyboardType="number-pad" />
+              <Text style={{ fontSize: 12, color: MUTED, marginTop: 2 }}>
+                Applies to all products in this tier without a specific rule.
+              </Text>
+            </Field>
             <Field label="Status">
               <View style={{ flexDirection: 'row', gap: 10 }}>
                 {(['active', 'inactive'] as const).map((s) => (
@@ -502,117 +802,134 @@ export default function DirectorPricing() {
                 ))}
               </View>
             </Field>
-            <View style={[styles.infoBox, { backgroundColor: '#EBF8FF', borderColor: '#BEE3F8' }]}>
-              <Feather name="info" size={14} color={BLUE} />
-              <Text style={[styles.infoText, { color: '#1E3A5F' }]}>
-                Tiers are named groupings only. No automatic discounts are applied. Set prices with Qty Breaks or Custom Pricing.
-              </Text>
-            </View>
           </ScrollView>
         </KeyboardAvoidingView>
       </Modal>
 
-      {/* ── Qty Break Modal ── */}
-      <Modal visible={breakModal} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setBreakModal(false)}>
+      {/* ── Tier Product Rule Modal ── */}
+      <Modal visible={ruleModal} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setRuleModal(false)}>
         <KeyboardAvoidingView style={{ flex: 1, backgroundColor: BG }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
           <ModalHeader
-            title={breakForm.id ? 'Edit Qty Break' : 'New Qty Break'}
-            onCancel={() => setBreakModal(false)}
-            onSave={() => saveBreakMut.mutate(breakForm)}
-            saveDisabled={!breakFormValid}
-            saving={saveBreakMut.isPending}
+            title={ruleForm.existingRuleIds.length > 0 ? 'Edit Product Rule' : 'Add Product Rule'}
+            onCancel={() => setRuleModal(false)}
+            onSave={() => saveRuleMut.mutate(ruleForm)}
+            saveDisabled={!ruleFormValid}
+            saving={saveRuleMut.isPending}
           />
           <ScrollView contentContainerStyle={styles.modalContent} keyboardShouldPersistTaps="handled">
-            {!!breakSaveErr && <ErrBanner msg={breakSaveErr} />}
-            <Field label="Product *">
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
-                {products.map((p) => (
-                  <Pressable key={p.id} onPress={() => setBreakForm((f) => ({ ...f, productId: p.id }))}
-                    style={[styles.pickerChip, {
-                      backgroundColor: breakForm.productId === p.id ? BLUE : '#F3F4F6',
-                      borderColor:     breakForm.productId === p.id ? BLUE : BORDER,
-                    }]}>
-                    <Text style={[styles.pickerChipText, { color: breakForm.productId === p.id ? '#fff' : TEXT }]} numberOfLines={1}>{p.name}</Text>
-                  </Pressable>
-                ))}
-              </ScrollView>
-            </Field>
-            <Field label="Applies To *">
-              <View style={{ flexDirection: 'row', gap: 10 }}>
-                {([['tier', 'A Tier', 'layers'], ['customer', 'A Customer', 'user']] as const).map(([s, lbl, ic]) => (
-                  <Pressable key={s} onPress={() => setBreakForm((f) => ({ ...f, scope: s as 'tier' | 'customer' }))}
-                    style={[styles.scopeChip, { flex: 1, backgroundColor: breakForm.scope === s ? BLUE : '#F3F4F6', borderColor: breakForm.scope === s ? BLUE : BORDER }]}>
-                    <Feather name={ic} size={14} color={breakForm.scope === s ? '#fff' : MUTED} />
-                    <Text style={[styles.scopeChipText, { color: breakForm.scope === s ? '#fff' : TEXT }]}>{lbl}</Text>
+            {!!ruleSaveErr && <ErrBanner msg={ruleSaveErr} />}
+
+            <View style={[styles.infoBox, { backgroundColor: '#EBF8FF', borderColor: '#BEE3F8' }]}>
+              <Feather name="package" size={14} color={BLUE} />
+              <Text style={[styles.infoText, { color: '#1E3A5F', fontWeight: '600' }]} numberOfLines={1}>
+                {ruleForm.productName || 'Unknown product'}
+              </Text>
+            </View>
+
+            <Field label="Pricing Type *">
+              <View style={{ flexDirection: 'row', gap: 8 }}>
+                {([
+                  ['percentage', 'Percentage', 'percent'] as const,
+                  ['flat',       'Set Price',  'dollar-sign'] as const,
+                  ['qty_break',  'Qty Break',  'trending-down'] as const,
+                ]).map(([type, label, icon]) => (
+                  <Pressable key={type}
+                    onPress={() => setRuleForm((f) => ({ ...f, type }))}
+                    style={[styles.typeChip, {
+                      backgroundColor: ruleForm.type === type ? NAVY : '#F3F4F6',
+                      borderColor:     ruleForm.type === type ? NAVY : BORDER,
+                    }]}
+                  >
+                    <Feather name={icon} size={13} color={ruleForm.type === type ? '#fff' : MUTED} />
+                    <Text style={[styles.typeChipText, { color: ruleForm.type === type ? '#fff' : TEXT }]}>{label}</Text>
                   </Pressable>
                 ))}
               </View>
             </Field>
-            {breakForm.scope === 'tier' ? (
-              <Field label="Tier *">
-                {tiers.length === 0
-                  ? <Text style={{ color: MUTED, fontSize: 13 }}>No tiers yet — create a tier first.</Text>
-                  : (
-                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
-                      {tiers.map((t) => (
-                        <Pressable key={t.id} onPress={() => setBreakForm((f) => ({ ...f, tierId: t.id }))}
-                          style={[styles.pickerChip, { backgroundColor: breakForm.tierId === t.id ? NAVY : '#F3F4F6', borderColor: breakForm.tierId === t.id ? NAVY : BORDER }]}>
-                          <Text style={[styles.pickerChipText, { color: breakForm.tierId === t.id ? '#fff' : TEXT }]}>{t.name}</Text>
-                        </Pressable>
-                      ))}
-                    </ScrollView>
-                  )
-                }
-              </Field>
-            ) : (
-              <Field label="Customer *">
-                {wholesaleUsers.length === 0
-                  ? <Text style={{ color: MUTED, fontSize: 13 }}>No approved wholesale customers.</Text>
-                  : (
-                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
-                      {wholesaleUsers.map((u) => (
-                        <Pressable key={u.id} onPress={() => setBreakForm((f) => ({ ...f, customerId: u.id }))}
-                          style={[styles.pickerChip, { backgroundColor: breakForm.customerId === u.id ? NAVY : '#F3F4F6', borderColor: breakForm.customerId === u.id ? NAVY : BORDER }]}>
-                          <Text style={[styles.pickerChipText, { color: breakForm.customerId === u.id ? '#fff' : TEXT }]}>
-                            {u.wholesaleAccount?.companyName ?? u.name}
-                          </Text>
-                        </Pressable>
-                      ))}
-                    </ScrollView>
-                  )
-                }
+
+            {ruleForm.type === 'percentage' && (
+              <Field label="Discount % off standard wholesale *">
+                <TextInput style={[styles.input, { color: TEXT, borderColor: BORDER }]}
+                  placeholder="e.g. 15" placeholderTextColor={MUTED}
+                  value={ruleForm.discountPct}
+                  onChangeText={(v) => setRuleForm((f) => ({ ...f, discountPct: v.replace(/[^0-9]/g, '') }))}
+                  keyboardType="number-pad" autoFocus />
+                <Text style={{ fontSize: 12, color: MUTED, marginTop: 2 }}>
+                  Applies to all order quantities.
+                </Text>
               </Field>
             )}
-            <View style={{ flexDirection: 'row', gap: 14 }}>
-              <Field label="Min. Qty *" style={{ flex: 1 }}>
+
+            {ruleForm.type === 'flat' && (
+              <Field label="Set Price per Unit (AUD) *">
                 <TextInput style={[styles.input, { color: TEXT, borderColor: BORDER }]}
-                  placeholder="e.g. 24" placeholderTextColor={MUTED} value={breakForm.minQty}
-                  onChangeText={(v) => setBreakForm((f) => ({ ...f, minQty: v.replace(/[^0-9]/g, '') }))}
-                  keyboardType="number-pad" />
+                  placeholder="e.g. 4.20" placeholderTextColor={MUTED}
+                  value={ruleForm.flatPrice}
+                  onChangeText={(v) => setRuleForm((f) => ({ ...f, flatPrice: v }))}
+                  keyboardType="decimal-pad" autoFocus />
+                <Text style={{ fontSize: 12, color: MUTED, marginTop: 2 }}>
+                  Applies to all order quantities.
+                </Text>
               </Field>
-              <Field label="Price / Unit (AUD) *" style={{ flex: 1 }}>
-                <TextInput style={[styles.input, { color: TEXT, borderColor: BORDER }]}
-                  placeholder="e.g. 3.50" placeholderTextColor={MUTED} value={breakForm.unitPrice}
-                  onChangeText={(v) => setBreakForm((f) => ({ ...f, unitPrice: v }))}
-                  keyboardType="decimal-pad" />
+            )}
+
+            {ruleForm.type === 'qty_break' && (
+              <Field label="Quantity Break Schedule *">
+                <Text style={{ fontSize: 12, color: MUTED, marginBottom: 8 }}>
+                  Set price tiers by minimum quantity (e.g. 1+: $4.80, 10+: $4.20, 25+: $3.90)
+                </Text>
+                {ruleForm.qtyBreaks.map((row, idx) => (
+                  <View key={idx} style={{ flexDirection: 'row', gap: 10, marginBottom: 10, alignItems: 'center' }}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontSize: 11, color: MUTED, marginBottom: 4 }}>Min qty</Text>
+                      <TextInput style={[styles.input, { color: TEXT, borderColor: BORDER }]}
+                        placeholder="e.g. 10" placeholderTextColor={MUTED}
+                        value={row.minQty}
+                        onChangeText={(v) => {
+                          const rows = [...ruleForm.qtyBreaks];
+                          rows[idx] = { ...rows[idx], minQty: v.replace(/[^0-9]/g, '') };
+                          setRuleForm((f) => ({ ...f, qtyBreaks: rows }));
+                        }}
+                        keyboardType="number-pad" />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontSize: 11, color: MUTED, marginBottom: 4 }}>Price/unit (AUD)</Text>
+                      <TextInput style={[styles.input, { color: TEXT, borderColor: BORDER }]}
+                        placeholder="e.g. 4.20" placeholderTextColor={MUTED}
+                        value={row.price}
+                        onChangeText={(v) => {
+                          const rows = [...ruleForm.qtyBreaks];
+                          rows[idx] = { ...rows[idx], price: v };
+                          setRuleForm((f) => ({ ...f, qtyBreaks: rows }));
+                        }}
+                        keyboardType="decimal-pad" />
+                    </View>
+                    {ruleForm.qtyBreaks.length > 1 && (
+                      <Pressable onPress={() => setRuleForm((f) => ({ ...f, qtyBreaks: f.qtyBreaks.filter((_, i) => i !== idx) }))}
+                        style={{ marginTop: 18 }}>
+                        <Feather name="x-circle" size={18} color={RED} />
+                      </Pressable>
+                    )}
+                  </View>
+                ))}
+                <Pressable
+                  onPress={() => setRuleForm((f) => ({ ...f, qtyBreaks: [...f.qtyBreaks, { minQty: '', price: '' }] }))}
+                  style={styles.addBreakBtn}
+                >
+                  <Feather name="plus" size={14} color={BLUE} />
+                  <Text style={{ color: BLUE, fontSize: 13, fontWeight: '600' }}>Add Another Break</Text>
+                </Pressable>
               </Field>
-            </View>
-            <View style={styles.switchRow}>
-              <View>
-                <Text style={styles.switchLabel}>Active</Text>
-                <Text style={styles.switchSub}>Inactive breaks are ignored by the pricing engine</Text>
-              </View>
-              <Switch value={breakForm.isActive} onValueChange={(v) => setBreakForm((f) => ({ ...f, isActive: v }))} trackColor={{ true: BLUE }} />
-            </View>
+            )}
           </ScrollView>
         </KeyboardAvoidingView>
       </Modal>
 
-      {/* ── Custom Pricing Modal ── */}
+      {/* ── Customer Override Modal ── */}
       <Modal visible={customModal} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setCustomModal(false)}>
         <KeyboardAvoidingView style={{ flex: 1, backgroundColor: BG }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
           <ModalHeader
-            title={customForm.id ? 'Edit Custom Price' : 'New Custom Price'}
+            title={customForm.id ? 'Edit Override' : 'New Override'}
             onCancel={() => setCustomModal(false)}
             onSave={() => saveCustomMut.mutate(customForm)}
             saveDisabled={!customFormValid}
@@ -620,6 +937,12 @@ export default function DirectorPricing() {
           />
           <ScrollView contentContainerStyle={styles.modalContent} keyboardShouldPersistTaps="handled">
             {!!customSaveErr && <ErrBanner msg={customSaveErr} />}
+            <View style={[styles.infoBox, { backgroundColor: '#FFF7ED', borderColor: '#FED7AA' }]}>
+              <Feather name="alert-triangle" size={14} color="#C2410C" />
+              <Text style={[styles.infoText, { color: '#9A3412', fontSize: 12 }]}>
+                This override takes priority over the customer's tier pricing. Use sparingly.
+              </Text>
+            </View>
             <Field label="Customer *">
               {wholesaleUsers.length === 0
                 ? <Text style={{ color: MUTED, fontSize: 13 }}>No approved wholesale customers.</Text>
@@ -639,7 +962,7 @@ export default function DirectorPricing() {
             </Field>
             <Field label="Product *">
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
-                {products.map((p) => (
+                {allProducts.map((p) => (
                   <Pressable key={p.id} onPress={() => setCustomForm((f) => ({ ...f, productId: p.id }))}
                     style={[styles.pickerChip, { backgroundColor: customForm.productId === p.id ? BLUE : '#F3F4F6', borderColor: customForm.productId === p.id ? BLUE : BORDER }]}>
                     <Text style={[styles.pickerChipText, { color: customForm.productId === p.id ? '#fff' : TEXT }]} numberOfLines={1}>{p.name}</Text>
@@ -656,7 +979,7 @@ export default function DirectorPricing() {
             <View style={styles.switchRow}>
               <View>
                 <Text style={styles.switchLabel}>Active</Text>
-                <Text style={styles.switchSub}>Inactive prices are not applied at checkout</Text>
+                <Text style={styles.switchSub}>Inactive overrides are not applied at checkout</Text>
               </View>
               <Switch value={customForm.isActive} onValueChange={(v) => setCustomForm((f) => ({ ...f, isActive: v }))} trackColor={{ true: BLUE }} />
             </View>
@@ -697,6 +1020,14 @@ function Field({ label, children, style }: { label: string; children: React.Reac
     </View>
   );
 }
+function TierStat({ label, value }: { label: string; value: string }) {
+  return (
+    <View style={{ flex: 1, alignItems: 'center', gap: 2, backgroundColor: '#F3F4F6', borderRadius: 10, paddingVertical: 10 }}>
+      <Text style={{ fontSize: 15, fontWeight: '700', color: TEXT }}>{value}</Text>
+      <Text style={{ fontSize: 11, color: MUTED }}>{label}</Text>
+    </View>
+  );
+}
 function StatusBadge({ status }: { status: string }) {
   const active = status === 'active';
   return (
@@ -723,44 +1054,51 @@ function ErrBanner({ msg }: { msg: string }) {
 }
 
 const styles = StyleSheet.create({
-  header:        { paddingHorizontal: 20, paddingBottom: 12, gap: 3, backgroundColor: '#FFFFFF', borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#E5E7EB', alignItems: 'center' },
-  headerTitle:   { color: '#1A2B4A', fontSize: 16, fontWeight: '700' },
-  headerSub:     { color: '#6B7280', fontSize: 11, fontWeight: '400' },
-  tabBar:        { flexDirection: 'row', borderBottomWidth: 1 },
-  tabItem:       { flex: 1, alignItems: 'center', paddingVertical: 10, gap: 3, position: 'relative' },
-  tabLabel:      { fontSize: 11, letterSpacing: 0.3 },
-  tabUnderline:  { position: 'absolute', bottom: 0, left: 0, right: 0, height: 2.5, borderRadius: 2 },
-  sectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 16, paddingBottom: 8 },
-  sectionTitle:  { fontSize: 18, fontWeight: '700', color: TEXT },
-  newBtn:        { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10, backgroundColor: BLUE },
-  newBtnText:    { color: '#fff', fontSize: 13, fontWeight: '700' },
-  listContent:   { padding: 16, gap: 10, paddingBottom: 32 },
-  loader:        { marginTop: 40 },
-  card:          { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: 14, borderWidth: 1, backgroundColor: GLASS_BG, borderColor: GLASS_BORDER, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 14, elevation: 3 },
-  assignCard:    { padding: 14, borderRadius: 14, borderWidth: 1, backgroundColor: GLASS_BG, borderColor: GLASS_BORDER, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 14, elevation: 3 },
-  cardTitle:     { fontSize: 15, fontWeight: '600', color: TEXT },
-  cardSub:       { fontSize: 13, fontWeight: '400', color: MUTED },
-  cardMeta:      { fontSize: 12, fontWeight: '400', color: MUTED },
-  cardActions:   { flexDirection: 'row', gap: 8, alignItems: 'center' },
-  tierBadge:     { borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5 },
-  tierBadgeText: { fontSize: 13, fontWeight: '600' },
-  assignChip:    { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, borderWidth: 1 },
-  assignChipText:{ fontSize: 13, fontWeight: '600' },
-  emptyWrap:     { alignItems: 'center', justifyContent: 'center', gap: 10, paddingHorizontal: 32, marginTop: 60 },
-  emptyTitle:    { fontSize: 16, fontWeight: '600', color: TEXT, textAlign: 'center' },
-  emptySub:      { fontSize: 13, fontWeight: '400', color: MUTED, textAlign: 'center', lineHeight: 19 },
-  modalContent:  { padding: 20, gap: 18 },
-  input:         { borderWidth: 1, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, fontSize: 14, fontWeight: '400', backgroundColor: CARD },
-  textArea:      { height: 80 },
-  statusChip:    { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10, borderWidth: 1, alignItems: 'center' },
-  statusChipText:{ fontSize: 14, fontWeight: '600' },
-  scopeChip:     { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 10, borderWidth: 1 },
-  scopeChipText: { fontSize: 14, fontWeight: '600' },
-  pickerChip:    { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 8, borderWidth: 1, maxWidth: 180 },
-  pickerChipText:{ fontSize: 13, fontWeight: '500' },
-  switchRow:     { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 4 },
-  switchLabel:   { fontSize: 14, fontWeight: '600', color: TEXT },
-  switchSub:     { fontSize: 12, fontWeight: '400', color: MUTED, marginTop: 2 },
-  infoBox:       { flexDirection: 'row', alignItems: 'flex-start', gap: 10, padding: 12, borderRadius: 10, borderWidth: 1 },
-  infoText:      { flex: 1, fontSize: 13, fontWeight: '400', lineHeight: 19 },
+  tabBar:          { flexDirection: 'row', borderBottomWidth: 1 },
+  tabItem:         { flex: 1, alignItems: 'center', paddingVertical: 10, gap: 3, position: 'relative' },
+  tabLabel:        { fontSize: 10, letterSpacing: 0.3 },
+  tabUnderline:    { position: 'absolute', bottom: 0, left: 0, right: 0, height: 2.5, borderRadius: 2 },
+  sectionHeader:   { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 16, paddingBottom: 8 },
+  sectionTitle:    { fontSize: 18, fontWeight: '700', color: TEXT },
+  newBtn:          { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10, backgroundColor: BLUE },
+  newBtnText:      { color: '#fff', fontSize: 13, fontWeight: '700' },
+  listContent:     { padding: 16, gap: 10, paddingBottom: 32 },
+  loader:          { marginTop: 40 },
+  card:            { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: 14, borderWidth: 1, backgroundColor: GLASS_BG, borderColor: GLASS_BORDER, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 14, elevation: 3 },
+  tierCard:        { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: 14, borderWidth: 1, backgroundColor: GLASS_BG, borderColor: GLASS_BORDER, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 14, elevation: 3 },
+  productRuleCard: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: 12, borderWidth: 1, backgroundColor: GLASS_BG, borderColor: GLASS_BORDER },
+  assignCard:      { padding: 14, borderRadius: 14, borderWidth: 1, backgroundColor: GLASS_BG, borderColor: GLASS_BORDER, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 14, elevation: 3 },
+  cardTitle:       { fontSize: 15, fontWeight: '600', color: TEXT },
+  cardSub:         { fontSize: 13, fontWeight: '400', color: MUTED },
+  cardMeta:        { fontSize: 12, fontWeight: '400', color: MUTED },
+  cardActions:     { flexDirection: 'row', gap: 8, alignItems: 'center' },
+  tierBadge:       { borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5 },
+  tierBadgeText:   { fontSize: 13, fontWeight: '600' },
+  assignChip:      { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, borderWidth: 1 },
+  assignChipText:  { fontSize: 13, fontWeight: '600' },
+  discBadge:       { borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3, backgroundColor: '#F0FDF4', borderWidth: 1, borderColor: '#BBF7D0' },
+  discBadgeText:   { fontSize: 11, fontWeight: '700', color: '#166534' },
+  emptyWrap:       { alignItems: 'center', justifyContent: 'center', gap: 10, paddingHorizontal: 32, marginTop: 40 },
+  emptyTitle:      { fontSize: 16, fontWeight: '600', color: TEXT, textAlign: 'center' },
+  emptySub:        { fontSize: 13, fontWeight: '400', color: MUTED, textAlign: 'center', lineHeight: 19 },
+  modalContent:    { padding: 20, gap: 18 },
+  input:           { borderWidth: 1, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, fontSize: 14, fontWeight: '400', backgroundColor: CARD },
+  textArea:        { height: 80 },
+  statusChip:      { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10, borderWidth: 1, alignItems: 'center' },
+  statusChipText:  { fontSize: 14, fontWeight: '600' },
+  pickerChip:      { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 8, borderWidth: 1, maxWidth: 180 },
+  pickerChipText:  { fontSize: 13, fontWeight: '500' },
+  switchRow:       { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 4 },
+  switchLabel:     { fontSize: 14, fontWeight: '600', color: TEXT },
+  switchSub:       { fontSize: 12, fontWeight: '400', color: MUTED, marginTop: 2 },
+  infoBox:         { flexDirection: 'row', alignItems: 'flex-start', gap: 10, padding: 12, borderRadius: 10, borderWidth: 1 },
+  infoText:        { flex: 1, fontSize: 13, fontWeight: '400', lineHeight: 19 },
+  backBtn:         { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: BORDER },
+  tierStatRow:     { flexDirection: 'row', gap: 10 },
+  searchBar:       { flexDirection: 'row', alignItems: 'center', gap: 10, borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10 },
+  addRuleBtn:      { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10 },
+  addRuleBtnText:  { fontSize: 13, fontWeight: '600' },
+  typeChip:        { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, paddingVertical: 10, borderRadius: 10, borderWidth: 1 },
+  typeChipText:    { fontSize: 12, fontWeight: '600' },
+  addBreakBtn:     { flexDirection: 'row', alignItems: 'center', gap: 6, padding: 12, borderRadius: 10, borderWidth: 1, borderColor: BLUE, justifyContent: 'center', borderStyle: 'dashed' },
 });

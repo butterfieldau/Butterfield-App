@@ -14,6 +14,7 @@ export type PriceSource =
   | 'customer_category_price'
   | 'quantity_break_customer'
   | 'quantity_break_tier'
+  | 'tier_default_discount'
   | 'standard_wholesale'
   | 'none';
 
@@ -39,12 +40,13 @@ export interface PriceContext {
 
 /**
  * Securely calculate the wholesale unit price for one line item.
- * Priority (strictly manual rules only — no automatic discounts):
+ * Priority:
  *   1. Manual override (director-set)
  *   2. Customer-specific product price
  *   3. Customer-specific category price
- *   4. Quantity break (customer scope)
- *   5. Quantity break (tier scope)
+ *   4. Quantity break (customer scope) — unitPriceCents or discountPct
+ *   5. Quantity break (tier scope)    — unitPriceCents or discountPct
+ *   5.5 Tier default discount (defaultDiscountPct > 0)
  *   6. Standard wholesale price
  *   7. Error — no wholesale price configured
  */
@@ -73,7 +75,7 @@ export async function calculateWholesalePrice(ctx: PriceContext): Promise<PriceR
     };
   }
 
-  // 2. Customer-specific product price (always checked — no flag gate)
+  // 2. Customer-specific product price
   const customerProductPrices = await db.select().from(customerPricingTable).where(and(
     eq(customerPricingTable.customerId, customerId),
     eq(customerPricingTable.productId, productId),
@@ -87,6 +89,18 @@ export async function calculateWholesalePrice(ctx: PriceContext): Promise<PriceR
         totalCents: cp.unitPriceCents * qty,
         source: 'customer_product_price',
         sourceLabel: 'Custom customer price',
+        sourceId: cp.id,
+        basePriceCents: baseCents,
+        productId, qty,
+      };
+    }
+    if (cp.discountPct != null) {
+      const unitCents = Math.round(baseCents * (1 - cp.discountPct / 100));
+      return {
+        unitCents,
+        totalCents: unitCents * qty,
+        source: 'customer_product_price',
+        sourceLabel: `Custom customer price (${cp.discountPct}% off)`,
         sourceId: cp.id,
         basePriceCents: baseCents,
         productId, qty,
@@ -110,6 +124,18 @@ export async function calculateWholesalePrice(ctx: PriceContext): Promise<PriceR
           totalCents: cp.unitPriceCents * qty,
           source: 'customer_category_price',
           sourceLabel: 'Custom category price',
+          sourceId: cp.id,
+          basePriceCents: baseCents,
+          productId, qty,
+        };
+      }
+      if (cp.discountPct != null) {
+        const unitCents = Math.round(baseCents * (1 - cp.discountPct / 100));
+        return {
+          unitCents,
+          totalCents: unitCents * qty,
+          source: 'customer_category_price',
+          sourceLabel: `Custom category price (${cp.discountPct}% off)`,
           sourceId: cp.id,
           basePriceCents: baseCents,
           productId, qty,
@@ -140,6 +166,18 @@ export async function calculateWholesalePrice(ctx: PriceContext): Promise<PriceR
         productId, qty,
       };
     }
+    if (qb.discountPct != null) {
+      const unitCents = Math.round(baseCents * (1 - qb.discountPct / 100));
+      return {
+        unitCents,
+        totalCents: unitCents * qty,
+        source: 'quantity_break_customer',
+        sourceLabel: `Qty break (${qb.minQty}+, ${qb.discountPct}% off)`,
+        sourceId: qb.id,
+        basePriceCents: baseCents,
+        productId, qty,
+      };
+    }
   }
 
   // 5. Quantity break (tier scope)
@@ -159,12 +197,38 @@ export async function calculateWholesalePrice(ctx: PriceContext): Promise<PriceR
           unitCents: qb.unitPriceCents,
           totalCents: qb.unitPriceCents * qty,
           source: 'quantity_break_tier',
-          sourceLabel: `Tier qty break (${qb.minQty}+)`,
+          sourceLabel: `Tier price (${qb.minQty}+)`,
           sourceId: qb.id,
           basePriceCents: baseCents,
           productId, qty,
         };
       }
+      if (qb.discountPct != null) {
+        const unitCents = Math.round(baseCents * (1 - qb.discountPct / 100));
+        return {
+          unitCents,
+          totalCents: unitCents * qty,
+          source: 'quantity_break_tier',
+          sourceLabel: `Tier price (${qb.minQty}+, ${qb.discountPct}% off)`,
+          sourceId: qb.id,
+          basePriceCents: baseCents,
+          productId, qty,
+        };
+      }
+    }
+
+    // 5.5 Tier default discount — applies when no specific product rule matches
+    const [tier] = await db.select().from(pricingTiersTable).where(eq(pricingTiersTable.id, tierId));
+    if (tier && tier.defaultDiscountPct > 0 && baseCents > 0) {
+      const unitCents = Math.round(baseCents * (1 - tier.defaultDiscountPct / 100));
+      return {
+        unitCents,
+        totalCents: unitCents * qty,
+        source: 'tier_default_discount',
+        sourceLabel: `${tier.name} tier (${tier.defaultDiscountPct}% off)`,
+        basePriceCents: baseCents,
+        productId, qty,
+      };
     }
   }
 
@@ -217,13 +281,8 @@ function safeJsonArr(s: string): string[] {
 }
 
 /**
- * Batch version of calculateWholesalePrice for listing/browsing many products at once
- * (e.g. the wholesale catalog screen). Mirrors the exact same priority order as
- * calculateWholesalePrice, but loads all customer-pricing and quantity-break rows for
- * the whole product set in a handful of queries instead of ~5 sequential queries PER
- * product. Order placement still uses calculateWholesalePrice per-line (small, and
- * must independently re-verify each line at submit time) — this bulk path is for
- * read-only display where products/qty are already known and trusted server-side.
+ * Batch version of calculateWholesalePrice for listing/browsing many products at once.
+ * Mirrors the exact same priority order as calculateWholesalePrice but loads data in bulk.
  */
 export async function calculateWholesalePricesBulk(
   requests: Array<{ product: typeof productsTable.$inferSelect; qty: number }>,
@@ -236,7 +295,10 @@ export async function calculateWholesalePricesBulk(
   const productIds = requests.map((r) => r.product.id);
   const categories = [...new Set(requests.map((r) => r.product.category).filter((c): c is string => !!c))];
 
-  const [customerProductPrices, customerCategoryPrices, customerQtyBreaks, tierQtyBreaks] = await Promise.all([
+  const [tierData, customerProductPrices, customerCategoryPrices, customerQtyBreaks, tierQtyBreaks] = await Promise.all([
+    tierId
+      ? db.select().from(pricingTiersTable).where(eq(pricingTiersTable.id, tierId)).then((r) => r[0] ?? null)
+      : Promise.resolve(null),
     db.select().from(customerPricingTable).where(and(
       eq(customerPricingTable.customerId, customerId),
       inArray(customerPricingTable.productId, productIds),
@@ -291,61 +353,137 @@ export async function calculateWholesalePricesBulk(
 
       const baseCents = product.wholesalePriceCents ?? product.priceCents;
 
-      const productPrice = (productPricesByProduct.get(product.id) ?? []).find((cp) => cp.unitPriceCents != null);
-      if (productPrice) {
-        results.set(product.id, {
-          unitCents: productPrice.unitPriceCents!,
-          totalCents: productPrice.unitPriceCents! * qty,
-          source: 'customer_product_price',
-          sourceLabel: 'Custom customer price',
-          sourceId: productPrice.id,
-          basePriceCents: baseCents,
-          productId: product.id, qty,
-        });
+      // 2. Customer product price
+      const cpMatch = (productPricesByProduct.get(product.id) ?? []).find(
+        (cp) => cp.unitPriceCents != null || cp.discountPct != null,
+      );
+      if (cpMatch) {
+        if (cpMatch.unitPriceCents != null) {
+          results.set(product.id, {
+            unitCents: cpMatch.unitPriceCents,
+            totalCents: cpMatch.unitPriceCents * qty,
+            source: 'customer_product_price',
+            sourceLabel: 'Custom customer price',
+            sourceId: cpMatch.id,
+            basePriceCents: baseCents,
+            productId: product.id, qty,
+          });
+        } else {
+          const unitCents = Math.round(baseCents * (1 - cpMatch.discountPct! / 100));
+          results.set(product.id, {
+            unitCents,
+            totalCents: unitCents * qty,
+            source: 'customer_product_price',
+            sourceLabel: `Custom customer price (${cpMatch.discountPct}% off)`,
+            sourceId: cpMatch.id,
+            basePriceCents: baseCents,
+            productId: product.id, qty,
+          });
+        }
         continue;
       }
 
+      // 3. Customer category price
       if (product.category) {
-        const categoryPrice = (categoryPricesByCategory.get(product.category) ?? []).find((cp) => cp.unitPriceCents != null);
-        if (categoryPrice) {
-          results.set(product.id, {
-            unitCents: categoryPrice.unitPriceCents!,
-            totalCents: categoryPrice.unitPriceCents! * qty,
-            source: 'customer_category_price',
-            sourceLabel: 'Custom category price',
-            sourceId: categoryPrice.id,
-            basePriceCents: baseCents,
-            productId: product.id, qty,
-          });
+        const catMatch = (categoryPricesByCategory.get(product.category) ?? []).find(
+          (cp) => cp.unitPriceCents != null || cp.discountPct != null,
+        );
+        if (catMatch) {
+          if (catMatch.unitPriceCents != null) {
+            results.set(product.id, {
+              unitCents: catMatch.unitPriceCents,
+              totalCents: catMatch.unitPriceCents * qty,
+              source: 'customer_category_price',
+              sourceLabel: 'Custom category price',
+              sourceId: catMatch.id,
+              basePriceCents: baseCents,
+              productId: product.id, qty,
+            });
+          } else {
+            const unitCents = Math.round(baseCents * (1 - catMatch.discountPct! / 100));
+            results.set(product.id, {
+              unitCents,
+              totalCents: unitCents * qty,
+              source: 'customer_category_price',
+              sourceLabel: `Custom category price (${catMatch.discountPct}% off)`,
+              sourceId: catMatch.id,
+              basePriceCents: baseCents,
+              productId: product.id, qty,
+            });
+          }
           continue;
         }
       }
 
-      const customerQtyBreak = (customerQtyBreaksByProduct.get(product.id) ?? [])
-        .filter((qb) => qb.minQty <= qty && (qb.maxQty == null || qb.maxQty >= qty) && qb.unitPriceCents != null)[0];
-      if (customerQtyBreak) {
-        results.set(product.id, {
-          unitCents: customerQtyBreak.unitPriceCents!,
-          totalCents: customerQtyBreak.unitPriceCents! * qty,
-          source: 'quantity_break_customer',
-          sourceLabel: `Qty break (${customerQtyBreak.minQty}+)`,
-          sourceId: customerQtyBreak.id,
-          basePriceCents: baseCents,
-          productId: product.id, qty,
-        });
+      // 4. Customer qty break
+      const cqb = (customerQtyBreaksByProduct.get(product.id) ?? [])
+        .filter((qb) => qb.minQty <= qty && (qb.maxQty == null || qb.maxQty >= qty))
+        .find((qb) => qb.unitPriceCents != null || qb.discountPct != null);
+      if (cqb) {
+        if (cqb.unitPriceCents != null) {
+          results.set(product.id, {
+            unitCents: cqb.unitPriceCents,
+            totalCents: cqb.unitPriceCents * qty,
+            source: 'quantity_break_customer',
+            sourceLabel: `Qty break (${cqb.minQty}+)`,
+            sourceId: cqb.id,
+            basePriceCents: baseCents,
+            productId: product.id, qty,
+          });
+        } else {
+          const unitCents = Math.round(baseCents * (1 - cqb.discountPct! / 100));
+          results.set(product.id, {
+            unitCents,
+            totalCents: unitCents * qty,
+            source: 'quantity_break_customer',
+            sourceLabel: `Qty break (${cqb.minQty}+, ${cqb.discountPct}% off)`,
+            sourceId: cqb.id,
+            basePriceCents: baseCents,
+            productId: product.id, qty,
+          });
+        }
         continue;
       }
 
+      // 5. Tier qty break
       if (tierId) {
-        const tierQtyBreak = (tierQtyBreaksByProduct.get(product.id) ?? [])
-          .filter((qb) => qb.minQty <= qty && (qb.maxQty == null || qb.maxQty >= qty) && qb.unitPriceCents != null)[0];
-        if (tierQtyBreak) {
+        const tqb = (tierQtyBreaksByProduct.get(product.id) ?? [])
+          .filter((qb) => qb.minQty <= qty && (qb.maxQty == null || qb.maxQty >= qty))
+          .find((qb) => qb.unitPriceCents != null || qb.discountPct != null);
+        if (tqb) {
+          if (tqb.unitPriceCents != null) {
+            results.set(product.id, {
+              unitCents: tqb.unitPriceCents,
+              totalCents: tqb.unitPriceCents * qty,
+              source: 'quantity_break_tier',
+              sourceLabel: `Tier price (${tqb.minQty}+)`,
+              sourceId: tqb.id,
+              basePriceCents: baseCents,
+              productId: product.id, qty,
+            });
+          } else {
+            const unitCents = Math.round(baseCents * (1 - tqb.discountPct! / 100));
+            results.set(product.id, {
+              unitCents,
+              totalCents: unitCents * qty,
+              source: 'quantity_break_tier',
+              sourceLabel: `Tier price (${tqb.minQty}+, ${tqb.discountPct}% off)`,
+              sourceId: tqb.id,
+              basePriceCents: baseCents,
+              productId: product.id, qty,
+            });
+          }
+          continue;
+        }
+
+        // 5.5 Tier default discount
+        if (tierData && tierData.defaultDiscountPct > 0 && baseCents > 0) {
+          const unitCents = Math.round(baseCents * (1 - tierData.defaultDiscountPct / 100));
           results.set(product.id, {
-            unitCents: tierQtyBreak.unitPriceCents!,
-            totalCents: tierQtyBreak.unitPriceCents! * qty,
-            source: 'quantity_break_tier',
-            sourceLabel: `Tier qty break (${tierQtyBreak.minQty}+)`,
-            sourceId: tierQtyBreak.id,
+            unitCents,
+            totalCents: unitCents * qty,
+            source: 'tier_default_discount',
+            sourceLabel: `${tierData.name} tier (${tierData.defaultDiscountPct}% off)`,
             basePriceCents: baseCents,
             productId: product.id, qty,
           });
@@ -353,6 +491,7 @@ export async function calculateWholesalePricesBulk(
         }
       }
 
+      // 6. Standard wholesale
       if (product.wholesalePriceCents != null && product.wholesalePriceCents > 0) {
         results.set(product.id, {
           unitCents: product.wholesalePriceCents,
@@ -392,7 +531,7 @@ export async function loadPriceContextForAccount(userId: string): Promise<{
     accountId: account.id,
     customerId: userId,
     tierId: account.tierId ?? null,
-    customPricingEnabled: true, // always enabled — pricing rules always apply when set
+    customPricingEnabled: true,
     isSuspended: account.isSuspended,
     status: account.status,
     minOrderCents: account.minOrderCents ?? 0,
