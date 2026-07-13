@@ -2,8 +2,9 @@ import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import React, { useState } from 'react';
 import {
-  ActivityIndicator, Alert, Keyboard, KeyboardAvoidingView, Modal,
-  Platform, Pressable, ScrollView, Text, TextInput, View,
+  ActivityIndicator, Alert, Keyboard, KeyboardAvoidingView,
+  Linking, Modal, Platform, Pressable, ScrollView, StyleSheet,
+  Text, TextInput, View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { normalizeOrderItems } from '@/lib/orderItems';
@@ -12,10 +13,9 @@ import {
   getCustomerNextStatuses,
 } from '@/lib/orderStatus';
 import type { ApiOrder } from '@/lib/api';
-import { styles } from './directorOrdersStyles';
 import { fmtTime, openMap } from './ordersHelpers';
 import {
-  BG, SURFACE, SURFACE_RAISED, BORDER, TEXT, TEXT_MUTED, BRAND, BRAND_TEXT_ON,
+  BG, SURFACE, SURFACE_RAISED, BORDER, TEXT, TEXT_MUTED, TEXT_FAINT, BRAND, BRAND_TEXT_ON,
   GREEN, GREEN_DIM, AMBER, AMBER_DIM, RED, RED_DIM, PURPLE, PURPLE_DIM,
 } from './commandCenterColors';
 
@@ -29,7 +29,88 @@ function isWholesaleOrderPaid(order: ApiOrder): boolean {
   );
 }
 
-export default function DirectorOrderDetailModal({ order, visible, onClose, onStatusChange, onAcceptOrder, onPrintReceipt, onViewInvoice, printing, canCancelRefund, onEditWholesale, onAdjustWholesale, onSendRevisedInvoice, onMarkPaid }: {
+// ── Timeline builder ──────────────────────────────────────────────────────────
+function getTimeline(order: ApiOrder): { label: string; done: boolean; current: boolean }[] {
+  const isDelivery = order.type === 'delivery' || order.deliveryType === 'delivery';
+  const isScheduled = !!(order.scheduledFor);
+  const isWholesale = order.orderSource === 'wholesale' || order.type === 'wholesale';
+  const status = order.status;
+
+  let steps: string[];
+  let labels: string[];
+
+  if (isWholesale) {
+    steps  = ['pending', 'processing', 'dispatched', 'delivered'];
+    labels = ['Pending', 'Processing', 'Dispatched', 'Delivered'];
+  } else if (isDelivery) {
+    steps  = ['scheduled', 'accepted', 'being_prepared', 'out_for_delivery', 'completed'];
+    labels = ['Received', 'Confirmed', 'Preparing', 'Out for Delivery', 'Completed'];
+  } else if (isScheduled) {
+    steps  = ['scheduled', 'accepted', 'being_prepared', 'ready_for_pickup', 'completed'];
+    labels = ['Received', 'Confirmed', 'Preparing', 'Ready', 'Completed'];
+  } else {
+    steps  = ['received', 'being_prepared', 'completed'];
+    labels = ['Received', 'Preparing', 'Completed'];
+  }
+
+  const currentIdx = steps.indexOf(status);
+  return steps.map((_, i) => ({
+    label: labels[i],
+    done: currentIdx > i,
+    current: i === currentIdx,
+  }));
+}
+
+// ── Sub-components ────────────────────────────────────────────────────────────
+function TimelineStep({ label, done, current }: { label: string; done: boolean; current: boolean }) {
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+      <View style={[
+        d.timelineDot,
+        done    && { backgroundColor: GREEN },
+        current && { backgroundColor: BRAND, shadowColor: BRAND, shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.3, shadowRadius: 6, elevation: 2 },
+        !done && !current && { backgroundColor: '#E5E7EB' },
+      ]}>
+        {done && <Feather name="check" size={12} color="#fff" />}
+        {current && <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: '#fff' }} />}
+      </View>
+      <Text style={{ fontSize: 15, fontWeight: current ? '600' : '400', color: done || current ? TEXT : TEXT_MUTED }}>
+        {label}
+      </Text>
+    </View>
+  );
+}
+
+function SecondaryActionRow({ icon, label, onPress, loading, border = true }: {
+  icon: string; label: string; onPress: () => void; loading?: boolean; border?: boolean;
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [
+        d.actionRow,
+        !border && { borderBottomWidth: 0 },
+        pressed && { backgroundColor: '#F8F8F8' },
+      ]}
+    >
+      <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, gap: 12 }}>
+        {loading
+          ? <ActivityIndicator color={BRAND} size="small" style={{ width: 24 }} />
+          : <Feather name={icon as any} size={20} color={BRAND} />
+        }
+        <Text style={{ fontSize: 16, color: TEXT }}>{label}</Text>
+      </View>
+      <Feather name="chevron-right" size={18} color="#C7C7CC" />
+    </Pressable>
+  );
+}
+
+// ── Main component ────────────────────────────────────────────────────────────
+export default function DirectorOrderDetailModal({
+  order, visible, onClose, onStatusChange, onAcceptOrder, onPrintReceipt,
+  onViewInvoice, printing, canCancelRefund, onEditWholesale, onAdjustWholesale,
+  onSendRevisedInvoice, onMarkPaid,
+}: {
   order: ApiOrder | null; visible: boolean; onClose: () => void;
   onStatusChange: (id: string, status: string, cancelReason?: string) => Promise<void>;
   onAcceptOrder: (id: string) => Promise<void>;
@@ -43,17 +124,21 @@ export default function DirectorOrderDetailModal({ order, visible, onClose, onSt
   onMarkPaid?: (order: ApiOrder) => void;
 }) {
   const insets = useSafeAreaInsets();
-  const [updating, setUpdating] = useState(false);
-  const [accepting, setAccepting] = useState(false);
+  const [updating, setUpdating]         = useState(false);
+  const [accepting, setAccepting]       = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [cancelReasonText, setCancelReasonText] = useState('');
   const [pendingStatus, setPendingStatus] = useState('');
 
   if (!order) return null;
+
   const isWholesale = order.orderSource === 'wholesale' || order.type === 'wholesale';
-  const items = normalizeOrderItems(order.items);
+  const items  = normalizeOrderItems(order.items);
   const colors = STATUS_COLORS[order.status] ?? { bg: '#F3F4F6', text: '#6B7280' };
   const label  = STATUS_LABEL[order.status] ?? order.status;
+  const orderRef = isWholesale
+    ? `#${order.orderNumber ?? order.poReference ?? order.id.slice(0, 8).toUpperCase()}`
+    : (order.orderNumber ?? `#${order.id.slice(0, 8).toUpperCase()}`);
 
   const withinCancelWindow = (Date.now() - new Date(order.updatedAt).getTime()) < TWO_WEEKS_MS;
   const rawNext = isWholesale ? (WHOLESALE_NEXT[order.status] ?? []) : getCustomerNextStatuses(order);
@@ -65,6 +150,12 @@ export default function DirectorOrderDetailModal({ order, visible, onClose, onSt
   const next = canCancelRefund
     ? nextWithWindow
     : nextWithWindow.filter((s: string) => s !== 'cancelled' && s !== 'refunded');
+
+  const discountCents = order.discountCents ?? 0;
+  const loyaltyUsed   = order.loyaltyPointsUsed ?? 0;
+  const loyaltyEarned = order.loyaltyPointsEarned ?? 0;
+  const orderType = order.type === 'delivery' || order.deliveryType === 'delivery'
+    ? 'Delivery' : order.scheduledFor ? 'Scheduled' : 'Pickup';
 
   const triggerCancel = (status: string) => {
     setPendingStatus(status); setCancelReasonText(''); setShowCancelModal(true);
@@ -100,40 +191,84 @@ export default function DirectorOrderDetailModal({ order, visible, onClose, onSt
     await onStatusChange(order.id, pendingStatus, reason);
     setUpdating(false);
   };
-  const discountCents  = order.discountCents ?? 0;
-  const loyaltyUsed    = order.loyaltyPointsUsed ?? 0;
-  const loyaltyEarned  = order.loyaltyPointsEarned ?? 0;
+
+  const timeline = getTimeline(order);
+  const isCancelledOrRefunded = ['cancelled', 'refunded'].includes(order.status);
 
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
       <View style={{ flex: 1, backgroundColor: BG }}>
-        <View style={[styles.modalHeader, { paddingTop: insets.top + 12, backgroundColor: SURFACE, borderBottomColor: BORDER }]}>
-          <Pressable onPress={onClose} style={styles.closeBtn}>
-            <Feather name="x" size={20} color={TEXT} />
+
+        {/* ── Back nav bar ──────────────────────────────────────── */}
+        <View style={{ paddingTop: insets.top + 4, paddingHorizontal: 4, paddingBottom: 0, backgroundColor: BG }}>
+          <Pressable
+            onPress={onClose}
+            style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', padding: 8, opacity: pressed ? 0.7 : 1 })}
+          >
+            <Feather name="chevron-left" size={26} color={BRAND} />
+            <Text style={{ fontSize: 17, fontWeight: '500', color: BRAND }}>Orders</Text>
           </Pressable>
-          <View style={{ flex: 1, alignItems: 'center' }}>
-            <Text style={styles.modalTitle}>
-              {isWholesale
-                ? `#${order.orderNumber ?? order.poReference ?? order.id.slice(0, 8).toUpperCase()}`
-                : (order.orderNumber ?? `#${order.id.slice(0, 8).toUpperCase()}`)}
-            </Text>
-            <Text style={{ color: TEXT_MUTED, fontWeight: '400', fontSize: 12 }}>
-              {new Date(order.createdAt).toLocaleDateString('en-AU', {
-                weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Australia/Sydney',
-              })} · {fmtTime(order.createdAt)}
-            </Text>
-          </View>
-          <View style={{ width: 36 }} />
         </View>
-        <ScrollView contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: insets.bottom + 30 }} showsVerticalScrollIndicator={false}>
+
+        <ScrollView
+          contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: insets.bottom + 40 }}
+          showsVerticalScrollIndicator={false}
+        >
+          {/* ── Hero ──────────────────────────────────────────────── */}
+          <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', marginTop: 8, marginBottom: 20 }}>
+            <View style={{ flex: 1, marginRight: 12 }}>
+              <Text style={d.heroOrder}>{orderRef}</Text>
+              {order.customerName && <Text style={d.heroName}>{order.customerName}</Text>}
+              <Text style={d.heroDate}>
+                {new Date(order.createdAt).toLocaleDateString('en-AU', {
+                  weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Australia/Sydney',
+                })} · {fmtTime(order.createdAt)}
+              </Text>
+            </View>
+            <View style={d.typeBadge}>
+              <Text style={d.typeBadgeText}>{orderType.toUpperCase()}</Text>
+            </View>
+          </View>
+
+          {/* ── Contact buttons ────────────────────────────────────── */}
+          {(order.customerPhone || order.customerEmail) && (
+            <View style={{ flexDirection: 'row', gap: 12, marginBottom: 20 }}>
+              {order.customerPhone && (
+                <Pressable
+                  onPress={() => { Haptics.selectionAsync(); Linking.openURL(`tel:${order.customerPhone}`); }}
+                  style={({ pressed }) => [d.contactCard, { opacity: pressed ? 0.8 : 1 }]}
+                >
+                  <Feather name="phone" size={20} color={BRAND} />
+                  <Text style={d.contactLabel}>Call</Text>
+                </Pressable>
+              )}
+              {order.customerEmail && (
+                <Pressable
+                  onPress={() => { Haptics.selectionAsync(); Linking.openURL(`mailto:${order.customerEmail}`); }}
+                  style={({ pressed }) => [d.contactCard, { opacity: pressed ? 0.8 : 1 }]}
+                >
+                  <Feather name="mail" size={20} color={BRAND} />
+                  <Text style={d.contactLabel}>Email</Text>
+                </Pressable>
+              )}
+              {isWholesale && order.companyAbn && (
+                <View style={[d.contactCard, { flex: 2 }]}>
+                  <Feather name="briefcase" size={20} color={TEXT_MUTED} />
+                  <Text style={[d.contactLabel, { color: TEXT_MUTED }]} numberOfLines={1}>ABN {order.companyAbn}</Text>
+                </View>
+              )}
+            </View>
+          )}
+
+          {/* ── Scheduled awaiting acceptance banner ───────────────── */}
           {order.status === 'scheduled' && (
-            <View style={{ backgroundColor: AMBER_DIM, borderRadius: 14, padding: 14, borderWidth: 1, borderColor: AMBER + '50', gap: 10 }}>
+            <View style={{ backgroundColor: AMBER_DIM, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: AMBER + '50', gap: 12, marginBottom: 16 }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                 <Feather name="clock" size={16} color={AMBER} />
                 <Text style={{ fontSize: 14, fontWeight: '700', color: AMBER, flex: 1 }}>Awaiting Acceptance</Text>
               </View>
               {order.scheduledFor && (
-                <Text style={{ fontSize: 13, color: AMBER, fontWeight: '400' }}>
+                <Text style={{ fontSize: 13, color: AMBER }}>
                   {order.type === 'delivery' ? 'Delivery' : 'Pickup'} scheduled for{' '}
                   {new Date(order.scheduledFor).toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Australia/Sydney' })}
                   {order.type !== 'delivery' ? ` at ${new Date(order.scheduledFor).toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'Australia/Sydney' })}` : ''}
@@ -142,25 +277,26 @@ export default function DirectorOrderDetailModal({ order, visible, onClose, onSt
               <Pressable
                 onPress={() => {
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                  Alert.alert('Accept Order', `Confirm this ${order.type === 'delivery' ? 'delivery' : 'pickup'} order and notify the customer?`, [
+                  Alert.alert('Accept Order', `Confirm this ${order.type === 'delivery' ? 'delivery' : 'pickup'} order?`, [
                     { text: 'Cancel', style: 'cancel' },
                     { text: 'Accept', onPress: () => { setAccepting(true); onAcceptOrder(order.id).finally(() => setAccepting(false)); } },
                   ]);
                 }}
                 disabled={accepting}
-                style={{ backgroundColor: accepting ? TEXT_MUTED : AMBER, borderRadius: 10, height: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 }}
+                style={{ backgroundColor: accepting ? TEXT_MUTED : AMBER, borderRadius: 12, height: 46, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 }}
               >
-                {accepting ? <ActivityIndicator color={BRAND_TEXT_ON} size="small" /> : (
+                {accepting ? <ActivityIndicator color="#fff" size="small" /> : (
                   <>
-                    <Feather name="check-circle" size={14} color={BRAND_TEXT_ON} />
-                    <Text style={{ color: BRAND_TEXT_ON, fontWeight: '700', fontSize: 14 }}>Accept & Confirm {order.type === 'delivery' ? 'Delivery' : 'Pickup'}</Text>
+                    <Feather name="check-circle" size={14} color="#fff" />
+                    <Text style={{ color: '#fff', fontWeight: '700', fontSize: 14 }}>Accept & Confirm {order.type === 'delivery' ? 'Delivery' : 'Pickup'}</Text>
                   </>
                 )}
               </Pressable>
             </View>
           )}
+
           {order.status === 'accepted' && order.scheduledFor && (
-            <View style={{ backgroundColor: GREEN_DIM, borderRadius: 14, padding: 14, borderWidth: 1, borderColor: GREEN + '50', flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <View style={{ backgroundColor: GREEN_DIM, borderRadius: 14, padding: 14, borderWidth: 1, borderColor: GREEN + '50', flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 16 }}>
               <Feather name="check-circle" size={16} color={GREEN} />
               <Text style={{ fontSize: 13, fontWeight: '600', color: GREEN, flex: 1 }}>
                 Confirmed for {new Date(order.scheduledFor).toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Australia/Sydney' })}
@@ -168,218 +304,298 @@ export default function DirectorOrderDetailModal({ order, visible, onClose, onSt
               </Text>
             </View>
           )}
-          <View style={[styles.section, { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }]}>
-            <View>
-              <Text style={styles.sectionLabel}>Status</Text>
-              <View style={[styles.statusPill, { backgroundColor: colors.bg, marginTop: 4 }]}>
-                <Text style={[styles.statusPillText, { color: colors.text }]}>{label}</Text>
+
+          {/* ── Status Timeline ────────────────────────────────────── */}
+          {!isCancelledOrRefunded && (
+            <View style={[d.card, { marginBottom: 20 }]}>
+              <Text style={d.cardTitle}>Status</Text>
+              <View style={{ gap: 16, marginTop: 14 }}>
+                {timeline.map((step, i) => (
+                  <TimelineStep key={i} label={step.label} done={step.done} current={step.current} />
+                ))}
               </View>
+              {next.length > 0 && (
+                <Pressable
+                  onPress={handleChangeStatus}
+                  disabled={updating}
+                  style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 16, paddingTop: 16, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: BORDER }}
+                >
+                  {updating
+                    ? <ActivityIndicator color={BRAND} size="small" />
+                    : <>
+                        <Feather name="edit-3" size={14} color={BRAND} />
+                        <Text style={{ color: BRAND, fontWeight: '600', fontSize: 14 }}>Update Status</Text>
+                      </>
+                  }
+                </Pressable>
+              )}
             </View>
-            {next.length > 0 && (
-              <Pressable onPress={handleChangeStatus} disabled={updating} style={[styles.updateStatusBtn, { backgroundColor: updating ? TEXT_MUTED : BRAND }]}>
-                {updating ? <ActivityIndicator color={BRAND_TEXT_ON} size="small" /> : (
-                  <>
-                    <Feather name="edit-3" size={13} color={BRAND_TEXT_ON} />
-                    <Text style={{ color: BRAND_TEXT_ON, fontWeight: '600', fontSize: 13 }}>Update Status</Text>
-                  </>
-                )}
-              </Pressable>
+          )}
+
+          {/* Cancelled / refunded status badge */}
+          {isCancelledOrRefunded && (
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+              <View style={[d.typeBadge, { backgroundColor: colors.bg, borderColor: colors.bg }]}>
+                <Text style={[d.typeBadgeText, { color: colors.text }]}>{label.toUpperCase()}</Text>
+              </View>
+              {next.length > 0 && (
+                <Pressable onPress={handleChangeStatus} disabled={updating} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  {updating ? <ActivityIndicator color={BRAND} size="small" /> : (
+                    <><Feather name="edit-3" size={13} color={BRAND} /><Text style={{ color: BRAND, fontWeight: '600', fontSize: 13 }}>Update</Text></>
+                  )}
+                </Pressable>
+              )}
+            </View>
+          )}
+
+          {/* ── Primary CTA ────────────────────────────────────────── */}
+          {next.filter(s => s !== 'cancelled' && s !== 'refunded').length > 0 && (
+            <Pressable
+              onPress={handleChangeStatus}
+              disabled={updating}
+              style={({ pressed }) => [d.primaryBtn, { opacity: pressed || updating ? 0.8 : 1 }]}
+            >
+              {updating
+                ? <ActivityIndicator color="#fff" size="small" />
+                : <Text style={d.primaryBtnText}>
+                    {ACTION_LABEL[next.filter(s => s !== 'cancelled' && s !== 'refunded')[0]] ??
+                     `Mark as ${STATUS_LABEL[next.filter(s => s !== 'cancelled' && s !== 'refunded')[0]] ?? ''}`}
+                  </Text>
+              }
+            </Pressable>
+          )}
+
+          {/* ── Items card ─────────────────────────────────────────── */}
+          <View style={[d.card, { marginBottom: 20 }]}>
+            <View style={{ paddingBottom: 14, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: BORDER, marginBottom: 14 }}>
+              <Text style={d.cardTitle}>Order Items</Text>
+            </View>
+            {items.map((item, i) => (
+              <View key={i} style={[{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', paddingBottom: 12, gap: 8 }, i < items.length - 1 && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: BORDER, marginBottom: 12 }]}>
+                <View style={{ flex: 1, gap: 2 }}>
+                  <Text style={{ fontSize: 15, fontWeight: '500', color: TEXT }}>
+                    <Text style={{ color: TEXT_MUTED }}>{item.quantity}×  </Text>
+                    {item.name}{item.variantName ? ` · ${item.variantName}` : ''}
+                    {item.isFreeReward ? ' 🎁' : ''}
+                  </Text>
+                  {item.notableOptions.length > 0 && (
+                    <Text style={{ fontSize: 13, color: TEXT_MUTED, marginLeft: 24 }}>{item.notableOptions.join(' · ')}</Text>
+                  )}
+                  {item.baristaNote ? (
+                    <Text style={{ fontSize: 13, color: TEXT_MUTED, marginLeft: 24, fontStyle: 'italic' }}>"{item.baristaNote}"</Text>
+                  ) : null}
+                  {item.boxContents.length > 0 && (
+                    <View style={{ marginLeft: 24, marginTop: 2, gap: 1 }}>
+                      {item.boxContents.map((cookie, ci) => (
+                        <Text key={ci} style={{ fontSize: 12, color: TEXT_MUTED }}>· {cookie}</Text>
+                      ))}
+                    </View>
+                  )}
+                </View>
+                <Text style={{ fontSize: 15, fontWeight: '500', color: TEXT, flexShrink: 0 }}>
+                  ${(item.lineTotalCents / 100).toFixed(2)}
+                </Text>
+              </View>
+            ))}
+            {/* Summary footer */}
+            <View style={{ borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: BORDER, paddingTop: 14, marginTop: 2, gap: 8, backgroundColor: '#FAFAFA', marginHorizontal: -16, paddingHorizontal: 16 }}>
+              {discountCents > 0 && (
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                  <Text style={{ fontSize: 14, color: TEXT_MUTED }}>Discount</Text>
+                  <Text style={{ fontSize: 14, color: GREEN }}>−${(discountCents / 100).toFixed(2)}</Text>
+                </View>
+              )}
+              {loyaltyUsed > 0 && (
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                  <Text style={{ fontSize: 14, color: TEXT_MUTED }}>Points redeemed</Text>
+                  <Text style={{ fontSize: 14, color: GREEN }}>−{loyaltyUsed} pts</Text>
+                </View>
+              )}
+              {isWholesale && (order.deliveryFeeCents ?? 0) > 0 && (
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                  <Text style={{ fontSize: 14, color: TEXT_MUTED }}>Delivery fee</Text>
+                  <Text style={{ fontSize: 14, color: TEXT }}>${((order.deliveryFeeCents ?? 0) / 100).toFixed(2)}</Text>
+                </View>
+              )}
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingTop: 10, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: BORDER }}>
+                <Text style={{ fontSize: 17, fontWeight: '700', color: TEXT }}>Total</Text>
+                <Text style={{ fontSize: 17, fontWeight: '700', color: TEXT }}>${((order.totalCents ?? 0) / 100).toFixed(2)}</Text>
+              </View>
+              {loyaltyEarned > 0 && (
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                  <Text style={{ fontSize: 13, color: TEXT_MUTED }}>Points earned</Text>
+                  <Text style={{ fontSize: 13, color: AMBER }}>+{loyaltyEarned} pts</Text>
+                </View>
+              )}
+              {isWholesale && (
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingBottom: 2 }}>
+                  <Text style={{ fontSize: 13, color: TEXT_MUTED }}>Payment</Text>
+                  <Text style={{ fontSize: 13, fontWeight: '600', color: isWholesaleOrderPaid(order) ? GREEN : RED }}>
+                    {isWholesaleOrderPaid(order) ? 'Paid' : 'Awaiting Payment'}
+                  </Text>
+                </View>
+              )}
+            </View>
+          </View>
+
+          {/* ── Secondary actions card ─────────────────────────────── */}
+          <View style={[d.card, { marginBottom: 20 }]}>
+            <SecondaryActionRow
+              icon="printer"
+              label="Print Receipt"
+              onPress={onPrintReceipt}
+              loading={printing}
+            />
+            {isWholesale && (order.invoicePdfUrl || order.invoiceUrl || order.stripeInvoiceId) && (
+              <SecondaryActionRow
+                icon="file-text"
+                label={`View Invoice ${order.invoiceNumber ?? ''}`}
+                onPress={onViewInvoice}
+              />
+            )}
+            {order.customerEmail && (
+              <SecondaryActionRow
+                icon="user"
+                label="Message Customer"
+                onPress={() => { Haptics.selectionAsync(); Linking.openURL(`mailto:${order.customerEmail}`); }}
+                border={false}
+              />
             )}
           </View>
-          <Pressable onPress={onPrintReceipt} disabled={printing} style={[styles.printBtn, { backgroundColor: printing ? TEXT_MUTED : SURFACE_RAISED, borderWidth: 1, borderColor: BORDER }]}>
-            {printing ? <ActivityIndicator color={TEXT} size="small" /> : (
-              <>
-                <Feather name="printer" size={13} color={TEXT} />
-                <Text style={{ color: TEXT, fontWeight: '600', fontSize: 13 }}>Print receipt</Text>
-              </>
-            )}
-          </Pressable>
-          {isWholesale && (order.invoicePdfUrl || order.invoiceUrl || order.stripeInvoiceId) ? (
-            <Pressable onPress={onViewInvoice} style={[styles.printBtn, { backgroundColor: BRAND }]}>
-              <>
-                <Feather name="file-text" size={13} color={BRAND_TEXT_ON} />
-                <Text style={{ color: BRAND_TEXT_ON, fontWeight: '600', fontSize: 13 }}>View invoice {order.invoiceNumber ?? ''}</Text>
-              </>
-            </Pressable>
-          ) : null}
+
+          {/* ── Wholesale action buttons ───────────────────────────── */}
           {isWholesale && (
-            <View style={{ flexDirection: 'row', gap: 8, marginTop: 2 }}>
-              {/* Edit Items: available for any unpaid wholesale order not yet dispatched/delivered/cancelled */}
+            <View style={{ gap: 10, marginBottom: 20 }}>
               {onEditWholesale && !isWholesaleOrderPaid(order) && !['dispatched', 'delivered', 'cancelled', 'refunded', 'completed'].includes(order.status) && (
                 <Pressable
                   onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); onEditWholesale(order); }}
-                  style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, height: 42, borderRadius: 12, backgroundColor: BRAND + '18', borderWidth: 1, borderColor: BRAND + '50' }}
+                  style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, height: 48, borderRadius: 14, backgroundColor: BRAND + '12', borderWidth: 1, borderColor: BRAND + '40' }}
                 >
-                  <Feather name="edit-3" size={14} color={BRAND} />
-                  <Text style={{ color: BRAND, fontWeight: '600', fontSize: 13 }}>Edit Items</Text>
+                  <Feather name="edit-3" size={15} color={BRAND} />
+                  <Text style={{ color: BRAND, fontWeight: '600', fontSize: 15 }}>Edit Items</Text>
                 </Pressable>
               )}
-              {/* Mark Paid: available for any unpaid wholesale order */}
               {onMarkPaid && !isWholesaleOrderPaid(order) && (
                 <Pressable
                   onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); onMarkPaid(order); }}
-                  style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, height: 42, borderRadius: 12, backgroundColor: GREEN_DIM, borderWidth: 1, borderColor: GREEN + '50' }}
+                  style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, height: 48, borderRadius: 14, backgroundColor: GREEN_DIM, borderWidth: 1, borderColor: GREEN + '40' }}
                 >
-                  <Feather name="check-circle" size={14} color={GREEN} />
-                  <Text style={{ color: GREEN, fontWeight: '600', fontSize: 13 }}>Mark Paid</Text>
+                  <Feather name="check-circle" size={15} color={GREEN} />
+                  <Text style={{ color: GREEN, fontWeight: '600', fontSize: 15 }}>Mark as Paid</Text>
                 </Pressable>
               )}
-              {/* Adjust / Credit: only for PAID wholesale orders (credit/refund against a paid invoice) */}
               {onAdjustWholesale && isWholesaleOrderPaid(order) && (
                 <Pressable
                   onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); onAdjustWholesale(order); }}
-                  style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, height: 42, borderRadius: 12, backgroundColor: RED_DIM, borderWidth: 1, borderColor: RED + '50' }}
+                  style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, height: 48, borderRadius: 14, backgroundColor: RED_DIM, borderWidth: 1, borderColor: RED + '40' }}
                 >
-                  <Feather name="refresh-ccw" size={14} color={RED} />
-                  <Text style={{ color: RED, fontWeight: '600', fontSize: 13 }}>Adjust / Credit</Text>
+                  <Feather name="refresh-ccw" size={15} color={RED} />
+                  <Text style={{ color: RED, fontWeight: '600', fontSize: 15 }}>Adjust / Credit</Text>
+                </Pressable>
+              )}
+              {onSendRevisedInvoice && ((order as any).editHistory?.length > 0 || (order as any).creditMemos?.length > 0) && (
+                <Pressable
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    Alert.alert('Send Revised Invoice', 'Resend an updated invoice to the accounts email?', [
+                      { text: 'Cancel', style: 'cancel' },
+                      { text: 'Send', onPress: () => onSendRevisedInvoice(order) },
+                    ]);
+                  }}
+                  style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, height: 48, borderRadius: 14, backgroundColor: PURPLE_DIM, borderWidth: 1, borderColor: PURPLE + '40' }}
+                >
+                  <Feather name="send" size={15} color={PURPLE} />
+                  <Text style={{ color: PURPLE, fontWeight: '600', fontSize: 15 }}>Resend Revised Invoice</Text>
                 </Pressable>
               )}
             </View>
           )}
-          {isWholesale && onSendRevisedInvoice && ((order as any).editHistory?.length > 0 || (order as any).creditMemos?.length > 0) && (
-            <Pressable
-              onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                Alert.alert('Send Revised Invoice', 'Resend an updated invoice email to the accounts email for this order?', [
-                  { text: 'Cancel', style: 'cancel' },
-                  { text: 'Send', onPress: () => onSendRevisedInvoice(order) },
-                ]);
-              }}
-              style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, height: 42, borderRadius: 12, backgroundColor: PURPLE_DIM, borderWidth: 1, borderColor: PURPLE + '50', marginTop: 0 }}
-            >
-              <Feather name="send" size={14} color={PURPLE} />
-              <Text style={{ color: PURPLE, fontWeight: '600', fontSize: 13 }}>Resend Revised Invoice</Text>
-            </Pressable>
-          )}
-          <View style={styles.section}>
-            <Text style={styles.sectionLabel}>{isWholesale ? 'Account' : 'Customer'}</Text>
-            <View style={{ gap: 4, marginTop: 6 }}>
-              {order.customerName && (<View style={styles.detailRow}><Feather name={isWholesale ? 'briefcase' : 'user'} size={14} color={TEXT_MUTED} /><Text style={styles.detailText}>{order.customerName}</Text></View>)}
-              {order.customerEmail && (<View style={styles.detailRow}><Feather name="mail" size={14} color={TEXT_MUTED} /><Text style={styles.detailText}>{order.customerEmail}</Text></View>)}
-              {order.customerPhone && (<View style={styles.detailRow}><Feather name="phone" size={14} color={TEXT_MUTED} /><Text style={styles.detailText}>{order.customerPhone}</Text></View>)}
-              {order.companyAbn && (<View style={styles.detailRow}><Feather name="hash" size={14} color={TEXT_MUTED} /><Text style={styles.detailText}>ABN: {order.companyAbn}</Text></View>)}
-              {isWholesale && order.poReference && (<View style={styles.detailRow}><Feather name="file-text" size={14} color={TEXT_MUTED} /><Text style={styles.detailText}>PO: {order.poReference}</Text></View>)}
-            </View>
-          </View>
-          <View style={styles.section}>
-            <Text style={styles.sectionLabel}>
-              {(order.type === 'delivery' || order.deliveryType === 'delivery') ? 'Delivery Details' : order.scheduledFor ? 'Pickup Details' : 'ASAP Pickup Details'}
-            </Text>
-            <View style={{ gap: 4, marginTop: 6 }}>
-              <View style={styles.detailRow}>
-                <Feather name={order.type === 'delivery' || order.deliveryType === 'delivery' ? 'truck' : 'map-pin'} size={14} color={TEXT_MUTED} />
-                <Text style={styles.detailText}>
-                  {(order.type === 'delivery' || order.deliveryType === 'delivery') ? 'Delivery' : order.scheduledFor ? 'Pickup' : 'ASAP Pickup'}
-                </Text>
-              </View>
-              {(order.deliveryAddress || order.street) && (() => {
-                const addr = order.deliveryAddress ?? [order.street, order.suburb, order.postcode].filter(Boolean).join(', ');
-                return (
-                  <Pressable onPress={() => { openMap(addr); Haptics.selectionAsync(); }}
-                    style={[styles.detailRow, { backgroundColor: BRAND + '14', borderRadius: 10, padding: 10, borderWidth: 1, borderColor: BRAND + '40' }]}>
-                    <Feather name="navigation" size={14} color={BRAND} />
-                    <Text style={[styles.detailText, { flex: 1, color: BRAND }]}>{addr}</Text>
-                    <Feather name="external-link" size={13} color={BRAND} />
-                  </Pressable>
-                );
-              })()}
-              {order.scheduledDate && (
-                <View style={styles.detailRow}>
-                  <Feather name="calendar" size={14} color={TEXT_MUTED} />
-                  <Text style={styles.detailText}>
-                    {new Date(order.scheduledDate).toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Australia/Sydney' })}
-                  </Text>
-                </View>
-              )}
-              {order.contactName && (<View style={styles.detailRow}><Feather name="user" size={14} color={TEXT_MUTED} /><Text style={styles.detailText}>{order.contactName}</Text></View>)}
-              {order.contactPhone && (<View style={styles.detailRow}><Feather name="phone" size={14} color={TEXT_MUTED} /><Text style={styles.detailText}>{order.contactPhone}</Text></View>)}
-            </View>
-          </View>
-          <View style={styles.section}>
-            <Text style={styles.sectionLabel}>Items ({items.length})</Text>
-            <View style={{ gap: 0, marginTop: 6 }}>
-              {items.map((item, i: number) => (
-                <View key={i} style={[styles.itemRow, i < items.length - 1 && { borderBottomWidth: 1, borderBottomColor: BORDER }]}>
-                  <View style={{ flex: 1, gap: 2 }}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                      <Text style={{ color: TEXT, fontWeight: '500', fontSize: 14 }}>
-                        {item.name}{item.variantName ? ` · ${item.variantName}` : ''}
-                      </Text>
-                      {item.isFreeReward && (<View style={{ backgroundColor: GREEN_DIM, borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2 }}><Text style={{ fontSize: 10, fontWeight: '700', color: GREEN, letterSpacing: 0.5 }}>FREE</Text></View>)}
-                      {item.priceOverrideCents !== undefined && (<View style={{ backgroundColor: AMBER_DIM, borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2 }}><Text style={{ fontSize: 10, fontWeight: '700', color: AMBER, letterSpacing: 0.5 }}>PRICE ADJ</Text></View>)}
-                    </View>
-                    <Text style={{ color: TEXT_MUTED, fontWeight: '400', fontSize: 12 }}>
-                      {item.quantity} ×{' '}
-                      {item.originalPriceCents !== undefined ? (
-                        <><Text style={{ textDecorationLine: 'line-through' }}>${(item.originalPriceCents / 100).toFixed(2)}</Text>{' '}${(item.unitPriceCents / 100).toFixed(2)}</>
-                      ) : (`$${(item.unitPriceCents / 100).toFixed(2)}`)}
+
+          {/* ── Delivery / pickup details ───────────────────────────── */}
+          {(order.deliveryAddress || order.street || order.scheduledDate || order.contactName) && (
+            <View style={[d.card, { marginBottom: 20 }]}>
+              <Text style={d.cardTitle}>
+                {order.type === 'delivery' || order.deliveryType === 'delivery' ? 'Delivery Details' : order.scheduledFor ? 'Pickup Details' : 'ASAP Pickup'}
+              </Text>
+              <View style={{ gap: 8, marginTop: 10 }}>
+                {(order.deliveryAddress || order.street) && (() => {
+                  const addr = order.deliveryAddress ?? [order.street, (order as any).suburb, (order as any).postcode].filter(Boolean).join(', ');
+                  return (
+                    <Pressable
+                      onPress={() => { openMap(addr); Haptics.selectionAsync(); }}
+                      style={{ flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: BRAND + '10', borderRadius: 12, padding: 12, borderWidth: 1, borderColor: BRAND + '30' }}
+                    >
+                      <Feather name="navigation" size={15} color={BRAND} />
+                      <Text style={{ flex: 1, fontSize: 14, color: BRAND }}>{addr}</Text>
+                      <Feather name="external-link" size={13} color={BRAND} />
+                    </Pressable>
+                  );
+                })()}
+                {order.scheduledDate && (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                    <Feather name="calendar" size={15} color={TEXT_MUTED} />
+                    <Text style={{ fontSize: 14, color: TEXT }}>
+                      {new Date(order.scheduledDate).toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Australia/Sydney' })}
                     </Text>
-                    {item.boxContents.length > 0 && (
-                      <View style={{ marginTop: 4, gap: 1 }}>
-                        <Text style={{ color: TEXT_MUTED, fontWeight: '600', fontSize: 11, letterSpacing: 0.3 }}>Box contents:</Text>
-                        {item.boxContents.map((cookie, ci) => (
-                          <View key={ci} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                            <Text style={{ color: TEXT_MUTED, fontSize: 11 }}>·</Text>
-                            <Text style={{ color: TEXT, fontWeight: '400', fontSize: 12 }}>{cookie}</Text>
-                          </View>
-                        ))}
-                      </View>
-                    )}
-                    {item.notableOptions.length > 0 && (<Text style={{ color: BRAND, fontWeight: '400', fontSize: 12 }}>{item.notableOptions.join(' · ')}</Text>)}
-                    {item.baristaNote ? (<Text style={{ color: TEXT_MUTED, fontWeight: '400', fontSize: 11, fontStyle: 'italic' }}>"{item.baristaNote}"</Text>) : null}
                   </View>
-                  <Text style={{ color: TEXT, fontWeight: '600', fontSize: 14 }}>${(item.lineTotalCents / 100).toFixed(2)}</Text>
-                </View>
-              ))}
-            </View>
-          </View>
-          <View style={styles.section}>
-            <Text style={styles.sectionLabel}>Summary</Text>
-            <View style={{ gap: 6, marginTop: 6 }}>
-              {discountCents > 0 && (<View style={{ flexDirection: 'row', justifyContent: 'space-between' }}><Text style={{ color: TEXT_MUTED, fontWeight: '400', fontSize: 13 }}>Discount</Text><Text style={{ color: GREEN, fontWeight: '500', fontSize: 13 }}>−${(discountCents / 100).toFixed(2)}</Text></View>)}
-              {loyaltyUsed > 0 && (<View style={{ flexDirection: 'row', justifyContent: 'space-between' }}><Text style={{ color: TEXT_MUTED, fontWeight: '400', fontSize: 13 }}>Points redeemed</Text><Text style={{ color: GREEN, fontWeight: '500', fontSize: 13 }}>−{loyaltyUsed} pts</Text></View>)}
-              {isWholesale && (order.deliveryFeeCents ?? 0) > 0 && (<View style={{ flexDirection: 'row', justifyContent: 'space-between' }}><Text style={{ color: TEXT_MUTED, fontWeight: '400', fontSize: 13 }}>Delivery fee</Text><Text style={{ color: TEXT, fontWeight: '500', fontSize: 13 }}>${((order.deliveryFeeCents ?? 0) / 100).toFixed(2)}</Text></View>)}
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingTop: 8, borderTopWidth: 1, borderTopColor: BORDER }}>
-                <Text style={{ color: TEXT, fontWeight: '700', fontSize: 15 }}>Total</Text>
-                <Text style={{ color: BRAND, fontWeight: '700', fontSize: 15 }}>AUD ${((order.totalCents ?? 0) / 100).toFixed(2)}</Text>
+                )}
+                {order.contactName && (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                    <Feather name="user" size={15} color={TEXT_MUTED} />
+                    <Text style={{ fontSize: 14, color: TEXT }}>{order.contactName}</Text>
+                  </View>
+                )}
+                {order.contactPhone && (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                    <Feather name="phone" size={15} color={TEXT_MUTED} />
+                    <Text style={{ fontSize: 14, color: TEXT }}>{order.contactPhone}</Text>
+                  </View>
+                )}
               </View>
-              {loyaltyEarned > 0 && (<View style={{ flexDirection: 'row', justifyContent: 'space-between' }}><Text style={{ color: TEXT_MUTED, fontWeight: '400', fontSize: 12 }}>Points earned</Text><Text style={{ color: AMBER, fontWeight: '500', fontSize: 12 }}>+{loyaltyEarned} pts</Text></View>)}
-              {isWholesale && (<View style={{ flexDirection: 'row', justifyContent: 'space-between' }}><Text style={{ color: TEXT_MUTED, fontWeight: '400', fontSize: 12 }}>Payment</Text><Text style={{ color: isWholesaleOrderPaid(order) ? GREEN : RED, fontWeight: '500', fontSize: 12 }}>{isWholesaleOrderPaid(order) ? 'Paid' : 'Awaiting Payment'}</Text></View>)}
-              {isWholesale && order.receiptEmailSentAt ? (
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                    <Feather name="mail" size={11} color={GREEN} />
-                    <Text style={{ color: TEXT_MUTED, fontWeight: '400', fontSize: 12 }}>Receipt sent</Text>
-                  </View>
-                  <Text style={{ color: GREEN, fontWeight: '500', fontSize: 12 }}>
-                    {new Date(order.receiptEmailSentAt).toLocaleString('en-AU', { timeZone: 'Australia/Sydney', day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit' })}
-                  </Text>
-                </View>
-              ) : isWholesale && isWholesaleOrderPaid(order) ? (
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                    <Feather name="mail" size={11} color={TEXT_MUTED} />
-                    <Text style={{ color: TEXT_MUTED, fontWeight: '400', fontSize: 12 }}>Receipt sent</Text>
-                  </View>
-                  <Text style={{ color: TEXT_MUTED, fontWeight: '400', fontSize: 12 }}>Not recorded</Text>
-                </View>
-              ) : null}
             </View>
-          </View>
-          {order.notes ? (<View style={styles.section}><Text style={styles.sectionLabel}>Notes</Text><Text style={{ color: TEXT, fontWeight: '400', fontSize: 14, marginTop: 6, lineHeight: 20 }}>{order.notes}</Text></View>) : null}
-          {order.cancelReason ? (
-            <View style={[styles.section, { backgroundColor: RED_DIM, borderRadius: 12, borderWidth: 1, borderColor: RED + '40' }]}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 }}>
-                <Feather name="x-circle" size={14} color={RED} /><Text style={[styles.sectionLabel, { color: RED }]}>Cancellation Reason</Text>
+          )}
+
+          {/* ── Notes ──────────────────────────────────────────────── */}
+          {order.notes && (
+            <View style={[d.card, { marginBottom: 20 }]}>
+              <Text style={d.cardTitle}>Notes</Text>
+              <Text style={{ fontSize: 14, color: TEXT, marginTop: 10, lineHeight: 20 }}>{order.notes}</Text>
+            </View>
+          )}
+
+          {/* ── Cancellation reason ────────────────────────────────── */}
+          {order.cancelReason && (
+            <View style={{ backgroundColor: RED_DIM, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: RED + '40', gap: 8, marginBottom: 20 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Feather name="x-circle" size={14} color={RED} />
+                <Text style={{ fontSize: 13, fontWeight: '700', color: RED, textTransform: 'uppercase', letterSpacing: 0.5 }}>Cancellation Reason</Text>
               </View>
-              <Text style={{ color: RED, fontWeight: '400', fontSize: 14, lineHeight: 20 }}>{order.cancelReason}</Text>
+              <Text style={{ fontSize: 14, color: RED, lineHeight: 20 }}>{order.cancelReason}</Text>
             </View>
-          ) : null}
+          )}
+
+          {/* ── PO reference (wholesale) ───────────────────────────── */}
+          {isWholesale && order.poReference && (
+            <View style={[d.card, { marginBottom: 20, flexDirection: 'row', alignItems: 'center', gap: 10 }]}>
+              <Feather name="file-text" size={15} color={TEXT_MUTED} />
+              <Text style={{ fontSize: 14, color: TEXT_MUTED }}>PO Reference: </Text>
+              <Text style={{ fontSize: 14, color: TEXT, fontWeight: '600' }}>{order.poReference}</Text>
+            </View>
+          )}
         </ScrollView>
 
-        <Modal visible={showCancelModal} transparent animationType="slide" onRequestClose={() => { Keyboard.dismiss(); setShowCancelModal(false); setCancelReasonText(''); }}>
+        {/* ── Cancel / refund reason modal ─────────────────────────── */}
+        <Modal
+          visible={showCancelModal}
+          transparent
+          animationType="slide"
+          onRequestClose={() => { Keyboard.dismiss(); setShowCancelModal(false); setCancelReasonText(''); }}
+        >
           <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-            <Pressable style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', paddingHorizontal: 20 }} onPress={() => { Keyboard.dismiss(); setShowCancelModal(false); setCancelReasonText(''); }}>
+            <Pressable
+              style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', paddingHorizontal: 20 }}
+              onPress={() => { Keyboard.dismiss(); setShowCancelModal(false); setCancelReasonText(''); }}
+            >
               <Pressable onPress={() => {}} style={{ backgroundColor: SURFACE_RAISED, borderRadius: 20, padding: 24, gap: 16, borderWidth: 1, borderColor: BORDER }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
                   <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: RED_DIM, alignItems: 'center', justifyContent: 'center' }}>
@@ -398,16 +614,25 @@ export default function DirectorOrderDetailModal({ order, visible, onClose, onSt
                     placeholderTextColor={TEXT_MUTED}
                     value={cancelReasonText}
                     onChangeText={setCancelReasonText}
-                    multiline autoFocus
+                    multiline
+                    autoFocus
                   />
-                  {!cancelReasonText.trim() && <Text style={{ color: RED, fontSize: 12, marginTop: 4 }}>Please enter a reason to continue.</Text>}
                 </View>
-                <View style={{ flexDirection: 'row', gap: 12 }}>
-                  <Pressable style={{ flex: 1, height: 50, alignItems: 'center', justifyContent: 'center', borderRadius: 12, backgroundColor: SURFACE, borderWidth: 1, borderColor: BORDER }} onPress={() => { Keyboard.dismiss(); setShowCancelModal(false); setCancelReasonText(''); }}>
-                    <Text style={{ color: TEXT, fontWeight: '600', fontSize: 15 }}>Go Back</Text>
+                <View style={{ flexDirection: 'row', gap: 10 }}>
+                  <Pressable
+                    onPress={() => { setShowCancelModal(false); setCancelReasonText(''); }}
+                    style={({ pressed }) => ({ flex: 1, height: 46, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: SURFACE_RAISED, borderWidth: 1, borderColor: BORDER, opacity: pressed ? 0.7 : 1 })}
+                  >
+                    <Text style={{ color: TEXT, fontWeight: '600', fontSize: 14 }}>Go Back</Text>
                   </Pressable>
-                  <Pressable style={[{ flex: 1, height: 50, alignItems: 'center', justifyContent: 'center', borderRadius: 12 }, { backgroundColor: cancelReasonText.trim() ? RED : RED + '60' }]} onPress={handleConfirmCancel} disabled={!cancelReasonText.trim()}>
-                    <Text style={{ color: '#fff', fontWeight: '700', fontSize: 15 }}>{pendingStatus === 'refunded' ? 'Confirm Refund' : 'Confirm Cancel'}</Text>
+                  <Pressable
+                    onPress={handleConfirmCancel}
+                    disabled={!cancelReasonText.trim()}
+                    style={({ pressed }) => ({ flex: 2, height: 46, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: cancelReasonText.trim() ? RED : TEXT_FAINT, opacity: pressed ? 0.8 : 1 })}
+                  >
+                    <Text style={{ color: '#fff', fontWeight: '700', fontSize: 14 }}>
+                      {pendingStatus === 'refunded' ? 'Confirm Refund' : 'Cancel Order'}
+                    </Text>
                   </Pressable>
                 </View>
               </Pressable>
@@ -418,3 +643,26 @@ export default function DirectorOrderDetailModal({ order, visible, onClose, onSt
     </Modal>
   );
 }
+
+// ── Styles ────────────────────────────────────────────────────────────────────
+const d = StyleSheet.create({
+  heroOrder:    { fontSize: 28, fontWeight: '700', color: TEXT, letterSpacing: -0.5, lineHeight: 32 },
+  heroName:     { fontSize: 22, fontWeight: '600', color: TEXT + 'CC', lineHeight: 28, marginTop: 2 },
+  heroDate:     { fontSize: 13, color: TEXT_MUTED, marginTop: 4 },
+
+  typeBadge:    { backgroundColor: SURFACE, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, borderWidth: StyleSheet.hairlineWidth, borderColor: BORDER, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 1 },
+  typeBadgeText:{ fontSize: 13, fontWeight: '700', color: TEXT, textTransform: 'uppercase', letterSpacing: 0.5 },
+
+  contactCard:  { flex: 1, backgroundColor: SURFACE, borderRadius: 14, paddingVertical: 14, alignItems: 'center', justifyContent: 'center', gap: 6, borderWidth: StyleSheet.hairlineWidth, borderColor: BORDER, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 1 },
+  contactLabel: { fontSize: 11, fontWeight: '600', color: BRAND },
+
+  card:         { backgroundColor: SURFACE, borderRadius: 20, padding: 16, borderWidth: StyleSheet.hairlineWidth, borderColor: BORDER, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 6, elevation: 1 },
+  cardTitle:    { fontSize: 15, fontWeight: '600', color: TEXT },
+
+  timelineDot:  { width: 24, height: 24, borderRadius: 12, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+
+  primaryBtn:   { backgroundColor: BRAND, borderRadius: 14, height: 56, alignItems: 'center', justifyContent: 'center', marginBottom: 16, shadowColor: BRAND, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.25, shadowRadius: 10, elevation: 4 },
+  primaryBtnText:{ fontSize: 17, fontWeight: '700', color: '#fff' },
+
+  actionRow:    { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: BORDER },
+});
