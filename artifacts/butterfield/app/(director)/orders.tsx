@@ -300,7 +300,7 @@ export default function DirectorOrdersScreen() {
   })();
 
   const printOrder = async (order: ApiOrder) => {
-    const orderStore = stores.find((s) => s.id === order.storeId);
+    const orderStore = stores.find((s) => s.id === order.storeId) ?? stores[0];
     const effectivePrinterIp    = (orderStore?.printerIp ?? printerIp ?? '').trim();
     const effectivePrinterPort  = orderStore?.printerPort ?? printerPort;
     const fallbackBrand         = settingsData?.data?.printer_brand === 'star' ? 'star' : 'epson';
@@ -380,8 +380,8 @@ export default function DirectorOrdersScreen() {
       if (status === 'being_prepared') {
         const order = allOrders.find((o) => o.id === orderId) ?? selectedOrder;
         if (order) {
-          const orderStore = stores.find((s) => s.id === order.storeId);
-          if (orderStore ? (orderStore.autoPrint !== false) : true) await printOrder({ ...order, status });
+          const orderStore = stores.find((s) => s.id === order.storeId) ?? stores[0];
+          if (!orderStore || orderStore.autoPrint !== false) await printOrder({ ...order, status });
         }
       }
     } catch (error) { Alert.alert('Error', getErrorMessage(error)); }
