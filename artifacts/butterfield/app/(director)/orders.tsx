@@ -7,7 +7,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ActivityIndicator, Alert,
   KeyboardAvoidingView, Linking, Modal, Platform, Pressable,
-  RefreshControl, ScrollView, Text, TextInput, View,
+  RefreshControl, ScrollView, StyleSheet, Text, TextInput, View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRefreshControl } from '@/hooks/useRefreshControl';
@@ -105,6 +105,47 @@ function LiveOrderCard({ order, onPress }: { order: ApiOrder; onPress: () => voi
         </View>
         <Text style={{ fontSize: 12, fontWeight: '700', color: BRAND }}>{fmtCents(order.totalCents ?? 0)}</Text>
       </View>
+    </Pressable>
+  );
+}
+
+// ── iOS-style grouped order row ───────────────────────────────────────────────
+function OrderListRow({ order, isLast, onPress }: { order: ApiOrder; isLast?: boolean; onPress: () => void }) {
+  const col = STATUS_COLORS[order.status] ?? STATUS_COLORS.received;
+  const lbl = STATUS_LABEL[order.status] ?? order.status;
+  const orderRef = `#${order.orderNumber ?? order.id.slice(0, 6).toUpperCase()}`;
+  const items = normalizeOrderItems(order.items);
+  const itemCount = items.reduce((s, item) => s + (item.quantity ?? 1), 0);
+  const orderType = order.type === 'delivery' || order.deliveryType === 'delivery' ? 'Delivery' : 'Pickup';
+  const timeLabel = new Date(order.createdAt).toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit', timeZone: 'Australia/Sydney' });
+
+  return (
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [
+        ios.listRow,
+        !isLast && ios.listRowBorder,
+        pressed && { backgroundColor: '#F8F8F8' },
+      ]}
+    >
+      <View style={{ flex: 1 }}>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
+          <Text style={ios.listRowTitle} numberOfLines={1}>
+            {orderRef}{order.customerName ? ` — ${order.customerName}` : ''}
+          </Text>
+          <Text style={ios.listRowTime}>{timeLabel}</Text>
+        </View>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 }}>
+            <View style={[ios.badge, { backgroundColor: col.bg }]}>
+              <Text style={[ios.badgeText, { color: col.text }]}>{lbl}</Text>
+            </View>
+            <Text style={ios.listRowMeta} numberOfLines={1}>{orderType} • {itemCount} item{itemCount !== 1 ? 's' : ''}</Text>
+          </View>
+          <Text style={ios.listRowTotal}>{fmtCents(order.totalCents ?? 0)}</Text>
+        </View>
+      </View>
+      <Feather name="chevron-right" size={20} color="#C7C7CC" style={{ marginLeft: 10 }} />
     </Pressable>
   );
 }
@@ -461,76 +502,54 @@ export default function DirectorOrdersScreen() {
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={BRAND} />}
       >
-        {/* Hero stat — orders currently in flight + revenue today */}
-        <View style={{ alignItems: 'center', paddingVertical: 20, marginBottom: 16, backgroundColor: SURFACE, borderRadius: 16, borderWidth: 1, borderColor: BORDER }}>
-          <Text style={{ fontSize: 11, fontWeight: '800', color: liveActiveOrders.length > 0 ? AMBER : GREEN, textTransform: 'uppercase', letterSpacing: 1.2, marginBottom: 6 }}>
-            {liveActiveOrders.length > 0 ? 'Needs Attention' : 'All Clear'}
-          </Text>
-          <Text style={{ fontSize: 52, fontWeight: '800', color: TEXT, letterSpacing: -1, lineHeight: 58 }}>{liveActiveOrders.length}</Text>
-          <Text style={{ fontSize: 14, color: TEXT_MUTED, marginBottom: 12 }}>Orders in flight</Text>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: SURFACE_RAISED, borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8, borderWidth: 1, borderColor: BORDER }}>
-            <Feather name="trending-up" size={14} color={GREEN} />
-            <Text style={{ fontSize: 13, fontWeight: '700', color: TEXT }}>{fmtCents(todayOrders.filter((o) => o.status === 'completed').reduce((s, o) => s + (o.totalCents ?? 0), 0))}</Text>
-            <Text style={{ fontSize: 12, color: TEXT_MUTED }}>revenue today</Text>
-          </View>
-        </View>
-
-        {/* In-Flight Queue — always visible, with its own local status filter */}
-        <View style={{ marginBottom: 16 }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-              <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: GREEN }} />
-              <Text style={{ fontSize: 13, fontWeight: '700', color: TEXT }}>In-Flight Queue</Text>
+          {/* Live Queue — vertical grouped card */}
+        {liveActiveOrders.length > 0 && (
+          <View style={ios.section}>
+            <View style={ios.sectionRow}>
+              <Text style={ios.sectionLabel}>LIVE QUEUE</Text>
+              <View style={{ flexDirection: 'row', gap: 6 }}>
+                {LIVE_FILTER_TABS.map((t) => {
+                  const a = liveFilter === t.key;
+                  return (
+                    <Pressable
+                      key={t.key}
+                      onPress={() => { setLiveFilter(t.key); Haptics.selectionAsync(); }}
+                      style={{ paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20, backgroundColor: a ? '#000' : '#fff', borderWidth: 1, borderColor: a ? '#000' : '#E5E7EB' }}
+                    >
+                      <Text style={{ fontSize: 12, fontWeight: '600', color: a ? '#fff' : '#000' }}>{t.label}</Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
             </View>
+            {filteredLiveOrders.length > 0 ? (
+              <View style={ios.listCard}>
+                {filteredLiveOrders.map((order, i) => (
+                  <OrderListRow key={order.id} order={order} isLast={i === filteredLiveOrders.length - 1} onPress={() => { setSelectedOrder(order); Haptics.selectionAsync(); }} />
+                ))}
+              </View>
+            ) : (
+              <View style={{ paddingVertical: 18, alignItems: 'center', backgroundColor: SURFACE, borderRadius: 16, borderWidth: 1, borderColor: BORDER }}>
+                <Text style={{ color: TEXT_MUTED, fontSize: 13 }}>No orders for this filter</Text>
+              </View>
+            )}
           </View>
-          <View style={{ flexDirection: 'row', gap: 6, marginBottom: 10 }}>
-            {LIVE_FILTER_TABS.map((t) => {
-              const active = liveFilter === t.key;
-              return (
-                <Pressable
-                  key={t.key}
-                  onPress={() => { setLiveFilter(t.key); Haptics.selectionAsync(); }}
-                  style={{ paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, backgroundColor: active ? BRAND : SURFACE_RAISED, borderWidth: 1, borderColor: active ? BRAND : BORDER }}
-                >
-                  <Text style={{ fontSize: 11, fontWeight: '600', color: active ? BRAND_TEXT_ON : TEXT_MUTED }}>{t.label}</Text>
-                </Pressable>
-              );
-            })}
-          </View>
-          {filteredLiveOrders.length > 0 ? (
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingRight: 4 }}>
-              {filteredLiveOrders.map(item => (
-                <LiveOrderCard key={item.id} order={item} onPress={() => { setSelectedOrder(item); Haptics.selectionAsync(); }} />
-              ))}
-            </ScrollView>
-          ) : (
-            <View style={{ paddingVertical: 18, alignItems: 'center', backgroundColor: SURFACE, borderRadius: 12, borderWidth: 1, borderColor: BORDER }}>
-              <Text style={{ color: TEXT_FAINT, fontSize: 12 }}>No orders in flight{liveFilter !== 'all' ? ' for this filter' : ''}</Text>
-            </View>
-          )}
+        )}
+
+        {/* History — day-grouped */}
+        <View style={[ios.sectionRow, { marginBottom: 8 }]}>
+          <Text style={ios.sectionLabel}>{title}</Text>
+          <Pressable
+            onPress={() => { Haptics.selectionAsync(); setHistorySearchOpen((v) => { if (v) setHistorySearchQuery(''); return !v; }); }}
+            hitSlop={10}
+            testID="history-search-toggle"
+            style={{ width: 30, height: 30, borderRadius: 15, backgroundColor: historySearchOpen ? '#000' : '#fff', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: historySearchOpen ? '#000' : '#E5E7EB' }}
+          >
+            <Feather name={historySearchOpen ? 'x' : 'search'} size={13} color={historySearchOpen ? '#fff' : TEXT_MUTED} />
+          </Pressable>
         </View>
-
-        {/* Supporting KPIs */}
-        <AnalyticsStrip orders={orders} />
-
-        {/* Day-grouped order list with date headers + daily revenue */}
-        <OrdersSectionHeader
-          title={title}
-          count={searchedHistoryOrders.length}
-          right={
-            <Pressable
-              onPress={() => { Haptics.selectionAsync(); setHistorySearchOpen((v) => { if (v) setHistorySearchQuery(''); return !v; }); }}
-              hitSlop={10}
-              accessibilityLabel={historySearchOpen ? 'Close order history search' : 'Search order history'}
-              testID="history-search-toggle"
-              style={{ width: 30, height: 30, borderRadius: 8, backgroundColor: historySearchOpen ? BRAND : SURFACE_RAISED, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: historySearchOpen ? BRAND : BORDER }}
-            >
-              <Feather name={historySearchOpen ? 'x' : 'search'} size={13} color={historySearchOpen ? BRAND_TEXT_ON : TEXT_MUTED} />
-            </Pressable>
-          }
-        />
         {historySearchOpen && (
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: SURFACE, borderRadius: 10, borderWidth: 1, borderColor: BORDER, paddingHorizontal: 10, marginBottom: 10 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: SURFACE, borderRadius: 10, borderWidth: 1, borderColor: BORDER, paddingHorizontal: 10, marginBottom: 12 }}>
             <Feather name="search" size={14} color={TEXT_FAINT} />
             <TextInput
               value={historySearchQuery}
@@ -550,19 +569,16 @@ export default function DirectorOrdersScreen() {
           </View>
         ) : (
           dayGroups.map(group => (
-            <View key={group.dateKey} style={{ marginBottom: 4 }}>
-              {/* Day header with revenue subtotal */}
-              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 8, paddingHorizontal: 2, marginTop: 6 }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  <View style={{ width: 3, height: 14, borderRadius: 2, backgroundColor: BRAND + '80' }} />
-                  <Text style={{ fontSize: 12, fontWeight: '700', color: TEXT, letterSpacing: 0.2 }}>{group.label}</Text>
-                  <View style={{ backgroundColor: BG, borderRadius: 8, paddingHorizontal: 6, paddingVertical: 2 }}>
-                    <Text style={{ fontSize: 11, color: TEXT_MUTED, fontWeight: '600' }}>{group.count}</Text>
-                  </View>
-                </View>
-                <Text style={{ fontSize: 12, fontWeight: '700', color: BRAND }}>{fmtCents(group.revenue)}</Text>
+            <View key={group.dateKey} style={ios.section}>
+              <View style={ios.sectionRow}>
+                <Text style={ios.sectionLabel}>{group.label}</Text>
+                <Text style={[ios.sectionLabel, { color: BRAND, letterSpacing: 0 }]}>{fmtCents(group.revenue)}</Text>
               </View>
-              {group.orders.map(renderCard)}
+              <View style={ios.listCard}>
+                {group.orders.map((o, i) => (
+                  <OrderListRow key={o.id} order={o} isLast={i === group.orders.length - 1} onPress={() => { setSelectedOrder(o); Haptics.selectionAsync(); }} />
+                ))}
+              </View>
             </View>
           ))
         )}
@@ -652,14 +668,13 @@ export default function DirectorOrdersScreen() {
             >
               {APP_FILTER_TABS.map((t) => {
                 const active = filter === t.key;
-                const color  = t.key === 'active' ? AMBER : BRAND;
                 return (
                   <Pressable
                     key={t.key}
                     onPress={() => { setFilter(t.key); Haptics.selectionAsync(); }}
-                    style={[styles.filterChip, { backgroundColor: active ? color : SURFACE_RAISED, borderColor: active ? color : BORDER }]}
+                    style={{ paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, backgroundColor: active ? '#000' : '#fff', borderWidth: 1, borderColor: active ? '#000' : '#E5E7EB' }}
                   >
-                    <Text style={{ fontSize: 12, fontWeight: '600', color: active ? BRAND_TEXT_ON : TEXT_MUTED }}>{t.label}</Text>
+                    <Text style={{ fontSize: 14, fontWeight: '600', color: active ? '#fff' : '#000' }}>{t.label}</Text>
                   </Pressable>
                 );
               })}
@@ -795,6 +810,21 @@ export default function DirectorOrdersScreen() {
     </DirectorTabScreen>
   );
 }
+
+const ios = StyleSheet.create({
+  section:       { marginBottom: 20 },
+  sectionRow:    { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, paddingHorizontal: 2 },
+  sectionLabel:  { fontSize: 13, fontWeight: '600', color: TEXT_MUTED, textTransform: 'uppercase', letterSpacing: 1 },
+  listCard:      { backgroundColor: '#fff', borderRadius: 20, borderWidth: StyleSheet.hairlineWidth, borderColor: '#E5E7EB', overflow: 'hidden', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 6, elevation: 1 },
+  listRow:       { flexDirection: 'row', alignItems: 'center', padding: 14, backgroundColor: '#fff' },
+  listRowBorder: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#F0F0F0' },
+  listRowTitle:  { fontSize: 16, fontWeight: '600', color: TEXT, flex: 1, marginRight: 6 },
+  listRowTime:   { fontSize: 13, color: TEXT_MUTED, flexShrink: 0 },
+  listRowMeta:   { fontSize: 13, color: TEXT_MUTED, fontWeight: '500' },
+  listRowTotal:  { fontSize: 15, fontWeight: '700', color: TEXT, flexShrink: 0, marginHorizontal: 8 },
+  badge:         { paddingHorizontal: 9, paddingVertical: 3, borderRadius: 20 },
+  badgeText:     { fontSize: 12, fontWeight: '600' },
+});
 
 function MarkPaidModal({ order, onClose, onConfirm, marking }: {
   order: ApiOrder | null;
