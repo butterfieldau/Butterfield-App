@@ -1,11 +1,11 @@
 import * as Haptics from 'expo-haptics';
 import React, { useState } from 'react';
-import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { DirectorStandaloneScreen } from '@/components/DirectorStandaloneScreen';
 import {
   AnalyticsTab, RegisterReportsTab, FeedbackTab, DownloadReportModal,
 } from '@/components/director';
-import { BLUE, TEXT, CARD, BORD } from '@/components/director/directorColors';
+import { TEXT, CARD, BORD } from '@/components/director/directorColors';
 
 const TABS = ['Analytics', 'Register Reports', 'Feedback'] as const;
 type TabKey = typeof TABS[number];
@@ -16,27 +16,27 @@ export default function DirectorReportsScreen() {
 
   return (
     <DirectorStandaloneScreen title="Reports">
-      <View style={s.chipRow}>
-        <FlatList
+      <View style={s.filterRow}>
+        <ScrollView
           horizontal
-          data={TABS}
-          keyExtractor={t => t}
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={{ paddingHorizontal: 16, gap: 8, paddingVertical: 10 }}
-          renderItem={({ item }) => {
-            const active = tab === item;
+        >
+          {TABS.map(t => {
+            const active = tab === t;
             return (
               <Pressable
-                onPress={() => { setTab(item); Haptics.selectionAsync(); }}
-                style={[s.chip, active ? s.chipActive : s.chipInactive]}
+                key={t}
+                onPress={() => { setTab(t); Haptics.selectionAsync(); }}
+                style={[s.pill, active ? s.pillActive : s.pillInactive]}
               >
-                <Text style={[s.chipText, active ? s.chipTextActive : s.chipTextInactive]}>
-                  {item}
+                <Text style={[s.pillText, active ? s.pillTextActive : s.pillTextInactive]}>
+                  {t}
                 </Text>
               </Pressable>
             );
-          }}
-        />
+          })}
+        </ScrollView>
       </View>
 
       {tab === 'Analytics' && (
@@ -56,15 +56,18 @@ export default function DirectorReportsScreen() {
 }
 
 const s = StyleSheet.create({
-  chipRow: {
+  filterRow: {
     backgroundColor: CARD,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: BORD,
   },
-  chip:             { height: 34, borderRadius: 17, paddingHorizontal: 16, alignItems: 'center', justifyContent: 'center' },
-  chipActive:       { backgroundColor: BLUE },
-  chipInactive:     { backgroundColor: '#F1F5F9' },
-  chipText:         { fontSize: 13, fontWeight: '600' },
-  chipTextActive:   { color: '#FFFFFF' },
-  chipTextInactive: { color: TEXT },
+  pill: {
+    height: 34, borderRadius: 17, paddingHorizontal: 16,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  pillActive:       { backgroundColor: '#000' },
+  pillInactive:     { backgroundColor: '#fff', borderWidth: 1, borderColor: '#3C3C4340' },
+  pillText:         { fontSize: 13, fontWeight: '600' },
+  pillTextActive:   { color: '#fff' },
+  pillTextInactive: { color: TEXT },
 });

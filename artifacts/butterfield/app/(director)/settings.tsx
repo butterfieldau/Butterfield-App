@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { DirectorTabScreen } from '@/components/DirectorTabScreen';
@@ -41,27 +41,27 @@ export default function DirectorSettingsScreen() {
     <DirectorTabScreen
       title="Settings"
       headerBottom={
-        <View style={s.chipRow}>
-          <FlatList
+        <View style={s.filterRow}>
+          <ScrollView
             horizontal
-            data={TABS}
-            keyExtractor={t => t.key}
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={{ paddingHorizontal: 16, gap: 8, paddingVertical: 10 }}
-            renderItem={({ item }) => {
-              const active = activeTab === item.key;
+          >
+            {TABS.map(tab => {
+              const active = activeTab === tab.key;
               return (
                 <Pressable
-                  onPress={() => { Haptics.selectionAsync(); setActiveTab(item.key); }}
-                  style={[s.chip, active ? s.chipActive : s.chipInactive]}
+                  key={tab.key}
+                  onPress={() => { Haptics.selectionAsync(); setActiveTab(tab.key); }}
+                  style={[s.pill, active ? s.pillActive : s.pillInactive]}
                 >
-                  <Text style={[s.chipText, active ? s.chipTextActive : s.chipTextInactive]}>
-                    {item.label}
+                  <Text style={[s.pillText, active ? s.pillTextActive : s.pillTextInactive]}>
+                    {tab.label}
                   </Text>
                 </Pressable>
               );
-            }}
-          />
+            })}
+          </ScrollView>
         </View>
       }
     >
@@ -71,15 +71,18 @@ export default function DirectorSettingsScreen() {
 }
 
 const s = StyleSheet.create({
-  chipRow: {
+  filterRow: {
     backgroundColor: CARD,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: BORD,
   },
-  chip:             { height: 34, borderRadius: 17, paddingHorizontal: 16, alignItems: 'center', justifyContent: 'center' },
-  chipActive:       { backgroundColor: BLUE },
-  chipInactive:     { backgroundColor: '#F1F5F9' },
-  chipText:         { fontSize: 13, fontWeight: '600' },
-  chipTextActive:   { color: '#FFFFFF' },
-  chipTextInactive: { color: TEXT },
+  pill: {
+    height: 34, borderRadius: 17, paddingHorizontal: 16,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  pillActive:       { backgroundColor: '#000' },
+  pillInactive:     { backgroundColor: '#fff', borderWidth: 1, borderColor: '#3C3C4340' },
+  pillText:         { fontSize: 13, fontWeight: '600' },
+  pillTextActive:   { color: '#fff' },
+  pillTextInactive: { color: TEXT },
 });

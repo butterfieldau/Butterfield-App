@@ -11,131 +11,165 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
 import { useLayoutHandledSafeArea } from '@/context/LayoutSafeAreaContext';
 import { api } from '@/lib/api';
-import { buildCategories, type Category, type RowItem } from './_moreCategories';
 import { BG, CARD, TEXT, MUTED, BLUE, RED, GOLD } from '@/components/director/directorColors';
 
 const OBSIDIAN = '#0A0A0A';
-const MAX_VISIBLE_ITEMS = 5;
 
-const ICON_COLORS: Record<string, string> = {
-  'bar-chart-2': '#007AFF', 'pie-chart': '#007AFF', 'trending-up': '#007AFF', 'monitor': '#007AFF',
-  'smartphone': '#007AFF', 'shopping-bag': '#007AFF', 'globe': '#007AFF', 'briefcase': '#007AFF',
-  'credit-card': '#34C759', 'map-pin': '#34C759', 'user': '#34C759', 'users': '#34C759',
-  'user-plus': '#34C759', 'star': '#34C759', 'message-square': '#34C759', 'share-2': '#34C759',
-  'check-circle': '#34C759',
-  'clock': '#FF9500', 'calendar': '#FF9500', 'archive': '#FF9500', 'package': '#FF9500',
-  'tag': '#FF9500', 'dollar-sign': '#FF9500', 'download': '#FF9500', 'repeat': '#FF9500',
-  'coffee': '#FF9500', 'sun': '#FF9500', 'percent': '#FF9500',
-  'bell': '#FF2D55', 'gift': '#FF2D55', 'image': '#FF2D55', 'layout': '#FF2D55',
-  'alert-circle': '#FF2D55', 'shield': '#FF2D55', 'truck': '#FF2D55', 'phone': '#FF2D55',
-  'clipboard': '#5856D6', 'grid': '#5856D6', 'sliders': '#5856D6', 'layers': '#5856D6',
-  'cpu': '#5856D6', 'server': '#5856D6', 'maximize': '#5856D6', 'check-square': '#5856D6',
-  'lock': '#C9A84C', 'book-open': '#C9A84C',
-  'file-text': '#8E8E93', 'settings': '#8E8E93', 'list': '#8E8E93',
-  'zap': '#8E8E93', 'tool': '#8E8E93',
+// ─── Types ────────────────────────────────────────────────────────────────────
+type NavRow = {
+  icon: string;
+  label: string;
+  iconColor: string;
+  perm?: string;
+  directorOnly?: boolean;
+  badge?: number;
+  onPress: () => void;
 };
 
-function iconColor(icon: string, fallback: string): string {
-  return ICON_COLORS[icon] ?? fallback;
+type NavSection = {
+  header?: string;
+  items: NavRow[];
+  vault?: boolean;
+};
+
+// ─── Section data ─────────────────────────────────────────────────────────────
+function buildSections(
+  canSee: (p: string) => boolean,
+  isDirector: boolean,
+): NavSection[] {
+  const all: NavSection[] = [
+    {
+      items: [
+        { icon: 'bar-chart-2',    label: 'Reports',    iconColor: '#007AFF', perm: 'reports',     onPress: () => router.push('/director-reports' as any) },
+        { icon: 'clock',          label: 'Timesheets', iconColor: '#FF9500', perm: 'timesheets',  onPress: () => router.push('/(director)/timesheets' as any) },
+        { icon: 'users',          label: 'Staff Hub',  iconColor: '#34C759',                      onPress: () => router.push('/(director)/staffhub' as any) },
+      ],
+    },
+    {
+      header: 'OPERATIONS',
+      items: [
+        { icon: 'calendar',      label: 'Schedule',   iconColor: '#FF2D55', perm: 'timesheets',  onPress: () => router.push('/director-roster' as any) },
+        { icon: 'check-square',  label: 'Tasks',      iconColor: '#5856D6',                      onPress: () => router.push({ pathname: '/(director)/staffhub', params: { tab: 'tasks' } } as any) },
+        { icon: 'package',       label: 'Stock',      iconColor: '#FF9500', perm: 'stock',       onPress: () => router.push('/(director)/stock' as any) },
+        { icon: 'monitor',       label: 'POS Orders', iconColor: '#007AFF', directorOnly: true,  onPress: () => router.push('/(director)/pos-orders' as any) },
+      ],
+    },
+    {
+      header: 'COMMERCE',
+      items: [
+        { icon: 'tag',           label: 'Pricing',     iconColor: '#34C759', perm: 'pricing',    onPress: () => router.push('/director-pricing' as any) },
+        { icon: 'percent',       label: 'Discounts',   iconColor: '#FF2D55', perm: 'pricing',    onPress: () => router.push('/director-discounts' as any) },
+        { icon: 'gift',          label: 'Build-a-Box', iconColor: '#AF52DE', perm: 'products',   onPress: () => router.push('/(director)/build-a-box' as any) },
+      ],
+    },
+    {
+      header: 'CUSTOMERS',
+      items: [
+        { icon: 'users',          label: 'Customers', iconColor: '#007AFF', perm: 'users',         onPress: () => router.push('/(director)/users' as any) },
+        { icon: 'pie-chart',      label: 'Segments',  iconColor: '#FF9500', perm: 'announcements', onPress: () => router.push('/director-customer-segments' as any) },
+        { icon: 'message-square', label: 'Feedback',  iconColor: '#34C759', perm: 'announcements', onPress: () => router.push('/director-feedback' as any) },
+      ],
+    },
+    {
+      header: 'SYSTEM',
+      items: [
+        { icon: 'settings',      label: 'Settings',        iconColor: '#8E8E93',                   onPress: () => router.push('/(director)/settings' as any) },
+        { icon: 'map-pin',       label: 'Stores',           iconColor: '#007AFF', perm: 'settings', onPress: () => router.push('/director-store-locations' as any) },
+        { icon: 'credit-card',   label: 'Linkly Terminal',  iconColor: '#34C759', directorOnly: true, onPress: () => router.push('/(director)/linkly' as any) },
+        { icon: 'maximize',      label: 'Scan',             iconColor: '#5856D6', directorOnly: true, onPress: () => router.push('/(director)/scan' as any) },
+      ],
+    },
+    {
+      vault: true,
+      items: [
+        { icon: 'lock', label: 'Director Vault', iconColor: GOLD, directorOnly: true, onPress: () => router.push('/director-vault' as any) },
+      ],
+    },
+  ];
+
+  return all
+    .map(sec => ({
+      ...sec,
+      items: sec.items.filter(item => {
+        if (item.directorOnly && !isDirector) return false;
+        if (item.perm && !canSee(item.perm)) return false;
+        return true;
+      }),
+    }))
+    .filter(sec => sec.items.length > 0);
 }
 
-function PremiumVaultRow({ cat, onPress }: { cat: Category; onPress: () => void }) {
+// ─── Sub-components ───────────────────────────────────────────────────────────
+function NavRowItem({ row, isLast }: { row: NavRow; isLast: boolean }) {
   return (
     <Pressable
-      onPress={() => { Haptics.selectionAsync(); onPress(); }}
-      style={({ pressed }) => [s.vaultCard, { opacity: pressed ? 0.85 : 1 }]}
+      onPress={() => { Haptics.selectionAsync(); row.onPress(); }}
+      style={({ pressed }) => [s.row, isLast && s.rowLast, pressed && { backgroundColor: '#F5F5F7' }]}
     >
-      <View style={s.vaultIconWrap}>
-        <Feather name="lock" size={20} color={GOLD} />
+      <View style={[s.iconWrap, { backgroundColor: row.iconColor + '18' }]}>
+        <Feather name={row.icon as any} size={18} color={row.iconColor} />
       </View>
-      <View style={{ flex: 1 }}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-          <Text style={s.vaultLabel}>{cat.label}</Text>
-          <View style={s.vaultBadge}>
-            <Text style={s.vaultBadgeText}>DIRECTOR ONLY</Text>
-          </View>
+      <Text style={s.rowLabel} numberOfLines={1}>{row.label}</Text>
+      {row.badge != null && row.badge > 0 ? (
+        <View style={s.badgeBubble}>
+          <Text style={s.badgeText}>{row.badge}</Text>
         </View>
-        <Text style={s.vaultDesc} numberOfLines={1}>{cat.description}</Text>
-      </View>
-      <Feather name="chevron-right" size={18} color={GOLD + 'AA'} />
-    </Pressable>
-  );
-}
-
-function ItemRow({ item, isLast, onPress }: { item: RowItem; isLast: boolean; onPress: () => void }) {
-  const col = iconColor(item.icon, item.color);
-  return (
-    <Pressable
-      onPress={onPress}
-      style={({ pressed }) => [s.row, isLast && s.rowLast, { backgroundColor: pressed ? '#F5F5F7' : CARD }]}
-    >
-      <View style={[s.iconWrap, { backgroundColor: col + '18' }]}>
-        <Feather name={item.icon as any} size={17} color={col} />
-      </View>
-      <Text style={[s.rowLabel, item.soon && { color: MUTED }]} numberOfLines={1}>{item.label}</Text>
-      {item.soon
-        ? <View style={s.soonBadge}><Text style={s.soonText}>SOON</Text></View>
-        : <Feather name="chevron-right" size={18} color="#C7C7CC" />
-      }
-    </Pressable>
-  );
-}
-
-function SeeAllRow({ label, catKey, onPress }: { label: string; catKey: string; onPress: (k: string) => void }) {
-  return (
-    <Pressable
-      onPress={() => { Haptics.selectionAsync(); onPress(catKey); }}
-      style={({ pressed }) => [s.row, s.rowLast, { backgroundColor: pressed ? '#F5F5F7' : CARD }]}
-    >
-      <View style={[s.iconWrap, { backgroundColor: '#F2F2F7' }]}>
-        <Feather name="grid" size={17} color={MUTED} />
-      </View>
-      <Text style={[s.rowLabel, { color: BLUE }]}>All {label} tools</Text>
+      ) : null}
       <Feather name="chevron-right" size={18} color="#C7C7CC" />
     </Pressable>
   );
 }
 
-function CategorySection({ cat, onItemPress, onAllPress }: {
-  cat: Category;
-  onItemPress: (item: RowItem) => void;
-  onAllPress: (key: string) => void;
-}) {
-  const allItems = cat.groups.flatMap(g => g.items);
-  const liveItems = allItems.filter(i => !i.soon);
-  const visibleItems = liveItems.slice(0, MAX_VISIBLE_ITEMS);
-  const hiddenCount = allItems.length - visibleItems.length;
-
-  if (visibleItems.length === 0) return null;
+function SectionCard({ section }: { section: NavSection }) {
+  if (section.vault) {
+    const item = section.items[0];
+    return (
+      <Pressable
+        onPress={() => { Haptics.selectionAsync(); item.onPress(); }}
+        style={({ pressed }) => [s.vaultCard, { opacity: pressed ? 0.85 : 1 }]}
+      >
+        <View style={s.vaultIconWrap}>
+          <Feather name="lock" size={20} color={GOLD} />
+        </View>
+        <View style={{ flex: 1 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <Text style={s.vaultLabel}>Director Vault</Text>
+            <View style={s.vaultBadge}>
+              <Text style={s.vaultBadgeText}>DIRECTOR ONLY</Text>
+            </View>
+          </View>
+          <Text style={s.vaultDesc}>Secure recipe & cost repository</Text>
+        </View>
+        <Feather name="chevron-right" size={18} color={GOLD + 'AA'} />
+      </Pressable>
+    );
+  }
 
   return (
     <View>
-      <Text style={s.sectionHeader}>{cat.label.toUpperCase()}</Text>
+      {section.header ? (
+        <Text style={s.sectionHeader}>{section.header}</Text>
+      ) : null}
       <View style={s.sectionCard}>
-        {visibleItems.map((item, idx) => {
-          const isLast = hiddenCount === 0 && idx === visibleItems.length - 1;
-          return (
-            <ItemRow
-              key={item.label + idx}
-              item={item}
-              isLast={isLast}
-              onPress={() => onItemPress(item)}
-            />
-          );
-        })}
-        {hiddenCount > 0 && (
-          <SeeAllRow label={cat.label} catKey={cat.key} onPress={onAllPress} />
-        )}
+        {section.items.map((item, idx) => (
+          <NavRowItem
+            key={item.label}
+            row={item}
+            isLast={idx === section.items.length - 1}
+          />
+        ))}
       </View>
     </View>
   );
 }
 
+// ─── Screen ───────────────────────────────────────────────────────────────────
 export default function MoreScreen() {
   const insets = useSafeAreaInsets();
   const layoutHandledSA = useLayoutHandledSafeArea();
   const { user, logout } = useAuth();
   useFocusStatusBar('dark-content');
+
   const isManager  = user?.role === 'manager';
   const isDirector = !isManager;
 
@@ -145,30 +179,19 @@ export default function MoreScreen() {
     enabled: isManager,
     staleTime: 60_000,
   });
+
   const managerPerms: string[] = useMemo(
     () => managerProfileData?.data?.permissions ?? [],
     [managerProfileData],
   );
+
   const canSee = (perm: string) => !isManager || managerPerms.includes(perm);
 
-  const categories = useMemo(
-    () => buildCategories(canSee, isDirector),
+  const sections = useMemo(
+    () => buildSections(canSee, isDirector),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [isManager, managerPerms.join(','), isDirector],
   );
-
-  const handleItemPress = (item: RowItem) => {
-    Haptics.selectionAsync();
-    item.onPress?.();
-  };
-
-  const handleAllPress = (key: string) => {
-    if (key === 'vault') {
-      router.push('/director-vault' as any);
-    } else {
-      router.push({ pathname: '/director-more-category', params: { category: key } } as any);
-    }
-  };
 
   return (
     <View style={{ flex: 1, backgroundColor: BG }}>
@@ -183,22 +206,9 @@ export default function MoreScreen() {
         </View>
 
         <View style={{ paddingHorizontal: 16, gap: 24 }}>
-          {categories.map(cat =>
-            cat.premium ? (
-              <PremiumVaultRow
-                key={cat.key}
-                cat={cat}
-                onPress={() => handleAllPress(cat.key)}
-              />
-            ) : (
-              <CategorySection
-                key={cat.key}
-                cat={cat}
-                onItemPress={handleItemPress}
-                onAllPress={handleAllPress}
-              />
-            )
-          )}
+          {sections.map((sec, i) => (
+            <SectionCard key={i} section={sec} />
+          ))}
 
           <Pressable
             onPress={() => {
@@ -211,7 +221,7 @@ export default function MoreScreen() {
             style={({ pressed }) => [s.signOutRow, { opacity: pressed ? 0.75 : 1 }]}
           >
             <View style={[s.iconWrap, { backgroundColor: RED + '15' }]}>
-              <Feather name="log-out" size={17} color={RED} />
+              <Feather name="log-out" size={18} color={RED} />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={[s.rowLabel, { color: RED }]}>Sign Out</Text>
@@ -234,7 +244,7 @@ const s = StyleSheet.create({
 
   sectionHeader: {
     fontSize: 13, fontWeight: '600', color: MUTED,
-    letterSpacing: 0.4, textTransform: 'uppercase',
+    letterSpacing: 0.8, textTransform: 'uppercase',
     marginBottom: 8, marginLeft: 4,
   },
   sectionCard: {
@@ -252,7 +262,7 @@ const s = StyleSheet.create({
 
   row: {
     flexDirection: 'row', alignItems: 'center', gap: 14,
-    paddingVertical: 12, paddingHorizontal: 16,
+    paddingVertical: 13, paddingHorizontal: 16,
     borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#F0F0F0',
     backgroundColor: CARD,
   },
@@ -260,14 +270,15 @@ const s = StyleSheet.create({
   rowLabel: { flex: 1, fontSize: 16, fontWeight: '500', color: TEXT },
 
   iconWrap: {
-    width: 34, height: 34, borderRadius: 8,
+    width: 34, height: 34, borderRadius: 9,
     alignItems: 'center', justifyContent: 'center', flexShrink: 0,
   },
 
-  soonBadge: {
-    backgroundColor: '#F2F2F7', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6,
+  badgeBubble: {
+    backgroundColor: '#FF3B30', width: 20, height: 20, borderRadius: 10,
+    alignItems: 'center', justifyContent: 'center', flexShrink: 0,
   },
-  soonText: { fontSize: 10, fontWeight: '700', color: MUTED, letterSpacing: 0.5 },
+  badgeText: { fontSize: 12, fontWeight: '700', color: '#fff' },
 
   vaultCard: {
     flexDirection: 'row', alignItems: 'center', gap: 14,
