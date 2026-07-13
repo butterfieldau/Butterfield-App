@@ -25,7 +25,7 @@ import { BG, CARD, BLUE, NAVY, TEXT, MUTED, BORDER, GREEN, AMBER, RED, PURPLE, P
 
 type FeatherIconName = ComponentProps<typeof Feather>['name'];
 type InputKeyboardType = ComponentProps<typeof TextInput>['keyboardType'];
-const TABS = ['Customers', 'Staff', 'Wholesale'] as const;
+const TABS = ['Staff', 'Wholesale', 'Customers'] as const;
 const ROLE_COLORS: Record<string, { bg: string; text: string }> = {
   customer:  { bg: '#EBF8FF', text: '#0369A1' },
   staff:     { bg: '#EDE9FE', text: '#5B21B6' },
@@ -190,19 +190,24 @@ export function DirectorUsersScreen({ modeOverride }: { modeOverride?: UsersMode
     <DirectorTabScreen
       title={deletedMode ? 'Deleted Accounts' : wholesaleMode ? 'Wholesale Accounts' : staffMode ? 'Staff Accounts' : posMode ? 'POS Screens' : 'People'}
       headerBottom={!dedicatedMode ? (
-        <View style={{ flexDirection: 'row', gap: 8, paddingHorizontal: 16, paddingVertical: 10, backgroundColor: '#FFFFFF', borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: BORDER }}>
-          {TABS.map((t) => {
-            const active = tab === t;
-            return (
-              <Pressable
-                key={t}
-                onPress={() => { setTab(t); Haptics.selectionAsync(); }}
-                style={[styles.tabChip, { backgroundColor: active ? BLUE : '#F3F4F6', borderColor: active ? BLUE : BORDER }]}
-              >
-                <Text style={[styles.tabChipText, { color: active ? '#fff' : MUTED }]}>{t}</Text>
-              </Pressable>
-            );
-          })}
+        <View style={{ paddingHorizontal: 16, paddingVertical: 10, backgroundColor: '#F2F2F7' }}>
+          <View style={{ flexDirection: 'row', backgroundColor: '#E5E5EA', borderRadius: 9, padding: 2, gap: 0 }}>
+            {TABS.map((t) => {
+              const active = tab === t;
+              return (
+                <Pressable
+                  key={t}
+                  onPress={() => { setTab(t); Haptics.selectionAsync(); }}
+                  style={[
+                    { flex: 1, paddingVertical: 7, borderRadius: 7, alignItems: 'center', justifyContent: 'center' },
+                    active && { backgroundColor: '#fff', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.12, shadowRadius: 2, elevation: 2 },
+                  ]}
+                >
+                  <Text style={{ fontSize: 13, fontWeight: '600', color: active ? '#000' : 'rgba(0,0,0,0.55)' }}>{t}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
         </View>
       ) : undefined}
     >
@@ -326,120 +331,100 @@ export function DirectorUsersScreen({ modeOverride }: { modeOverride?: UsersMode
           <ActivityIndicator color={BLUE} />
         </View>
       ) : (
-        <FlatList
-          data={filtered}
-          keyExtractor={(u) => u.id}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={BLUE} />}
-          contentContainerStyle={{ padding: 16, gap: 10, paddingBottom: 100 }}
+        <ScrollView
           showsVerticalScrollIndicator={false}
-          ListEmptyComponent={
-            <DirectorEmptyState
-              icon="users"
-              title="No users in this category"
-            />
-          }
-          renderItem={({ item: u }) => {
-            const roleColors = ROLE_COLORS[u.role] ?? { bg: BG, text: MUTED };
-            const roleLabel = getUserRoleLabel(u);
-            const sp = u.staffProfile;
-            const wa = u.wholesaleAccount;
-            const canOpenStaffProfile = u.role === 'staff' || u.role === 'manager' || u.role === 'director' || u.role === 'master';
-            return (
-              <View style={[styles.userCard, { backgroundColor: GLASS_BG, borderColor: GLASS_BORDER, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 14, elevation: 3 }]}>
-                <Pressable
-                  style={styles.userTop}
-                  onPress={
-                    canOpenStaffProfile
-                      ? () => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setSelectedStaffId(u.id); }
-                      : undefined
-                  }
-                >
-                  {u.profileImage ? (
-                    <Image
-                      source={{ uri: u.profileImage }}
-                      style={[styles.avatar, { backgroundColor: roleColors.bg }]}
-                      contentFit="cover"
-                    />
-                  ) : (
-                    <View style={[styles.avatar, { backgroundColor: roleColors.bg }]}>
-                      <Text style={[styles.avatarText, { color: roleColors.text }]}>{initials(u.name)}</Text>
-                    </View>
-                  )}
-                  <View style={{ flex: 1, gap: 3 }}>
-                    <View style={styles.nameRow}>
-                      <Text style={styles.userName}>{u.name}</Text>
-                      <View style={[styles.rolePill, { backgroundColor: roleColors.bg }]}>
-                        <Text style={[styles.rolePillText, { color: roleColors.text }]}>{roleLabel}</Text>
+          contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 8, paddingBottom: 120 }}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={BLUE} />}
+        >
+          {filtered.length === 0 ? (
+            <DirectorEmptyState icon="users" title="No users in this category" />
+          ) : (
+            <View style={u$.listCard}>
+              {filtered.map((user, index) => {
+                const isLast = index === filtered.length - 1;
+                const roleColors = ROLE_COLORS[user.role] ?? { bg: BG, text: MUTED };
+                const roleLabel = getUserRoleLabel(user);
+                const sp = user.staffProfile;
+                const wa = user.wholesaleAccount;
+                const isPendingStaff = !!(sp && !sp.approvedByAdmin);
+                const canOpenStaff = user.role === 'staff' || user.role === 'manager' || user.role === 'director' || user.role === 'master';
+
+                // Status badge values
+                let statusBg = '#F3F4F6', statusText = MUTED, statusLabel = '';
+                if (sp) {
+                  statusBg  = sp.approvedByAdmin ? '#D1FAE5' : '#FEF3C7';
+                  statusText = sp.approvedByAdmin ? '#065F46' : '#92400E';
+                  statusLabel = sp.approvedByAdmin ? 'Approved' : 'Pending';
+                } else if (wa) {
+                  statusBg  = wa.status === 'approved' ? '#D1FAE5' : wa.status === 'rejected' ? '#FEE2E2' : '#FEF3C7';
+                  statusText = wa.status === 'approved' ? '#065F46' : wa.status === 'rejected' ? '#991B1B' : '#92400E';
+                  statusLabel = wa.status === 'approved' ? (wa.isSuspended ? 'Suspended' : 'Approved') : wa.status === 'rejected' ? 'Rejected' : 'Pending';
+                  if (wa.isSuspended) { statusBg = '#FEE2E2'; statusText = '#991B1B'; }
+                } else if (user.role === 'shop_display') {
+                  statusBg  = user.status === 'active' ? '#D1FAE5' : '#FEE2E2';
+                  statusText = user.status === 'active' ? '#065F46' : '#991B1B';
+                  statusLabel = user.status === 'active' ? 'Active' : 'Inactive';
+                }
+
+                const handlePress = () => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  if (wa) setSelectedWholesaleUser(user);
+                  else if (canOpenStaff) setSelectedStaffId(user.id);
+                  else if (user.role === 'shop_display') setSelectedShopDisplayUser(user as unknown as ShopDisplayUser);
+                };
+
+                return (
+                  <Pressable
+                    key={user.id}
+                    onPress={handlePress}
+                    style={({ pressed }) => [
+                      u$.row,
+                      !isLast && u$.rowBorder,
+                      pressed && { backgroundColor: '#F8F8F8' },
+                    ]}
+                  >
+                    {/* Top: avatar + name/role + status + chevron */}
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                      <View style={[u$.avatar, { backgroundColor: roleColors.bg }]}>
+                        <Text style={[u$.avatarText, { color: roleColors.text }]}>{initials(user.name)}</Text>
                       </View>
-                      {canOpenStaffProfile && <Feather name="chevron-right" size={14} color={MUTED} style={{ marginLeft: 'auto' }} />}
+                      <View style={{ flex: 1, gap: 2 }}>
+                        <Text style={u$.name} numberOfLines={1}>{user.name}</Text>
+                        <Text style={u$.sub} numberOfLines={1}>
+                          {roleLabel}{wa ? ` · ${wa.companyName}` : ''}{sp ? ` · ${sp.position ?? ''}` : ''}
+                        </Text>
+                      </View>
+                      {!isPendingStaff && statusLabel ? (
+                        <View style={[u$.badge, { backgroundColor: statusBg }]}>
+                          <Text style={[u$.badgeText, { color: statusText }]}>{statusLabel}</Text>
+                        </View>
+                      ) : null}
+                      <Feather name="chevron-right" size={18} color="#C7C7CC" />
                     </View>
-                    <Text style={styles.userEmail}>{u.email}</Text>
-                    <Text style={styles.userDate}>Joined {fmtDateTime(u.createdAt)}</Text>
-                  </View>
-                </Pressable>
-                {/* Staff approval toggle */}
-                {sp && (
-                  <View style={[styles.subRow, { borderTopColor: BORDER }]}>
-                    <View style={{ flex: 1, gap: 2 }}>
-                      <Text style={styles.subTitle}>{sp.position} · {sp.department}</Text>
-                      <Text style={[styles.subSub, { color: sp.approvedByAdmin ? GREEN : AMBER }]}>
-                        {sp.approvedByAdmin ? '✓ Approved' : '⏳ Pending approval'}
-                      </Text>
-                    </View>
-                    <Switch
-                      value={sp.approvedByAdmin}
-                      onValueChange={(v) => approveStaff(u.id, v)}
-                      trackColor={{ false: '#D1D5DB', true: GREEN }}
-                      thumbColor="#fff"
-                      ios_backgroundColor="#D1D5DB"
-                    />
-                  </View>
-                )}
-                {u.role === 'shop_display' && (
-                  <Pressable
-                    onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setSelectedShopDisplayUser(u as unknown as ShopDisplayUser); }}
-                    style={[styles.subRow, { borderTopColor: BORDER }]}
-                  >
-                    <View style={{ flex: 1, gap: 2 }}>
-                      <Text style={styles.subTitle}>Counter iPad access</Text>
-                      <Text style={[styles.subSub, {
-                        color: u.status === 'active' ? GREEN : u.status === 'suspended' ? RED : AMBER,
-                      }]}>
-                        {u.status === 'active' ? '✓ Active' : u.status === 'suspended' ? 'Suspended' : 'Inactive'}
-                        {u.lastLogin ? ` · Last login ${fmtDateTime(u.lastLogin)}` : ''}
-                      </Text>
-                    </View>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                      <Text style={{ color: BLUE, fontSize: 12, fontWeight: '600' }}>Manage</Text>
-                      <Feather name="chevron-right" size={13} color={BLUE} />
-                    </View>
+
+                    {/* Approve / Reject buttons for pending staff */}
+                    {isPendingStaff && (
+                      <View style={{ flexDirection: 'row', gap: 10, marginTop: 14 }}>
+                        <Pressable
+                          onPress={(e) => { e.stopPropagation?.(); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); approveStaff(user.id, true); }}
+                          style={u$.approveBtn}
+                        >
+                          <Text style={u$.approveBtnText}>Approve</Text>
+                        </Pressable>
+                        <Pressable
+                          onPress={(e) => { e.stopPropagation?.(); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); approveStaff(user.id, false); }}
+                          style={u$.rejectBtn}
+                        >
+                          <Text style={u$.rejectBtnText}>Reject</Text>
+                        </Pressable>
+                      </View>
+                    )}
                   </Pressable>
-                )}
-                {/* Wholesale status */}
-                {wa && (
-                  <Pressable
-                    onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setSelectedWholesaleUser(u); }}
-                    style={[styles.subRow, { borderTopColor: BORDER }]}
-                  >
-                    <View style={{ flex: 1, gap: 2 }}>
-                      <Text style={styles.subTitle}>{wa.companyName}</Text>
-                      <Text style={[styles.subSub, {
-                        color: wa.status === 'approved' ? GREEN : wa.status === 'rejected' ? RED : AMBER,
-                      }]}>
-                        {wa.status === 'approved' ? '✓ Approved' : wa.status === 'rejected' ? '✗ Rejected' : '⏳ Pending'}
-                        {wa.isSuspended ? ' · Suspended' : ''}
-                      </Text>
-                    </View>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                      <Text style={{ color: BLUE, fontSize: 12, fontWeight: '600' }}>Manage</Text>
-                      <Feather name="chevron-right" size={13} color={BLUE} />
-                    </View>
-                  </Pressable>
-                )}
-              </View>
-            );
-          }}
-        />
+                );
+              })}
+            </View>
+          )}
+        </ScrollView>
       )}
       <CreateUserModal
         visible={showCreate}
@@ -604,3 +589,66 @@ export function DirectorUsersScreen({ modeOverride }: { modeOverride?: UsersMode
 }
 
 export default DirectorUsersScreen;
+
+const u$ = StyleSheet.create({
+  listCard: {
+    backgroundColor: '#fff',
+    borderRadius: 20,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: '#E5E7EB',
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 6,
+    elevation: 1,
+  },
+  row: {
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    backgroundColor: '#fff',
+  },
+  rowBorder: {
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#F0F0F0',
+  },
+  avatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  avatarText: {
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  name:  { fontSize: 16, fontWeight: '600', color: '#1C1C1E' },
+  sub:   { fontSize: 14, color: '#8E8E93' },
+  badge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 20,
+    flexShrink: 0,
+  },
+  badgeText: { fontSize: 13, fontWeight: '600' },
+  approveBtn: {
+    flex: 1,
+    backgroundColor: '#34C759',
+    borderRadius: 10,
+    paddingVertical: 10,
+    alignItems: 'center',
+  },
+  approveBtnText: { fontSize: 14, fontWeight: '700', color: '#fff' },
+  rejectBtn: {
+    flex: 1,
+    backgroundColor: '#FF3B3015',
+    borderRadius: 10,
+    paddingVertical: 10,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#FF3B3030',
+  },
+  rejectBtnText: { fontSize: 14, fontWeight: '700', color: '#FF3B30' },
+});
