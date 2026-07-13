@@ -4,8 +4,8 @@ import * as ImagePicker from 'expo-image-picker';
 import React, { useEffect, useState, useMemo, useRef } from 'react';
 import { useLocalSearchParams } from 'expo-router';
 import {
-  ActivityIndicator, Alert, FlatList, Image, KeyboardAvoidingView, Modal,
-  Platform, Pressable, RefreshControl, ScrollView,
+  ActivityIndicator, Alert, Image, KeyboardAvoidingView, Modal,
+  Platform, Pressable, RefreshControl, ScrollView, StyleSheet,
   Switch, Text, TextInput, View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -235,176 +235,120 @@ export default function DirectorProductsScreen() {
             />
           )}
 
-          {/* Stats strip */}
-          <View style={styles.statsStrip}>
-            {[
-              { label: 'Total',  count: counts.all,    color: BLUE  },
-              { label: 'Active', count: counts.active, color: GREEN },
-              { label: 'Drafts', count: counts.draft,  color: AMBER },
-            ].map(s => (
-              <View key={s.label} style={[styles.statBadge, { backgroundColor: s.color + '18' }]}>
-                <Text style={[styles.statBadgeText, { color: s.color }]}>{s.label} {s.count}</Text>
-              </View>
-            ))}
-          </View>
+          {/* Filter pills — black/white iOS style */}
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={{ paddingHorizontal: 16, paddingVertical: 10, gap: 8 }}
+          >
+            {/* Status pills */}
+            {STATUS_OPTIONS.map(opt => {
+              const active = statusFilter === opt && catFilter === 'all';
+              return (
+                <Pressable
+                  key={opt}
+                  onPress={() => { setStatusFilter(opt); setCatFilter('all'); Haptics.selectionAsync(); }}
+                  style={{ paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, backgroundColor: active ? '#000' : '#fff', borderWidth: 1, borderColor: active ? '#000' : '#E5E7EB' }}
+                >
+                  <Text style={{ fontSize: 14, fontWeight: '600', color: active ? '#fff' : '#000' }}>{opt}</Text>
+                </Pressable>
+              );
+            })}
+            {/* Separator */}
+            <View style={{ width: 1, backgroundColor: '#E5E7EB', alignSelf: 'center', height: 20, marginHorizontal: 4 }} />
+            {/* Category pills */}
+            {dbCategories.map((c: any) => {
+              const active = catFilter === c.slug;
+              return (
+                <Pressable
+                  key={c.slug}
+                  onPress={() => { setCatFilter(active ? 'all' : c.slug); setStatusFilter('All'); Haptics.selectionAsync(); }}
+                  style={{ paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, backgroundColor: active ? '#000' : '#fff', borderWidth: 1, borderColor: active ? '#000' : '#E5E7EB' }}
+                >
+                  <Text style={{ fontSize: 14, fontWeight: '600', color: active ? '#fff' : '#000' }}>{c.name}</Text>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
 
-          {/* Filter pill row */}
-          <View style={styles.filterRow}>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterPillRow}>
-              {/* Status pills */}
-              {STATUS_OPTIONS.map(opt => {
-                const isActive = statusFilter === opt && catFilter === 'all';
-                const isStat   = statusFilter === opt;
-                const active   = isStat && catFilter === 'all';
-                const count    = opt === 'All' ? counts.all : opt === 'Active' ? counts.active : opt === 'Draft' ? counts.draft : counts.archived;
-                const col      = opt === 'All' ? NAVY : opt === 'Active' ? GREEN : opt === 'Draft' ? AMBER : MUTED;
-                return (
-                  <Pressable
-                    key={opt}
-                    onPress={() => { setStatusFilter(opt); setCatFilter('all'); Haptics.selectionAsync(); }}
-                    style={[styles.filterPill, { backgroundColor: isStat && catFilter === 'all' ? col : CARD, borderColor: isStat && catFilter === 'all' ? col : BORDER }]}
-                  >
-                    <Text style={[styles.filterPillText, { color: active ? '#fff' : MUTED }]}>{opt}</Text>
-                    <Text style={[styles.filterPillCount, { color: active ? '#fff' : MUTED }]}>{count}</Text>
-                  </Pressable>
-                );
-              })}
-              {/* Separator dot */}
-              <View style={{ width: 4, height: 4, borderRadius: 2, backgroundColor: BORDER, alignSelf: 'center', marginHorizontal: 4 }} />
-              {/* Category pills */}
-              {dbCategories.map((c: any) => {
-                const col    = CAT_COLORS[c.slug] ?? MUTED;
-                const active = catFilter === c.slug;
-                return (
-                  <Pressable
-                    key={c.slug}
-                    onPress={() => { setCatFilter(active ? 'all' : c.slug); setStatusFilter('All'); Haptics.selectionAsync(); }}
-                    style={[styles.filterPill, { backgroundColor: active ? col : CARD, borderColor: active ? col : BORDER }]}
-                  >
-                    <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: active ? '#fff' : col }} />
-                    <Text style={[styles.filterPillText, { color: active ? '#fff' : MUTED }]}>{c.name}</Text>
-                  </Pressable>
-                );
-              })}
-            </ScrollView>
-            {/* Sort button */}
-            <Pressable
-              onPress={() => toggleDropdown('sort')}
-              style={[styles.sortBtn, sortBy !== 'Name A → Z' && styles.sortBtnActive]}
-            >
-              <Feather name="sliders" size={16} color={sortBy !== 'Name A → Z' ? NAVY : MUTED} />
-            </Pressable>
-          </View>
-
-          {/* Sort dropdown */}
-          <View style={{ zIndex: 20 }}>
-            {openDropdown !== null && (
-              <Pressable onPress={() => setOpenDropdown(null)}
-                style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: -4000, zIndex: 19 }} />
-            )}
-            {openDropdown === 'sort' && (
-              <View style={[styles.dropPanel, { zIndex: 21 }]}>
-                <ScrollView nestedScrollEnabled showsVerticalScrollIndicator={false} style={{ maxHeight: 300 }}>
-                  <Text style={styles.dropSectionLabel}>SORT ORDER</Text>
-                  {SORT_OPTIONS.map(opt => {
-                    const active = sortBy === opt;
-                    return (
-                      <Pressable key={opt} onPress={() => { setSortBy(opt); setOpenDropdown(null); Haptics.selectionAsync(); }}
-                        style={[styles.dropOption, active && styles.dropOptionActive]}>
-                        <Text style={[styles.dropOptionText, active && { color: NAVY, fontWeight: '600' }]}>{opt}</Text>
-                        {active && <Feather name="check" size={14} color={NAVY} />}
-                      </Pressable>
-                    );
-                  })}
-                </ScrollView>
-              </View>
-            )}
-          </View>
-
-          {/* Product list */}
+          {/* Product list — grouped white card */}
           {isLoading ? (
-            <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+            <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 40 }}>
               <ActivityIndicator color={BLUE} />
             </View>
           ) : (
-            <FlatList
-              data={products}
-              keyExtractor={p => p.id}
-              refreshControl={<RefreshControl refreshing={productsRefreshing} onRefresh={onRefreshProducts} tintColor={BLUE} />}
-              contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 8, paddingBottom: 170 }}
+            <ScrollView
               showsVerticalScrollIndicator={false}
-              ListHeaderComponent={
-                <Text style={[styles.resultCount, { fontWeight: '400', color: MUTED }]}>
-                  {products.length} product{products.length !== 1 ? 's' : ''}
-                  {sortBy !== 'Name A → Z' ? ` · ${sortBy}` : ''}
-                </Text>
-              }
-              ListEmptyComponent={
+              contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 4, paddingBottom: 170 }}
+              refreshControl={<RefreshControl refreshing={productsRefreshing} onRefresh={onRefreshProducts} tintColor={BLUE} />}
+              nestedScrollEnabled
+            >
+              <Text style={{ fontSize: 13, color: MUTED, fontWeight: '400', marginBottom: 10 }}>
+                {products.length} product{products.length !== 1 ? 's' : ''}
+              </Text>
+              {products.length === 0 ? (
                 <DirectorEmptyState
                   icon="package"
-                  title={`No products${statusFilter !== 'All' ? ` in "${statusFilter}"` : catFilter !== 'all' ? ` in "${dbCategories.find(c => c.slug === catFilter)?.name ?? catFilter}"` : ''}`}
+                  title={`No products${statusFilter !== 'All' ? ` in "${statusFilter}"` : catFilter !== 'all' ? ` in "${dbCategories.find((c: any) => c.slug === catFilter)?.name ?? catFilter}"` : ''}`}
                   description="Tap + New to add a product"
                   action={{ label: 'Add first product', onPress: openAdd }}
                 />
-              }
-              renderItem={({ item: p }) => {
-                const catColor  = CAT_COLORS[p.category] ?? MUTED;
-                const priceFmt  = `$${((p.priceCents ?? 0) / 100).toFixed(2)}`;
-                const statusDot = !p.isActive
-                  ? RED
-                  : !(p.isAvailable ?? true)
-                  ? AMBER
-                  : p.isSoldOut
-                  ? RED
-                  : GREEN;
-                const statusLabel = !p.isActive ? 'Archived' : !(p.isAvailable ?? true) ? 'Draft' : p.isSoldOut ? 'Sold out' : 'Active';
-                const catLabel = dbCategories.find(c => c.slug === p.category)?.name ?? p.category ?? 'Uncategorised';
-
-                return (
-                  <Pressable
-                    onPress={() => { Haptics.selectionAsync(); openEdit(p); }}
-                    onLongPress={() => openProductActions(p)}
-                    style={({ pressed }) => [styles.shelfCard, { opacity: pressed ? 0.8 : 1 }]}
-                  >
-                    {/* Left: Thumbnail */}
-                    {p.imageUrl ? (
-                      <Image source={{ uri: toDisplayUrl(p.imageUrl) }}
-                        style={{ width: 64, height: 64, borderRadius: 14, backgroundColor: '#F3F4F6', flexShrink: 0 }}
-                        resizeMode="cover" />
-                    ) : (
-                      <View style={{ width: 64, height: 64, borderRadius: 14, backgroundColor: catColor + '18', borderWidth: 1.5, borderColor: catColor + '30', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                        <Feather name="package" size={22} color={catColor} />
-                      </View>
-                    )}
-                    {/* Middle: Name + Category */}
-                    <View style={{ flex: 1, gap: 4 }}>
-                      <Text style={{ fontSize: 15, fontWeight: '700', color: TEXT }} numberOfLines={1}>{p.name}</Text>
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
-                        <View style={{ width: 7, height: 7, borderRadius: 3.5, backgroundColor: catColor }} />
-                        <Text style={{ fontSize: 12, color: MUTED, fontWeight: '400' }}>{catLabel}</Text>
-                      </View>
-                      {BOX_CATEGORIES.includes(p.category ?? '') && (
-                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: '#F59E0B18', borderWidth: 1, borderColor: '#F59E0B40', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 }}>
-                            <Feather name="gift" size={10} color="#F59E0B" />
-                            <Text style={{ fontSize: 11, fontWeight: '600', color: '#F59E0B' }}>Build a Box</Text>
+              ) : (
+                <View style={p$.listCard}>
+                  {products.map((p, index) => {
+                    const isLast    = index === products.length - 1;
+                    const priceFmt  = `$${((p.priceCents ?? 0) / 100).toFixed(2)}`;
+                    const isAvail   = p.isActive && (p.isAvailable ?? true) && !p.isSoldOut;
+                    return (
+                      <Pressable
+                        key={p.id}
+                        onPress={() => { Haptics.selectionAsync(); openEdit(p); }}
+                        onLongPress={() => openProductActions(p)}
+                        style={({ pressed }) => [
+                          p$.row,
+                          !isLast && p$.rowBorder,
+                          !p.isActive && { opacity: 0.45 },
+                          pressed && { backgroundColor: '#F8F8F8' },
+                        ]}
+                      >
+                        {/* Name + badges + price */}
+                        <View style={{ flex: 1, gap: 3 }}>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                            <Text style={p$.name} numberOfLines={1}>{p.name}</Text>
+                            {p.isFeatured && (
+                              <View style={{ backgroundColor: '#007AFF18', borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2 }}>
+                                <Text style={{ fontSize: 10, fontWeight: '700', color: '#007AFF', letterSpacing: 0.5 }}>FEATURED</Text>
+                              </View>
+                            )}
+                            {p.isNew && (
+                              <View style={{ backgroundColor: '#FF950018', borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2 }}>
+                                <Text style={{ fontSize: 10, fontWeight: '700', color: '#FF9500', letterSpacing: 0.5 }}>NEW</Text>
+                              </View>
+                            )}
+                            {p.isSoldOut && (
+                              <View style={{ backgroundColor: '#EF444418', borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2 }}>
+                                <Text style={{ fontSize: 10, fontWeight: '700', color: '#EF4444', letterSpacing: 0.5 }}>SOLD OUT</Text>
+                              </View>
+                            )}
                           </View>
+                          <Text style={p$.price}>{priceFmt}</Text>
                         </View>
-                      )}
-                    </View>
-                    {/* Right: Price + status dot + chevron */}
-                    <View style={{ alignItems: 'flex-end', gap: 6, flexShrink: 0 }}>
-                      <Text style={{ fontSize: 15, fontWeight: '700', color: GREEN }}>{priceFmt}</Text>
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
-                        <View style={{ width: 7, height: 7, borderRadius: 3.5, backgroundColor: statusDot }} />
-                        <Text style={{ fontSize: 11, fontWeight: '500', color: MUTED }}>{statusLabel}</Text>
-                      </View>
-                    </View>
-                    <Feather name="chevron-right" size={16} color={MUTED} style={{ flexShrink: 0 }} />
-                  </Pressable>
-                );
-              }}
-            />
+                        {/* Toggle + chevron */}
+                        <Switch
+                          value={isAvail}
+                          onValueChange={(val) => toggle(p, 'isAvailable', val)}
+                          trackColor={{ false: '#E5E5EA', true: '#34C759' }}
+                          thumbColor="#fff"
+                          ios_backgroundColor="#E5E5EA"
+                          style={{ marginRight: 6 }}
+                        />
+                        <Feather name="chevron-right" size={18} color="#C7C7CC" />
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              )}
+            </ScrollView>
           )}
 
           <ProductModal
@@ -435,3 +379,32 @@ function toDisplayUrl(url: string): string {
   if (url.startsWith('http://') || url.startsWith('https://')) return url;
   return `${API_DOMAIN}${url.startsWith('/') ? '' : '/'}${url}`;
 }
+
+const p$ = StyleSheet.create({
+  listCard: {
+    backgroundColor: '#fff',
+    borderRadius: 20,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: '#E5E7EB',
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 6,
+    elevation: 1,
+  },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    backgroundColor: '#fff',
+    gap: 8,
+  },
+  rowBorder: {
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#F0F0F0',
+  },
+  name:  { fontSize: 16, fontWeight: '600', color: '#1C1C1E', flexShrink: 1 },
+  price: { fontSize: 14, color: '#8E8E93', fontWeight: '500' },
+});
