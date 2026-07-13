@@ -137,20 +137,6 @@ function AnalyticsStrip({ orders }: { orders: ApiOrder[] }) {
   );
 }
 
-// ── Live clock (mirrors PortalHeader) ─────────────────────────────────────────
-function useLiveClock() {
-  const [time, setTime] = useState('');
-  useEffect(() => {
-    const fmt = () =>
-      new Date().toLocaleTimeString('en-AU', {
-        hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'Australia/Sydney',
-      });
-    setTime(fmt());
-    const id = setInterval(() => setTime(fmt()), 10000);
-    return () => clearInterval(id);
-  }, []);
-  return time;
-}
 
 // ── Main screen ───────────────────────────────────────────────────────────────
 export default function DirectorOrdersScreen() {
@@ -182,7 +168,6 @@ export default function DirectorOrdersScreen() {
   const drillModeRef = useRef<string | null>(null);
   const tabParamAppliedRef = useRef<string | null>(null);
 
-  const clock   = useLiveClock();
   const isStaff = user?.role === 'staff';
 
   const { data: staffProfileData, isLoading: staffProfileLoading } = useQuery({
@@ -592,15 +577,7 @@ export default function DirectorOrdersScreen() {
       headerBackgroundColor={SURFACE}
       titleColor={TEXT}
       subtitleColor={TEXT_MUTED}
-      statusBarStyle="light-content"
-      headerRight={
-        clock ? (
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: BRAND_DIM, borderWidth: 1, borderColor: BRAND + '30', paddingHorizontal: 11, paddingVertical: 6, borderRadius: 20 }}>
-            <Feather name="clock" size={11} color={BRAND} />
-            <Text style={{ fontSize: 13, fontWeight: '700', color: TEXT }}>{clock}</Text>
-          </View>
-        ) : null
-      }
+      statusBarStyle="dark-content"
     >
       {/* ── Channel tab bar (director/manager only) ── */}
       {!isStaff && (

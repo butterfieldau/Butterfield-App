@@ -9,14 +9,14 @@ import {
 } from 'react-native';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/context/AuthContext';
-import { PortalHeader } from '@/components/PortalHeader';
+import { DirectorTabScreen } from '@/components/DirectorTabScreen';
 import { api } from '@/lib/api';
 import { useRefreshControl } from '@/hooks/useRefreshControl';
 import { StaffDashboard } from './_staff-dashboard';
 import { fmtAUD, timeAgo, fmtDateBox} from '@/components/director/dashboardHelpers';
 import { RevenueRangePicker, KpiTile, QuickBtn, DeltaBadge, AovCustomerRow, HourlyInsightsChart } from '@/components/director';
 import { BG, CARD, BLUE, NAVY, TEXT, MUTED, BORDER, GREEN, AMBER, RED, PURPLE, PINK, TEAL, ROSE, GOLD, GLASS_BG, GLASS_BORDER } from '@/components/director/directorColors';
-import { useFocusStatusBar, useScrollStatusBar } from '@/hooks/useScrollStatusBar';
+import { useFocusStatusBar } from '@/hooks/useScrollStatusBar';
 
 const GLASS_SHADOW = {
   shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
@@ -434,28 +434,29 @@ const BADGE_COLOR: Record<string, string> = {
 };
 
 function DirectorHomeInner() {
-  const { user, logout } = useAuth();
-  const { barStyle, handleScroll, onHeaderLayout } = useScrollStatusBar('light-content');
+  const { logout } = useAuth();
   return (
-    <View style={{ flex: 1, backgroundColor: BG }}>
-      <StatusBar barStyle={barStyle} translucent backgroundColor="transparent" />
-      <View onLayout={onHeaderLayout}>
-        <PortalHeader
-          badge={BADGE_LABEL[user?.role ?? ''] ?? 'DIRECTOR'}
-          badgeColor={BADGE_COLOR[user?.role ?? ''] ?? '#EF4444'}
-          backgroundColor={NAVY}
-          onLogout={() => logout().then(() => router.replace('/(auth)/login' as any))}
-        />
-      </View>
-      <DirectorDashboardInner onScroll={handleScroll} />
-    </View>
+    <DirectorTabScreen
+      title="Dashboard"
+      headerRight={
+        <Pressable
+          onPress={() => logout().then(() => router.replace('/(auth)/login' as any))}
+          hitSlop={8}
+          style={{ padding: 4 }}
+        >
+          <Feather name="log-out" size={18} color={MUTED} />
+        </Pressable>
+      }
+    >
+      <DirectorDashboardInner />
+    </DirectorTabScreen>
   );
 }
 
 export default function DirectorHome() {
   const { user } = useAuth();
   const role = user?.role;
-  useFocusStatusBar(role === 'staff' || role === 'manager' ? 'dark-content' : 'light-content');
+  useFocusStatusBar('dark-content');
   if (role === 'staff' || role === 'manager') {
     return <StaffDashboard />;
   }
