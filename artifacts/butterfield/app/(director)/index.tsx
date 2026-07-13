@@ -25,6 +25,11 @@ const GLASS_SHADOW = {
 
 // ── Director/Master dashboard ─────────────────────────────────────────────────
 function DirectorDashboardInner({ onScroll }: { onScroll?: (e: any) => void }) {
+  const { user } = useAuth();
+  const greeting = (() => { const h = new Date().getHours(); return h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening'; })();
+  const firstName = user?.name?.split(' ')[0] ?? 'Director';
+  const dateLabel = new Date().toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Australia/Sydney' });
+
   const { data, isLoading, refetch } = useQuery({
     queryKey: ['director-stats'],
     queryFn: () => api.director.stats(),
@@ -91,10 +96,15 @@ function DirectorDashboardInner({ onScroll }: { onScroll?: (e: any) => void }) {
       onScroll={onScroll}
       scrollEventThrottle={16}
     >
-      <View style={{ paddingHorizontal: 16, gap: 16, paddingTop: 14 }}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-          <Text style={{ fontSize: 28, fontWeight: '700', color: TEXT, flex: 1 }}>Dashboard</Text>
-          {isLoading && <ActivityIndicator color={BLUE} size="small" />}
+      <View style={{ paddingHorizontal: 16, gap: 16, paddingTop: 20 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 10 }}>
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontSize: 32, fontWeight: '700', color: TEXT, letterSpacing: -0.5, lineHeight: 38 }}>
+              {greeting},{'\n'}{firstName}
+            </Text>
+            <Text style={{ fontSize: 15, color: MUTED, marginTop: 4, fontWeight: '500' }}>{dateLabel}</Text>
+          </View>
+          {isLoading && <ActivityIndicator color={BLUE} size="small" style={{ marginTop: 10 }} />}
         </View>
 
         <>
@@ -434,20 +444,8 @@ const BADGE_COLOR: Record<string, string> = {
 };
 
 function DirectorHomeInner() {
-  const { logout } = useAuth();
   return (
-    <DirectorTabScreen
-      title="Dashboard"
-      headerRight={
-        <Pressable
-          onPress={() => logout().then(() => router.replace('/(auth)/login' as any))}
-          hitSlop={8}
-          style={{ padding: 4 }}
-        >
-          <Feather name="log-out" size={18} color={MUTED} />
-        </Pressable>
-      }
-    >
+    <DirectorTabScreen title="Dashboard" hideHeader>
       <DirectorDashboardInner />
     </DirectorTabScreen>
   );
