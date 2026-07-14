@@ -25,6 +25,7 @@ export { default as DownloadReportModal }   from './DownloadReportModal';
 export { default as AnalyticsTab }          from './AnalyticsTab';
 export { default as RegisterReportsTab }    from './RegisterReportsTab';
 export { default as FeedbackTab }           from './FeedbackTab';
+export { default as ExportCentreTab }       from './ExportCentreTab';
 
 // ── Orders ───────────────────────────────────────────────────────────────────
 export { default as OrderDetailModal }      from './OrderDetailModal';
