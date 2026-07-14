@@ -128,7 +128,6 @@ export default function DirectorLayout() {
           <Tabs.Screen name="index"    options={{ title: 'Dashboard' }} />
           <Tabs.Screen name="orders"   options={{ title: 'Orders', href: isStaff && !canViewOrders ? null : undefined }} />
           <Tabs.Screen name="schedule" options={{ title: 'Schedule',  href: isStaff ? undefined : null }} />
-          <Tabs.Screen name="scan"     options={{ title: 'Scan',      href: null }} />
           <Tabs.Screen name="tasks"    options={{ title: 'Staff Hub', href: null }} />
           <Tabs.Screen name="staffhub" options={{ title: 'Staff Hub' }} />
           <Tabs.Screen name="profile"  options={{ title: 'Profile',   href: isStaff ? undefined : null }} />
@@ -156,7 +155,6 @@ export default function DirectorLayout() {
           <Tabs.Screen name="build-a-box"      options={{ href: mgrHref('products') }} />
 
           {/* Always hidden for staff/manager */}
-          <Tabs.Screen name="linkly"              options={{ href: null }} />
           <Tabs.Screen name="_staff-dashboard"    options={{ href: null }} />
           <Tabs.Screen name="_crmCustomersTab"    options={{ href: null }} />
           <Tabs.Screen name="more-category"                  options={{ href: null }} />
@@ -204,8 +202,6 @@ export default function DirectorLayout() {
           options={{ title: 'More',     tabBarIcon: ({ color, size }) => <Ionicons name="grid"          size={size} color={color} /> }} />
         {/* Hidden for director/master */}
         <Tabs.Screen name="schedule"         options={{ href: null }} />
-        <Tabs.Screen name="linkly"           options={{ href: null }} />
-        <Tabs.Screen name="scan"             options={{ href: null }} />
         <Tabs.Screen name="tasks"            options={{ href: null }} />
         <Tabs.Screen name="staffhub"         options={{ href: null }} />
         <Tabs.Screen name="profile"          options={{ href: null }} />

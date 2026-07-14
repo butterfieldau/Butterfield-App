@@ -144,8 +144,6 @@ const ALL_CATEGORIES: Category[] = [
         items: [
           { icon: 'monitor',  label: 'POS Devices',      sub: 'Counter iPad logins, store assignments & permissions', color: BLUE,   directorOnly: true, onPress: () => router.push({ pathname: '/(director)/users', params: { mode: 'pos' } } as any) },
           { icon: 'server',   label: 'Kitchen Printers', sub: 'Kitchen display & order tickets',                      color: BLUE,   directorOnly: true, soon: true },
-          { icon: 'tag',      label: 'Label Printers',   sub: 'Product label & barcode printers',                     color: BLUE,   directorOnly: true, soon: true },
-          { icon: 'maximize', label: 'Scanner Devices',  sub: 'Barcode & QR scanners',                                color: BLUE,   directorOnly: true, soon: true },
         ],
       },
     ],

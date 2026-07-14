@@ -75,8 +75,6 @@ function buildSections(
       items: [
         { icon: 'settings',      label: 'Settings',        iconColor: '#8E8E93',                   onPress: () => router.push('/(director)/settings' as any) },
         { icon: 'map-pin',       label: 'Stores',           iconColor: '#007AFF', perm: 'settings', onPress: () => router.push('/director-store-locations' as any) },
-        { icon: 'credit-card',   label: 'Linkly Terminal',  iconColor: '#34C759', directorOnly: true, onPress: () => router.push('/(director)/linkly' as any) },
-        { icon: 'maximize',      label: 'Scan',             iconColor: '#5856D6', directorOnly: true, onPress: () => router.push('/(director)/scan' as any) },
       ],
     },
     {
