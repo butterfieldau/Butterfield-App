@@ -129,13 +129,24 @@ export default function PayRun() {
                 ))}
               </div>
 
-              {/* Action row for pending */}
-              {s.status === 'pending' && (
-                <div style={{ borderTop: `1px solid ${BORDER}`, padding: '8px 14px', display: 'flex', gap: 8 }}>
-                  <button style={{ flex: 1, padding: '7px 0', borderRadius: 8, border: `1px solid ${GREEN}`, background: `${GREEN}12`, color: GREEN, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>✓ Approve</button>
-                  <button style={{ padding: '7px 14px', borderRadius: 8, border: `1px solid ${BORDER}`, background: BG, color: MUTED, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>Edit</button>
-                </div>
-              )}
+              {/* Action row — always visible */}
+              <div style={{ borderTop: `1px solid ${BORDER}`, padding: '8px 14px', display: 'flex', gap: 8 }}>
+                {s.status === 'pending' ? (
+                  <>
+                    <button style={{ flex: 1, padding: '7px 0', borderRadius: 8, border: `1px solid ${GREEN}`, background: `${GREEN}12`, color: GREEN, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>✓ Approve</button>
+                    <button style={{ padding: '7px 10px', borderRadius: 8, border: `1px solid ${BLUE}`, background: `${BLUE}10`, color: BLUE, fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>
+                      <svg width="12" height="12" fill="none" viewBox="0 0 24 24"><path stroke={BLUE} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" d="M12 3v12m0 0l-4-4m4 4l4-4M3 19h18"/></svg>
+                      Pay Slip
+                    </button>
+                    <button style={{ padding: '7px 10px', borderRadius: 8, border: `1px solid ${BORDER}`, background: BG, color: MUTED, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>Edit</button>
+                  </>
+                ) : (
+                  <button style={{ flex: 1, padding: '7px 0', borderRadius: 8, border: `1px solid ${BLUE}`, background: `${BLUE}10`, color: BLUE, fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                    <svg width="13" height="13" fill="none" viewBox="0 0 24 24"><path stroke={BLUE} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" d="M12 3v12m0 0l-4-4m4 4l4-4M3 19h18"/></svg>
+                    Download Pay Slip PDF
+                  </button>
+                )}
+              </div>
             </div>
           );
         })}
