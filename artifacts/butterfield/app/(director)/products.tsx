@@ -239,7 +239,6 @@ export default function DirectorProductsScreen() {
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
-            style={{ height: 54, flexShrink: 0 }}
             contentContainerStyle={{ paddingHorizontal: 16, paddingVertical: 10, gap: 8, alignItems: 'center' }}
           >
             {/* Status pills */}
@@ -281,7 +280,7 @@ export default function DirectorProductsScreen() {
             <ScrollView
               showsVerticalScrollIndicator={false}
               style={{ flex: 1 }}
-              contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 4, paddingBottom: 170, flexGrow: 1 }}
+              contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 4, paddingBottom: 170 }}
               refreshControl={<RefreshControl refreshing={productsRefreshing} onRefresh={onRefreshProducts} tintColor={BLUE} />}
               nestedScrollEnabled
             >
