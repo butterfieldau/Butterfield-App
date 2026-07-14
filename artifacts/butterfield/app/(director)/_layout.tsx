@@ -14,7 +14,6 @@ import { BG, BLUE, NAVY } from '@/constants/directorColors';
 const STAFF_TAB_CONFIG = {
   index:    { icon: 'home',          title: 'Dashboard' },
   orders:   { icon: 'bag',           title: 'Orders'    },
-  schedule: { icon: 'calendar',      title: 'Schedule'  },
   products: { icon: 'cube',          title: 'Products'  },
   scan:     { icon: 'scan',          title: 'Scan'      },
   staffhub: { icon: 'people',        title: 'Staff Hub' },
@@ -88,8 +87,8 @@ export default function DirectorLayout() {
         'more',
       ]
     : canViewOrders
-      ? ['index', 'orders', 'schedule', 'staffhub', 'profile']
-      : ['index', 'schedule', 'staffhub', 'profile'];
+      ? ['index', 'orders', 'staffhub', 'profile']
+      : ['index', 'staffhub', 'profile'];
 
   const badgeLabel = isStaff   ? 'STAFF'
                    : isManager ? 'STORE MANAGER'
@@ -127,7 +126,6 @@ export default function DirectorLayout() {
         >
           <Tabs.Screen name="index"    options={{ title: 'Dashboard' }} />
           <Tabs.Screen name="orders"   options={{ title: 'Orders', href: isStaff && !canViewOrders ? null : undefined }} />
-          <Tabs.Screen name="schedule" options={{ title: 'Schedule',  href: isStaff ? undefined : null }} />
           <Tabs.Screen name="tasks"    options={{ title: 'Staff Hub', href: null }} />
           <Tabs.Screen name="staffhub" options={{ title: 'Staff Hub' }} />
           <Tabs.Screen name="profile"  options={{ title: 'Profile',   href: isStaff ? undefined : null }} />
@@ -201,7 +199,6 @@ export default function DirectorLayout() {
           listeners={rootTabListeners(DIRECTOR_ROOT_TAB_PATHS.more)}
           options={{ title: 'More',     tabBarIcon: ({ color, size }) => <Ionicons name="grid"          size={size} color={color} /> }} />
         {/* Hidden for director/master */}
-        <Tabs.Screen name="schedule"         options={{ href: null }} />
         <Tabs.Screen name="tasks"            options={{ href: null }} />
         <Tabs.Screen name="staffhub"         options={{ href: null }} />
         <Tabs.Screen name="profile"          options={{ href: null }} />
