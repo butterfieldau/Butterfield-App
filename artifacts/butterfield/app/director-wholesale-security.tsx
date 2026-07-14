@@ -32,10 +32,9 @@ const EVENT_LABELS: Record<string, string> = {
 };
 
 function fmtDate(ts: string) {
-  return new Date(ts).toLocaleString('en-AU', {
+  return new Date(ts).toLocaleString([], {
     day: '2-digit', month: 'short', year: 'numeric',
     hour: '2-digit', minute: '2-digit',
-    timeZone: 'Australia/Sydney',
   });
 }
 

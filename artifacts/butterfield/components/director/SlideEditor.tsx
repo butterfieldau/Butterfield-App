@@ -27,7 +27,7 @@ const BANNER_ROUTE_OPTIONS = [
 ];
 
 function sydneyToday(): string {
-  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Australia/Sydney' }).format(new Date());
+  return new Date().toLocaleDateString('en-CA');
 }
 function isScheduledFuture(slide: HomeBannerSlide): boolean {
   if (!slide.isActive || !slide.activeFrom) return false;

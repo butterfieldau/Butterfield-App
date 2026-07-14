@@ -1,10 +1,9 @@
 import type { ApiOrder } from '@/lib/api';
 import { Linking, Alert, Platform } from 'react-native';
 
-const SYD_TZ = 'Australia/Sydney';
-
+/** Returns YYYY-MM-DD for a date in the device's local timezone (for display grouping). */
 export function sydDate(d: Date | string): string {
-  return new Date(d).toLocaleDateString('en-CA', { timeZone: SYD_TZ });
+  return new Date(d).toLocaleDateString('en-CA');
 }
 
 export function isSameDay(a: Date | string, b: Date | string): boolean {
@@ -22,7 +21,7 @@ export function isThisWeek(d: Date | string): boolean {
 
 export function fmtTime(iso: string | Date) {
   const d = typeof iso === 'string' ? new Date(iso) : iso;
-  return d.toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'Australia/Sydney' });
+  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
 }
 
 export function fmtDateChip(d: Date): string {
@@ -30,17 +29,17 @@ export function fmtDateChip(d: Date): string {
   const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000);
   if (isSameDay(d, today))     return 'Today';
   if (isSameDay(d, yesterday)) return 'Yesterday';
-  return d.toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short', timeZone: SYD_TZ });
+  return d.toLocaleDateString([], { weekday: 'short', day: 'numeric', month: 'short' });
 }
 
 export function sydneyDateStr(): string {
-  return new Date().toLocaleDateString('en-CA', { timeZone: SYD_TZ });
+  return new Date().toLocaleDateString('en-CA');
 }
 
 export function shiftPosDate(dateStr: string, days: number): string {
   const d = new Date(dateStr + 'T12:00:00');
   d.setDate(d.getDate() + days);
-  return d.toLocaleDateString('en-CA', { timeZone: SYD_TZ });
+  return d.toLocaleDateString('en-CA');
 }
 
 export function fmtCents(cents: number) {
@@ -53,7 +52,7 @@ export function formatPosDay(dateStr: string): string {
   const yesterday = shiftPosDate(today, -1);
   if (dateStr === yesterday) return 'Yesterday';
   const d = new Date(dateStr + 'T12:00:00');
-  return d.toLocaleDateString('en-AU', { timeZone: 'Australia/Sydney', weekday: 'long', day: 'numeric', month: 'short' });
+  return d.toLocaleDateString([], { weekday: 'long', day: 'numeric', month: 'short' });
 }
 
 export function getPosPaymentLabel(method: string | undefined, splits: unknown): string {

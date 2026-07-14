@@ -292,8 +292,7 @@ export function StaffDashboard() {
   const weekEarnings = stats ? ((stats.weekEarningsCents ?? 0) / 100).toFixed(2) : '0.00';
 
   const allOrders = ordersData?.data ?? [];
-  const sydNow = new Date(new Date().toLocaleString('en-US', { timeZone: 'Australia/Sydney' }));
-  const todayStr = sydNow.toDateString();
+  const todayStr = new Date().toDateString();
   const todayScheduled = allOrders
     .filter((o: any) => {
       if (!o.scheduledFor) return false;
@@ -303,7 +302,7 @@ export function StaffDashboard() {
 
   const scheduleGroups: { time: string; orders: any[] }[] = [];
   todayScheduled.forEach((o: any) => {
-    const t = new Date(o.scheduledFor).toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit', timeZone: 'Australia/Sydney' });
+    const t = new Date(o.scheduledFor).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     const existing = scheduleGroups.find((g) => g.time === t);
     if (existing) existing.orders.push(o);
     else scheduleGroups.push({ time: t, orders: [o] });

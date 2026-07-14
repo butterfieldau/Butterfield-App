@@ -85,17 +85,17 @@ const STAGES_DELIVERY = [
 ];
 
 function fmtDate(iso: string) {
-  return new Date(iso).toLocaleString('en-AU', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'Australia/Sydney' });
+  return new Date(iso).toLocaleString([], { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
 }
 function fmtShort(iso: string) {
   const d = new Date(iso);
   return {
-    date: d.toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Australia/Sydney' }),
-    time: d.toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'Australia/Sydney' }),
+    date: d.toLocaleDateString([], { weekday: 'short', day: 'numeric', month: 'short' }),
+    time: d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true }),
   };
 }
 function sydDateKey(iso: string): string {
-  return new Date(iso).toLocaleDateString('en-CA', { timeZone: 'Australia/Sydney' });
+  return new Date(iso).toLocaleDateString('en-CA');
 }
 function elapsedLabel(iso: string): string {
   const mins = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
@@ -105,8 +105,8 @@ function elapsedLabel(iso: string): string {
   return `${hrs}h ${mins % 60}m`;
 }
 function fmtSectionTitle(dateKey: string): string {
-  const today     = new Date().toLocaleDateString('en-CA', { timeZone: 'Australia/Sydney' });
-  const yesterday = new Date(Date.now() - 86400000).toLocaleDateString('en-CA', { timeZone: 'Australia/Sydney' });
+  const today     = new Date().toLocaleDateString('en-CA');
+  const yesterday = new Date(Date.now() - 86400000).toLocaleDateString('en-CA');
   if (dateKey === today)     return 'Today';
   if (dateKey === yesterday) return 'Yesterday';
   const [y, m, d] = dateKey.split('-').map(Number);
@@ -451,7 +451,7 @@ function PastOrderCard({ order, onPress, onReorder }: { order: ApiOrder; onPress
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
           <Feather name="clock" size={11} color={MUTED} />
           <Text style={{ fontSize: 12, color: MUTED }}>
-            {new Date(order.createdAt).toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'Australia/Sydney' })}
+            {new Date(order.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })}
           </Text>
           <Text style={{ fontSize: 12, color: MUTED }}>
             · {order.type === 'delivery' ? '🚗 Delivery' : '🛍️ Pickup'}

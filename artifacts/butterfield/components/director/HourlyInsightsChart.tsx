@@ -70,12 +70,7 @@ export default function HourlyInsightsChart({
     return Math.max(8, Math.min(barCenter - CALLOUT_W / 2, cw - CALLOUT_W - 8));
   })() : 0;
 
-  const nowHour = parseInt(
-    new Intl.DateTimeFormat('en-AU', {
-      hour: 'numeric', hour12: false, timeZone: 'Australia/Sydney',
-    }).format(new Date()),
-    10,
-  );
+  const nowHour = new Date().getHours();
 
   const maxRev  = Math.max(...hours.filter(h => h.hour >= HOUR_START && h.hour <= HOUR_END).map(h => h.revenueCents), 1);
   const maxLW   = Math.max(...lastWeekHourly.filter(h => h.hour >= HOUR_START && h.hour <= HOUR_END).map(h => h.revenueCents), 1);

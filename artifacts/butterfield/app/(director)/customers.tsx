@@ -73,7 +73,7 @@ function fmtDate(iso: string | null | undefined) {
   return new Date(iso).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 function fmtDateTime(iso: string | null | undefined) {
-  return new Date(iso ?? '').toLocaleString('en-AU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'Australia/Sydney' });
+  return new Date(iso ?? '').toLocaleString([], { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
 }
 function formatCardBrand(brand: string | null | undefined) {
   if (!brand) return 'Card';

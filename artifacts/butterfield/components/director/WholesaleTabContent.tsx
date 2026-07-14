@@ -113,7 +113,7 @@ function WholesaleOrderCard({ order, onPress }: { order: ApiOrder; onPress: () =
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 }}>
               <Feather name="truck" size={11} color={isOverdue ? RED : TEXT_FAINT} />
               <Text style={{ fontSize: 11, color: isOverdue ? RED : TEXT_MUTED, fontWeight: '500' }}>
-                {new Date((order as any).scheduledDate).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' })}
+                {new Date((order as any).scheduledDate).toLocaleDateString([], { day: 'numeric', month: 'short', year: 'numeric' })}
               </Text>
             </View>
           )}

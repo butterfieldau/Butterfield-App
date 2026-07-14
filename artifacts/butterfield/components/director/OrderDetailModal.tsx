@@ -115,8 +115,8 @@ export default function OrderDetailModal({ order, visible, onClose, onStatusChan
                 : (order.orderNumber ?? `#${order.id.slice(0, 8).toUpperCase()}`)}
             </Text>
             <Text style={{ color: MUTED, fontWeight: '400', fontSize: 12 }}>
-              {new Date(order.createdAt).toLocaleDateString('en-AU', {
-                weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Australia/Sydney',
+              {new Date(order.createdAt).toLocaleDateString([], {
+                weekday: 'short', day: 'numeric', month: 'short', year: 'numeric',
               })} · {fmtTime(order.createdAt)}
             </Text>
           </View>
@@ -132,8 +132,8 @@ export default function OrderDetailModal({ order, visible, onClose, onStatusChan
               {order.scheduledFor && (
                 <Text style={{ fontSize: 13, color: '#92400E', fontWeight: '400' }}>
                   {order.type === 'delivery' ? 'Delivery' : 'Pickup'} scheduled for{' '}
-                  {new Date(order.scheduledFor).toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Australia/Sydney' })}
-                  {order.type !== 'delivery' ? ` at ${new Date(order.scheduledFor).toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'Australia/Sydney' })}` : ''}
+                  {new Date(order.scheduledFor).toLocaleDateString([], { weekday: 'long', day: 'numeric', month: 'long' })}
+                  {order.type !== 'delivery' ? ` at ${new Date(order.scheduledFor).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true })}` : ''}
                 </Text>
               )}
               <Pressable
@@ -160,8 +160,8 @@ export default function OrderDetailModal({ order, visible, onClose, onStatusChan
             <View style={{ backgroundColor: '#DCFCE7', borderRadius: 14, padding: 14, borderWidth: 1, borderColor: '#86EFAC', flexDirection: 'row', alignItems: 'center', gap: 8 }}>
               <Feather name="check-circle" size={16} color="#166534" />
               <Text style={{ fontSize: 13, fontWeight: '600', color: '#166534', flex: 1 }}>
-                Confirmed for {new Date(order.scheduledFor).toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Australia/Sydney' })}
-                {order.type !== 'delivery' ? ` at ${new Date(order.scheduledFor).toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'Australia/Sydney' })}` : ''}
+                Confirmed for {new Date(order.scheduledFor).toLocaleDateString([], { weekday: 'long', day: 'numeric', month: 'long' })}
+                {order.type !== 'delivery' ? ` at ${new Date(order.scheduledFor).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true })}` : ''}
               </Text>
             </View>
           )}
@@ -274,7 +274,7 @@ export default function OrderDetailModal({ order, visible, onClose, onStatusChan
                 <View style={styles.detailRow}>
                   <Feather name="calendar" size={14} color={MUTED} />
                   <Text style={styles.detailText}>
-                    {new Date(order.scheduledDate).toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Australia/Sydney' })}
+                    {new Date(order.scheduledDate).toLocaleDateString([], { weekday: 'long', day: 'numeric', month: 'long' })}
                   </Text>
                 </View>
               )}
@@ -339,7 +339,7 @@ export default function OrderDetailModal({ order, visible, onClose, onStatusChan
                     <Text style={{ color: MUTED, fontWeight: '400', fontSize: 12 }}>Receipt sent</Text>
                   </View>
                   <Text style={{ color: GREEN, fontWeight: '500', fontSize: 12 }}>
-                    {new Date(order.receiptEmailSentAt).toLocaleString('en-AU', { timeZone: 'Australia/Sydney', day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit' })}
+                    {new Date(order.receiptEmailSentAt).toLocaleString([], { day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit' })}
                   </Text>
                 </View>
               ) : isWholesale && order.isPaid ? (

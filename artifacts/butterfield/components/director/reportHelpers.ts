@@ -1,7 +1,7 @@
 import type { RegisterSessionReport } from '@/lib/api';
 
 export function toYMD(d: Date): string {
-  return d.toLocaleDateString('en-CA', { timeZone: 'Australia/Sydney' });
+  return d.toLocaleDateString('en-CA');
 }
 
 export function fmtAUD(cents: number) {
@@ -9,19 +9,19 @@ export function fmtAUD(cents: number) {
 }
 
 export function fmtDate(iso: string) {
-  return new Date(iso).toLocaleString('en-AU', { timeZone: 'Australia/Sydney', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+  return new Date(iso).toLocaleString([], { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
 }
 
 export function fmtDateShort(iso: string) {
   const d = new Date(iso);
-  if (!isNaN(d.getTime())) return d.toLocaleDateString('en-AU', { timeZone: 'Australia/Sydney', day: 'numeric', month: 'short' });
+  if (!isNaN(d.getTime())) return d.toLocaleDateString([], { day: 'numeric', month: 'short' });
   return iso;
 }
 
 export function fmtDisplayDate(iso: string): string {
   const d = new Date(iso);
   if (isNaN(d.getTime())) return iso;
-  return d.toLocaleDateString('en-AU', { timeZone: 'Australia/Sydney', day: 'numeric', month: 'short', year: 'numeric' });
+  return d.toLocaleDateString([], { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
 export function fmtHour(h: number): string {
@@ -54,8 +54,7 @@ export function fmtDateTime(iso: string | null | undefined) {
   if (!iso) return 'Not recorded';
   const d = new Date(iso);
   if (isNaN(d.getTime())) return 'Not recorded';
-  return d.toLocaleString('en-AU', {
-    timeZone: 'Australia/Sydney',
+  return d.toLocaleString([], {
     day: 'numeric',
     month: 'short',
     year: 'numeric',
@@ -119,10 +118,9 @@ export function buildZReportHtml(report: RegisterSessionReport): string {
     if (!iso) return 'Not recorded';
     const d = new Date(iso);
     if (isNaN(d.getTime())) return 'Not recorded';
-    return d.toLocaleString('en-AU', {
+    return d.toLocaleString([], {
       day: 'numeric', month: 'short', year: 'numeric',
       hour: '2-digit', minute: '2-digit',
-      timeZone: 'Australia/Sydney',
     });
   };
 
@@ -294,7 +292,7 @@ export function buildZReportHtml(report: RegisterSessionReport): string {
     </div>` : ''}
 
     <div class="footer">
-      Butterfield Cookies &bull; Generated ${new Date().toLocaleString('en-AU', { timeZone: 'Australia/Sydney', day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })} AEST
+      Butterfield Cookies &bull; Generated ${new Date().toLocaleString([], { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
     </div>
   </div>
 </body>

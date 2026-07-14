@@ -430,7 +430,7 @@ router.post('/', async (req, res) => {
   if (requiresAcceptance) {
     const scheduledDateLabel = scheduledFor
       ? new Date(scheduledFor).toLocaleDateString('en-AU', {
-          timeZone: 'Australia/Sydney', weekday: 'short', day: 'numeric', month: 'short',
+          weekday: 'short', day: 'numeric', month: 'short',
         })
       : null;
     const orderTypeLabel = resolvedOrderType === 'delivery' ? 'Delivery' : 'Pickup';
@@ -499,18 +499,21 @@ router.post('/', async (req, res) => {
           orderType: order.type as 'pickup' | 'delivery',
           scheduledFor: order.scheduledFor ? order.scheduledFor.toISOString() : null,
           storeName: selectedStore?.name ?? null,
-          date: new Date().toLocaleString('en-AU', { timeZone: 'Australia/Sydney', day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
+          date: new Date().toLocaleString('en-AU', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
           trackingUrl: appDomain ? `https://${appDomain}` : null,
           paymentMethodType: resolvedPaymentMethod,
         });
         const emailSubject = resolvedPaymentMethod === 'pay_at_pickup'
           ? `Order Received — Pay at Pickup · #${order.orderNumber || order.id.slice(-6).toUpperCase()}`
           : `Order confirmed — #${order.orderNumber || order.id.slice(-6).toUpperCase()}`;
-        await sendEmail({
+        const { success: confirmEmailSent, error: confirmEmailErr } = await sendEmail({
           to: user.email,
           subject: emailSubject,
           html,
         });
+        if (!confirmEmailSent) {
+          req.log.error({ orderId: order.id, to: user.email, template: 'order_confirmation', error: confirmEmailErr }, 'Order confirmation email failed to send');
+        }
       }
     } catch (err) {
       req.log.warn({ err, orderId: order.id }, 'Order confirmation email failed');
@@ -635,14 +638,17 @@ router.patch(
               loyaltyPointsBalance: profile?.loyaltyPoints ?? 0,
               orderType: order.type as 'pickup' | 'delivery',
               scheduledFor: order.scheduledFor ? order.scheduledFor.toISOString() : null,
-              date: new Date().toLocaleString('en-AU', { timeZone: 'Australia/Sydney', day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
+              date: new Date().toLocaleString('en-AU', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
               orderUrl: appDomain ? `https://${appDomain}` : null,
             });
-            await sendEmail({
+            const { success: receiptSent, error: receiptErr } = await sendEmail({
               to: user.email,
               subject: `Your Butterfield receipt — #${order.orderNumber || order.id.slice(-6).toUpperCase()}`,
               html,
             });
+            if (!receiptSent) {
+              req.log.error({ orderId: order.id, to: user.email, template: 'order_receipt', error: receiptErr }, 'Order receipt email failed to send');
+            }
           }
         } catch (err) {
           req.log.warn({ err, orderId: order.id }, 'Order receipt email failed');

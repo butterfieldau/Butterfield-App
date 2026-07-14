@@ -81,8 +81,8 @@ function getStageIndex(status: string, stages: Stage[]): number {
 
 function formatDate(iso: string) {
   const d = new Date(iso);
-  return d.toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Australia/Sydney' }) +
-    ' · ' + d.toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit', timeZone: 'Australia/Sydney' });
+  return d.toLocaleDateString([], { weekday: 'short', day: 'numeric', month: 'short' }) +
+    ' · ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }
 
 function AnimatedStep({ stage, index, currentIndex, totalStages, colors }: {
@@ -370,7 +370,7 @@ export default function TrackOrderScreen() {
               <View style={[styles.pickupRow, { borderTopColor: colors.border }]}>
                 <Feather name="clock" size={13} color={colors.primary} />
                 <Text style={[styles.pickupText, { color: colors.foreground }]}>
-                  {orderType === 'delivery' ? 'Delivery' : 'Pickup'}: {new Date(order.scheduledFor).toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit', timeZone: 'Australia/Sydney' })}
+                  {orderType === 'delivery' ? 'Delivery' : 'Pickup'}: {new Date(order.scheduledFor).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                 </Text>
               </View>
             )}

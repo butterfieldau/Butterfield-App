@@ -27,7 +27,7 @@ import DirectorOrderDetailModal from '@/components/director/DirectorOrderDetailM
 import { WholesaleTabContent } from '@/components/director/WholesaleTabContent';
 import {
   sydneyDateStr, getErrorMessage, fmtHourLabel, sydDate, isSameDay,
-  isThisMonth, isThisWeek, getOrderTimelineDate, fmtDateChip, fmtCents,
+  isThisMonth, isThisWeek, getOrderTimelineDate, fmtDateChip, fmtCents, fmtTime,
 } from '@/components/director/ordersHelpers';
 import { styles } from '@/components/director/directorOrdersStyles';
 import {
@@ -117,7 +117,7 @@ function OrderListRow({ order, isLast, onPress }: { order: ApiOrder; isLast?: bo
   const items = normalizeOrderItems(order.items);
   const itemCount = items.reduce((s, item) => s + (item.quantity ?? 1), 0);
   const orderType = order.type === 'delivery' || order.deliveryType === 'delivery' ? 'Delivery' : 'Pickup';
-  const timeLabel = new Date(order.createdAt).toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit', timeZone: 'Australia/Sydney' });
+  const timeLabel = fmtTime(order.createdAt);
 
   return (
     <Pressable

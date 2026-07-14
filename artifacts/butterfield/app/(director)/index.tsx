@@ -24,7 +24,7 @@ function DirectorDashboardInner({ onScroll }: { onScroll?: (e: any) => void }) {
   const { user } = useAuth();
   const greeting = (() => { const h = new Date().getHours(); return h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening'; })();
   const firstName = user?.name?.split(' ')[0] ?? 'Director';
-  const dateLabel = new Date().toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Australia/Sydney' });
+  const dateLabel = new Date().toLocaleDateString([], { weekday: 'long', day: 'numeric', month: 'long' });
 
   const { data, isLoading, refetch } = useQuery({
     queryKey: ['director-stats'],

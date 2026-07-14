@@ -220,8 +220,8 @@ export default function DirectorOrderDetailModal({
               <Text style={d.heroOrder}>{orderRef}</Text>
               {order.customerName && <Text style={d.heroName}>{order.customerName}</Text>}
               <Text style={d.heroDate}>
-                {new Date(order.createdAt).toLocaleDateString('en-AU', {
-                  weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Australia/Sydney',
+                {new Date(order.createdAt).toLocaleDateString([], {
+                  weekday: 'short', day: 'numeric', month: 'short', year: 'numeric',
                 })} · {fmtTime(order.createdAt)}
               </Text>
             </View>
@@ -270,8 +270,8 @@ export default function DirectorOrderDetailModal({
               {order.scheduledFor && (
                 <Text style={{ fontSize: 13, color: AMBER }}>
                   {order.type === 'delivery' ? 'Delivery' : 'Pickup'} scheduled for{' '}
-                  {new Date(order.scheduledFor).toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Australia/Sydney' })}
-                  {order.type !== 'delivery' ? ` at ${new Date(order.scheduledFor).toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'Australia/Sydney' })}` : ''}
+                  {new Date(order.scheduledFor).toLocaleDateString([], { weekday: 'long', day: 'numeric', month: 'long' })}
+                  {order.type !== 'delivery' ? ` at ${new Date(order.scheduledFor).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true })}` : ''}
                 </Text>
               )}
               <Pressable
@@ -299,8 +299,8 @@ export default function DirectorOrderDetailModal({
             <View style={{ backgroundColor: GREEN_DIM, borderRadius: 14, padding: 14, borderWidth: 1, borderColor: GREEN + '50', flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 16 }}>
               <Feather name="check-circle" size={16} color={GREEN} />
               <Text style={{ fontSize: 13, fontWeight: '600', color: GREEN, flex: 1 }}>
-                Confirmed for {new Date(order.scheduledFor).toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Australia/Sydney' })}
-                {order.type !== 'delivery' ? ` at ${new Date(order.scheduledFor).toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'Australia/Sydney' })}` : ''}
+                Confirmed for {new Date(order.scheduledFor).toLocaleDateString([], { weekday: 'long', day: 'numeric', month: 'long' })}
+                {order.type !== 'delivery' ? ` at ${new Date(order.scheduledFor).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true })}` : ''}
               </Text>
             </View>
           )}
@@ -535,7 +535,7 @@ export default function DirectorOrderDetailModal({
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
                     <Feather name="calendar" size={15} color={TEXT_MUTED} />
                     <Text style={{ fontSize: 14, color: TEXT }}>
-                      {new Date(order.scheduledDate).toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Australia/Sydney' })}
+                      {new Date(order.scheduledDate).toLocaleDateString([], { weekday: 'long', day: 'numeric', month: 'long' })}
                     </Text>
                   </View>
                 )}

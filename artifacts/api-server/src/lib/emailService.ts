@@ -43,7 +43,7 @@ interface SendEmailOptions {
   attachments?: EmailAttachment[];
 }
 
-export async function sendEmail(opts: SendEmailOptions): Promise<{ success: boolean }> {
+export async function sendEmail(opts: SendEmailOptions): Promise<{ success: boolean; error?: string }> {
   // Connector from_email is authoritative when using the proxy; env var is for the SDK fallback.
   const connectorFrom = await getConnectorFromEmail();
 
@@ -98,8 +98,9 @@ export async function sendEmail(opts: SendEmailOptions): Promise<{ success: bool
   if (!connectorUnavailable) return { success: false };
   const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey) {
-    console.warn('[emailService] Resend not configured — email not sent (no connector or RESEND_API_KEY).');
-    return { success: false };
+    const msg = '[emailService] Email delivery failed: Resend connector is unavailable and RESEND_API_KEY is not set. Connect the Resend integration or set RESEND_API_KEY to enable email sending.';
+    console.error(msg);
+    return { success: false, error: msg };
   }
   try {
     const fromEmail = process.env.EMAIL_FROM ?? FALLBACK_FROM;

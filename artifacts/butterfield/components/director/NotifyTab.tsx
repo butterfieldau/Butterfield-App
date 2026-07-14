@@ -103,7 +103,7 @@ export function NotifyTab() {
                   <Text style={[styles.chipText, { color: MUTED, fontSize: 10 }]}>{r}</Text>
                 </View>
               ))}
-              <Text style={styles.annDate}>{new Date(a.createdAt).toLocaleDateString('en-AU', { timeZone: 'Australia/Sydney', day: 'numeric', month: 'short', year: 'numeric' })}</Text>
+              <Text style={styles.annDate}>{new Date(a.createdAt).toLocaleDateString([], { day: 'numeric', month: 'short', year: 'numeric' })}</Text>
             </View>
             <View style={styles.rewardActions}>
               <Pressable onPress={() => openEdit(a)} style={[styles.actionBtn, { borderColor: BLUE + '40', backgroundColor: '#EBF8FF' }]}>

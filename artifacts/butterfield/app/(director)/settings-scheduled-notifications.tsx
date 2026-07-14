@@ -108,8 +108,8 @@ function toAudienceLabel(record: ScheduledNotificationRecord) {
 function formatSchedule(dateString: string) {
   const date = new Date(dateString);
   return {
-    date: date.toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Australia/Sydney' }),
-    time: date.toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit', timeZone: 'Australia/Sydney' }),
+    date: date.toLocaleDateString([], { day: 'numeric', month: 'short', year: 'numeric' }),
+    time: date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }),
   };
 }
 

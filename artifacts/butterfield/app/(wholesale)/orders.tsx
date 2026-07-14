@@ -451,12 +451,12 @@ export default function WholesaleOrdersScreen() {
       {/* KPI strip */}
       {allOrders.length > 0 && (() => {
         const now = new Date();
-        const monthKey = now.toLocaleDateString('en-CA', { timeZone: 'Australia/Sydney' }).slice(0, 7);
-        const thisMonth = allOrders.filter(o => new Date(o.createdAt).toLocaleDateString('en-CA', { timeZone: 'Australia/Sydney' }).slice(0, 7) === monthKey);
+        const monthKey = now.toLocaleDateString('en-CA').slice(0, 7);
+        const thisMonth = allOrders.filter(o => new Date(o.createdAt).toLocaleDateString('en-CA').slice(0, 7) === monthKey);
         const monthSpend = thisMonth.filter(o => o.status !== 'cancelled').reduce((s: number, o: any) => s + (o.totalCents ?? 0), 0);
         const outstanding = allOrders.filter((o: any) => !o.isPaid && !['cancelled', 'delivered'].includes(o.status));
         const lastOrder = allOrders.length > 0 ? new Date(allOrders[0].createdAt) : null;
-        const lastOrderStr = lastOrder ? lastOrder.toLocaleDateString('en-AU', { day: 'numeric', month: 'short', timeZone: 'Australia/Sydney' }) : '—';
+        const lastOrderStr = lastOrder ? lastOrder.toLocaleDateString([], { day: 'numeric', month: 'short' }) : '—';
 
         return (
           <View style={{ flexDirection: 'row', gap: 8, paddingHorizontal: 16, paddingVertical: 10, backgroundColor: BG }}>
@@ -515,7 +515,7 @@ export default function WholesaleOrdersScreen() {
         const groups: Record<string, any[]> = {};
         for (const o of filteredOrders) {
           const d = new Date(o.createdAt);
-          const key = d.toLocaleDateString('en-AU', { month: 'long', year: 'numeric', timeZone: 'Australia/Sydney' });
+          const key = d.toLocaleDateString([], { month: 'long', year: 'numeric' });
           (groups[key] ??= []).push(o);
         }
         const sections = Object.entries(groups);

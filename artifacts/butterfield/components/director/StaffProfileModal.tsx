@@ -46,8 +46,8 @@ function fmtDateTime(dateStr: string | null | undefined): string {
   if (!dateStr) return '—';
   const d = new Date(dateStr);
   if (isNaN(d.getTime())) return '—';
-  const date = d.toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Australia/Sydney' });
-  const time = d.toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'Australia/Sydney' });
+  const date = d.toLocaleDateString([], { day: 'numeric', month: 'short', year: 'numeric' });
+  const time = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
   return `${date} at ${time}`;
 }
 
@@ -96,9 +96,9 @@ function LoginHistoryInline({ userId }: { userId: string | null }) {
               {ev.ip ? <Text style={{ fontSize: 11, color: MUTED }}>IP: {ev.ip}</Text> : null}
             </View>
             <Text style={{ fontSize: 11, color: MUTED }}>
-              {new Date(ev.createdAt).toLocaleDateString('en-AU', { timeZone: 'Australia/Sydney', day: '2-digit', month: 'short' })}
+              {new Date(ev.createdAt).toLocaleDateString([], { day: '2-digit', month: 'short' })}
               {' '}
-              {new Date(ev.createdAt).toLocaleTimeString('en-AU', { timeZone: 'Australia/Sydney', hour: '2-digit', minute: '2-digit' })}
+              {new Date(ev.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
             </Text>
           </View>
         ))}
@@ -771,11 +771,11 @@ function StaffProfileModal({ userId, visible, onClose, onRefresh, onDelete }: {
                       <View key={shift.id} style={[sp_s.shiftRow, idx < Math.min(recentShifts.length, 10) - 1 && { borderBottomWidth: 1, borderBottomColor: BORDER }]}>
                         <View style={{ flex: 1 }}>
                           <Text style={sp_s.shiftDate}>
-                            {new Date(shift.clockIn).toLocaleDateString('en-AU', { timeZone: 'Australia/Sydney', weekday: 'short', day: 'numeric', month: 'short' })}
+                            {new Date(shift.clockIn).toLocaleDateString([], { weekday: 'short', day: 'numeric', month: 'short' })}
                           </Text>
                           <Text style={sp_s.shiftTime}>
-                            {new Date(shift.clockIn).toLocaleTimeString('en-AU', { timeZone: 'Australia/Sydney', hour: '2-digit', minute: '2-digit', hour12: true })}
-                            {shift.clockOut ? ` – ${new Date(shift.clockOut).toLocaleTimeString('en-AU', { timeZone: 'Australia/Sydney', hour: '2-digit', minute: '2-digit', hour12: true })}` : ' (active)'}
+                            {new Date(shift.clockIn).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })}
+                            {shift.clockOut ? ` – ${new Date(shift.clockOut).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })}` : ' (active)'}
                           </Text>
                         </View>
                         <Text style={[sp_s.shiftHrs, { color: shift.clockOut ? TEXT : GREEN }]}>

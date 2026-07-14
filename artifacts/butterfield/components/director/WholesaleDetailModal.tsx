@@ -34,8 +34,8 @@ function fmtDateTime(dateStr: string | null | undefined): string {
   if (!dateStr) return '—';
   const d = new Date(dateStr);
   if (isNaN(d.getTime())) return '—';
-  const date = d.toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Australia/Sydney' });
-  const time = d.toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'Australia/Sydney' });
+  const date = d.toLocaleDateString([], { day: 'numeric', month: 'short', year: 'numeric' });
+  const time = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
   return `${date} at ${time}`;
 }
 

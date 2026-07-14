@@ -10,8 +10,8 @@ function useLiveClock() {
   const [time, setTime] = useState('');
   useEffect(() => {
     const fmt = () =>
-      new Date().toLocaleTimeString('en-AU', {
-        hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'Australia/Sydney',
+      new Date().toLocaleTimeString([], {
+        hour: '2-digit', minute: '2-digit', hour12: true,
       });
     setTime(fmt());
     const id = setInterval(() => setTime(fmt()), 10000);
@@ -36,7 +36,7 @@ export function PortalHeader({ badge, badgeColor = '#EF4444', backgroundColor = 
   const { user } = useAuth();
   const clock = useLiveClock();
   const todayStr = new Date().toLocaleDateString('en-AU', {
-    weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Australia/Sydney',
+    weekday: 'long', day: 'numeric', month: 'long',
   });
 
   const handleLogout = () => {

@@ -1015,13 +1015,13 @@ router.post('/invoices/:orderId/confirm-payment', async (req, res) => {
         to:      recipientEmail,
         subject: `Payment received – ${invoiceLabel}`,
         html,
-      }).then(({ success }) => {
+      }).then(({ success, error: emailErr }) => {
         if (success) {
           db.update(wholesaleOrdersTable).set({ receiptEmailSentAt: new Date() } as any)
             .where(eq(wholesaleOrdersTable.id, orderId))
             .catch((dbErr: any) => req.log.warn({ dbErr, orderId }, 'receiptEmailSentAt DB update failed (non-fatal)'));
         } else {
-          req.log.warn({ orderId, recipientEmail }, 'Payment receipt email failed to send');
+          req.log.error({ orderId, recipientEmail, template: 'payment_receipt', error: emailErr }, 'Payment receipt email failed to send');
         }
       }).catch((err: any) => {
         req.log.warn({ err, orderId }, 'Payment receipt email threw (non-fatal)');
