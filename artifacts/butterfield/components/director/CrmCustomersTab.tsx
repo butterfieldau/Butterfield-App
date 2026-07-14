@@ -387,7 +387,6 @@ export function CrmCustomersTab() {
                 value={search}
                 onChangeText={setSearch}
                 autoCapitalize="none"
-                autoFocus
               />
               {search.length > 0 && (
                 <Pressable onPress={() => setSearch('')}>
