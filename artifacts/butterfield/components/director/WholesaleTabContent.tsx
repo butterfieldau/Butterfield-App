@@ -254,7 +254,7 @@ export function WholesaleTabContent({
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
-            contentContainerStyle={{ paddingHorizontal: 20, gap: 8, paddingBottom: 4 }}
+            contentContainerStyle={{ paddingHorizontal: 20, gap: 8, paddingVertical: 10 }}
           >
             {WS_FILTER_TABS.map((tab) => {
               const active = filter === tab.key;
