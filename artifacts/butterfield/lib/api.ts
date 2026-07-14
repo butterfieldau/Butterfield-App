@@ -2915,6 +2915,7 @@ export interface DirectorUserSummary {
     position?: string | null;
     department?: string | null;
     approvedByAdmin?: boolean;
+    hourlyRateCents?: number | null;
   } | null;
 }
 

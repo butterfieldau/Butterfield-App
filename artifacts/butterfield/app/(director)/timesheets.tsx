@@ -308,6 +308,10 @@ const tb = StyleSheet.create({
 // ── Roster Tab ────────────────────────────────────────────────────────────────
 function RosterTab({ onAddShift }: { onAddShift: () => void }) {
   const [weekOffset, setWeekOffset] = useState(0);
+  const [selectedDayIdx, setSelectedDayIdx] = useState(() => {
+    const day = new Date().getDay(); // 0=Sun
+    return (day + 6) % 7; // Mon=0 … Sun=6
+  });
 
   const weekStart = useMemo(() => {
     const d = getMondayOfWeek(0);
@@ -337,27 +341,62 @@ function RosterTab({ onAddShift }: { onAddShift: () => void }) {
     queryFn: () => api.director.clockEvents(),
     staleTime: 30_000,
   });
+  const { data: usersData } = useQuery({
+    queryKey: ['director-users-rates'],
+    queryFn: () => api.director.users(),
+    staleTime: 120_000,
+  });
   const { refreshing, onRefresh } = useRefreshControl(refetchRoster);
 
   const rosterShifts: RosterShift[] = rosterData?.data ?? [];
   const allStaff = staffData?.data ?? [];
   const liveShifts = (liveData?.data ?? []).filter(s => !s.clockOut);
 
+  // Build hourly-rate map from users list (rate lives in staffProfile)
+  const userRates = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const u of (usersData?.data ?? [])) {
+      const rate = u.staffProfile?.hourlyRateCents;
+      if (rate) m.set(u.id, rate);
+    }
+    return m;
+  }, [usersData]);
+
   const days = useMemo(() => Array.from({ length: 7 }, (_, i) => {
     const d = new Date(weekStart); d.setDate(d.getDate() + i); return d;
   }), [weekStart]);
 
   const todayStr = new Date().toLocaleDateString('en-CA', { timeZone: 'Australia/Sydney' });
+  const todayDayIdx = useMemo(() =>
+    days.findIndex(d => d.toLocaleDateString('en-CA', { timeZone: 'Australia/Sydney' }) === todayStr),
+    [days, todayStr],
+  );
 
-  const rosterMap = useMemo(() => {
-    const m: Record<string, RosterShift[]> = {};
-    for (const s of rosterShifts) {
-      const key = `${s.userId}:${s.date}`;
-      if (!m[key]) m[key] = [];
-      m[key]!.push(s);
+  // Selected day's date string
+  const selectedDayDateStr = useMemo(() => {
+    const d = days[selectedDayIdx];
+    return d ? d.toLocaleDateString('en-CA', { timeZone: 'Australia/Sydney' }) : '';
+  }, [days, selectedDayIdx]);
+
+  // Shifts for selected day, sorted by start time
+  const selectedDayShifts = useMemo(() =>
+    rosterShifts
+      .filter(s => s.date === selectedDayDateStr)
+      .sort((a, b) => a.startTime.localeCompare(b.startTime)),
+    [rosterShifts, selectedDayDateStr],
+  );
+
+  // Which day indices have at least one shift (for dot indicator)
+  const daysWithShifts = useMemo(() => {
+    const set = new Set<number>();
+    for (const shift of rosterShifts) {
+      const idx = days.findIndex(d =>
+        d.toLocaleDateString('en-CA', { timeZone: 'Australia/Sydney' }) === shift.date,
+      );
+      if (idx >= 0) set.add(idx);
     }
-    return m;
-  }, [rosterShifts]);
+    return set;
+  }, [rosterShifts, days]);
 
   const staffRows = useMemo(() => {
     const seen = new Set<string>();
@@ -375,7 +414,7 @@ function RosterTab({ onAddShift }: { onAddShift: () => void }) {
         rows.push({ id: s.id, name: s.name ?? 'Unknown', position: s.position ?? null });
       }
     }
-    return rows.slice(0, 10);
+    return rows;
   }, [rosterShifts, allStaff]);
 
   const weekSummary = useMemo(() => staffRows.map(staff => {
@@ -385,12 +424,17 @@ function RosterTab({ onAddShift }: { onAddShift: () => void }) {
       const [eh, em] = s.endTime.split(':').map(Number);
       return acc + ((eh! * 60 + em!) - (sh! * 60 + sm!));
     }, 0);
-    return { ...staff, shiftCount: shifts.length, hours: totalMins / 60 };
-  }).filter(s => s.shiftCount > 0), [staffRows, rosterShifts]);
+    const hours = totalMins / 60;
+    const rateCents = userRates.get(staff.id) ?? 0;
+    const payCents = rateCents > 0 ? Math.round(hours * rateCents) : null;
+    return { ...staff, shiftCount: shifts.length, hours, payCents };
+  }).filter(s => s.shiftCount > 0), [staffRows, rosterShifts, userRates]);
 
   const STAFF_COLORS = [BLUE, PURPLE, '#EC4899', AMBER, '#06B6D4', GREEN, '#F97316', '#8B5CF6', RED, '#0EA5E9'];
   const staffColor = (idx: number) => STAFF_COLORS[idx % STAFF_COLORS.length]!;
   const weekLabel = `${formatDate(weekStart)} – ${formatDate(weekEnd)}`;
+  const DAY_NAMES = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  const anyPay = weekSummary.some(s => s.payCents != null);
 
   return (
     <ScrollView
@@ -398,8 +442,8 @@ function RosterTab({ onAddShift }: { onAddShift: () => void }) {
       showsVerticalScrollIndicator={false}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={BLUE} />}
     >
-      {/* Week navigator */}
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingVertical: 10 }}>
+      {/* ── Week navigator */}
+      <View style={rs.weekNav}>
         <Pressable onPress={() => { setWeekOffset(o => o - 1); Haptics.selectionAsync(); }} style={rs.navBtn}>
           <Feather name="chevron-left" size={18} color={TEXT} />
         </Pressable>
@@ -414,9 +458,37 @@ function RosterTab({ onAddShift }: { onAddShift: () => void }) {
         </Pressable>
       </View>
 
-      {/* Live indicator */}
-      {liveShifts.length > 0 && (
-        <View style={[rs.liveBanner, { marginHorizontal: 16, marginBottom: 8 }]}>
+      {/* ── Day strip */}
+      <View style={rs.dayStrip}>
+        {DAY_NAMES.map((dayName, i) => {
+          const isToday    = i === todayDayIdx;
+          const isSelected = i === selectedDayIdx;
+          const hasShifts  = daysWithShifts.has(i);
+          return (
+            <Pressable
+              key={i}
+              onPress={() => { setSelectedDayIdx(i); Haptics.selectionAsync(); }}
+              style={[rs.dayPill, isSelected && rs.dayPillSelected, !isSelected && isToday && rs.dayPillToday]}
+            >
+              <Text style={[rs.dayPillLabel, {
+                color: isSelected ? 'rgba(255,255,255,0.7)' : isToday ? BLUE : MUTED,
+              }]}>{dayName}</Text>
+              <Text style={[rs.dayPillNum, {
+                color: isSelected ? '#fff' : isToday ? BLUE : TEXT,
+              }]}>{days[i]?.getDate()}</Text>
+              <View style={[rs.dayPillDot, {
+                backgroundColor: hasShifts
+                  ? (isSelected ? 'rgba(255,255,255,0.6)' : isToday ? BLUE : `${TEXT}40`)
+                  : 'transparent',
+              }]} />
+            </Pressable>
+          );
+        })}
+      </View>
+
+      {/* ── Live banner (only when viewing today) */}
+      {liveShifts.length > 0 && selectedDayIdx === todayDayIdx && (
+        <View style={[rs.liveBanner, { margin: 12, marginBottom: 4 }]}>
           <View style={rs.liveDot} />
           <Text style={rs.liveText}>{liveShifts.length} staff clocked in now</Text>
           <Text style={{ fontSize: 12, color: MUTED, marginLeft: 'auto', flexShrink: 1 }} numberOfLines={1}>
@@ -425,107 +497,137 @@ function RosterTab({ onAddShift }: { onAddShift: () => void }) {
         </View>
       )}
 
-      {/* Legend */}
-      <View style={{ flexDirection: 'row', gap: 14, paddingHorizontal: 16, marginBottom: 6 }}>
-        {([['Confirmed', GREEN], ['Rostered', BLUE]] as const).map(([lbl, color]) => (
-          <View key={lbl} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-            <View style={{ width: 8, height: 8, borderRadius: 3, backgroundColor: color }} />
-            <Text style={{ fontSize: 11, color: MUTED, fontWeight: '500' }}>{lbl}</Text>
-          </View>
-        ))}
+      {/* ── Day label */}
+      <View style={rs.dayLabel}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          <Text style={rs.dayLabelText}>
+            {DAY_NAMES[selectedDayIdx]}, {days[selectedDayIdx]?.getDate()} {MONTH_NAMES[days[selectedDayIdx]?.getMonth() ?? 0]}
+          </Text>
+          {selectedDayIdx === todayDayIdx && (
+            <View style={rs.todayBadge}>
+              <Text style={rs.todayBadgeText}>Today</Text>
+            </View>
+          )}
+        </View>
+        <Text style={{ fontSize: 12, color: MUTED }}>
+          {selectedDayShifts.length} {selectedDayShifts.length === 1 ? 'shift' : 'shifts'}
+        </Text>
       </View>
 
+      {/* ── Shift cards */}
       {rosterLoading ? (
-        <View style={{ alignItems: 'center', paddingVertical: 40 }}>
+        <View style={{ alignItems: 'center', paddingVertical: 32 }}>
           <ActivityIndicator color={BLUE} />
         </View>
+      ) : selectedDayShifts.length === 0 ? (
+        <View style={rs.emptyDay}>
+          <Feather name="calendar" size={28} color={BORDER} />
+          <Text style={{ fontSize: 14, fontWeight: '600', color: TEXT, marginTop: 8 }}>No shifts rostered</Text>
+          <Text style={{ fontSize: 13, color: MUTED }}>Tap + Shift to add shifts</Text>
+        </View>
       ) : (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-          <View style={{ borderWidth: StyleSheet.hairlineWidth, borderColor: BORDER, marginHorizontal: 16, borderRadius: 12, overflow: 'hidden' }}>
-            {/* Header row */}
-            <View style={{ flexDirection: 'row', backgroundColor: CARD }}>
-              <View style={[rs.staffCell, rs.headerCell]}><Text style={rs.headerText}>STAFF</Text></View>
-              {days.map((day, di) => {
-                const dStr = day.toLocaleDateString('en-CA', { timeZone: 'Australia/Sydney' });
-                const isToday = dStr === todayStr;
-                const DAY_NAMES = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
-                return (
-                  <View key={di} style={[rs.dayHeaderCell, isToday && { backgroundColor: BLUE + '12' }]}>
-                    <Text style={[rs.dayName, { color: isToday ? BLUE : MUTED }]}>{DAY_NAMES[day.getDay()]}</Text>
-                    <Text style={[rs.dayNum, { color: isToday ? BLUE : TEXT }]}>{day.getDate()}</Text>
-                    {isToday && <View style={{ width: 4, height: 4, borderRadius: 2, backgroundColor: BLUE, marginTop: 3 }} />}
+        <View style={{ paddingHorizontal: 16, gap: 10 }}>
+          {selectedDayShifts.map((shift) => {
+            const staffIdx = staffRows.findIndex(s => s.id === shift.userId);
+            const staff    = staffRows[staffIdx];
+            const color    = staffColor(staffIdx < 0 ? 0 : staffIdx);
+            const isLive   = selectedDayIdx === todayDayIdx && liveShifts.some(ls => ls.userId === shift.userId);
+            const name     = shift.userName ?? staff?.name ?? 'Unknown';
+            const position = staff?.position ?? shift.role ?? null;
+            return (
+              <View key={shift.id} style={rs.shiftCard}>
+                {/* Avatar */}
+                <View style={{ position: 'relative', flexShrink: 0 }}>
+                  <View style={[rs.shiftAvatar, { backgroundColor: color }]}>
+                    <Text style={rs.shiftAvatarText}>{initials(name)}</Text>
                   </View>
-                );
-              })}
-            </View>
-
-            {staffRows.length === 0 && !rosterLoading && (
-              <View style={{ padding: 24, alignItems: 'center', gap: 8 }}>
-                <Feather name="calendar" size={28} color={BORDER} />
-                <Text style={{ fontSize: 14, fontWeight: '600', color: TEXT }}>No roster this week</Text>
-                <Text style={{ fontSize: 13, color: MUTED }}>Tap + Shift to add shifts</Text>
-              </View>
-            )}
-
-            {/* Staff rows */}
-            {staffRows.map((staff, si) => (
-              <View key={staff.id} style={{ flexDirection: 'row', borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: BORDER }}>
-                <View style={[rs.staffCell, { backgroundColor: si % 2 === 0 ? CARD : BG }]}>
-                  <View style={[rs.staffAvatar, { backgroundColor: staffColor(si) }]}>
-                    <Text style={rs.staffAvatarText}>{initials(staff.name)}</Text>
-                    {liveShifts.some(ls => ls.userId === staff.id) && (
-                      <View style={[rs.liveAvatarDot, { backgroundColor: GREEN }]} />
+                  {isLive && <View style={rs.shiftLiveDot} />}
+                </View>
+                {/* Name + position */}
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+                    <Text style={{ fontSize: 15, fontWeight: '600', color: TEXT }} numberOfLines={1}>{name}</Text>
+                    {isLive && (
+                      <View style={rs.liveBadge}>
+                        <Text style={rs.liveBadgeText}>LIVE</Text>
+                      </View>
                     )}
                   </View>
-                  <Text style={rs.staffName} numberOfLines={1}>{staff.name.split(' ')[0]}</Text>
+                  {position && <Text style={{ fontSize: 12, color: MUTED }}>{capitalize(position)}</Text>}
                 </View>
-                {days.map((day, di) => {
-                  const dStr = day.toLocaleDateString('en-CA', { timeZone: 'Australia/Sydney' });
-                  const key = `${staff.id}:${dStr}`;
-                  const dayShifts = rosterMap[key] ?? [];
-                  const isToday = dStr === todayStr;
-                  return (
-                    <View key={di} style={[rs.shiftCell, isToday && { backgroundColor: BLUE + '06' }, si % 2 !== 0 && !isToday && { backgroundColor: BG }]}>
-                      {dayShifts.map((sh, shi) => (
-                        <View key={shi} style={[rs.shiftBadge, {
-                          backgroundColor: sh.isConfirmed ? GREEN + '1A' : BLUE + '18',
-                          borderColor:     sh.isConfirmed ? GREEN + '55' : BLUE + '55',
-                        }]}>
-                          <Text style={[rs.shiftBadgeText, { color: sh.isConfirmed ? GREEN : BLUE }]}>
-                            {formatTime12hShort(sh.startTime)}
-                          </Text>
-                        </View>
-                      ))}
-                      {dayShifts.length === 0 && (
-                        <View style={{ width: '60%', height: 1, backgroundColor: BORDER, opacity: 0.35 }} />
-                      )}
+                {/* Time + status */}
+                <View style={{ alignItems: 'flex-end', gap: 4, flexShrink: 0 }}>
+                  <Text style={{ fontSize: 14, fontWeight: '700', color: TEXT }}>
+                    {formatTime12h(shift.startTime)}–{formatTime12h(shift.endTime)}
+                  </Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <Text style={{ fontSize: 11, color: MUTED }}>{rosterShiftHours(shift.startTime, shift.endTime)}</Text>
+                    <View style={[rs.statusPill, { backgroundColor: shift.isConfirmed ? GREEN + '18' : BLUE + '18' }]}>
+                      <Text style={[rs.statusPillText, { color: shift.isConfirmed ? GREEN : BLUE }]}>
+                        {shift.isConfirmed ? 'Confirmed' : 'Rostered'}
+                      </Text>
                     </View>
-                  );
-                })}
+                  </View>
+                </View>
               </View>
-            ))}
-          </View>
-        </ScrollView>
+            );
+          })}
+        </View>
       )}
 
-      {/* Week Summary */}
+      {/* ── Week Summary */}
       {weekSummary.length > 0 && (
         <View style={[rs.summaryCard, { margin: 16 }]}>
           <View style={rs.summaryHeader}>
             <Text style={rs.summaryTitle}>Week Summary</Text>
             <Text style={{ fontSize: 11, color: MUTED }}>{weekLabel}</Text>
           </View>
-          {weekSummary.map((s, i) => (
-            <View key={s.id} style={[rs.summaryRow, i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: BORDER }]}>
-              <Text style={{ fontSize: 13, fontWeight: '500', color: TEXT, flex: 1 }}>{s.name}</Text>
-              <Text style={{ fontSize: 11, color: MUTED }}>{s.shiftCount} shift{s.shiftCount !== 1 ? 's' : ''}</Text>
-              <Text style={{ fontSize: 13, fontWeight: '700', color: TEXT }}>{formatHours(s.hours)}</Text>
-            </View>
-          ))}
+          {/* Stats grid */}
+          <View style={{ flexDirection: 'row', borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: BORDER }}>
+            {[
+              { label: 'Shifts', value: String(weekSummary.reduce((a, s) => a + s.shiftCount, 0)) },
+              { label: 'Hours',  value: `${Math.round(weekSummary.reduce((a, s) => a + s.hours, 0))}h` },
+              { label: 'Staff',  value: String(weekSummary.length) },
+            ].map(({ label, value }, i) => (
+              <View key={label} style={[rs.statCell, i < 2 && { borderRightWidth: StyleSheet.hairlineWidth, borderRightColor: BORDER }]}>
+                <Text style={rs.statValue}>{value}</Text>
+                <Text style={rs.statLabel}>{label}</Text>
+              </View>
+            ))}
+          </View>
+          {/* Per-staff rows */}
+          {weekSummary.map((s, i) => {
+            const color = staffColor(staffRows.findIndex(r => r.id === s.id));
+            return (
+              <View key={s.id} style={[rs.summaryRow, i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: BORDER }]}>
+                <View style={[rs.summaryAvatar, { backgroundColor: color }]}>
+                  <Text style={{ fontSize: 8, fontWeight: '700', color: '#fff' }}>{initials(s.name)}</Text>
+                </View>
+                <Text style={{ fontSize: 13, fontWeight: '500', color: TEXT, flex: 1 }} numberOfLines={1}>{s.name}</Text>
+                <Text style={{ fontSize: 12, color: MUTED }}>{s.shiftCount} shift{s.shiftCount !== 1 ? 's' : ''}</Text>
+                <Text style={{ fontSize: 13, fontWeight: '700', color: NAVY, minWidth: 30, textAlign: 'right' }}>
+                  {Math.round(s.hours)}h
+                </Text>
+                {s.payCents != null && (
+                  <Text style={{ fontSize: 13, fontWeight: '700', color: GREEN, minWidth: 62, textAlign: 'right' }}>
+                    ${(s.payCents / 100).toFixed(2)}
+                  </Text>
+                )}
+              </View>
+            );
+          })}
+          {/* Total row */}
           <View style={[rs.summaryRow, { borderTopWidth: 1, borderTopColor: BORDER, backgroundColor: NAVY + '08' }]}>
             <Text style={{ fontSize: 13, fontWeight: '700', color: NAVY, flex: 1 }}>TOTAL</Text>
             <Text style={{ fontSize: 11, color: MUTED }}>{weekSummary.reduce((a, s) => a + s.shiftCount, 0)} shifts</Text>
-            <Text style={{ fontSize: 14, fontWeight: '800', color: NAVY }}>{formatHours(weekSummary.reduce((a, s) => a + s.hours, 0))}</Text>
+            <Text style={{ fontSize: 14, fontWeight: '800', color: NAVY, minWidth: 30, textAlign: 'right' }}>
+              {Math.round(weekSummary.reduce((a, s) => a + s.hours, 0))}h
+            </Text>
+            {anyPay && (
+              <Text style={{ fontSize: 13, fontWeight: '800', color: GREEN, minWidth: 62, textAlign: 'right' }}>
+                {fmtAUD(weekSummary.reduce((a, s) => a + (s.payCents ?? 0), 0))}
+              </Text>
+            )}
           </View>
         </View>
       )}
@@ -533,34 +635,65 @@ function RosterTab({ onAddShift }: { onAddShift: () => void }) {
   );
 }
 
-function formatTime12hShort(time: string): string {
-  const [hStr] = time.split(':');
+function formatTime12h(time: string): string {
+  const [hStr, mStr] = time.split(':');
   const h = parseInt(hStr!, 10);
-  return `${h % 12 === 0 ? 12 : h % 12}${h >= 12 ? 'p' : 'a'}`;
+  const m = parseInt(mStr!, 10);
+  const suffix = h >= 12 ? 'pm' : 'am';
+  const h12 = h % 12 === 0 ? 12 : h % 12;
+  return m === 0 ? `${h12}${suffix}` : `${h12}:${String(m).padStart(2, '0')}${suffix}`;
+}
+
+function rosterShiftHours(startTime: string, endTime: string): string {
+  const [sh, sm] = startTime.split(':').map(Number);
+  const [eh, em] = endTime.split(':').map(Number);
+  const mins = (eh! * 60 + em!) - (sh! * 60 + sm!);
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  return m === 0 ? `${h}h` : `${h}h ${m}m`;
 }
 
 const rs = StyleSheet.create({
-  navBtn:         { width: 34, height: 34, borderRadius: 9, backgroundColor: CARD, borderWidth: 1, borderColor: BORDER, alignItems: 'center', justifyContent: 'center' },
-  liveBanner:     { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: GREEN + '12', borderRadius: 10, padding: 9, borderWidth: 1, borderColor: GREEN + '30' },
-  liveDot:        { width: 7, height: 7, borderRadius: 4, backgroundColor: GREEN },
-  liveText:       { fontSize: 12, color: GREEN, fontWeight: '600' },
-  staffCell:      { width: 62, borderRightWidth: StyleSheet.hairlineWidth, borderRightColor: BORDER, alignItems: 'center', justifyContent: 'center', padding: 6, minHeight: 54 },
-  headerCell:     { height: 50, minHeight: 50 },
-  headerText:     { fontSize: 9, fontWeight: '700', color: MUTED, letterSpacing: 0.8 },
-  dayHeaderCell:  { width: 50, borderLeftWidth: StyleSheet.hairlineWidth, borderLeftColor: BORDER, alignItems: 'center', justifyContent: 'center', paddingVertical: 6, backgroundColor: CARD, height: 50 },
-  dayName:        { fontSize: 9, fontWeight: '600' },
-  dayNum:         { fontSize: 15, fontWeight: '700', marginTop: 1 },
-  staffAvatar:    { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center', position: 'relative' },
-  staffAvatarText:{ fontSize: 9, fontWeight: '700', color: '#fff' },
-  liveAvatarDot:  { position: 'absolute', bottom: 0, right: 0, width: 7, height: 7, borderRadius: 4, borderWidth: 1.5, borderColor: CARD },
-  staffName:      { fontSize: 8, fontWeight: '600', color: TEXT, marginTop: 2, textAlign: 'center', maxWidth: 54 },
-  shiftCell:      { width: 50, borderLeftWidth: StyleSheet.hairlineWidth, borderLeftColor: BORDER, alignItems: 'center', justifyContent: 'center', padding: 3, minHeight: 54 },
-  shiftBadge:     { borderRadius: 5, paddingVertical: 3, paddingHorizontal: 2, marginVertical: 1, borderWidth: 1, width: '90%', alignItems: 'center' },
-  shiftBadgeText: { fontSize: 8, fontWeight: '700' },
-  summaryCard:    { backgroundColor: CARD, borderRadius: 14, borderWidth: 1, borderColor: BORDER, overflow: 'hidden' },
-  summaryHeader:  { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 12, paddingHorizontal: 14, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: BORDER },
-  summaryTitle:   { fontSize: 13, fontWeight: '700', color: TEXT },
-  summaryRow:     { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 9, paddingHorizontal: 14 },
+  // Navigation
+  navBtn:          { width: 34, height: 34, borderRadius: 9, backgroundColor: CARD, borderWidth: 1, borderColor: BORDER, alignItems: 'center', justifyContent: 'center' },
+  weekNav:         { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingVertical: 10, backgroundColor: CARD, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: BORDER },
+  // Day strip
+  dayStrip:        { flexDirection: 'row', gap: 4, paddingHorizontal: 12, paddingVertical: 10, backgroundColor: CARD, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: BORDER },
+  dayPill:         { flex: 1, alignItems: 'center', paddingTop: 6, paddingBottom: 7, borderRadius: 10 },
+  dayPillSelected: { backgroundColor: TEXT },
+  dayPillToday:    { backgroundColor: BLUE + '12' },
+  dayPillLabel:    { fontSize: 9, fontWeight: '600', letterSpacing: 0.2, marginBottom: 2 },
+  dayPillNum:      { fontSize: 16, fontWeight: '700', lineHeight: 18 },
+  dayPillDot:      { marginTop: 4, width: 4, height: 4, borderRadius: 2 },
+  // Live
+  liveBanner:      { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: GREEN + '12', borderRadius: 10, padding: 9, borderWidth: 1, borderColor: GREEN + '30' },
+  liveDot:         { width: 7, height: 7, borderRadius: 4, backgroundColor: GREEN },
+  liveText:        { fontSize: 12, color: GREEN, fontWeight: '600' },
+  liveBadge:       { backgroundColor: GREEN + '18', borderRadius: 99, paddingHorizontal: 5, paddingVertical: 1 },
+  liveBadgeText:   { fontSize: 9, fontWeight: '700', color: GREEN },
+  // Day label
+  dayLabel:        { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 14, paddingBottom: 6 },
+  dayLabelText:    { fontSize: 17, fontWeight: '700', color: TEXT },
+  todayBadge:      { backgroundColor: BLUE + '18', borderRadius: 99, paddingHorizontal: 8, paddingVertical: 2 },
+  todayBadgeText:  { fontSize: 11, fontWeight: '600', color: BLUE },
+  // Shift cards
+  shiftCard:       { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, paddingHorizontal: 14, backgroundColor: CARD, borderRadius: 16, borderWidth: 1, borderColor: BORDER },
+  shiftAvatar:     { width: 42, height: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center' },
+  shiftAvatarText: { fontSize: 13, fontWeight: '700', color: '#fff' },
+  shiftLiveDot:    { position: 'absolute', bottom: 0, right: 0, width: 12, height: 12, borderRadius: 6, backgroundColor: GREEN, borderWidth: 2, borderColor: CARD },
+  statusPill:      { borderRadius: 99, paddingHorizontal: 7, paddingVertical: 2 },
+  statusPillText:  { fontSize: 10, fontWeight: '600' },
+  // Empty
+  emptyDay:        { marginHorizontal: 16, padding: 32, alignItems: 'center', backgroundColor: CARD, borderRadius: 16, borderWidth: 1, borderColor: BORDER },
+  // Summary
+  summaryCard:     { backgroundColor: CARD, borderRadius: 14, borderWidth: 1, borderColor: BORDER, overflow: 'hidden' },
+  summaryHeader:   { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 12, paddingHorizontal: 14, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: BORDER },
+  summaryTitle:    { fontSize: 13, fontWeight: '700', color: TEXT },
+  summaryRow:      { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 9, paddingHorizontal: 14 },
+  summaryAvatar:   { width: 24, height: 24, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  statCell:        { flex: 1, paddingVertical: 10, alignItems: 'center' },
+  statValue:       { fontSize: 18, fontWeight: '700', color: TEXT },
+  statLabel:       { fontSize: 11, color: MUTED, marginTop: 1 },
 });
 
 // ── Pay Run Tab ───────────────────────────────────────────────────────────────
