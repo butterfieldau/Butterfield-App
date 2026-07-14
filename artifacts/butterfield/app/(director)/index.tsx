@@ -14,7 +14,7 @@ import { api } from '@/lib/api';
 import { useRefreshControl } from '@/hooks/useRefreshControl';
 import { StaffDashboard } from './_staff-dashboard';
 import { fmtAUD, timeAgo } from '@/components/director/dashboardHelpers';
-import { RevenueRangePicker, QuickBtn, AovCustomerRow, HourlyInsightsChart } from '@/components/director';
+import { QuickBtn, AovCustomerRow, HourlyInsightsChart } from '@/components/director';
 import { STATUS_COLORS, STATUS_LABEL } from '@/lib/orderStatus';
 import { BG, CARD, BLUE, TEXT, MUTED, BORDER, GREEN, AMBER, RED, PURPLE } from '@/components/director/directorColors';
 import { useFocusStatusBar } from '@/hooks/useScrollStatusBar';
@@ -65,24 +65,6 @@ function DirectorDashboardInner({ onScroll }: { onScroll?: (e: any) => void }) {
         .filter(o => !['completed', 'delivered', 'cancelled', 'refunded'].includes(o.status))
         .slice(0, 6),
   });
-
-  const [showRevPicker, setShowRevPicker]     = useState(false);
-  const [customRevTotal, setCustomRevTotal]   = useState<number | null>(null);
-  const [customRevRange, setCustomRevRange]   = useState<{ from: Date; to: Date } | null>(null);
-  const [customRevLoading, setCustomRevLoading] = useState(false);
-
-  const handleApplyRevRange = async (from: Date, to: Date) => {
-    setCustomRevLoading(true);
-    setCustomRevRange({ from, to });
-    try {
-      const res = await api.director.revenue(from.toISOString(), to.toISOString());
-      setCustomRevTotal(res.data.total);
-    } catch {
-      setCustomRevTotal(null);
-    } finally {
-      setCustomRevLoading(false);
-    }
-  };
 
   const s        = data?.data;
   const activity: any[] = activityData?.data ?? [];
@@ -147,33 +129,7 @@ function DirectorDashboardInner({ onScroll }: { onScroll?: (e: any) => void }) {
               </Pressable>
             </React.Fragment>
           ))}
-          {/* Custom date range row */}
-          <View style={styles.revDivider} />
-          <Pressable
-            onPress={() => { setShowRevPicker(true); Haptics.selectionAsync(); }}
-            style={[styles.revCol, { minWidth: 54 }]}
-          >
-            <Text style={styles.revColLabel}>CUSTOM</Text>
-            {customRevLoading ? (
-              <ActivityIndicator size="small" color={BLUE} style={{ marginTop: 4 }} />
-            ) : customRevTotal !== null ? (
-              <>
-                <Text style={[styles.revColAmt, { fontSize: 14 }]}>{fmtAUD(customRevTotal)}</Text>
-                <Pressable onPress={() => { setCustomRevTotal(null); setCustomRevRange(null); }}>
-                  <Text style={{ fontSize: 10, color: MUTED, marginTop: 2 }}>Clear ✕</Text>
-                </Pressable>
-              </>
-            ) : (
-              <Feather name="calendar" size={18} color={BLUE} style={{ marginTop: 4 }} />
-            )}
-          </Pressable>
         </View>
-
-        <RevenueRangePicker
-          visible={showRevPicker}
-          onClose={() => setShowRevPicker(false)}
-          onApply={handleApplyRevRange}
-        />
 
         {/* ── KPI 4-tile grid ──────────────────────────────────── */}
         <View style={styles.kpi4Grid}>
