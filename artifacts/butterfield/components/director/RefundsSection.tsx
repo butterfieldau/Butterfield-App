@@ -22,7 +22,7 @@ function RefundOperatorsCard({ from, to }: { from: string; to: string }) {
   const operators: RefundOperator[] = data?.data ?? [];
   const refunds: RefundEvent[] = data?.refunds ?? [];
   const grandTotal: number = data?.grandTotalRefundedCents ?? 0;
-  if (isLoading) return <ActivityIndicator color={NAVY} style={{ marginVertical: 8 }} />;
+  if (isLoading) return <ActivityIndicator color={BLUE} style={{ marginVertical: 8 }} />;
   if (operators.length === 0 && refunds.length === 0) return null;
   return (
     <View style={s.card}>

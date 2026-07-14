@@ -11,9 +11,9 @@ export const styles = StyleSheet.create({
 
   tileTabRow:     { flexDirection: 'row', gap: 10, paddingHorizontal: 16, paddingTop: 14, paddingBottom: 12, backgroundColor: BG },
   tileTabBtn:     { flex: 1, minHeight: 58, borderRadius: 16, backgroundColor: CARD, borderWidth: 1, borderColor: BORDER, alignItems: 'center', justifyContent: 'center', gap: 6, paddingHorizontal: 8 },
-  tileTabBtnActive: { borderColor: NAVY, backgroundColor: NAVY + '0D' },
+  tileTabBtnActive: { borderColor: '#000', backgroundColor: 'rgba(0,0,0,0.05)' },
   tileTabText:    { fontSize: 12, fontWeight: '600' as const, color: MUTED },
-  tileTabTextActive: { color: NAVY },
+  tileTabTextActive: { color: TEXT },
 
   pillTabRow:      { flexDirection: 'row', gap: 8, paddingHorizontal: 16, paddingVertical: 10, backgroundColor: CARD, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: BORDER },
   pillTab:         { height: 34, borderRadius: 17, paddingHorizontal: 16, alignItems: 'center', justifyContent: 'center', backgroundColor: '#F1F5F9' },
@@ -34,7 +34,7 @@ export const styles = StyleSheet.create({
   filterPillText: { fontSize: 12, fontWeight: '600' as const },
   filterPillCount:{ fontSize: 11, fontWeight: '700' as const },
   sortBtn:        { width: 40, height: 40, borderRadius: 12, borderWidth: 1, borderColor: BORDER, backgroundColor: CARD, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
-  sortBtnActive:  { borderColor: NAVY, backgroundColor: NAVY + '10' },
+  sortBtnActive:  { borderColor: '#000', backgroundColor: 'rgba(0,0,0,0.06)' },
 
   dropPanel:        { marginHorizontal: 16, backgroundColor: CARD, borderRadius: 14, borderWidth: 1, borderColor: BORDER, shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 8, shadowOffset: { width: 0, height: 4 }, elevation: 6, marginBottom: 8 },
   dropOption:       { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, paddingVertical: 13, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: BORDER },

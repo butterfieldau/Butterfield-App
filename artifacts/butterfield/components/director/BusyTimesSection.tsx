@@ -4,7 +4,7 @@ import { View, Text } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { s } from './reportStyles';
-import { AMBER, BORDER, NAVY, MUTED } from './directorColors';
+import { AMBER, BORDER, NAVY, MUTED, TEXT } from './directorColors';
 import { fmtHour } from './reportHelpers';
 import ReportSectionHeader from './ReportSectionHeader';
 import EmptyState from './EmptyState';
@@ -49,7 +49,7 @@ export default function BusyTimesSection({ from, to }: { from: string; to: strin
                   <View key={b.hour} style={s.heatCell}>
                     <View style={[s.heatBlock, { backgroundColor: bg }]}>
                       {b.avgPerDay > 0 && (
-                        <Text style={[s.heatCount, { color: intensity > 0.5 ? '#fff' : NAVY }]}>
+                        <Text style={[s.heatCount, { color: intensity > 0.5 ? '#fff' : TEXT }]}>
                           {b.avgPerDay}
                         </Text>
                       )}

@@ -82,7 +82,7 @@ export function NotifyTab() {
           </View>
         }
         renderItem={({ item: a }: { item: DirectorAnnouncement }) => (
-          <View style={[styles.card, { borderColor: a.isActive ? GLASS_BORDER : '#FEE2E2' }]}>
+          <View style={[styles.card, { borderColor: a.isActive ? BORDER : '#FEE2E2' }]}>
             <View style={styles.annHeader}>
               <View style={{ flex: 1, gap: 2 }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>

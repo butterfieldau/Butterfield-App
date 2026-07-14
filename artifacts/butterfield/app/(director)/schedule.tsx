@@ -127,7 +127,7 @@ export default function ScheduleScreen() {
     <DirectorTabScreen title="Schedule" subtitle={windowLabel}>
       {isLoading ? (
         <View style={s.centred}>
-          <ActivityIndicator color={NAVY} size="large" />
+          <ActivityIndicator color={BLUE} size="large" />
         </View>
       ) : shifts.length === 0 ? (
         <ScrollView
@@ -238,7 +238,7 @@ const s = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: BORDER,
     backgroundColor: CARD,
   },
-  headerTitle: { fontSize: 24, fontWeight: '700', color: NAVY },
+  headerTitle: { fontSize: 24, fontWeight: '700', color: TEXT },
   headerSub:   { fontSize: 13, color: MUTED, marginTop: 2 },
   calIconWrap: {
     width: 40, height: 40, borderRadius: 20,
@@ -252,7 +252,7 @@ const s = StyleSheet.create({
   },
   nextShiftIcon:  { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
   nextShiftLabel: { fontSize: 10, fontWeight: '700', color: MUTED, letterSpacing: 0.5 },
-  nextShiftDate:  { fontSize: 15, fontWeight: '700', color: NAVY, marginTop: 2 },
+  nextShiftDate:  { fontSize: 15, fontWeight: '700', color: TEXT, marginTop: 2 },
   nextShiftTime:  { fontSize: 13, color: MUTED, marginTop: 1 },
 
   summaryCard: {
@@ -260,12 +260,12 @@ const s = StyleSheet.create({
     borderWidth: 1, borderColor: BORDER, padding: 16,
   },
   summaryItem:  { flex: 1, alignItems: 'center' },
-  summaryValue: { fontSize: 20, fontWeight: '700', color: NAVY },
+  summaryValue: { fontSize: 20, fontWeight: '700', color: TEXT },
   summaryLabel: { fontSize: 11, color: MUTED, marginTop: 2 },
   divider:      { width: 1, backgroundColor: BORDER, marginVertical: 4 },
 
   emptyContainer: { flexGrow: 1, alignItems: 'center', justifyContent: 'center', padding: 40 },
   emptyIcon:     { width: 72, height: 72, borderRadius: 36, backgroundColor: '#E0EDFF', alignItems: 'center', justifyContent: 'center', marginBottom: 16 },
-  emptyTitle:    { fontSize: 18, fontWeight: '700', color: NAVY, marginBottom: 8 },
+  emptyTitle:    { fontSize: 18, fontWeight: '700', color: TEXT, marginBottom: 8 },
   emptySubtitle: { fontSize: 14, color: MUTED, textAlign: 'center', lineHeight: 20 },
 });

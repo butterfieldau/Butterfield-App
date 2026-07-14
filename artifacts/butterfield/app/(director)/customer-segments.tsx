@@ -191,7 +191,7 @@ const s = StyleSheet.create({
     paddingHorizontal: 14, paddingVertical: 12, fontSize: 14, color: TEXT,
   },
   sendBtn: {
-    backgroundColor: NAVY, borderRadius: 12, height: 50,
+    backgroundColor: BLUE, borderRadius: 12, height: 50,
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
   },
   sendBtnText: { color: '#fff', fontSize: 15, fontWeight: '700' },

@@ -197,7 +197,7 @@ export default function DirectorProductsScreen() {
           onPress={() => { setSearchOpen(prev => !prev); Haptics.selectionAsync(); }}
           style={[styles.headerSearchBtn, searchOpen && styles.headerSearchBtnActive]}
         >
-          <Feather name="search" size={18} color={searchOpen ? BLUE : NAVY} />
+          <Feather name="search" size={18} color={searchOpen ? BLUE : MUTED} />
         </Pressable>
       }
       headerBottom={

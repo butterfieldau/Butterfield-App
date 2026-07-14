@@ -443,7 +443,7 @@ export function ShopifyCustomerDetailModal({ customerId, onClose, onDelete }: { 
                       <Pressable onPress={() => setEditingContact(false)} style={[det.actionBtn, { flex: 1, borderWidth: 1, borderColor: BORDER, backgroundColor: BG }]}>
                         <Text style={{ color: TEXT, fontWeight: '600', fontSize: 14 }}>Cancel</Text>
                       </Pressable>
-                      <Pressable onPress={saveContact} disabled={savingContact} style={[det.actionBtn, { flex: 1, backgroundColor: NAVY }]}>
+                      <Pressable onPress={saveContact} disabled={savingContact} style={[det.actionBtn, { flex: 1, backgroundColor: BLUE }]}>
                         {savingContact ? <ActivityIndicator size="small" color="#fff" /> : <Text style={{ color: '#fff', fontWeight: '700', fontSize: 14 }}>Save</Text>}
                       </Pressable>
                     </View>
@@ -598,7 +598,7 @@ export function ShopifyCustomerDetailModal({ customerId, onClose, onDelete }: { 
                     <Pressable onPress={() => { setAddingNote(false); setNoteText(''); }} style={[det.actionBtn, { flex: 1, borderWidth: 1, borderColor: BORDER, backgroundColor: BG }]}>
                       <Text style={{ color: TEXT, fontWeight: '600', fontSize: 14 }}>Cancel</Text>
                     </Pressable>
-                    <Pressable onPress={addNote} disabled={addingNote || !noteText.trim()} style={[det.actionBtn, { flex: 1, backgroundColor: NAVY, opacity: !noteText.trim() ? 0.4 : 1 }]}>
+                    <Pressable onPress={addNote} disabled={addingNote || !noteText.trim()} style={[det.actionBtn, { flex: 1, backgroundColor: BLUE, opacity: !noteText.trim() ? 0.4 : 1 }]}>
                       {addingNote ? <ActivityIndicator size="small" color="#fff" /> : <Text style={{ color: '#fff', fontWeight: '700', fontSize: 14 }}>Save Note</Text>}
                     </Pressable>
                   </View>

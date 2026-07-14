@@ -225,7 +225,7 @@ export default function HourlyInsightsChart({
             onPress={() => {/* consume touch */}}
             style={{
               position: 'absolute', left: calloutLeft, top: CALLOUT_TOP,
-              width: CALLOUT_W, backgroundColor: NAVY, borderRadius: 10,
+              width: CALLOUT_W, backgroundColor: TEXT, borderRadius: 10,
               padding: 9, gap: 5,
               shadowColor: '#000', shadowOffset: { width: 0, height: 4 },
               shadowOpacity: 0.28, shadowRadius: 8, elevation: 9, zIndex: 10,

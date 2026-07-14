@@ -337,7 +337,7 @@ export default function DirectorDeliverySettingsScreen() {
     return (
       <DirectorStandaloneScreen title="Delivery Settings">
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: 16 }}>
-          <ActivityIndicator color={NAVY} size="large" />
+          <ActivityIndicator color={BLUE} size="large" />
           <Text style={{ color: MUTED, fontSize: 14 }}>Loading delivery settings…</Text>
         </View>
       </DirectorStandaloneScreen>
@@ -622,10 +622,10 @@ const styles = StyleSheet.create({
   blackoutChip:   { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#FFFBEB', borderRadius: 8, padding: 8, borderWidth: 1, borderColor: '#FDE68A' },
   blackoutText:   { flex: 1, fontSize: 13, color: '#78350F', fontWeight: '500' },
   addDateBtn:     { width: 40, height: 40, borderRadius: 10, backgroundColor: BLUE, alignItems: 'center', justifyContent: 'center' },
-  saveBtn:        { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: NAVY, borderRadius: 12, paddingVertical: 14, marginVertical: 8 },
+  saveBtn:        { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: BLUE, borderRadius: 12, paddingVertical: 14, marginVertical: 8 },
   saveBtnDisabled:{ opacity: 0.4 },
   saveBtnText:    { color: '#fff', fontSize: 15, fontWeight: '700' },
-  retryBtn:       { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: NAVY, borderRadius: 10, paddingHorizontal: 20, paddingVertical: 12 },
+  retryBtn:       { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: BLUE, borderRadius: 10, paddingHorizontal: 20, paddingVertical: 12 },
   catAccordion:   { backgroundColor: CARD, borderRadius: 14, marginBottom: 8, shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 4, shadowOffset: { width: 0, height: 2 }, elevation: 2, overflow: 'hidden' },
   catHeader:      { flexDirection: 'row', alignItems: 'center', padding: 14 },
   expandBtn:      { width: 28, height: 28, alignItems: 'center', justifyContent: 'center' },
@@ -646,5 +646,5 @@ const styles = StyleSheet.create({
   dayBtnText:     { fontSize: 13, fontWeight: '600', color: MUTED },
   dayBtnTextSel:  { color: '#fff' },
   previewBox:     { backgroundColor: '#F0F9FF', borderRadius: 12, padding: 14, borderWidth: 1, borderColor: '#BAE6FD', marginBottom: 16 },
-  saveBtnModal:   { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: NAVY, borderRadius: 12, paddingVertical: 14 },
+  saveBtnModal:   { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: BLUE, borderRadius: 12, paddingVertical: 14 },
 });

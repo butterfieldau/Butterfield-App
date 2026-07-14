@@ -86,7 +86,7 @@ export default function RevenueRangePicker({
           {start && end && (
             <Pressable
               onPress={handleApply}
-              style={{ marginTop: 20, backgroundColor: NAVY, borderRadius: 14, paddingVertical: 14, alignItems: 'center' }}
+              style={{ marginTop: 20, backgroundColor: BLUE, borderRadius: 14, paddingVertical: 14, alignItems: 'center' }}
             >
               <Text style={{ fontSize: 16, fontWeight: '700', color: '#fff' }}>
                 Apply — {fmtDateBox(start)} to {fmtDateBox(end)}

@@ -16,7 +16,7 @@ import {
 } from '@/lib/api';
 import { CrmCustomerDetailModal } from './CrmCustomerDetailModal';
 
-const BG     = '#EFF6FF';
+const BG     = '#F2F2F7';
 const CARD   = '#FFFFFF';
 const BLUE   = '#1493FF';
 const NAVY   = '#1A2B4A';
@@ -263,7 +263,7 @@ function FilterPanel({ visible, onClose, onApply }: {
           </View>
         </ScrollView>
         <View style={{ padding: 20, borderTopWidth: 1, borderTopColor: BORDER, backgroundColor: CARD }}>
-          <Pressable onPress={apply} style={[det.actionBtn, { backgroundColor: NAVY }]}>
+          <Pressable onPress={apply} style={det.actionBtn}>
             <Text style={{ color: '#fff', fontWeight: '700', fontSize: 15 }}>Apply Filters</Text>
           </Pressable>
         </View>

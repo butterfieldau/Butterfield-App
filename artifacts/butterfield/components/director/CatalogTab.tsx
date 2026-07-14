@@ -55,7 +55,7 @@ function SectionHeader({ title, icon, color }: { title: string; icon: string; co
       <View style={[form.sectionIcon, { backgroundColor: color + '33', borderColor: color + '55' }]}>
         <Feather name={icon as any} size={14} color={color} />
       </View>
-      <Text style={[form.sectionTitle, { fontWeight: '700', color: NAVY }]}>{title}</Text>
+      <Text style={[form.sectionTitle, { fontWeight: '700', color: TEXT }]}>{title}</Text>
     </View>
   );
 }
@@ -430,7 +430,7 @@ function CatalogTab() {
                   const selected = catColor === c;
                   return (
                     <Pressable key={c} onPress={() => { setCatColor(selected ? null : c); Haptics.selectionAsync(); }}
-                      style={{ width: 38, height: 38, borderRadius: 19, backgroundColor: c, borderWidth: selected ? 3 : 1.5, borderColor: selected ? NAVY : 'rgba(0,0,0,0.12)', alignItems: 'center', justifyContent: 'center' }}>
+                      style={{ width: 38, height: 38, borderRadius: 19, backgroundColor: c, borderWidth: selected ? 3 : 1.5, borderColor: selected ? '#000' : 'rgba(0,0,0,0.12)', alignItems: 'center', justifyContent: 'center' }}>
                       {selected && <Feather name="check" size={16} color="#fff" />}
                     </Pressable>
                   );

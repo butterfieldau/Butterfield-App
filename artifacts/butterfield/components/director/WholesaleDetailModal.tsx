@@ -245,8 +245,8 @@ function WholesaleDetailModal({ user, wa, visible, onClose, onRefresh, onDelete 
                     style={{
                       paddingVertical: 7, paddingHorizontal: 14, borderRadius: 20,
                       borderWidth: 1,
-                      backgroundColor: selectedTierId === null ? NAVY : '#F3F4F6',
-                      borderColor:     selectedTierId === null ? NAVY : BORDER,
+                      backgroundColor: selectedTierId === null ? '#000' : '#F3F4F6',
+                      borderColor:     selectedTierId === null ? '#000' : BORDER,
                     }}
                   >
                     <Text style={{ fontSize: 13, fontWeight: '600', color: selectedTierId === null ? '#fff' : MUTED }}>No Tier</Text>

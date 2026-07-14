@@ -41,7 +41,7 @@ export const s = StyleSheet.create({
   breakLabel:{ fontSize: 13, fontWeight: '600', color: TEXT },
   breakSub:  { fontSize: 11, color: MUTED },
   breakCount:{ fontSize: 12, fontWeight: '600', color: MUTED },
-  breakValue:{ fontSize: 13, fontWeight: '700', color: NAVY, minWidth: 70, textAlign: 'right' },
+  breakValue:{ fontSize: 13, fontWeight: '700', color: TEXT, minWidth: 70, textAlign: 'right' },
 
   peakBanner:{ flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: AMBER + '15', borderRadius: 10, padding: 10, marginBottom: 12 },
   peakText:  { fontSize: 13, color: TEXT, flex: 1 },
@@ -108,10 +108,10 @@ export const s = StyleSheet.create({
   secondaryActionText: { fontSize: 14, fontWeight: '700', color: BLUE },
   primaryActionBtn: {
     flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    paddingVertical: 13, borderRadius: 12, backgroundColor: NAVY,
+    paddingVertical: 13, borderRadius: 12, backgroundColor: BLUE,
   },
   primaryActionText: { fontSize: 14, fontWeight: '700', color: '#fff' },
-  downloadBtn:     { margin: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: NAVY, paddingVertical: 14, borderRadius: 14 },
+  downloadBtn:     { margin: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: BLUE, paddingVertical: 14, borderRadius: 14 },
   downloadBtnText: { color: '#fff', fontSize: 15, fontWeight: '700' },
 });
 

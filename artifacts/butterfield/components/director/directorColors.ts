@@ -14,11 +14,11 @@ export const PINK        = '#EC4899';
 export const TEAL        = '#06B6D4';
 export const ROSE        = '#F43F5E';
 export const GOLD        = '#C9A84C';
-export const GLASS_BG    = 'rgba(255,255,255,0.6)';
-export const GLASS_BORDER= 'rgba(255,255,255,0.85)';
+export const GLASS_BG    = CARD;
+export const GLASS_BORDER= BORDER;
 export const GLASS_SHADOW = {
-  shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
-  shadowOpacity: 0.06, shadowRadius: 14, elevation: 3,
+  shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
+  shadowOpacity: 0.04, shadowRadius: 8, elevation: 1,
 } as const;
 
 export const RADIUS_SM   = 12;
@@ -26,7 +26,7 @@ export const RADIUS_MD   = 16;
 export const RADIUS_LG   = 20;
 
 export const CHIP_ACTIVE = {
-  height: 34, borderRadius: 17, backgroundColor: BLUE,
+  height: 34, borderRadius: 17, backgroundColor: '#000',
   paddingHorizontal: 14, alignItems: 'center' as const, justifyContent: 'center' as const,
 };
 

@@ -85,7 +85,7 @@ const TIMELINE_ICON: Record<string, { icon: string; color: string }> = {
   note_deleted: { icon: 'trash-2',      color: RED },
   stamp:        { icon: 'coffee',       color: '#92400E' },
   notification: { icon: 'bell',         color: PURPLE },
-  note:         { icon: 'file-text',    color: NAVY },
+  note:         { icon: 'file-text',    color: BLUE },
 };
 
 function initials(name: string) {
@@ -325,7 +325,7 @@ function CrmActionsSection({ customerId, customerName, onRefresh }: {
           <Pressable
             onPress={sendNotify}
             disabled={sendingNotify || !notifyTitle.trim() || !notifyBody.trim()}
-            style={[det.actionBtn, { backgroundColor: NAVY, opacity: sendingNotify || !notifyTitle.trim() || !notifyBody.trim() ? 0.5 : 1 }]}
+            style={[det.actionBtn, { backgroundColor: BLUE, opacity: sendingNotify || !notifyTitle.trim() || !notifyBody.trim() ? 0.5 : 1 }]}
           >
             {sendingNotify ? <ActivityIndicator size="small" color="#fff" /> : (
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
@@ -858,6 +858,6 @@ const det = StyleSheet.create({
   timelineLine:       { width: 2, flex: 1, backgroundColor: BORDER, marginTop: 4, minHeight: 16, alignSelf: 'center' },
   fieldLabel:         { fontSize: 12, fontWeight: '600', color: MUTED, textTransform: 'uppercase', letterSpacing: 0.4 },
   input:              { backgroundColor: CARD, borderWidth: 1, borderColor: BORDER, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, fontSize: 14, color: TEXT },
-  actionBtn:          { backgroundColor: NAVY, borderRadius: 12, height: 46, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
+  actionBtn:          { backgroundColor: BLUE, borderRadius: 12, height: 46, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
   contactBtn:         { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 8, paddingVertical: 6, borderRadius: 8, backgroundColor: '#EAF3FF' },
 });

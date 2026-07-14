@@ -239,8 +239,8 @@ export function DirectorUsersScreen({ modeOverride }: { modeOverride?: UsersMode
                 onPress={() => { Haptics.selectionAsync(); router.push('/director-settings-managers' as any); }}
                 style={[styles.addBtn, { backgroundColor: '#EEF4FF' }]}
               >
-                <Feather name="shield" size={13} color={NAVY} />
-                <Text style={[styles.addBtnText, { color: NAVY }]}>Roles & Permissions</Text>
+                <Feather name="shield" size={13} color={BLUE} />
+                <Text style={[styles.addBtnText, { color: BLUE }]}>Roles & Permissions</Text>
               </Pressable>
             </>
           )}
@@ -284,7 +284,7 @@ export function DirectorUsersScreen({ modeOverride }: { modeOverride?: UsersMode
             renderItem={({ item: a }) => {
               const roleColors = ROLE_COLORS[a.role] ?? { bg: BG, text: MUTED };
               return (
-                <View style={[styles.userCard, { backgroundColor: GLASS_BG, borderColor: GLASS_BORDER, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 14, elevation: 3 }]}>
+                <View style={[styles.userCard, { backgroundColor: CARD, borderColor: BORDER, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 8, elevation: 1 }]}>
                   <View style={styles.userTop}>
                     <View style={[styles.avatar, { backgroundColor: '#F3F4F6' }]}>
                       <Text style={[styles.avatarText, { color: MUTED }]}>{initials(a.name)}</Text>
@@ -466,22 +466,22 @@ export function DirectorUsersScreen({ modeOverride }: { modeOverride?: UsersMode
       >
         <View style={{ flex: 1, backgroundColor: BG }}>
           {/* Header */}
-          <View style={{ backgroundColor: NAVY, paddingTop: 20, paddingBottom: 18, paddingHorizontal: 20, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+          <View style={{ backgroundColor: CARD, paddingTop: 20, paddingBottom: 18, paddingHorizontal: 20, flexDirection: 'row', alignItems: 'center', gap: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: BORDER }}>
             <View style={{ flex: 1 }}>
-              <Text style={{ color: '#fff', fontSize: 18, fontWeight: '700' }}>Staff Invite Link</Text>
-              <Text style={{ color: 'rgba(255,255,255,0.65)', fontSize: 13, marginTop: 2 }}>
+              <Text style={{ color: TEXT, fontSize: 18, fontWeight: '700' }}>Staff Invite Link</Text>
+              <Text style={{ color: MUTED, fontSize: 13, marginTop: 2 }}>
                 Generate a single-use code for new staff to register
               </Text>
             </View>
             <Pressable onPress={() => setShowInviteModal(false)} hitSlop={12}>
-              <Feather name="x" size={22} color="#fff" />
+              <Feather name="x" size={22} color={MUTED} />
             </Pressable>
           </View>
 
           <ScrollView contentContainerStyle={{ padding: 16, gap: 14 }} showsVerticalScrollIndicator={false}>
             {/* Generate section */}
             <View style={{ backgroundColor: CARD, borderRadius: 18, padding: 18, gap: 12, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8 }}>
-              <Text style={{ fontSize: 15, fontWeight: '700', color: NAVY }}>Generate new code</Text>
+              <Text style={{ fontSize: 15, fontWeight: '700', color: TEXT }}>Generate new code</Text>
               <Text style={{ fontSize: 12, fontWeight: '600', color: MUTED, textTransform: 'uppercase', letterSpacing: 0.5 }}>Note (optional)</Text>
               <TextInput
                 style={{ backgroundColor: BG, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 14, color: TEXT, borderWidth: 1, borderColor: BORDER }}
@@ -510,7 +510,7 @@ export function DirectorUsersScreen({ modeOverride }: { modeOverride?: UsersMode
                   <Text style={{ fontSize: 15, fontWeight: '700', color: GREEN }}>Code generated!</Text>
                 </View>
                 <View style={{ backgroundColor: '#F0FDF4', borderRadius: 14, paddingVertical: 16, alignItems: 'center' }}>
-                  <Text style={{ fontSize: 26, fontWeight: '800', color: NAVY, letterSpacing: 3, fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace' }}>
+                  <Text style={{ fontSize: 26, fontWeight: '800', color: TEXT, letterSpacing: 3, fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace' }}>
                     {generatedInvite.token}
                   </Text>
                   <Text style={{ fontSize: 12, color: MUTED, marginTop: 6 }}>
@@ -538,11 +538,11 @@ export function DirectorUsersScreen({ modeOverride }: { modeOverride?: UsersMode
             {/* Active invites list */}
             {activeInvites.length > 0 && (
               <View style={{ backgroundColor: CARD, borderRadius: 18, padding: 18, gap: 12, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8 }}>
-                <Text style={{ fontSize: 15, fontWeight: '700', color: NAVY }}>Active codes ({activeInvites.length})</Text>
+                <Text style={{ fontSize: 15, fontWeight: '700', color: TEXT }}>Active codes ({activeInvites.length})</Text>
                 {activeInvites.map((inv) => (
                   <View key={inv.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: BG, borderRadius: 12, padding: 12 }}>
                     <View style={{ flex: 1 }}>
-                      <Text style={{ fontSize: 15, fontWeight: '700', color: NAVY, fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace', letterSpacing: 1 }}>{inv.token}</Text>
+                      <Text style={{ fontSize: 15, fontWeight: '700', color: TEXT, fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace', letterSpacing: 1 }}>{inv.token}</Text>
                       {inv.note ? <Text style={{ fontSize: 12, color: MUTED, marginTop: 2 }}>{inv.note}</Text> : null}
                       <Text style={{ fontSize: 11, color: MUTED, marginTop: 2 }}>
                         Expires {new Date(inv.expiresAt).toLocaleDateString('en-AU', { day: 'numeric', month: 'short' })}

@@ -206,7 +206,7 @@ function CreateUserModal({ visible, type, onClose, onSuccess }: {
               <Text style={[modal.errorText, { color: RED }]}>{error}</Text>
             </View>
           ) : null}
-          <Pressable onPress={handleSubmit} disabled={loading} style={[modal.submitBtn, { backgroundColor: isStaff ? NAVY : isShopDisplay ? BLUE : GREEN, opacity: loading ? 0.8 : 1 }]}>
+          <Pressable onPress={handleSubmit} disabled={loading} style={[modal.submitBtn, { backgroundColor: isStaff ? BLUE : isShopDisplay ? BLUE : GREEN, opacity: loading ? 0.8 : 1 }]}>
             {loading ? <ActivityIndicator color="#fff" size="small" /> : (
               <Text style={modal.submitBtnText}>Create {isStaff ? 'Staff Account' : isShopDisplay ? 'POS Screen Login' : 'Wholesale Account'}</Text>
             )}

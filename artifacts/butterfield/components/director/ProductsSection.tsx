@@ -3,7 +3,7 @@ import { View, Text } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { s } from './reportStyles';
-import { NAVY } from './directorColors';
+import { NAVY, BLUE } from './directorColors';
 import { fmtAUD } from './reportHelpers';
 import ReportSectionHeader from './ReportSectionHeader';
 import HBar from './HBar';
@@ -39,7 +39,7 @@ export default function ProductsSection({ from, to }: { from: string; to: string
                 </View>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 4 }}>
                   <View style={{ flex: 1 }}>
-                    <HBar value={r.units} max={maxUnits} color={NAVY} />
+                    <HBar value={r.units} max={maxUnits} color={BLUE} />
                   </View>
                   <Text style={s.breakValue}>{fmtAUD(r.revenueCents)}</Text>
                 </View>

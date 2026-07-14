@@ -267,11 +267,11 @@ export function WholesaleTabContent({
                     paddingVertical: 8, 
                     borderRadius: 20, 
                     borderWidth: 1,
-                    backgroundColor: active ? BRAND : SURFACE, 
-                    borderColor: active ? BRAND : BORDER 
+                    backgroundColor: active ? '#000' : SURFACE, 
+                    borderColor: active ? '#000' : BORDER 
                   }}
                 >
-                  <Text style={{ fontSize: 12, fontWeight: '600', color: active ? BRAND_TEXT_ON : TEXT_MUTED }}>
+                  <Text style={{ fontSize: 12, fontWeight: '600', color: active ? '#fff' : TEXT_MUTED }}>
                     {tab.label}
                   </Text>
                 </Pressable>

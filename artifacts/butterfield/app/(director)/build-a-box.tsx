@@ -11,9 +11,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, type BuildABoxSize, type BuildABoxProductConfig } from '@/lib/api';
 
-const NAVY   = '#1A2B4A';
-const BLUE   = '#40C0F2';
-const BG     = '#F4F6FA';
+const NAVY   = '#007AFF';
+const BLUE   = '#007AFF';
+const BG     = '#F2F2F7';
 const CARD   = '#FFFFFF';
 const BORDER = '#E5E7EB';
 const TEXT   = '#111827';

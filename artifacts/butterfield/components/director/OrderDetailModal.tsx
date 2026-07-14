@@ -192,7 +192,7 @@ export default function OrderDetailModal({ order, visible, onClose, onStatusChan
             )}
           </Pressable>
           {isWholesale && (order.invoicePdfUrl || order.invoiceUrl || order.stripeInvoiceId) ? (
-            <Pressable onPress={onViewInvoice} style={[styles.printBtn, { backgroundColor: NAVY }]}>
+            <Pressable onPress={onViewInvoice} style={[styles.printBtn, { backgroundColor: BLUE }]}>
               <>
                 <Feather name="file-text" size={13} color="#fff" />
                 <Text style={{ color: '#fff', fontWeight: '600', fontSize: 13 }}>View invoice {order.invoiceNumber ?? ''}</Text>

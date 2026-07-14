@@ -138,7 +138,7 @@ function TypeButton({ label, selected, onPress }: { label: string; selected: boo
   return (
     <Pressable
       onPress={onPress}
-      style={[s.typeBtn, selected && { backgroundColor: BLUE, borderColor: BLUE }]}
+      style={[s.typeBtn, selected && { backgroundColor: '#000', borderColor: '#000' }]}
     >
       <Text style={[s.typeBtnText, selected && { color: '#fff' }]}>{label}</Text>
     </Pressable>
@@ -290,7 +290,7 @@ export default function DirectorDiscountsScreen() {
             <Pressable
               key={f}
               onPress={() => setFilter(f)}
-              style={[s.filterChip, filter === f && { backgroundColor: BLUE, borderColor: BLUE }]}
+              style={[s.filterChip, filter === f && { backgroundColor: '#000', borderColor: '#000' }]}
             >
               <Text style={[s.filterChipText, filter === f && { color: '#fff' }]}>
                 {f.charAt(0).toUpperCase() + f.slice(1)}
@@ -565,13 +565,13 @@ const s = StyleSheet.create({
   addBtn:       { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: RED, borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8 },
   addBtnText:   { fontSize: 13, fontWeight: '600', color: '#fff' },
   filterRow:    { flexDirection: 'row', gap: 8, paddingBottom: 14 },
-  filterChip:   { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 16, borderWidth: 1, borderColor: BORDER, backgroundColor: CARD },
+  filterChip:   { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20, borderWidth: 1, borderColor: BORDER, backgroundColor: CARD },
   filterChipText:{ fontSize: 12, fontWeight: '600', color: MUTED },
   loadingWrap:  { flex: 1, alignItems: 'center', justifyContent: 'center' },
   emptyWrap:    { alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 60 },
   emptyText:    { fontSize: 18, fontWeight: '600', color: TEXT },
   emptySub:     { fontSize: 13, color: MUTED, textAlign: 'center' },
-  card:         { backgroundColor: GLASS_BG, borderRadius: 16, borderWidth: 1, borderColor: GLASS_BORDER, overflow: 'hidden', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 14, elevation: 3 },
+  card:         { backgroundColor: CARD, borderRadius: 20, borderWidth: StyleSheet.hairlineWidth, borderColor: BORDER, overflow: 'hidden', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 8, elevation: 1 },
   cardTop:      { flexDirection: 'row', padding: 14, gap: 10 },
   codeRow:      { flexDirection: 'row', alignItems: 'center', gap: 8 },
   codeText:     { fontSize: 18, fontWeight: '800', color: TEXT, letterSpacing: 1 },
@@ -600,6 +600,6 @@ const s = StyleSheet.create({
   fieldNote:    { fontSize: 11, color: MUTED },
   input:        { backgroundColor: CARD2, borderRadius: 10, borderWidth: 1, borderColor: BORDER, paddingHorizontal: 14, paddingVertical: 11, fontSize: 14, color: TEXT },
   typeRow:      { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  typeBtn:      { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10, borderWidth: 1, borderColor: BORDER, backgroundColor: CARD2 },
+  typeBtn:      { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, borderWidth: 1, borderColor: BORDER, backgroundColor: CARD },
   typeBtnText:  { fontSize: 12, fontWeight: '600', color: MUTED },
 });

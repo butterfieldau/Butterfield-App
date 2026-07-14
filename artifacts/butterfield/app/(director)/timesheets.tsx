@@ -964,14 +964,14 @@ export default function DirectorTimesheetsScreen() {
             <ScrollView horizontal showsHorizontalScrollIndicator={false}
               contentContainerStyle={{ gap: 8, paddingVertical: 2 }}>
               <Pressable onPress={() => { setPersonFilter('all'); Haptics.selectionAsync(); }}
-                style={[sc.personPill, personFilter === 'all' && { backgroundColor: NAVY, borderColor: NAVY }]}>
+                style={[sc.personPill, personFilter === 'all' && { backgroundColor: '#000', borderColor: '#000' }]}>
                 <Text style={[sc.personPillText, { color: personFilter === 'all' ? '#fff' : TEXT }]}>All</Text>
               </Pressable>
               {people.map(p => {
                 const active = personFilter === p.id;
                 return (
                   <Pressable key={p.id} onPress={() => { setPersonFilter(p.id); Haptics.selectionAsync(); }}
-                    style={[sc.personPill, active && { backgroundColor: NAVY, borderColor: NAVY }]}>
+                    style={[sc.personPill, active && { backgroundColor: '#000', borderColor: '#000' }]}>
                     <Text style={[sc.personPillText, { color: active ? '#fff' : TEXT }]}>{p.name.split(' ')[0]}</Text>
                   </Pressable>
                 );
@@ -1132,7 +1132,7 @@ function PayrollCard({ summaries }: { summaries: StaffPaySummary[] }) {
             {pending > 0 ? ` · ${pending} pending` : ''}
           </Text>
         </View>
-        <Text style={[py.total, { color: NAVY }]}>{fmtAUD(totalPay)}</Text>
+        <Text style={[py.total, { color: TEXT }]}>{fmtAUD(totalPay)}</Text>
       </View>
       {summaries.map((s, i) => (
         <View key={s.userId} style={[py.row, i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: BORDER }]}>
@@ -1164,22 +1164,22 @@ function PayrollCard({ summaries }: { summaries: StaffPaySummary[] }) {
 // ── Styles ────────────────────────────────────────────────────────────────────
 const sc = StyleSheet.create({
   topBar:        { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingBottom: 12 },
-  locationPill:  { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: GLASS_BG, borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6, borderWidth: 1, borderColor: GLASS_BDR },
+  locationPill:  { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: CARD, borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6, borderWidth: 1, borderColor: BORDER },
   locationText:  { fontSize: 13, fontWeight: '600', color: TEXT },
   chipRow:       { flexDirection: 'row', gap: 8, paddingHorizontal: 16, paddingBottom: 12 },
   chip:          { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, borderWidth: 1, borderColor: BORDER },
   chipText:      { fontSize: 13, fontWeight: '600', color: TEXT },
   summaryRow:    { flexDirection: 'row', gap: 10 },
-  summaryCard:   { flex: 1, padding: 14, borderRadius: 14, borderWidth: 1, gap: 4, backgroundColor: GLASS_BG, borderColor: GLASS_BDR, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 14, elevation: 3 },
+  summaryCard:   { flex: 1, padding: 14, borderRadius: 14, borderWidth: StyleSheet.hairlineWidth, gap: 4, backgroundColor: CARD, borderColor: BORDER, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 8, elevation: 1 },
   summaryLabel:  { fontSize: 9, fontWeight: '600', letterSpacing: 0.8, color: MUTED },
   summaryValue:  { fontSize: 18, fontWeight: '700', color: TEXT },
   personPill:    { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, borderWidth: 1, borderColor: BORDER, backgroundColor: CARD },
   personPillText:{ fontSize: 13, fontWeight: '600' },
   sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingLeft: 2, marginTop: 4 },
   sectionDate:   { fontSize: 14, fontWeight: '700', color: TEXT, flex: 1 },
-  sectionHrsBadge:{ backgroundColor: NAVY + '12', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 },
-  sectionHrsText:{ fontSize: 12, fontWeight: '600', color: NAVY },
-  empty:         { alignItems: 'center', gap: 10, padding: 40, borderRadius: 16, borderWidth: 1, backgroundColor: GLASS_BG, borderColor: GLASS_BDR },
+  sectionHrsBadge:{ backgroundColor: BG, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 },
+  sectionHrsText:{ fontSize: 12, fontWeight: '600', color: MUTED },
+  empty:         { alignItems: 'center', gap: 10, padding: 40, borderRadius: 16, borderWidth: 1, backgroundColor: CARD, borderColor: BORDER },
   emptyTitle:    { fontSize: 16, fontWeight: '600', color: TEXT },
   emptySub:      { fontSize: 13, color: MUTED, textAlign: 'center' },
   // Shift card

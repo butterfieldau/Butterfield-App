@@ -95,7 +95,7 @@ function QuantityModal({ item, onClose, onSave }: {
               <Pressable style={[qm.btn, { backgroundColor: BG }]} onPress={onClose}>
                 <Text style={[qm.btnText, { color: TEXT }]}>Cancel</Text>
               </Pressable>
-              <Pressable style={[qm.btn, { backgroundColor: NAVY }]} onPress={handleSave}>
+              <Pressable style={[qm.btn, { backgroundColor: BLUE }]} onPress={handleSave}>
                 <Text style={[qm.btnText, { color: '#fff' }]}>Save</Text>
               </Pressable>
             </View>
@@ -226,7 +226,7 @@ const mm = StyleSheet.create({
   closeBtn:  { width: 32, height: 32, borderRadius: 16, backgroundColor: BG, alignItems: 'center', justifyContent: 'center' },
   addRow:    { flexDirection: 'row', gap: 10, padding: 16, backgroundColor: CARD, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: BORDER },
   addInput:  { flex: 1, borderWidth: 1.5, borderColor: BORDER, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10, fontSize: 15, color: TEXT },
-  addBtn:    { width: 44, height: 44, borderRadius: 10, backgroundColor: NAVY, alignItems: 'center', justifyContent: 'center' },
+  addBtn:    { width: 44, height: 44, borderRadius: 10, backgroundColor: BLUE, alignItems: 'center', justifyContent: 'center' },
   row:       { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: CARD, borderRadius: 12, padding: 14, borderWidth: StyleSheet.hairlineWidth, borderColor: BORDER },
   dot:       { width: 32, height: 32, borderRadius: 8, alignItems: 'center', justifyContent: 'center', borderWidth: 1.5 },
   catName:   { flex: 1, fontSize: 14, fontWeight: '600', color: TEXT },
@@ -321,7 +321,7 @@ function EditModal({ item, onClose, onSave, categories }: {
           <Label>Unit</Label>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 4 }}>
             {COMMON_UNITS.map((u) => (
-              <Pressable key={u} onPress={() => setUnit(u)} style={[em.unitChip, unit === u && { backgroundColor: NAVY, borderColor: NAVY }]}>
+              <Pressable key={u} onPress={() => setUnit(u)} style={[em.unitChip, unit === u && { backgroundColor: '#000', borderColor: '#000' }]}>
                 <Text style={[em.unitLabel, unit === u && { color: '#fff' }]}>{u}</Text>
               </Pressable>
             ))}
@@ -368,7 +368,7 @@ const em = StyleSheet.create({
   header:      { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingTop: 20, paddingBottom: 16, backgroundColor: CARD, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: BORDER },
   title:       { fontSize: 18, fontWeight: '700', color: TEXT },
   closeBtn:    { width: 36, height: 36, borderRadius: 18, backgroundColor: BG, alignItems: 'center', justifyContent: 'center' },
-  saveBtn:     { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, backgroundColor: NAVY },
+  saveBtn:     { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, backgroundColor: BLUE },
   saveTxt:     { fontSize: 14, fontWeight: '700', color: '#fff' },
   scrollContent: { padding: 20, paddingBottom: 40 },
   label:       { fontSize: 12, fontWeight: '600', color: MUTED, letterSpacing: 0.8, marginBottom: 6, marginTop: 14 },
@@ -379,7 +379,7 @@ const em = StyleSheet.create({
   unitLabel:   { fontSize: 12, fontWeight: '500', color: MUTED },
   costRow:     { flexDirection: 'row', alignItems: 'center', gap: 8 },
   costPrefix:  { fontSize: 18, fontWeight: '600', color: TEXT },
-  primaryBtn:  { marginTop: 28, marginBottom: 8, backgroundColor: NAVY, borderRadius: 14, paddingVertical: 15, alignItems: 'center' },
+  primaryBtn:  { marginTop: 28, marginBottom: 8, backgroundColor: BLUE, borderRadius: 14, paddingVertical: 15, alignItems: 'center' },
   primaryBtnTxt: { fontSize: 16, fontWeight: '700', color: '#fff' },
 });
 
@@ -436,7 +436,7 @@ function StockCard({ item, isDirector, onQtyPress, onEditPress, onDeletePress }:
 }
 
 const sc = StyleSheet.create({
-  card:    { backgroundColor: GLASS_BG, borderRadius: 14, padding: 14, flexDirection: 'row', alignItems: 'center', marginBottom: 10, borderWidth: 1, borderColor: GLASS_BORDER, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 14, elevation: 3 },
+  card:    { backgroundColor: CARD, borderRadius: 16, padding: 14, flexDirection: 'row', alignItems: 'center', marginBottom: 10, borderWidth: StyleSheet.hairlineWidth, borderColor: BORDER, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 8, elevation: 1 },
   left:    { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 12, marginRight: 8 },
   catDot:  { width: 34, height: 34, borderRadius: 10, alignItems: 'center', justifyContent: 'center', borderWidth: 1.5 },
   name:    { fontSize: 15, fontWeight: '600', color: TEXT },
@@ -559,7 +559,7 @@ export default function StockScreen() {
             onPress={() => { Haptics.selectionAsync(); setManageCats(true); }}
             style={s.manageBtn}
           >
-            <Feather name="tag" size={16} color={NAVY} />
+            <Feather name="tag" size={16} color={BLUE} />
           </Pressable>
           <Pressable
             onPress={() => { Haptics.selectionAsync(); setEditItem({}); }}
@@ -586,7 +586,7 @@ export default function StockScreen() {
               <Pressable
                 key="all"
                 onPress={() => { Haptics.selectionAsync(); setCatFilter('all'); }}
-                style={[s.catTab, catFilter === 'all' && { backgroundColor: NAVY, borderColor: NAVY }]}
+                style={[s.catTab, catFilter === 'all' && { backgroundColor: '#000', borderColor: '#000' }]}
               >
                 <Text style={[s.catTabTxt, catFilter === 'all' && { color: '#fff' }]}>All</Text>
                 <View style={[s.catCount, catFilter === 'all' && { backgroundColor: 'rgba(255,255,255,0.3)' }]}>
@@ -647,7 +647,7 @@ export default function StockScreen() {
       {/* ── List ── */}
       {isLoading ? (
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-          <ActivityIndicator size="large" color={NAVY} />
+          <ActivityIndicator size="large" color={BLUE} />
         </View>
       ) : filtered.length === 0 ? (
         <DirectorEmptyState
@@ -717,7 +717,7 @@ const s = StyleSheet.create({
   backBtn:     { width: 36, height: 36, borderRadius: 10, backgroundColor: CARD, alignItems: 'center', justifyContent: 'center', borderWidth: StyleSheet.hairlineWidth, borderColor: BORDER },
   title:       { fontSize: 22, fontWeight: '700', color: TEXT },
   manageBtn:   { width: 36, height: 36, borderRadius: 10, backgroundColor: CARD, alignItems: 'center', justifyContent: 'center', borderWidth: StyleSheet.hairlineWidth, borderColor: BORDER },
-  addBtn:      { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: NAVY, paddingHorizontal: 14, paddingVertical: 9, borderRadius: 10 },
+  addBtn:      { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: BLUE, paddingHorizontal: 14, paddingVertical: 9, borderRadius: 10 },
   addBtnTxt:   { fontSize: 14, fontWeight: '700', color: '#fff' },
   searchBox:   { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: CARD, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10, marginTop: 12, borderWidth: StyleSheet.hairlineWidth, borderColor: BORDER },
   searchInput: { flex: 1, fontSize: 15, color: TEXT },

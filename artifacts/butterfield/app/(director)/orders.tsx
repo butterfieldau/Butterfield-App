@@ -610,9 +610,9 @@ export default function DirectorOrdersScreen() {
                   key={t.key}
                   onPress={() => { setChannelTab(t.key); Haptics.selectionAsync(); }}
                   style={[{ flex: 1, paddingVertical: 9, borderRadius: 10, alignItems: 'center' },
-                    active && { backgroundColor: SURFACE_RAISED, borderWidth: 1, borderColor: BRAND + '50' }]}
+                    active && { backgroundColor: '#000' }]}
                 >
-                  <Text style={{ fontSize: 12, fontWeight: active ? '700' : '500', color: active ? BRAND : TEXT_MUTED }}>
+                  <Text style={{ fontSize: 12, fontWeight: active ? '700' : '500', color: active ? '#fff' : TEXT_MUTED }}>
                     {t.label}
                   </Text>
                 </Pressable>

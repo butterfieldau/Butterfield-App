@@ -230,7 +230,7 @@ export default function PosOrdersScreen() {
       {/* Day navigation strip */}
       <View style={s.dayNav}>
         <Pressable onPress={goBack} style={s.dayArrow} hitSlop={12}>
-          <Feather name="chevron-left" size={22} color={NAVY} />
+          <Feather name="chevron-left" size={22} color={TEXT} />
         </Pressable>
 
         <Pressable style={s.dayLabelWrap} onPress={() => setShowPicker(true)}>
@@ -245,7 +245,7 @@ export default function PosOrdersScreen() {
           disabled={isToday}
           hitSlop={12}
         >
-          <Feather name="chevron-right" size={22} color={isToday ? BORD : NAVY} />
+          <Feather name="chevron-right" size={22} color={isToday ? BORD : TEXT} />
         </Pressable>
       </View>
 
@@ -270,7 +270,7 @@ export default function PosOrdersScreen() {
                   setSelectedDate(sydneyDateStr(d));
                   setShowPicker(false);
                 }}
-                accentColor={NAVY}
+                accentColor={BLUE}
                 maxDate={dateStrToLocal(todayStr)}
               />
             </View>
@@ -351,7 +351,7 @@ export default function PosOrdersScreen() {
 
 const s = StyleSheet.create({
   header: {
-    backgroundColor: NAVY,
+    backgroundColor: BG,
     paddingHorizontal: 20,
     paddingBottom: 16,
     gap: 4,

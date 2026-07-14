@@ -231,7 +231,7 @@ function TaskEditorModal({
           <Text style={s.fieldLabel}>TASK TYPE</Text>
           <View style={s.chipRow}>
             {Object.entries(TASK_CATEGORY_LABELS).map(([key, label]) => (
-              <Pressable key={key} onPress={() => setCategory(key as TaskCategory)} style={[s.chip, category === key && { backgroundColor: BLUE, borderColor: BLUE }]}>
+              <Pressable key={key} onPress={() => setCategory(key as TaskCategory)} style={[s.chip, category === key && { backgroundColor: '#000', borderColor: '#000' }]}>
                 <Text style={[s.chipText, category === key && { color: '#fff' }]}>{label}</Text>
               </Pressable>
             ))}
@@ -240,7 +240,7 @@ function TaskEditorModal({
           <Text style={s.fieldLabel}>CADENCE</Text>
           <View style={s.chipRow}>
             {(Object.keys(TASK_CADENCE_LABELS) as Array<'daily' | 'weekly' | 'one_off'>).map((key) => (
-              <Pressable key={key} onPress={() => setCadence(key)} style={[s.chip, cadence === key && { backgroundColor: BLUE, borderColor: BLUE }]}>
+              <Pressable key={key} onPress={() => setCadence(key)} style={[s.chip, cadence === key && { backgroundColor: '#000', borderColor: '#000' }]}>
                 <Text style={[s.chipText, cadence === key && { color: '#fff' }]}>{TASK_CADENCE_LABELS[key]}</Text>
               </Pressable>
             ))}
@@ -249,11 +249,11 @@ function TaskEditorModal({
           <Text style={s.fieldLabel}>ASSIGN TO</Text>
           <Text style={{ fontSize: 12, color: MUTED, marginTop: -8, marginBottom: 4 }}>Leave as "All staff" so everyone can see it</Text>
           <View style={s.chipRow}>
-            <Pressable onPress={() => { setAssignedToUserId(null); setAssignedToName(null); }} style={[s.chip, !assignedToUserId && { backgroundColor: BLUE, borderColor: BLUE }]}>
+            <Pressable onPress={() => { setAssignedToUserId(null); setAssignedToName(null); }} style={[s.chip, !assignedToUserId && { backgroundColor: '#000', borderColor: '#000' }]}>
               <Text style={[s.chipText, !assignedToUserId && { color: '#fff' }]}>All staff</Text>
             </Pressable>
             {staffMembers.map((m) => (
-              <Pressable key={m.id} onPress={() => { setAssignedToUserId(m.id); setAssignedToName(m.name ?? null); }} style={[s.chip, assignedToUserId === m.id && { backgroundColor: BLUE, borderColor: BLUE }]}>
+              <Pressable key={m.id} onPress={() => { setAssignedToUserId(m.id); setAssignedToName(m.name ?? null); }} style={[s.chip, assignedToUserId === m.id && { backgroundColor: '#000', borderColor: '#000' }]}>
                 <Text style={[s.chipText, assignedToUserId === m.id && { color: '#fff' }]}>{m.name ?? 'Staff member'}</Text>
               </Pressable>
             ))}
@@ -572,7 +572,7 @@ function ManagerTasksTab({ canEdit = true }: { canEdit?: boolean }) {
 
           {/* Completed tile */}
           <Pressable
-            style={[s.tileBig, { flex: 1, borderColor: completedExpanded ? GREEN : BORDER, backgroundColor: completedExpanded ? GREEN + '10' : GLASS_BG }]}
+            style={[s.tileBig, { flex: 1, borderColor: completedExpanded ? GREEN : BORDER, backgroundColor: completedExpanded ? GREEN + '10' : CARD }]}
             onPress={() => { Haptics.selectionAsync(); setCompletedExpanded(v => !v); setIncompleteExpanded(false); }}>
             <View style={[s.tileIcon, { backgroundColor: GREEN + '20', borderColor: GREEN + '44' }]}>
               <Feather name="check-circle" size={16} color={GREEN} />
@@ -586,7 +586,7 @@ function ManagerTasksTab({ canEdit = true }: { canEdit?: boolean }) {
 
           {/* Incomplete tile */}
           <Pressable
-            style={[s.tileBig, { flex: 1, borderColor: incompleteExpanded ? AMBER : BORDER, backgroundColor: incompleteExpanded ? AMBER + '10' : GLASS_BG }]}
+            style={[s.tileBig, { flex: 1, borderColor: incompleteExpanded ? AMBER : BORDER, backgroundColor: incompleteExpanded ? AMBER + '10' : CARD }]}
             onPress={() => { Haptics.selectionAsync(); setIncompleteExpanded(v => !v); setCompletedExpanded(false); }}>
             <View style={[s.tileIcon, { backgroundColor: AMBER + '20', borderColor: AMBER + '44' }]}>
               <Feather name="clock" size={16} color={AMBER} />
@@ -1057,7 +1057,7 @@ function ManagerWastageTab() {
           { label: 'TODAY', value: fmtAUD(todayCost), sub: `${todayItems.length} entries` },
           { label: 'THIS WEEK', value: fmtAUD(thisWeekCost), sub: `${thisWeekItems.length} entries` },
         ].map((m) => (
-          <View key={m.label} style={[s.metricCard, { backgroundColor: GLASS_BG, borderColor: GLASS_BORDER }]}>
+          <View key={m.label} style={[s.metricCard, { backgroundColor: CARD, borderColor: BORDER }]}>
             <Text style={s.metricLabel}>{m.label}</Text>
             <Text style={[s.metricValue, { color: PURPLE }]}>{m.value}</Text>
             <Text style={s.metricSub}>{m.sub}</Text>
@@ -1191,7 +1191,7 @@ function StaffLeaveTab() {
                 const active = form.type === lt;
                 return (
                   <Pressable key={lt} onPress={() => setForm((f) => ({ ...f, type: lt }))}
-                    style={[s.chip, active && { backgroundColor: BLUE, borderColor: BLUE }]}>
+                    style={[s.chip, active && { backgroundColor: '#000', borderColor: '#000' }]}>
                     <Text style={[s.chipText, active && { color: '#fff' }]}>
                       {lt.charAt(0).toUpperCase() + lt.slice(1)}
                     </Text>
@@ -1504,7 +1504,7 @@ function HubSummaryBar({ isManagerView }: { isManagerView: boolean }) {
         {/* Progress % */}
         <View style={s.hubDivider} />
         <View style={s.hubStatItem}>
-          <Text style={[s.hubStatValue, { color: allDone ? GREEN : NAVY }]}>
+          <Text style={[s.hubStatValue, { color: allDone ? GREEN : TEXT }]}>
             {totalTasks > 0 ? (allDone ? '✓' : `${pct}%`) : '—'}
           </Text>
           <Text style={s.hubStatLabel} numberOfLines={1}>Done</Text>
@@ -1521,7 +1521,7 @@ function HubSummaryBar({ isManagerView }: { isManagerView: boolean }) {
           </View>
         ) : (
           <View style={s.hubStatItem}>
-            <Text style={[s.hubStatValue, { color: NAVY }]}>
+            <Text style={[s.hubStatValue, { color: TEXT }]}>
               {pendingLeave}
             </Text>
             <Text style={s.hubStatLabel} numberOfLines={1}>My Leave</Text>
@@ -1653,16 +1653,16 @@ const s = StyleSheet.create({
   subtitle:   { fontSize: 13, color: MUTED, marginTop: 2, fontWeight: '400' },
 
   // Manager mode toggle
-  modeToggleBar: { backgroundColor: '#EFF6FF', paddingHorizontal: 12, paddingBottom: 10, alignItems: 'flex-end' },
+  modeToggleBar: { backgroundColor: BG, paddingHorizontal: 12, paddingBottom: 10, alignItems: 'flex-end' },
   modeToggle:   { flexDirection: 'row', backgroundColor: BORDER, borderRadius: 20, padding: 3, gap: 2 },
   modeBtn:      { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 17 },
-  modeBtnActive:{ backgroundColor: BLUE },
+  modeBtnActive:{ backgroundColor: '#000' },
   modeBtnText:  { fontSize: 12, fontWeight: '700', color: MUTED },
 
   // Tab pills (horizontal-scroll row)
   tabRow:       { flexDirection: 'row', paddingHorizontal: 16, paddingVertical: 10, gap: 8, alignItems: 'center' },
-  tabPill:      { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, paddingVertical: 8, paddingHorizontal: 16, borderRadius: 20, borderWidth: 1, borderColor: BORDER, backgroundColor: GLASS_BG },
-  tabPillActive:{ backgroundColor: BLUE, borderColor: BLUE },
+  tabPill:      { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, paddingVertical: 8, paddingHorizontal: 16, borderRadius: 20, borderWidth: 1, borderColor: BORDER, backgroundColor: CARD },
+  tabPillActive:{ backgroundColor: '#000', borderColor: '#000' },
   tabPillText:  { fontSize: 12, fontWeight: '600', color: MUTED },
 
   // Summary tiles (Completed / Incomplete)
@@ -1672,7 +1672,7 @@ const s = StyleSheet.create({
   tileLabel: { fontSize: 12, fontWeight: '600', color: MUTED },
 
   // Glass card
-  glassCard:  { backgroundColor: GLASS_BG, borderRadius: 20, borderWidth: 1, borderColor: GLASS_BORDER, padding: 14, gap: 10, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 14, elevation: 2 },
+  glassCard:  { backgroundColor: CARD, borderRadius: 20, borderWidth: StyleSheet.hairlineWidth, borderColor: BORDER, padding: 14, gap: 10, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 8, elevation: 1 },
 
   // Task row (inside glass card)
   taskRow:    { flexDirection: 'row', alignItems: 'center', gap: 14, paddingHorizontal: 4, paddingVertical: 10 },
@@ -1730,7 +1730,7 @@ const s = StyleSheet.create({
     borderWidth: 1, borderColor: BORDER, padding: 16,
   },
   hubStatItem:  { flex: 1, alignItems: 'center' },
-  hubStatValue: { fontSize: 18, fontWeight: '700', color: NAVY },
+  hubStatValue: { fontSize: 18, fontWeight: '700', color: TEXT },
   hubStatLabel: { fontSize: 11, color: MUTED, marginTop: 2, textAlign: 'center' },
   hubDivider:   { width: 1, backgroundColor: BORDER, marginVertical: 4 },
 
@@ -1742,7 +1742,7 @@ const s = StyleSheet.create({
   },
   alertIconWrap: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
   alertLabel:    { fontSize: 10, fontWeight: '700', color: RED, letterSpacing: 0.5 },
-  alertTitle:    { fontSize: 15, fontWeight: '700', color: NAVY, marginTop: 2 },
+  alertTitle:    { fontSize: 15, fontWeight: '700', color: TEXT, marginTop: 2 },
   alertSub:      { fontSize: 12, color: MUTED, marginTop: 1 },
 
   // Empty state

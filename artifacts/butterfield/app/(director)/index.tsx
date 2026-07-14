@@ -391,12 +391,12 @@ function DirectorDashboardInner({ onScroll }: { onScroll?: (e: any) => void }) {
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
             <QuickBtn icon="shopping-bag" label="Orders"    color={GREEN}   onPress={() => router.navigate('/(director)/orders' as any)} />
             <QuickBtn icon="box"          label="Products"  color={BLUE}    onPress={() => router.navigate('/(director)/products' as any)} />
-            <QuickBtn icon="bar-chart-2"  label="Reports"   color={NAVY}    onPress={() => router.push('/director-reports' as any)} />
+            <QuickBtn icon="bar-chart-2"  label="Reports"   color={BLUE}    onPress={() => router.push('/director-reports' as any)} />
             <QuickBtn icon="users"        label="Staff"     color={PURPLE}  onPress={() => router.push({ pathname: '/(director)/users', params: { tab: 'Staff' } } as any)} />
             <QuickBtn icon="bell"         label="Notify"    color="#06B6D4" onPress={() => router.push('/director-settings-notify' as any)} />
             <QuickBtn icon="briefcase"    label="Wholesale" color={AMBER}   onPress={() => router.push({ pathname: '/director-more-category', params: { category: 'wholesale' } } as any)} />
             <QuickBtn icon="clipboard"    label="Tasks"     color={BLUE}    onPress={() => router.push({ pathname: '/(director)/staffhub', params: { tab: 'tasks' } } as any)} />
-            <QuickBtn icon="settings"     label="Settings"  color={NAVY}    onPress={() => router.push({ pathname: '/director-more-category', params: { category: 'system' } } as any)} />
+            <QuickBtn icon="settings"     label="Settings"  color={BLUE}    onPress={() => router.push({ pathname: '/director-more-category', params: { category: 'system' } } as any)} />
           </View>
         </View>
 
@@ -529,15 +529,15 @@ const styles = StyleSheet.create({
 
   // Channel cards (smaller, reuse from existing)
   channelCard: {
-    backgroundColor: GLASS_BG, borderRadius: 16, borderWidth: 1,
-    borderColor: GLASS_BORDER, padding: 14,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06, shadowRadius: 14, elevation: 3,
+    backgroundColor: CARD, borderRadius: 16, borderWidth: StyleSheet.hairlineWidth,
+    borderColor: BORDER, padding: 14,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04, shadowRadius: 8, elevation: 1,
   },
 
   emptyCard: {
-    alignItems: 'center', gap: 10, padding: 32, borderRadius: 20, borderWidth: 1,
-    backgroundColor: GLASS_BG, borderColor: GLASS_BORDER,
+    alignItems: 'center', gap: 10, padding: 32, borderRadius: 20, borderWidth: StyleSheet.hairlineWidth,
+    backgroundColor: CARD, borderColor: BORDER,
   },
 });
 

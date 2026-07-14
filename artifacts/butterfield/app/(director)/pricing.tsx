@@ -769,8 +769,8 @@ export default function DirectorPricing() {
                 <Pressable
                   onPress={() => handleAssignTier(wa?.id ?? '', null)}
                   style={[styles.assignChip, {
-                    backgroundColor: !currentTier ? NAVY : '#F3F4F6',
-                    borderColor:     !currentTier ? NAVY : BORDER,
+                    backgroundColor: !currentTier ? '#000' : '#F3F4F6',
+                    borderColor:     !currentTier ? '#000' : BORDER,
                   }]}
                 >
                   <Text style={[styles.assignChipText, { color: !currentTier ? '#fff' : MUTED }]}>No Tier</Text>
@@ -781,8 +781,8 @@ export default function DirectorPricing() {
                     <Pressable key={t.id}
                       onPress={() => handleAssignTier(wa?.id ?? '', t.id)}
                       style={[styles.assignChip, {
-                        backgroundColor: active ? BLUE : '#F3F4F6',
-                        borderColor:     active ? BLUE : BORDER,
+                        backgroundColor: active ? '#000' : '#F3F4F6',
+                        borderColor:     active ? '#000' : BORDER,
                       }]}
                     >
                       <Text style={[styles.assignChipText, { color: active ? '#fff' : TEXT }]}>{t.name}</Text>
@@ -918,8 +918,8 @@ export default function DirectorPricing() {
                   <Pressable key={type}
                     onPress={() => setRuleForm((f) => ({ ...f, type }))}
                     style={[styles.typeChip, {
-                      backgroundColor: ruleForm.type === type ? NAVY : '#F3F4F6',
-                      borderColor:     ruleForm.type === type ? NAVY : BORDER,
+                      backgroundColor: ruleForm.type === type ? '#000' : '#F3F4F6',
+                      borderColor:     ruleForm.type === type ? '#000' : BORDER,
                     }]}
                   >
                     <Feather name={icon} size={13} color={ruleForm.type === type ? '#fff' : MUTED} />
@@ -1032,7 +1032,7 @@ export default function DirectorPricing() {
                   <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
                     {wholesaleUsers.map((u) => (
                       <Pressable key={u.id} onPress={() => setCustomForm((f) => ({ ...f, customerId: u.id }))}
-                        style={[styles.pickerChip, { backgroundColor: customForm.customerId === u.id ? NAVY : '#F3F4F6', borderColor: customForm.customerId === u.id ? NAVY : BORDER }]}>
+                        style={[styles.pickerChip, { backgroundColor: customForm.customerId === u.id ? '#000' : '#F3F4F6', borderColor: customForm.customerId === u.id ? '#000' : BORDER }]}>
                         <Text style={[styles.pickerChipText, { color: customForm.customerId === u.id ? '#fff' : TEXT }]}>
                           {u.wholesaleAccount?.companyName ?? u.name}
                         </Text>
@@ -1046,7 +1046,7 @@ export default function DirectorPricing() {
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
                 {allProducts.map((p) => (
                   <Pressable key={p.id} onPress={() => setCustomForm((f) => ({ ...f, productId: p.id }))}
-                    style={[styles.pickerChip, { backgroundColor: customForm.productId === p.id ? BLUE : '#F3F4F6', borderColor: customForm.productId === p.id ? BLUE : BORDER }]}>
+                    style={[styles.pickerChip, { backgroundColor: customForm.productId === p.id ? '#000' : '#F3F4F6', borderColor: customForm.productId === p.id ? '#000' : BORDER }]}>
                     <Text style={[styles.pickerChipText, { color: customForm.productId === p.id ? '#fff' : TEXT }]} numberOfLines={1}>{p.name}</Text>
                   </Pressable>
                 ))}
@@ -1146,10 +1146,10 @@ const styles = StyleSheet.create({
   newBtnText:      { color: '#fff', fontSize: 13, fontWeight: '700' },
   listContent:     { padding: 16, gap: 10, paddingBottom: 32 },
   loader:          { marginTop: 40 },
-  card:            { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: 14, borderWidth: 1, backgroundColor: GLASS_BG, borderColor: GLASS_BORDER, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 14, elevation: 3 },
-  tierCard:        { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: 14, borderWidth: 1, backgroundColor: GLASS_BG, borderColor: GLASS_BORDER, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 14, elevation: 3 },
-  productRuleCard: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: 12, borderWidth: 1, backgroundColor: GLASS_BG, borderColor: GLASS_BORDER },
-  assignCard:      { padding: 14, borderRadius: 14, borderWidth: 1, backgroundColor: GLASS_BG, borderColor: GLASS_BORDER, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 14, elevation: 3 },
+  card:            { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: 16, borderWidth: StyleSheet.hairlineWidth, backgroundColor: CARD, borderColor: BORDER, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 8, elevation: 1 },
+  tierCard:        { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: 16, borderWidth: StyleSheet.hairlineWidth, backgroundColor: CARD, borderColor: BORDER, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 8, elevation: 1 },
+  productRuleCard: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: 14, borderWidth: StyleSheet.hairlineWidth, backgroundColor: CARD, borderColor: BORDER },
+  assignCard:      { padding: 14, borderRadius: 16, borderWidth: StyleSheet.hairlineWidth, backgroundColor: CARD, borderColor: BORDER, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 8, elevation: 1 },
   cardTitle:       { fontSize: 15, fontWeight: '600', color: TEXT },
   cardSub:         { fontSize: 13, fontWeight: '400', color: MUTED },
   cardMeta:        { fontSize: 12, fontWeight: '400', color: MUTED },

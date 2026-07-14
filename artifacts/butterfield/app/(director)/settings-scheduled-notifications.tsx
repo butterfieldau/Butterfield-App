@@ -511,7 +511,7 @@ function ScheduleNotificationModal({
 
           <View style={styles.modalFooter}>
             <Pressable style={[styles.footerBtn, styles.draftBtn]} onPress={() => submit('draft')} disabled={savingStatus !== null}>
-              {savingStatus === 'draft' ? <ActivityIndicator color={NAVY} /> : <Text style={[styles.footerBtnText, { color: NAVY }]}>Save Draft</Text>}
+              {savingStatus === 'draft' ? <ActivityIndicator color={MUTED} /> : <Text style={[styles.footerBtnText, { color: TEXT }]}>Save Draft</Text>}
             </Pressable>
             <Pressable style={[styles.footerBtn, styles.scheduleBtn]} onPress={() => submit('scheduled')} disabled={savingStatus !== null}>
               {savingStatus === 'scheduled' ? <ActivityIndicator color="#fff" /> : <Text style={[styles.footerBtnText, { color: '#fff' }]}>Schedule</Text>}
@@ -770,7 +770,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   countChipText: {
-    color: NAVY,
+    color: TEXT,
     fontSize: 12,
     fontWeight: '700',
   },
@@ -1058,7 +1058,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#E0E7FF',
   },
   scheduleBtn: {
-    backgroundColor: NAVY,
+    backgroundColor: BLUE,
   },
   footerBtnText: {
     fontSize: 15,
@@ -1068,7 +1068,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    backgroundColor: NAVY,
+    backgroundColor: BLUE,
     borderRadius: 999,
     paddingHorizontal: 14,
     paddingVertical: 10,

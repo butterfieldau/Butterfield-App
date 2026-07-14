@@ -349,9 +349,9 @@ function StaffProfileModal({ userId, visible, onClose, onRefresh, onDelete }: {
                 disabled={clockInMut.isPending || clockOutMut.isPending}
               >
                 {(clockInMut.isPending || clockOutMut.isPending)
-                  ? <ActivityIndicator color={hasActiveShift ? RED : NAVY} size="small" />
+                  ? <ActivityIndicator color={hasActiveShift ? RED : BLUE} size="small" />
                   : <>
-                      <Feather name={hasActiveShift ? 'stop-circle' : 'play-circle'} size={16} color={hasActiveShift ? RED : NAVY} />
+                      <Feather name={hasActiveShift ? 'stop-circle' : 'play-circle'} size={16} color={hasActiveShift ? RED : BLUE} />
                       <Text style={[sp_s.startShiftText, hasActiveShift && { color: RED }]}>
                         {hasActiveShift ? 'End active shift' : 'Start unscheduled shift'}
                       </Text>
@@ -361,11 +361,11 @@ function StaffProfileModal({ userId, visible, onClose, onRefresh, onDelete }: {
               {/* ── Action buttons ───────────────────────────────────── */}
               <View style={sp_s.actionRow}>
                 <Pressable style={sp_s.actionBtn} onPress={handleMessage}>
-                  <Feather name="mail" size={20} color={NAVY} />
+                  <Feather name="mail" size={20} color={BLUE} />
                   <Text style={sp_s.actionLabel}>Email</Text>
                 </Pressable>
                 <Pressable style={sp_s.actionBtn} onPress={handleContact}>
-                  <Feather name="phone" size={20} color={NAVY} />
+                  <Feather name="phone" size={20} color={BLUE} />
                   <Text style={sp_s.actionLabel}>Call</Text>
                 </Pressable>
                 <Pressable style={sp_s.actionBtn} onPress={() => {
@@ -374,7 +374,7 @@ function StaffProfileModal({ userId, visible, onClose, onRefresh, onDelete }: {
                   if (!sms) { Alert.alert('No phone', 'No phone number on file.'); return; }
                   Linking.openURL(`sms:${sms}`).catch(() => Alert.alert('Error', 'Could not open messages.'));
                 }}>
-                  <Feather name="message-circle" size={20} color={NAVY} />
+                  <Feather name="message-circle" size={20} color={BLUE} />
                   <Text style={sp_s.actionLabel}>Message</Text>
                 </Pressable>
               </View>
@@ -703,10 +703,10 @@ function StaffProfileModal({ userId, visible, onClose, onRefresh, onDelete }: {
                     <Text style={sp_s.sectionLabel}>STORE ASSIGNMENTS</Text>
                     <Pressable
                       onPress={handleAddAssignment}
-                      style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: NAVY + '12', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5 }}
+                      style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: BG, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5 }}
                     >
-                      <Feather name="plus" size={13} color={NAVY} />
-                      <Text style={{ fontWeight: '600', fontSize: 12, color: NAVY }}>Assign Store</Text>
+                      <Feather name="plus" size={13} color={BLUE} />
+                      <Text style={{ fontWeight: '600', fontSize: 12, color: BLUE }}>Assign Store</Text>
                     </Pressable>
                   </View>
                   {assignLoading ? (
@@ -886,28 +886,28 @@ function StaffProfileModal({ userId, visible, onClose, onRefresh, onDelete }: {
 }
 
 const sp_s = StyleSheet.create({
-  header:        { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingTop: 60, paddingBottom: 18, gap: 12, backgroundColor: NAVY },
-  backBtn:       { width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center' },
-  headerTitle:   { flex: 1, color: '#fff', fontSize: 17, fontWeight: '700', textAlign: 'center' },
-  editBtn:       { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, borderWidth: 1, borderColor: 'rgba(255,255,255,0.4)' },
-  editBtnText:   { color: '#fff', fontSize: 13, fontWeight: '600' },
+  header:        { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingTop: 60, paddingBottom: 18, gap: 12, backgroundColor: CARD, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: BORDER },
+  backBtn:       { width: 36, height: 36, borderRadius: 18, backgroundColor: BG, alignItems: 'center', justifyContent: 'center' },
+  headerTitle:   { flex: 1, color: TEXT, fontSize: 17, fontWeight: '700', textAlign: 'center' },
+  editBtn:       { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, borderWidth: 1, borderColor: BORDER },
+  editBtnText:   { color: TEXT, fontSize: 13, fontWeight: '600' },
   avatarSection: { flexDirection: 'row', alignItems: 'center', gap: 16, marginHorizontal: 16, marginVertical: 20 },
-  avatarCircle:  { width: 64, height: 64, borderRadius: 32, backgroundColor: NAVY + '18', borderWidth: 2, borderColor: NAVY, alignItems: 'center', justifyContent: 'center' },
-  avatarText:    { color: NAVY, fontSize: 22, fontWeight: '700' },
+  avatarCircle:  { width: 64, height: 64, borderRadius: 32, backgroundColor: BG, borderWidth: 2, borderColor: BORDER, alignItems: 'center', justifyContent: 'center' },
+  avatarText:    { color: BLUE, fontSize: 22, fontWeight: '700' },
   shiftStatus:   { color: MUTED, fontSize: 14, fontWeight: '500' },
   shiftSub:      { color: MUTED, fontSize: 12, fontWeight: '400' },
   empId:         { color: MUTED, fontSize: 11, fontWeight: '400' },
-  startShiftBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginHorizontal: 16, marginBottom: 16, paddingVertical: 14, borderRadius: 12, borderWidth: 1.5, borderColor: NAVY },
-  startShiftText:{ color: NAVY, fontSize: 15, fontWeight: '600' },
+  startShiftBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginHorizontal: 16, marginBottom: 16, paddingVertical: 14, borderRadius: 12, borderWidth: 1.5, borderColor: BLUE },
+  startShiftText:{ color: BLUE, fontSize: 15, fontWeight: '600' },
   actionRow:     { flexDirection: 'row', gap: 10, marginHorizontal: 16, marginBottom: 20 },
-  actionBtn:     { flex: 1, backgroundColor: GLASS_BG, borderRadius: 16, borderWidth: 1, borderColor: GLASS_BORDER, paddingVertical: 16, alignItems: 'center', gap: 8, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 14, elevation: 3 },
+  actionBtn:     { flex: 1, backgroundColor: CARD, borderRadius: 16, borderWidth: StyleSheet.hairlineWidth, borderColor: BORDER, paddingVertical: 16, alignItems: 'center', gap: 8, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 8, elevation: 1 },
   actionLabel:   { color: TEXT, fontSize: 12, fontWeight: '500' },
   sectionLabel:  { color: MUTED, fontSize: 11, fontWeight: '600', letterSpacing: 1.2, marginBottom: 8 },
-  infoCard:      { backgroundColor: GLASS_BG, borderRadius: 16, marginHorizontal: 16, marginBottom: 16, borderWidth: 1, borderColor: GLASS_BORDER, overflow: 'hidden', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 14, elevation: 3 },
+  infoCard:      { backgroundColor: CARD, borderRadius: 16, marginHorizontal: 16, marginBottom: 16, borderWidth: StyleSheet.hairlineWidth, borderColor: BORDER, overflow: 'hidden', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 8, elevation: 1 },
   infoRow:       { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: BORDER },
   infoLabel:     { color: MUTED, fontSize: 13, fontWeight: '400', flex: 1 },
   infoValue:     { color: TEXT, fontSize: 13, fontWeight: '500', flex: 2, textAlign: 'right' },
-  menuSection:   { backgroundColor: GLASS_BG, borderRadius: 16, marginHorizontal: 16, marginBottom: 16, borderWidth: 1, borderColor: GLASS_BORDER, overflow: 'hidden', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 14, elevation: 3 },
+  menuSection:   { backgroundColor: CARD, borderRadius: 16, marginHorizontal: 16, marginBottom: 16, borderWidth: StyleSheet.hairlineWidth, borderColor: BORDER, overflow: 'hidden', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 8, elevation: 1 },
   menuRow:       { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 16 },
   menuLabel:     { color: TEXT, fontSize: 15, fontWeight: '500' },
   menuSub:       { color: MUTED, fontSize: 11, fontWeight: '400', marginTop: 1 },
@@ -927,7 +927,7 @@ const sp_s = StyleSheet.create({
   fieldHint:     { color: MUTED, fontSize: 11, fontWeight: '400', marginTop: 4, marginLeft: 2 },
   errBox:        { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#FEF2F2', borderRadius: 10, padding: 12, marginTop: 8 },
   errText:       { flex: 1, color: RED, fontSize: 13, fontWeight: '400' },
-  saveBtn:       { backgroundColor: NAVY, borderRadius: 14, height: 54, alignItems: 'center', justifyContent: 'center', marginTop: 12 },
+  saveBtn:       { backgroundColor: BLUE, borderRadius: 14, height: 54, alignItems: 'center', justifyContent: 'center', marginTop: 12 },
   saveBtnText:   { color: '#fff', fontSize: 16, fontWeight: '700' },
   shiftRow:      { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12 },
   shiftDate:     { color: TEXT, fontSize: 13, fontWeight: '500' },

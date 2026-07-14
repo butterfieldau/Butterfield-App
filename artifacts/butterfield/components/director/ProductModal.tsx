@@ -72,7 +72,7 @@ function SectionHeader({ title, icon, color }: { title: string; icon: string; co
       <View style={[form.sectionIcon, { backgroundColor: color + '33', borderColor: color + '55' }]}>
         <Feather name={icon as any} size={14} color={color} />
       </View>
-      <Text style={[form.sectionTitle, { fontWeight: '700', color: NAVY }]}>{title}</Text>
+      <Text style={[form.sectionTitle, { fontWeight: '700', color: TEXT }]}>{title}</Text>
     </View>
   );
 }
@@ -120,7 +120,7 @@ function Segment({ options, value, onChange }: { options: string[]; value: strin
   return (
     <View style={seg.wrap}>
       {options.map(opt => (
-        <Pressable key={opt} onPress={() => onChange(opt)} style={[seg.btn, value === opt && { backgroundColor: NAVY }]}>
+        <Pressable key={opt} onPress={() => onChange(opt)} style={[seg.btn, value === opt && { backgroundColor: '#000' }]}>
           <Text style={[seg.text, { fontWeight: '500' }, value === opt && { color: '#fff' }]}>{opt}</Text>
         </Pressable>
       ))}
