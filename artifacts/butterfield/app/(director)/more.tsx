@@ -48,6 +48,7 @@ function buildSections(
     {
       header: 'OPERATIONS',
       items: [
+        { icon: 'calendar',      label: 'Schedule',   iconColor: '#FF2D55', perm: 'timesheets',  onPress: () => router.push('/director-roster' as any) },
         { icon: 'check-square',  label: 'Tasks',      iconColor: '#5856D6',                      onPress: () => router.push({ pathname: '/director-staffhub', params: { tab: 'tasks' } } as any) },
         { icon: 'package',       label: 'Stock',      iconColor: '#FF9500', perm: 'stock',       onPress: () => router.push('/director-stock' as any) },
         { icon: 'monitor',       label: 'POS Orders', iconColor: '#007AFF', directorOnly: true,  onPress: () => router.push('/director-pos-orders' as any) },
