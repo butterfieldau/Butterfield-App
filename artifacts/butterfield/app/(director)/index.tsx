@@ -196,7 +196,9 @@ function DirectorDashboardInner({ onScroll }: { onScroll?: (e: any) => void }) {
 
         {/* ── Recent Activity ──────────────────────────────────── */}
         <View>
-          <Text style={styles.sectionHeading}>Recent Activity</Text>
+          <View style={styles.sectionRow}>
+            <Text style={styles.sectionHeading}>Recent Activity</Text>
+          </View>
           {activity.length === 0 ? (
             <View style={styles.emptyCard}>
               <Feather name="activity" size={28} color={BORDER} />
