@@ -107,7 +107,7 @@ const persister = createAsyncStoragePersister({
 
 const directorStandaloneScreenOptions = {
   headerShown: false,
-  animation: "slide_from_right" as const,
+  animation: "default" as const,
   gestureEnabled: true,
   fullScreenGestureEnabled: true,
   gestureDirection: "horizontal" as const,
