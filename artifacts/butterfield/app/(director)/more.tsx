@@ -41,7 +41,7 @@ function buildSections(
     {
       items: [
         { icon: 'bar-chart-2',    label: 'Reports',    iconColor: '#007AFF', perm: 'reports',     onPress: () => router.push('/director-reports' as any) },
-        { icon: 'clock',          label: 'Timesheets', iconColor: '#FF9500', perm: 'timesheets',  onPress: () => router.push('/(director)/timesheets' as any) },
+        { icon: 'clock',          label: 'Timesheets', iconColor: '#FF9500', perm: 'timesheets',  onPress: () => router.push('/director-staff-hours' as any) },
         { icon: 'users',          label: 'Staff Hub',  iconColor: '#34C759',                      onPress: () => router.push('/(director)/staffhub' as any) },
       ],
     },
