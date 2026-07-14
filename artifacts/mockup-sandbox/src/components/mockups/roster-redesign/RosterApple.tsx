@@ -18,12 +18,12 @@ const TEXT  = '#1C1C1E';
 const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
 const STAFF = [
-  { id: '1', name: 'Sarah M.',   pos: 'Barista',     color: BLUE },
-  { id: '2', name: 'James C.',   pos: 'Supervisor',  color: PURPLE },
-  { id: '3', name: 'Emily R.',   pos: 'Barista',     color: PINK },
-  { id: '4', name: 'Tom W.',     pos: 'Kitchen',     color: AMBER },
-  { id: '5', name: 'Priya S.',   pos: 'Cashier',     color: CYAN },
-  { id: '6', name: 'Marcus L.',  pos: 'Baker',       color: ORANGE },
+  { id: '1', name: 'Sarah M.',   pos: 'Barista',     color: BLUE,   rate: 25 },
+  { id: '2', name: 'James C.',   pos: 'Supervisor',  color: PURPLE, rate: 32 },
+  { id: '3', name: 'Emily R.',   pos: 'Barista',     color: PINK,   rate: 25 },
+  { id: '4', name: 'Tom W.',     pos: 'Kitchen',     color: AMBER,  rate: 28 },
+  { id: '5', name: 'Priya S.',   pos: 'Cashier',     color: CYAN,   rate: 24 },
+  { id: '6', name: 'Marcus L.',  pos: 'Baker',       color: ORANGE, rate: 27 },
 ];
 
 type Shift = { userId: string; start: string; end: string; confirmed: boolean; live?: boolean };
@@ -317,6 +317,7 @@ export function RosterApple() {
             const [eh, em] = s.end.split(':').map(Number);
             return acc + ((eh! * 60 + em!) - (sh! * 60 + sm!)) / 60;
           }, 0);
+          const pay = hours * staff.rate;
           return (
             <div key={staff.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 14px', borderTop: i === 0 ? 'none' : `1px solid ${BORDER}` }}>
               <div style={{ width: 24, height: 24, borderRadius: 12, background: staff.color, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
@@ -324,7 +325,8 @@ export function RosterApple() {
               </div>
               <span style={{ flex: 1, fontSize: 13, fontWeight: 500, color: TEXT, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{staff.name}</span>
               <span style={{ fontSize: 12, color: MUTED }}>{staffShifts.length} shift{staffShifts.length !== 1 ? 's' : ''}</span>
-              <span style={{ fontSize: 13, fontWeight: 700, color: NAVY, width: 32, textAlign: 'right' }}>{Math.round(hours)}h</span>
+              <span style={{ fontSize: 13, fontWeight: 700, color: NAVY, width: 30, textAlign: 'right' }}>{Math.round(hours)}h</span>
+              <span style={{ fontSize: 13, fontWeight: 700, color: GREEN, width: 60, textAlign: 'right' }}>${pay.toFixed(2)}</span>
             </div>
           );
         })}
