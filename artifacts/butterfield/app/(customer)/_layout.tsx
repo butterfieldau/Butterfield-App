@@ -142,7 +142,6 @@ function ClassicCustomerTabs() {
           options={{ title: 'Account' }}
         />
         <Tabs.Screen name="track/[id]"      options={{ href: null, title: 'Track Order'     }} />
-        <Tabs.Screen name="payment-methods" options={{ href: null, title: 'Payment Methods' }} />
       </Tabs>
 
       <LoginRequiredModal

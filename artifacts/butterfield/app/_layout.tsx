@@ -269,11 +269,9 @@ function RootLayoutNav() {
       <Stack.Screen name="director-discounts" options={directorStandaloneScreenOptions} />
       <Stack.Screen name="director-wholesale-invoices" options={directorStandaloneScreenOptions} />
       <Stack.Screen name="director-linkly" options={directorStandaloneScreenOptions} />
-      <Stack.Screen name="(staff)" options={{ headerShown: false, animation: "slide_from_right" }} />
       <Stack.Screen name="(shop-display)" options={{ headerShown: false, animation: "slide_from_right", gestureEnabled: false }} />
       <Stack.Screen name="(wholesale)" options={{ headerShown: false, animation: "slide_from_right", gestureEnabled: false }} />
       <Stack.Screen name="(director)" options={{ headerShown: false, animation: "slide_from_right", gestureEnabled: false }} />
-      <Stack.Screen name="(manager)" options={{ headerShown: false, animation: "slide_from_right", gestureEnabled: false }} />
     </Stack>
   );
 }
