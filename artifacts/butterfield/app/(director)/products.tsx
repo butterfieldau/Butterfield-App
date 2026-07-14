@@ -239,6 +239,7 @@ export default function DirectorProductsScreen() {
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
+            style={{ flexGrow: 0, flexShrink: 0 }}
             contentContainerStyle={{ paddingHorizontal: 16, paddingVertical: 10, gap: 8, alignItems: 'center' }}
           >
             {/* Status pills */}
