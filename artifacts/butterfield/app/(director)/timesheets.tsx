@@ -11,7 +11,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRefreshControl } from '@/hooks/useRefreshControl';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
-import { api, type DirectorShift } from '@/lib/api';
+import { api, type DirectorShift, type RosterShift } from '@/lib/api';
 import { DirectorStandaloneScreen } from '@/components/DirectorStandaloneScreen';
 import { useAuth } from '@/context/AuthContext';
 import InlineCalendarPicker from '@/components/InlineCalendarPicker';
@@ -200,6 +200,634 @@ function buildTimesheetHtml(shifts: DirectorShift[], from: Date, to: Date): stri
   <div class="footer">Generated ${new Date().toLocaleDateString('en-AU', { day:'numeric', month:'long', year:'numeric' })} · Butterfield Cookies Pty Ltd</div>
   </body></html>`;
 }
+
+// ── Individual Pay Slip PDF ───────────────────────────────────────────────────
+function buildPaySlipHtml(summary: StaffPaySummary, shifts: DirectorShift[], from: Date, to: Date): string {
+  const staffShifts = shifts.filter(s => s.userId === summary.userId && s.clockOut);
+  const rows = staffShifts.map(s => {
+    const hrs = parseHoursWorked(s.hoursWorked);
+    const pay = calcPay(s);
+    const dateStr = new Date(s.clockIn).toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short' });
+    return `<tr>
+      <td>${dateStr}</td>
+      <td>${fmtTime(s.clockIn)}</td>
+      <td>${s.clockOut ? fmtTime(s.clockOut) : '—'}</td>
+      <td>${s.unpaidBreakMins ? `${s.unpaidBreakMins}m` : '—'}</td>
+      <td>${formatHours(hrs)}</td>
+      <td>${pay != null ? fmtAUD(pay) : '—'}</td>
+      <td style="color:${s.approvedAt ? '#16a34a' : '#d97706'}">${s.approvedAt ? 'Approved' : 'Pending'}</td>
+    </tr>`;
+  }).join('');
+  const rateCents = staffShifts[0]?.hourlyRateCents;
+  const rateStr = rateCents ? `$${(rateCents / 100).toFixed(2)}/hr` : 'Rate not set';
+  const taxEst = Math.round(summary.totalPayCents * 0.2);
+  const net = summary.totalPayCents - taxEst;
+  const superAmt = Math.round(summary.totalPayCents * 0.11);
+  return `<!DOCTYPE html><html><head><meta charset="utf-8">
+  <style>
+    *{box-sizing:border-box}body{font-family:-apple-system,Helvetica,sans-serif;margin:0;padding:40px;color:#1C1C1E;background:#fff}
+    .hdr{background:#1A2B4A;color:#fff;padding:28px 32px;border-radius:12px;margin-bottom:24px}
+    .hdr h1{font-size:22px;margin:0 0 4px}.hdr .sub{font-size:14px;opacity:.7}.hdr .period{font-size:13px;opacity:.6;margin-top:10px}
+    .emp{display:flex;gap:28px;background:#F9FAFB;border-radius:10px;padding:16px 20px;margin-bottom:20px;border:1px solid #E5E7EB}
+    .emp-field label{font-size:10px;font-weight:700;color:#8E8E93;letter-spacing:.6px;text-transform:uppercase}
+    .emp-field .val{font-size:15px;font-weight:600;margin-top:2px}
+    h3{font-size:12px;font-weight:700;letter-spacing:.6px;color:#8E8E93;text-transform:uppercase;margin:18px 0 8px}
+    table{width:100%;border-collapse:collapse;font-size:13px}
+    th{background:#1A2B4A;color:#fff;padding:9px 12px;text-align:left;font-size:11px;letter-spacing:.5px}
+    td{padding:9px 12px;border-bottom:1px solid #F3F4F6}tr:nth-child(even) td{background:#F9FAFB}
+    .totals{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:20px}
+    .tc{background:#F9FAFB;border:1px solid #E5E7EB;border-radius:10px;padding:14px 18px}
+    .tc label{font-size:10px;font-weight:700;letter-spacing:.6px;color:#8E8E93;text-transform:uppercase}
+    .tc .amt{font-size:20px;font-weight:800;margin-top:4px}
+    .net{background:#1A2B4A;color:#fff}.net label{opacity:.6}
+    .note{background:#EFF6FF;border:1px solid #BFDBFE;border-radius:8px;padding:10px 14px;margin-top:16px;font-size:12px;color:#1e40af}
+    .footer{margin-top:28px;padding-top:16px;border-top:1px solid #E5E7EB;color:#8E8E93;font-size:11px;line-height:1.6}
+  </style></head><body>
+  <div class="hdr">
+    <h1>Pay Slip — ${summary.name}</h1>
+    <div class="sub">Butterfield Cookies Pty Ltd · ABN 24 680 761 166</div>
+    <div class="period">Pay Period: ${formatDate(from)} – ${formatDate(to)}</div>
+  </div>
+  <div class="emp">
+    <div class="emp-field"><label>Position</label><div class="val">${capitalize(summary.position)}</div></div>
+    <div class="emp-field"><label>Pay Rate</label><div class="val">${rateStr}</div></div>
+    <div class="emp-field"><label>Total Shifts</label><div class="val">${summary.approvedShifts + summary.pendingShifts}</div></div>
+    <div class="emp-field"><label>Total Hours</label><div class="val">${summary.totalHours.toFixed(1)}h</div></div>
+  </div>
+  <h3>Shift Breakdown</h3>
+  <table><thead><tr>
+    <th>DATE</th><th>CLOCK IN</th><th>CLOCK OUT</th><th>BREAK</th><th>HOURS</th><th>AMOUNT</th><th>STATUS</th>
+  </tr></thead><tbody>${rows.length ? rows : '<tr><td colspan="7" style="color:#8E8E93;text-align:center;padding:20px">No completed shifts in this period</td></tr>'}</tbody></table>
+  <div class="totals">
+    <div class="tc"><label>Gross Pay</label><div class="amt" style="color:#1C1C1E">${summary.hasRate ? fmtAUD(summary.totalPayCents) : '—'}</div></div>
+    <div class="tc"><label>Est. Tax (20%)</label><div class="amt" style="color:#ef4444">${summary.hasRate ? fmtAUD(taxEst) : '—'}</div></div>
+    <div class="tc"><label>Superannuation (11%)</label><div class="amt" style="color:#3b82f6">${summary.hasRate ? fmtAUD(superAmt) : '—'}</div></div>
+    <div class="tc net"><label>Net Pay (Est.)</label><div class="amt" style="color:#34c759">${summary.hasRate ? fmtAUD(net) : '—'}</div></div>
+  </div>
+  <div class="note">Tax deductions are estimates only. Actual withholding depends on individual tax declarations and ATO rates. Verify against your payroll system before payment.</div>
+  <div class="footer">
+    <strong>Butterfield Cookies Pty Ltd</strong><br>
+    BSB: 067 873 · Account: 1465 8181 · ABN: 24 680 761 166<br>
+    Generated ${new Date().toLocaleDateString('en-AU', { day:'numeric', month:'long', year:'numeric' })} — Computer-generated document.
+  </div>
+  </body></html>`;
+}
+
+// ── Tab Bar ───────────────────────────────────────────────────────────────────
+type TimesheetTab = 'roster' | 'timesheets' | 'payrun';
+
+function TimesheetTabBar({ active, onChange }: { active: TimesheetTab; onChange: (t: TimesheetTab) => void }) {
+  const tabs: Array<{ key: TimesheetTab; label: string; icon: string }> = [
+    { key: 'roster',     label: 'Roster',     icon: 'calendar' },
+    { key: 'timesheets', label: 'Timesheets', icon: 'check-square' },
+    { key: 'payrun',     label: 'Pay Run',    icon: 'dollar-sign' },
+  ];
+  return (
+    <View style={tb.bar}>
+      {tabs.map(t => {
+        const isActive = active === t.key;
+        return (
+          <Pressable key={t.key} onPress={() => { onChange(t.key); Haptics.selectionAsync(); }}
+            style={[tb.tab, isActive && tb.tabActive]}>
+            <Feather name={t.icon as ComponentProps<typeof Feather>['name']} size={14}
+              color={isActive ? '#fff' : MUTED} />
+            <Text style={[tb.tabText, { color: isActive ? '#fff' : MUTED }]}>{t.label}</Text>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
+const tb = StyleSheet.create({
+  bar:      { flexDirection: 'row', gap: 7, paddingHorizontal: 16, paddingVertical: 10, backgroundColor: CARD, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: BORDER },
+  tab:      { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, paddingVertical: 8, borderRadius: 12, borderWidth: 1, borderColor: BORDER, backgroundColor: CARD },
+  tabActive:{ backgroundColor: TEXT, borderColor: TEXT },
+  tabText:  { fontSize: 11, fontWeight: '600' },
+});
+
+// ── Roster Tab ────────────────────────────────────────────────────────────────
+function RosterTab({ onAddShift }: { onAddShift: () => void }) {
+  const [weekOffset, setWeekOffset] = useState(0);
+
+  const weekStart = useMemo(() => {
+    const d = getMondayOfWeek(0);
+    d.setDate(d.getDate() + weekOffset * 7);
+    return d;
+  }, [weekOffset]);
+
+  const weekStartStr = useMemo(() =>
+    `${weekStart.getFullYear()}-${String(weekStart.getMonth()+1).padStart(2,'0')}-${String(weekStart.getDate()).padStart(2,'0')}`,
+    [weekStart],
+  );
+
+  const weekEnd = useMemo(() => { const d = new Date(weekStart); d.setDate(d.getDate() + 6); return d; }, [weekStart]);
+
+  const { data: rosterData, isLoading: rosterLoading, refetch: refetchRoster } = useQuery({
+    queryKey: ['director-roster', weekStartStr],
+    queryFn: () => api.director.roster(weekStartStr),
+    staleTime: 30_000,
+  });
+  const { data: staffData } = useQuery({
+    queryKey: ['director-roster-staff'],
+    queryFn: () => api.director.rosterStaff(),
+    staleTime: 60_000,
+  });
+  const { data: liveData } = useQuery({
+    queryKey: ['director-clock-events'],
+    queryFn: () => api.director.clockEvents(),
+    staleTime: 30_000,
+  });
+  const { refreshing, onRefresh } = useRefreshControl(refetchRoster);
+
+  const rosterShifts: RosterShift[] = rosterData?.data ?? [];
+  const allStaff = staffData?.data ?? [];
+  const liveShifts = (liveData?.data ?? []).filter(s => !s.clockOut);
+
+  const days = useMemo(() => Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(weekStart); d.setDate(d.getDate() + i); return d;
+  }), [weekStart]);
+
+  const todayStr = new Date().toLocaleDateString('en-CA', { timeZone: 'Australia/Sydney' });
+
+  const rosterMap = useMemo(() => {
+    const m: Record<string, RosterShift[]> = {};
+    for (const s of rosterShifts) {
+      const key = `${s.userId}:${s.date}`;
+      if (!m[key]) m[key] = [];
+      m[key]!.push(s);
+    }
+    return m;
+  }, [rosterShifts]);
+
+  const staffRows = useMemo(() => {
+    const seen = new Set<string>();
+    const rows: Array<{ id: string; name: string; position: string | null }> = [];
+    for (const s of rosterShifts) {
+      if (!seen.has(s.userId)) {
+        seen.add(s.userId);
+        const found = allStaff.find(x => x.id === s.userId);
+        rows.push({ id: s.userId, name: s.userName ?? found?.name ?? 'Unknown', position: found?.position ?? null });
+      }
+    }
+    for (const s of allStaff) {
+      if (!seen.has(s.id)) {
+        seen.add(s.id);
+        rows.push({ id: s.id, name: s.name ?? 'Unknown', position: s.position ?? null });
+      }
+    }
+    return rows.slice(0, 10);
+  }, [rosterShifts, allStaff]);
+
+  const weekSummary = useMemo(() => staffRows.map(staff => {
+    const shifts = rosterShifts.filter(s => s.userId === staff.id);
+    const totalMins = shifts.reduce((acc, s) => {
+      const [sh, sm] = s.startTime.split(':').map(Number);
+      const [eh, em] = s.endTime.split(':').map(Number);
+      return acc + ((eh! * 60 + em!) - (sh! * 60 + sm!));
+    }, 0);
+    return { ...staff, shiftCount: shifts.length, hours: totalMins / 60 };
+  }).filter(s => s.shiftCount > 0), [staffRows, rosterShifts]);
+
+  const STAFF_COLORS = [BLUE, PURPLE, '#EC4899', AMBER, '#06B6D4', GREEN, '#F97316', '#8B5CF6', RED, '#0EA5E9'];
+  const staffColor = (idx: number) => STAFF_COLORS[idx % STAFF_COLORS.length]!;
+  const weekLabel = `${formatDate(weekStart)} – ${formatDate(weekEnd)}`;
+
+  return (
+    <ScrollView
+      contentContainerStyle={{ paddingBottom: 32 }}
+      showsVerticalScrollIndicator={false}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={BLUE} />}
+    >
+      {/* Week navigator */}
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingVertical: 10 }}>
+        <Pressable onPress={() => { setWeekOffset(o => o - 1); Haptics.selectionAsync(); }} style={rs.navBtn}>
+          <Feather name="chevron-left" size={18} color={TEXT} />
+        </Pressable>
+        <View style={{ alignItems: 'center', flex: 1 }}>
+          <Text style={{ fontSize: 14, fontWeight: '700', color: TEXT }}>{weekLabel}</Text>
+          <Text style={{ fontSize: 11, color: weekOffset === 0 ? BLUE : MUTED, marginTop: 1 }}>
+            {weekOffset === 0 ? 'Current week' : weekOffset > 0 ? `${weekOffset}w ahead` : `${Math.abs(weekOffset)}w ago`}
+          </Text>
+        </View>
+        <Pressable onPress={() => { setWeekOffset(o => o + 1); Haptics.selectionAsync(); }} style={rs.navBtn}>
+          <Feather name="chevron-right" size={18} color={TEXT} />
+        </Pressable>
+      </View>
+
+      {/* Live indicator */}
+      {liveShifts.length > 0 && (
+        <View style={[rs.liveBanner, { marginHorizontal: 16, marginBottom: 8 }]}>
+          <View style={rs.liveDot} />
+          <Text style={rs.liveText}>{liveShifts.length} staff clocked in now</Text>
+          <Text style={{ fontSize: 12, color: MUTED, marginLeft: 'auto', flexShrink: 1 }} numberOfLines={1}>
+            {liveShifts.map(s => s.name?.split(' ')[0] ?? '').join(' · ')}
+          </Text>
+        </View>
+      )}
+
+      {/* Legend */}
+      <View style={{ flexDirection: 'row', gap: 14, paddingHorizontal: 16, marginBottom: 6 }}>
+        {([['Confirmed', GREEN], ['Rostered', BLUE]] as const).map(([lbl, color]) => (
+          <View key={lbl} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+            <View style={{ width: 8, height: 8, borderRadius: 3, backgroundColor: color }} />
+            <Text style={{ fontSize: 11, color: MUTED, fontWeight: '500' }}>{lbl}</Text>
+          </View>
+        ))}
+      </View>
+
+      {rosterLoading ? (
+        <View style={{ alignItems: 'center', paddingVertical: 40 }}>
+          <ActivityIndicator color={BLUE} />
+        </View>
+      ) : (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+          <View style={{ borderWidth: StyleSheet.hairlineWidth, borderColor: BORDER, marginHorizontal: 16, borderRadius: 12, overflow: 'hidden' }}>
+            {/* Header row */}
+            <View style={{ flexDirection: 'row', backgroundColor: CARD }}>
+              <View style={[rs.staffCell, rs.headerCell]}><Text style={rs.headerText}>STAFF</Text></View>
+              {days.map((day, di) => {
+                const dStr = day.toLocaleDateString('en-CA', { timeZone: 'Australia/Sydney' });
+                const isToday = dStr === todayStr;
+                const DAY_NAMES = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+                return (
+                  <View key={di} style={[rs.dayHeaderCell, isToday && { backgroundColor: BLUE + '12' }]}>
+                    <Text style={[rs.dayName, { color: isToday ? BLUE : MUTED }]}>{DAY_NAMES[day.getDay()]}</Text>
+                    <Text style={[rs.dayNum, { color: isToday ? BLUE : TEXT }]}>{day.getDate()}</Text>
+                    {isToday && <View style={{ width: 4, height: 4, borderRadius: 2, backgroundColor: BLUE, marginTop: 3 }} />}
+                  </View>
+                );
+              })}
+            </View>
+
+            {staffRows.length === 0 && !rosterLoading && (
+              <View style={{ padding: 24, alignItems: 'center', gap: 8 }}>
+                <Feather name="calendar" size={28} color={BORDER} />
+                <Text style={{ fontSize: 14, fontWeight: '600', color: TEXT }}>No roster this week</Text>
+                <Text style={{ fontSize: 13, color: MUTED }}>Tap + Shift to add shifts</Text>
+              </View>
+            )}
+
+            {/* Staff rows */}
+            {staffRows.map((staff, si) => (
+              <View key={staff.id} style={{ flexDirection: 'row', borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: BORDER }}>
+                <View style={[rs.staffCell, { backgroundColor: si % 2 === 0 ? CARD : BG }]}>
+                  <View style={[rs.staffAvatar, { backgroundColor: staffColor(si) }]}>
+                    <Text style={rs.staffAvatarText}>{initials(staff.name)}</Text>
+                    {liveShifts.some(ls => ls.userId === staff.id) && (
+                      <View style={[rs.liveAvatarDot, { backgroundColor: GREEN }]} />
+                    )}
+                  </View>
+                  <Text style={rs.staffName} numberOfLines={1}>{staff.name.split(' ')[0]}</Text>
+                </View>
+                {days.map((day, di) => {
+                  const dStr = day.toLocaleDateString('en-CA', { timeZone: 'Australia/Sydney' });
+                  const key = `${staff.id}:${dStr}`;
+                  const dayShifts = rosterMap[key] ?? [];
+                  const isToday = dStr === todayStr;
+                  return (
+                    <View key={di} style={[rs.shiftCell, isToday && { backgroundColor: BLUE + '06' }, si % 2 !== 0 && !isToday && { backgroundColor: BG }]}>
+                      {dayShifts.map((sh, shi) => (
+                        <View key={shi} style={[rs.shiftBadge, {
+                          backgroundColor: sh.isConfirmed ? GREEN + '1A' : BLUE + '18',
+                          borderColor:     sh.isConfirmed ? GREEN + '55' : BLUE + '55',
+                        }]}>
+                          <Text style={[rs.shiftBadgeText, { color: sh.isConfirmed ? GREEN : BLUE }]}>
+                            {formatTime12hShort(sh.startTime)}
+                          </Text>
+                        </View>
+                      ))}
+                      {dayShifts.length === 0 && (
+                        <View style={{ width: '60%', height: 1, backgroundColor: BORDER, opacity: 0.35 }} />
+                      )}
+                    </View>
+                  );
+                })}
+              </View>
+            ))}
+          </View>
+        </ScrollView>
+      )}
+
+      {/* Week Summary */}
+      {weekSummary.length > 0 && (
+        <View style={[rs.summaryCard, { margin: 16 }]}>
+          <View style={rs.summaryHeader}>
+            <Text style={rs.summaryTitle}>Week Summary</Text>
+            <Text style={{ fontSize: 11, color: MUTED }}>{weekLabel}</Text>
+          </View>
+          {weekSummary.map((s, i) => (
+            <View key={s.id} style={[rs.summaryRow, i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: BORDER }]}>
+              <Text style={{ fontSize: 13, fontWeight: '500', color: TEXT, flex: 1 }}>{s.name}</Text>
+              <Text style={{ fontSize: 11, color: MUTED }}>{s.shiftCount} shift{s.shiftCount !== 1 ? 's' : ''}</Text>
+              <Text style={{ fontSize: 13, fontWeight: '700', color: TEXT }}>{formatHours(s.hours)}</Text>
+            </View>
+          ))}
+          <View style={[rs.summaryRow, { borderTopWidth: 1, borderTopColor: BORDER, backgroundColor: NAVY + '08' }]}>
+            <Text style={{ fontSize: 13, fontWeight: '700', color: NAVY, flex: 1 }}>TOTAL</Text>
+            <Text style={{ fontSize: 11, color: MUTED }}>{weekSummary.reduce((a, s) => a + s.shiftCount, 0)} shifts</Text>
+            <Text style={{ fontSize: 14, fontWeight: '800', color: NAVY }}>{formatHours(weekSummary.reduce((a, s) => a + s.hours, 0))}</Text>
+          </View>
+        </View>
+      )}
+    </ScrollView>
+  );
+}
+
+function formatTime12hShort(time: string): string {
+  const [hStr] = time.split(':');
+  const h = parseInt(hStr!, 10);
+  return `${h % 12 === 0 ? 12 : h % 12}${h >= 12 ? 'p' : 'a'}`;
+}
+
+const rs = StyleSheet.create({
+  navBtn:         { width: 34, height: 34, borderRadius: 9, backgroundColor: CARD, borderWidth: 1, borderColor: BORDER, alignItems: 'center', justifyContent: 'center' },
+  liveBanner:     { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: GREEN + '12', borderRadius: 10, padding: 9, borderWidth: 1, borderColor: GREEN + '30' },
+  liveDot:        { width: 7, height: 7, borderRadius: 4, backgroundColor: GREEN },
+  liveText:       { fontSize: 12, color: GREEN, fontWeight: '600' },
+  staffCell:      { width: 62, borderRightWidth: StyleSheet.hairlineWidth, borderRightColor: BORDER, alignItems: 'center', justifyContent: 'center', padding: 6, minHeight: 54 },
+  headerCell:     { height: 50, minHeight: 50 },
+  headerText:     { fontSize: 9, fontWeight: '700', color: MUTED, letterSpacing: 0.8 },
+  dayHeaderCell:  { width: 50, borderLeftWidth: StyleSheet.hairlineWidth, borderLeftColor: BORDER, alignItems: 'center', justifyContent: 'center', paddingVertical: 6, backgroundColor: CARD, height: 50 },
+  dayName:        { fontSize: 9, fontWeight: '600' },
+  dayNum:         { fontSize: 15, fontWeight: '700', marginTop: 1 },
+  staffAvatar:    { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center', position: 'relative' },
+  staffAvatarText:{ fontSize: 9, fontWeight: '700', color: '#fff' },
+  liveAvatarDot:  { position: 'absolute', bottom: 0, right: 0, width: 7, height: 7, borderRadius: 4, borderWidth: 1.5, borderColor: CARD },
+  staffName:      { fontSize: 8, fontWeight: '600', color: TEXT, marginTop: 2, textAlign: 'center', maxWidth: 54 },
+  shiftCell:      { width: 50, borderLeftWidth: StyleSheet.hairlineWidth, borderLeftColor: BORDER, alignItems: 'center', justifyContent: 'center', padding: 3, minHeight: 54 },
+  shiftBadge:     { borderRadius: 5, paddingVertical: 3, paddingHorizontal: 2, marginVertical: 1, borderWidth: 1, width: '90%', alignItems: 'center' },
+  shiftBadgeText: { fontSize: 8, fontWeight: '700' },
+  summaryCard:    { backgroundColor: CARD, borderRadius: 14, borderWidth: 1, borderColor: BORDER, overflow: 'hidden' },
+  summaryHeader:  { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 12, paddingHorizontal: 14, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: BORDER },
+  summaryTitle:   { fontSize: 13, fontWeight: '700', color: TEXT },
+  summaryRow:     { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 9, paddingHorizontal: 14 },
+});
+
+// ── Pay Run Tab ───────────────────────────────────────────────────────────────
+function PayRunTab({
+  payrollSummary, rangeShifts, rangeStart, rangeEnd, isManager, appliedRange, onApplyRange,
+}: {
+  payrollSummary: StaffPaySummary[];
+  rangeShifts: DirectorShift[];
+  rangeStart: Date;
+  rangeEnd: Date;
+  isManager: boolean;
+  appliedRange: WeekRangeKey;
+  onApplyRange: (k: Exclude<WeekRangeKey, 'custom'>) => void;
+}) {
+  const [exporting,   setExporting]   = useState(false);
+  const [exportingId, setExportingId] = useState<string | null>(null);
+
+  const totalGross = payrollSummary.reduce((a, s) => a + s.totalPayCents, 0);
+  const totalHours = payrollSummary.reduce((a, s) => a + s.totalHours, 0);
+  const pending    = payrollSummary.reduce((a, s) => a + s.pendingShifts, 0);
+  const taxEst     = Math.round(totalGross * 0.2);
+  const netPay     = totalGross - taxEst;
+  const superAmt   = Math.round(totalGross * 0.11);
+
+  const sharePaySlip = async (html: string, name: string) => {
+    if (Platform.OS === 'web') {
+      const iframe = document.createElement('iframe');
+      iframe.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;border:none;z-index:99999;background:#fff;';
+      document.body.appendChild(iframe);
+      iframe.contentDocument!.open(); iframe.contentDocument!.write(html); iframe.contentDocument!.close();
+      setTimeout(() => { iframe.contentWindow?.print(); setTimeout(() => document.body.removeChild(iframe), 1500); }, 400);
+      return;
+    }
+    const { uri } = await Print.printToFileAsync({ html, base64: false });
+    const canShare = await Sharing.isAvailableAsync();
+    if (canShare) {
+      await Sharing.shareAsync(uri, { mimeType: 'application/pdf', dialogTitle: `${name} Pay Slip`, UTI: 'com.adobe.pdf' });
+    } else {
+      Alert.alert('Saved', `Pay slip saved to: ${uri}`);
+    }
+  };
+
+  const downloadPaySlip = async (summary: StaffPaySummary) => {
+    setExportingId(summary.userId);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    try {
+      await sharePaySlip(buildPaySlipHtml(summary, rangeShifts, rangeStart, rangeEnd), summary.name);
+    } catch (e: unknown) {
+      Alert.alert('Export Error', getErrorMessage(e, 'Could not generate pay slip.'));
+    } finally { setExportingId(null); }
+  };
+
+  const downloadAllPaySlips = async () => {
+    if (payrollSummary.length === 0) return;
+    setExporting(true);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    try {
+      const combined = payrollSummary
+        .map(s => buildPaySlipHtml(s, rangeShifts, rangeStart, rangeEnd))
+        .join('<div style="page-break-after:always"></div>');
+      await sharePaySlip(combined, 'All Staff');
+    } catch (e: unknown) {
+      Alert.alert('Export Error', getErrorMessage(e, 'Could not generate pay slips.'));
+    } finally { setExporting(false); }
+  };
+
+  const PERIOD_OPTS: Array<{ key: Exclude<WeekRangeKey, 'custom'>; label: string }> = [
+    { key: 'w0', label: 'This Week' },
+    { key: 'w1', label: 'Last Week' },
+    { key: 'w2', label: '2 Weeks Ago' },
+    { key: 'w3', label: '3 Weeks Ago' },
+  ];
+
+  return (
+    <ScrollView contentContainerStyle={{ paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
+      {/* Period selector */}
+      <ScrollView horizontal showsHorizontalScrollIndicator={false}
+        contentContainerStyle={{ flexDirection: 'row', gap: 8, paddingHorizontal: 16, paddingVertical: 10 }}>
+        {PERIOD_OPTS.map(({ key, label }) => (
+          <Pressable key={key} onPress={() => { onApplyRange(key); Haptics.selectionAsync(); }}
+            style={[pr.periodChip, appliedRange === key && { backgroundColor: TEXT, borderColor: TEXT }]}>
+            <Text style={[pr.periodChipText, { color: appliedRange === key ? '#fff' : MUTED }]}>{label}</Text>
+          </Pressable>
+        ))}
+      </ScrollView>
+
+      {/* Hero wages card */}
+      <View style={[pr.heroCard, { marginHorizontal: 16, marginBottom: 12 }]}>
+        <View style={pr.heroCircle1} /><View style={pr.heroCircle2} />
+        <Text style={pr.heroLabel}>TOTAL GROSS WAGES</Text>
+        <Text style={pr.heroAmount}>{fmtAUD(totalGross)}</Text>
+        <View style={{ flexDirection: 'row', gap: 24, marginTop: 10 }}>
+          {([
+            [formatHours(totalHours), 'Total Hours'],
+            [`${payrollSummary.length} staff`, 'Employees'],
+            [pending > 0 ? `${pending} Pending` : 'All Clear', pending > 0 ? 'Need Review' : 'Status'],
+          ] as const).map(([val, lbl]) => (
+            <View key={lbl}>
+              <Text style={pr.heroStatVal}>{val}</Text>
+              <Text style={pr.heroStatLbl}>{lbl}</Text>
+            </View>
+          ))}
+        </View>
+        {!isManager && (
+          <View style={{ flexDirection: 'row', gap: 8, marginTop: 14 }}>
+            <Pressable onPress={downloadAllPaySlips} disabled={exporting || payrollSummary.length === 0}
+              style={[pr.heroBtn, { backgroundColor: BLUE, opacity: (exporting || payrollSummary.length === 0) ? 0.5 : 1 }]}>
+              {exporting
+                ? <ActivityIndicator size="small" color="#fff" />
+                : <><Feather name="download" size={13} color="#fff" /><Text style={pr.heroBtnText}>All Pay Slips</Text></>}
+            </Pressable>
+            <Pressable style={[pr.heroBtn, { backgroundColor: 'rgba(255,255,255,0.15)' }]}>
+              <Feather name="upload" size={13} color="#fff" />
+              <Text style={pr.heroBtnText}>Export MYOB</Text>
+            </Pressable>
+          </View>
+        )}
+      </View>
+
+      {/* Staff pay cards */}
+      <View style={{ paddingHorizontal: 16, gap: 10 }}>
+        <Text style={{ fontSize: 11, fontWeight: '700', color: MUTED, letterSpacing: 0.8, marginBottom: 2 }}>STAFF PAY SUMMARY</Text>
+
+        {payrollSummary.length === 0 && (
+          <View style={sc.empty}>
+            <Feather name="dollar-sign" size={36} color={BORDER} />
+            <Text style={sc.emptyTitle}>No completed shifts</Text>
+            <Text style={sc.emptySub}>Clock-out times are needed to calculate pay.</Text>
+          </View>
+        )}
+
+        {payrollSummary.map((s) => {
+          const hasAllApproved = s.pendingShifts === 0;
+          const staffShifts    = rangeShifts.filter(sh => sh.userId === s.userId && sh.clockOut);
+          const rateCents      = staffShifts[0]?.hourlyRateCents ?? 0;
+          const taxEstPerson   = Math.round(s.totalPayCents * 0.2);
+          const netPerson      = s.totalPayCents - taxEstPerson;
+          const isExporting    = exportingId === s.userId;
+
+          return (
+            <View key={s.userId} style={pr.staffCard}>
+              {/* Header */}
+              <View style={pr.staffHeader}>
+                <View style={[py.avatar, { backgroundColor: hasAllApproved ? GREEN + '20' : AMBER + '20' }]}>
+                  <Text style={[py.avatarText, { color: hasAllApproved ? GREEN : AMBER }]}>{initials(s.name)}</Text>
+                </View>
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text style={pr.staffName} numberOfLines={1}>{s.name}</Text>
+                  <Text style={pr.staffSub}>{capitalize(s.position)} · {rateCents ? `$${(rateCents/100).toFixed(2)}/hr` : 'No rate'}</Text>
+                </View>
+                <View style={{ alignItems: 'flex-end', flexShrink: 0 }}>
+                  <Text style={pr.staffGross}>{s.hasRate ? fmtAUD(s.totalPayCents) : '—'}</Text>
+                  <View style={[pr.statusBadge, {
+                    backgroundColor: hasAllApproved ? GREEN + '15' : AMBER + '15',
+                    borderColor:     hasAllApproved ? GREEN + '40' : AMBER + '40',
+                  }]}>
+                    <Text style={[pr.statusBadgeText, { color: hasAllApproved ? GREEN : AMBER }]}>
+                      {hasAllApproved ? 'Approved' : `${s.pendingShifts} pending`}
+                    </Text>
+                  </View>
+                </View>
+              </View>
+
+              {/* Breakdown */}
+              <View style={pr.breakdownRow}>
+                {([
+                  { label: 'Hours',   val: `${s.totalHours.toFixed(1)}h`, color: TEXT },
+                  { label: 'Tax Est.',val: s.hasRate ? fmtAUD(taxEstPerson) : '—', color: RED },
+                  { label: 'Net Pay', val: s.hasRate ? fmtAUD(netPerson)    : '—', color: GREEN },
+                  { label: 'Shifts',  val: `${s.approvedShifts + s.pendingShifts}`, color: TEXT },
+                ] as const).map((item, j) => (
+                  <View key={item.label} style={[pr.breakdownItem, j < 3 && { borderRightWidth: StyleSheet.hairlineWidth, borderRightColor: BORDER }]}>
+                    <Text style={pr.breakdownLabel}>{item.label}</Text>
+                    <Text style={[pr.breakdownValue, { color: item.color }]}>{item.val}</Text>
+                  </View>
+                ))}
+              </View>
+
+              {/* Actions */}
+              {!isManager && (
+                <View style={pr.actionsRow}>
+                  <Pressable onPress={() => downloadPaySlip(s)} disabled={isExporting}
+                    style={[pr.actionBtn, { flex: 1, borderColor: BLUE, backgroundColor: BLUE + '10', opacity: isExporting ? 0.5 : 1 }]}>
+                    {isExporting
+                      ? <ActivityIndicator size="small" color={BLUE} />
+                      : <><Feather name="download" size={13} color={BLUE} /><Text style={[pr.actionBtnText, { color: BLUE }]}>Pay Slip PDF</Text></>}
+                  </Pressable>
+                  {s.pendingShifts > 0 && (
+                    <View style={[pr.actionBtn, { borderColor: AMBER + '60', backgroundColor: AMBER + '10' }]}>
+                      <Feather name="alert-circle" size={13} color={AMBER} />
+                      <Text style={[pr.actionBtnText, { color: AMBER }]}>{s.pendingShifts} to approve</Text>
+                    </View>
+                  )}
+                </View>
+              )}
+            </View>
+          );
+        })}
+
+        {/* Totals */}
+        {payrollSummary.length > 0 && (
+          <View style={pr.totalsCard}>
+            {([
+              { label: 'Total Hours Worked',   val: formatHours(totalHours), color: TEXT },
+              { label: 'Estimated Tax (20%)',   val: fmtAUD(taxEst),         color: RED },
+              { label: 'Superannuation (11%)',  val: fmtAUD(superAmt),       color: BLUE },
+              { label: 'Net Payroll (Est.)',     val: fmtAUD(netPay),         color: GREEN },
+            ] as const).map((item, i) => (
+              <View key={item.label} style={[pr.totalsRow, i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: BORDER }]}>
+                <Text style={pr.totalsLabel}>{item.label}</Text>
+                <Text style={[pr.totalsValue, { color: item.color }]}>{item.val}</Text>
+              </View>
+            ))}
+            <View style={[pr.totalsRow, { borderTopWidth: 1, borderTopColor: BORDER, backgroundColor: NAVY + '07' }]}>
+              <Text style={[pr.totalsLabel, { fontSize: 14, fontWeight: '700', color: NAVY }]}>GROSS TOTAL</Text>
+              <Text style={[pr.totalsValue, { fontSize: 17, color: NAVY }]}>{fmtAUD(totalGross)}</Text>
+            </View>
+          </View>
+        )}
+
+        {/* Compliance notice */}
+        <View style={pr.complianceCard}>
+          <Feather name="info" size={14} color={BLUE} />
+          <View style={{ flex: 1 }}>
+            <Text style={pr.complianceTitle}>Super & Entitlements</Text>
+            <Text style={pr.complianceSub}>SGC super at 11%. Verify award rates and leave accrual before exporting to payroll. Tax estimates are indicative only.</Text>
+          </View>
+        </View>
+      </View>
+    </ScrollView>
+  );
+}
+
+const pr = StyleSheet.create({
+  periodChip:      { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, borderWidth: 1, borderColor: BORDER, backgroundColor: CARD },
+  periodChipText:  { fontSize: 12, fontWeight: '600' },
+  heroCard:        { backgroundColor: NAVY, borderRadius: 18, padding: 20, position: 'relative', overflow: 'hidden' },
+  heroCircle1:     { position: 'absolute', right: -20, top: -20, width: 120, height: 120, borderRadius: 60, backgroundColor: 'rgba(255,255,255,0.06)' },
+  heroCircle2:     { position: 'absolute', right: 20, bottom: -30, width: 90, height: 90, borderRadius: 45, backgroundColor: 'rgba(255,255,255,0.04)' },
+  heroLabel:       { fontSize: 10, fontWeight: '700', color: 'rgba(255,255,255,0.5)', letterSpacing: 1, marginBottom: 4, textTransform: 'uppercase' },
+  heroAmount:      { fontSize: 36, fontWeight: '800', color: '#fff', letterSpacing: -1 },
+  heroStatVal:     { fontSize: 14, fontWeight: '700', color: '#fff' },
+  heroStatLbl:     { fontSize: 10, color: 'rgba(255,255,255,0.5)', marginTop: 1 },
+  heroBtn:         { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, paddingVertical: 9, borderRadius: 10 },
+  heroBtnText:     { color: '#fff', fontSize: 12, fontWeight: '700' },
+  staffCard:       { backgroundColor: CARD, borderRadius: 14, borderWidth: 1, borderColor: BORDER, overflow: 'hidden' },
+  staffHeader:     { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 14, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: BORDER },
+  staffName:       { fontSize: 14, fontWeight: '700', color: TEXT },
+  staffSub:        { fontSize: 11, color: MUTED, marginTop: 1 },
+  staffGross:      { fontSize: 15, fontWeight: '800', color: NAVY },
+  statusBadge:     { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8, borderWidth: 1, marginTop: 3 },
+  statusBadgeText: { fontSize: 10, fontWeight: '700' },
+  breakdownRow:    { flexDirection: 'row', borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: BORDER },
+  breakdownItem:   { flex: 1, padding: 10, alignItems: 'center' },
+  breakdownLabel:  { fontSize: 8, fontWeight: '700', color: MUTED, letterSpacing: 0.5, textTransform: 'uppercase', marginBottom: 2 },
+  breakdownValue:  { fontSize: 12, fontWeight: '700' },
+  actionsRow:      { flexDirection: 'row', gap: 8, padding: 10 },
+  actionBtn:       { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 9, borderWidth: 1 },
+  actionBtnText:   { fontSize: 12, fontWeight: '600' },
+  totalsCard:      { backgroundColor: CARD, borderRadius: 14, borderWidth: 1, borderColor: BORDER, overflow: 'hidden' },
+  totalsRow:       { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 12, paddingHorizontal: 14 },
+  totalsLabel:     { fontSize: 12, fontWeight: '600', color: MUTED },
+  totalsValue:     { fontSize: 14, fontWeight: '700' },
+  complianceCard:  { flexDirection: 'row', alignItems: 'flex-start', gap: 10, backgroundColor: BLUE + '08', borderRadius: 12, padding: 12, borderWidth: 1, borderColor: BLUE + '25' },
+  complianceTitle: { fontSize: 12, fontWeight: '700', color: BLUE, marginBottom: 2 },
+  complianceSub:   { fontSize: 11, color: MUTED, lineHeight: 16 },
+});
 
 // ── Staff Picker Modal ────────────────────────────────────────────────────────
 function StaffPickerModal({ visible, staff, onSelect, onClose }: {
@@ -692,6 +1320,8 @@ export default function DirectorTimesheetsScreen() {
   const { user } = useAuth();
   const isManager = user?.role === 'manager';
 
+  const [activeTab, setActiveTab] = useState<TimesheetTab>('roster');
+
   // appliedRange = what's actually filtering the list; panelOpen = custom picker visible
   const [appliedRange, setAppliedRange] = useState<WeekRangeKey>('w0');
   const [panelOpen,    setPanelOpen]    = useState(false);
@@ -822,7 +1452,7 @@ export default function DirectorTimesheetsScreen() {
       title="Timesheets"
       headerRight={
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-          {!isManager && filtered.filter(s => s.clockOut).length > 0 && (
+          {activeTab === 'timesheets' && !isManager && filtered.filter(s => s.clockOut).length > 0 && (
             <Pressable onPress={handleExport} disabled={exporting}
               style={[sc.exportBtn, { opacity: exporting ? 0.6 : 1 }]}>
               {exporting
@@ -830,12 +1460,37 @@ export default function DirectorTimesheetsScreen() {
                 : <><Feather name="download" size={13} color="#fff" /><Text style={sc.exportBtnText}>Export</Text></>}
             </Pressable>
           )}
-          <Pressable onPress={openAdd} style={sc.addBtn}>
-            <Feather name="plus" size={20} color="#fff" />
-          </Pressable>
+          {(activeTab === 'roster' || activeTab === 'timesheets') && (
+            <Pressable onPress={openAdd} style={sc.addBtn}>
+              <Feather name="plus" size={20} color="#fff" />
+            </Pressable>
+          )}
         </View>
       }
     >
+      {/* ── Tab bar ─────────────────────────────────────────────────────── */}
+      <TimesheetTabBar active={activeTab} onChange={setActiveTab} />
+
+      {/* ── Roster tab ──────────────────────────────────────────────────── */}
+      {activeTab === 'roster' && (
+        <RosterTab onAddShift={openAdd} />
+      )}
+
+      {/* ── Pay Run tab ─────────────────────────────────────────────────── */}
+      {activeTab === 'payrun' && (
+        <PayRunTab
+          payrollSummary={payrollSummary}
+          rangeShifts={rangeShifts}
+          rangeStart={rangeStart}
+          rangeEnd={rangeEnd}
+          isManager={isManager}
+          appliedRange={appliedRange}
+          onApplyRange={k => { setAppliedRange(k); setPersonFilter('all'); setCustomFrom(null); setCustomTo(null); }}
+        />
+      )}
+
+      {/* ── Timesheets tab ───────────────────────────────────────────────── */}
+      {activeTab === 'timesheets' && (
       <ScrollView
         contentContainerStyle={{ paddingBottom: 40 }}
         showsVerticalScrollIndicator={false}
@@ -1021,6 +1676,7 @@ export default function DirectorTimesheetsScreen() {
           )}
         </View>
       </ScrollView>
+      )}
 
       <TimesheetModal
         mode={modalMode}
