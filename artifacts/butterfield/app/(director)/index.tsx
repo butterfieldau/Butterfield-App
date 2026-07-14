@@ -13,10 +13,10 @@ import { DirectorTabScreen } from '@/components/DirectorTabScreen';
 import { api } from '@/lib/api';
 import { useRefreshControl } from '@/hooks/useRefreshControl';
 import { StaffDashboard } from './_staff-dashboard';
-import { fmtAUD, timeAgo, fmtDateBox } from '@/components/director/dashboardHelpers';
-import { RevenueRangePicker, KpiTile, QuickBtn, DeltaBadge, AovCustomerRow, HourlyInsightsChart } from '@/components/director';
+import { fmtAUD, timeAgo } from '@/components/director/dashboardHelpers';
+import { RevenueRangePicker, QuickBtn, AovCustomerRow, HourlyInsightsChart } from '@/components/director';
 import { STATUS_COLORS, STATUS_LABEL } from '@/lib/orderStatus';
-import { BG, CARD, BLUE, NAVY, TEXT, MUTED, BORDER, GREEN, AMBER, RED, PURPLE, PINK, TEAL, ROSE, GOLD, GLASS_BG, GLASS_BORDER } from '@/components/director/directorColors';
+import { BG, CARD, BLUE, TEXT, MUTED, BORDER, GREEN, AMBER, RED, PURPLE } from '@/components/director/directorColors';
 import { useFocusStatusBar } from '@/hooks/useScrollStatusBar';
 
 // ── Director/Master dashboard ─────────────────────────────────────────────────
@@ -266,7 +266,9 @@ function DirectorDashboardInner({ onScroll }: { onScroll?: (e: any) => void }) {
 
         {/* ── Insights Today: hourly chart ─────────────────────── */}
         <View>
-          <Text style={styles.sectionLabel}>INSIGHTS TODAY</Text>
+          <View style={styles.sectionRow}>
+            <Text style={styles.sectionHeading}>Insights Today</Text>
+          </View>
           {insights ? (
             <HourlyInsightsChart
               hours={insights.hourly}
@@ -387,7 +389,9 @@ function DirectorDashboardInner({ onScroll }: { onScroll?: (e: any) => void }) {
 
         {/* ── Quick actions ──────────────────────────────────────── */}
         <View>
-          <Text style={styles.sectionLabel}>QUICK ACTIONS</Text>
+          <View style={styles.sectionRow}>
+            <Text style={styles.sectionHeading}>Quick Actions</Text>
+          </View>
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
             <QuickBtn icon="shopping-bag" label="Orders"    color={GREEN}   onPress={() => router.navigate('/(director)/orders' as any)} />
             <QuickBtn icon="box"          label="Products"  color={BLUE}    onPress={() => router.navigate('/(director)/products' as any)} />
@@ -397,23 +401,6 @@ function DirectorDashboardInner({ onScroll }: { onScroll?: (e: any) => void }) {
             <QuickBtn icon="briefcase"    label="Wholesale" color={AMBER}   onPress={() => router.push({ pathname: '/director-more-category', params: { category: 'wholesale' } } as any)} />
             <QuickBtn icon="clipboard"    label="Tasks"     color={BLUE}    onPress={() => router.push({ pathname: '/(director)/staffhub', params: { tab: 'tasks' } } as any)} />
             <QuickBtn icon="settings"     label="Settings"  color={BLUE}    onPress={() => router.push({ pathname: '/director-more-category', params: { category: 'system' } } as any)} />
-          </View>
-        </View>
-
-        {/* ── Full KPI grid ─────────────────────────────────────── */}
-        <View>
-          <Text style={styles.sectionLabel}>TODAY'S OVERVIEW</Text>
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
-            <KpiTile icon="zap"            label="Active orders"    value={s?.orders.active      ?? 0} color={GREEN}  alert={(s?.orders.active ?? 0) > 0}       onPress={() => { Haptics.selectionAsync(); router.push({ pathname: '/(director)/orders', params: { tab: 'app', filterParam: 'active' } } as any); }} />
-            <KpiTile icon="package"        label="WS pending"       value={s?.orders.wholesaleNew ?? 0} color={AMBER} alert={(s?.orders.wholesaleNew ?? 0) > 0}  onPress={() => { Haptics.selectionAsync(); router.push({ pathname: '/(director)/orders', params: { tab: 'wholesale', filterParam: 'pending' } } as any); }} />
-            <KpiTile icon="alert-octagon"  label="Open issues"      value={s?.issues.open        ?? 0} color={RED}    alert={(s?.issues.open ?? 0) > 0}          onPress={() => router.push({ pathname: '/(director)/staffhub', params: { tab: 'issues' } } as any)} />
-            <KpiTile icon="package"        label="Sold out"         value={s?.products.soldOut   ?? 0} color={RED}    alert={(s?.products.soldOut ?? 0) > 0}     onPress={() => router.navigate('/(director)/products' as any)} />
-            <KpiTile icon="shopping-bag"   label="Orders today"     value={s?.orders.today       ?? 0} color={BLUE}   onPress={() => router.navigate('/(director)/orders' as any)} />
-            <KpiTile icon="trending-down"  label="Low stock"        value={s?.products.lowStock  ?? 0} color={AMBER}  alert={(s?.products.lowStock ?? 0) > 0}    onPress={() => router.navigate('/(director)/products' as any)} />
-            <KpiTile icon="users"          label="Staff clocked in" value={s?.staff.clockedIn    ?? 0} color={PURPLE} helper={`Week wages ${fmtAUD(s?.staff.weekWagesOwedCents ?? 0)}`} onPress={() => router.push('/director-staff-hours' as any)} />
-            <KpiTile icon="mail"           label="Pending leave"    value={s?.staff.pendingLeave  ?? 0} color={AMBER}  onPress={() => router.push({ pathname: '/(director)/staffhub', params: { tab: 'leave' } } as any)} />
-            <KpiTile icon="clipboard"      label="Open tasks"       value={s?.tasks?.open        ?? 0} color={BLUE}   onPress={() => router.push({ pathname: '/(director)/staffhub', params: { tab: 'tasks' } } as any)} />
-            <KpiTile icon="trash-2"        label="Wastage today"    value={s?.wastage.countToday  ?? 0} color={PURPLE} helper={`Week loss ${fmtAUD(s?.wastage.costWeek ?? 0)}`} onPress={() => router.push({ pathname: '/(director)/staffhub', params: { tab: 'wastage' } } as any)} />
           </View>
         </View>
 

@@ -61,7 +61,7 @@ export const kpi = StyleSheet.create({
 });
 
 export const qa = StyleSheet.create({
-  btn:   { width: QA_W, backgroundColor: GLASS_BG, borderColor: GLASS_BORDER, borderRadius: 16, borderWidth: 1, padding: 10, gap: 6, alignItems: 'center', ...GLASS_SHADOW },
-  icon:  { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center', borderWidth: 1.5 },
-  label: { fontSize: 10, fontWeight: '500', textAlign: 'center' },
+  btn:   { width: QA_W, backgroundColor: GLASS_BG, borderColor: GLASS_BORDER, borderRadius: 20, borderWidth: 1, padding: 12, gap: 8, alignItems: 'center', ...GLASS_SHADOW },
+  icon:  { width: 44, height: 44, borderRadius: 14, alignItems: 'center', justifyContent: 'center', borderWidth: StyleSheet.hairlineWidth },
+  label: { fontSize: 12, fontWeight: '600', textAlign: 'center' },
 });
