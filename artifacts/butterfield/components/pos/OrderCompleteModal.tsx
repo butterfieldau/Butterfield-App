@@ -8,7 +8,7 @@ import { BLUE, CHERRY, DARK, WHITE, STAMP_GOAL, fmtCents } from './types';
 
 export default function OrderCompleteModal({ order, customerEmail: initialEmail, onClose, onPrintTaxInvoice }: {
   order: {
-    id: string; orderNumber: string; totalCents: number;
+    id: string; orderNumber: string; invoiceNumber?: string; totalCents: number;
     paymentMethod: 'cash' | 'eftpos' | 'split';
     amountTenderedCents?: number;
     surchargeCents: number;
@@ -61,6 +61,11 @@ export default function OrderCompleteModal({ order, customerEmail: initialEmail,
           </View>
           <Text style={styles.completeTitle}>Payment Complete</Text>
           <Text style={styles.completeOrder}>#{order.orderNumber}</Text>
+          {order.invoiceNumber ? (
+            <Text style={{ fontSize: 13, color: '#64748B', fontWeight: '500', marginTop: 2, marginBottom: 2 }}>
+              Invoice #: {order.invoiceNumber}
+            </Text>
+          ) : null}
           <Text style={styles.completeTotal}>{fmtCents(order.totalCents)}</Text>
           {changeCents !== null && changeCents > 0 && (
             <View style={styles.changeRowComplete}>
