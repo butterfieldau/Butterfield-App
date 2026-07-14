@@ -19,7 +19,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/context/AuthContext';
 import { api } from '@/lib/api';
 import type { ShopDisplayPrinterConfig, ShopDisplayStore } from '@/lib/api';
-import { sendOpenDrawer, sendTestPrint } from '@/lib/printer';
+import { clearInvoiceSettingsCache, sendOpenDrawer, sendTestPrint } from '@/lib/printer';
 import LinklyCloudSettingsCard from '@/components/LinklyCloudSettingsCard';
 import {
   getShopDisplaySoundEnabled, setShopDisplaySoundEnabled,
@@ -171,6 +171,107 @@ function PinModal({
 // ── Linkly config section (shown after PIN unlock) ────────────────────────────
 function LinklySection({ onLock }: { onLock: () => void }) {
   return <LinklyCloudSettingsCard title="Linkly EFTPOS" subtitle="Linkly Cloud terminal integration" onLock={onLock} printerContext="shop_display" />;
+}
+
+// ── Tax Invoice Details Card ──────────────────────────────────────────────────
+function TaxInvoiceDetailsCard() {
+  const [expanded, setExpanded] = useState(false);
+  const [fields, setFields] = useState({
+    invoice_business_name:  '',
+    invoice_business_line1: '',
+    invoice_business_line2: '',
+    invoice_abn:            '',
+    invoice_website:        '',
+  });
+  const [loaded, setLoaded] = useState(false);
+  const [savedField, setSavedField] = useState<string | null>(null);
+  const [errorField, setErrorField] = useState<string | null>(null);
+
+  useEffect(() => {
+    api.shopDisplay.getInvoiceSettings().then(res => {
+      if (res?.data) {
+        setFields({
+          invoice_business_name:  res.data.invoice_business_name  ?? '',
+          invoice_business_line1: res.data.invoice_business_line1 ?? '',
+          invoice_business_line2: res.data.invoice_business_line2 ?? '',
+          invoice_abn:            res.data.invoice_abn            ?? '',
+          invoice_website:        res.data.invoice_website        ?? '',
+        });
+      }
+      setLoaded(true);
+    }).catch(() => setLoaded(true));
+  }, []);
+
+  const handleBlur = async (key: keyof typeof fields) => {
+    try {
+      await api.shopDisplay.patchInvoiceSetting(key, fields[key]);
+      clearInvoiceSettingsCache();
+      setSavedField(key);
+      setTimeout(() => setSavedField(f => (f === key ? null : f)), 2000);
+    } catch {
+      setErrorField(key);
+      setTimeout(() => setErrorField(f => (f === key ? null : f)), 3000);
+    }
+  };
+
+  const FIELD_CONFIG: Array<{ key: keyof typeof fields; label: string; placeholder: string; autoCapitalize?: 'none' | 'words' | 'sentences' }> = [
+    { key: 'invoice_business_name',  label: 'Business Name',         placeholder: 'BUTTERFIELD COOKIES PTY LTD' },
+    { key: 'invoice_business_line1', label: 'Address Line 1',        placeholder: 'Shop 3/2 Main Lane' },
+    { key: 'invoice_business_line2', label: 'Suburb / State / Postcode', placeholder: 'Merrylands NSW 2160' },
+    { key: 'invoice_abn',            label: 'ABN',                   placeholder: '24 680 761 166', autoCapitalize: 'none' },
+    { key: 'invoice_website',        label: 'Website',               placeholder: 'butterfieldcookies.com.au', autoCapitalize: 'none' },
+  ];
+
+  return (
+    <View style={pc.card}>
+      <Pressable style={pc.headerRow} onPress={() => setExpanded(e => !e)}>
+        <View style={pc.iconWrap}>
+          <Feather name="file-text" size={18} color={BLUE} />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={pc.cardTitle}>Tax Invoice Details</Text>
+          <Text style={pc.cardSub}>Business identity printed on TAX INVOICE</Text>
+        </View>
+        <Feather name={expanded ? 'chevron-up' : 'chevron-down'} size={18} color={MUTED} />
+      </Pressable>
+
+      {expanded && (
+        <>
+          <View style={pc.divider} />
+          {!loaded ? (
+            <ActivityIndicator color={BLUE} style={{ paddingVertical: 12 }} />
+          ) : (
+            FIELD_CONFIG.map(({ key, label, placeholder, autoCapitalize }) => {
+              const isSaved = savedField === key;
+              const isError = errorField === key;
+              return (
+                <View key={key}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+                    <Text style={pc.inputLabel}>{label}</Text>
+                    {isSaved && <Text style={{ fontSize: 12, fontWeight: '700', color: GREEN }}>Saved ✓</Text>}
+                    {isError && <Text style={{ fontSize: 12, fontWeight: '700', color: RED }}>Failed</Text>}
+                  </View>
+                  <TextInput
+                    style={[pc.input, isSaved && { borderColor: GREEN }, isError && { borderColor: RED }]}
+                    value={fields[key]}
+                    onChangeText={v => setFields(f => ({ ...f, [key]: v }))}
+                    onBlur={() => handleBlur(key)}
+                    placeholder={placeholder}
+                    placeholderTextColor={MUTED}
+                    autoCapitalize={autoCapitalize ?? 'words'}
+                    autoCorrect={false}
+                  />
+                </View>
+              );
+            })
+          )}
+          <Text style={{ fontSize: 11, color: MUTED, marginTop: 2 }}>
+            Changes are saved automatically when you leave each field and reflected on the next tax invoice print.
+          </Text>
+        </>
+      )}
+    </View>
+  );
 }
 
 // ── Printer Configuration Card ────────────────────────────────────────────────
@@ -517,6 +618,14 @@ export default function ShopDisplaySettingsScreen() {
         </View>
 
         <PrinterConfigCard />
+
+        {/* ── Tax Invoice Details ── */}
+        <View style={styles.sectionHeader}>
+          <Feather name="file-text" size={15} color={NAVY} />
+          <Text style={styles.sectionTitle}>Tax Invoice</Text>
+        </View>
+
+        <TaxInvoiceDetailsCard />
 
         {/* ── Payment terminal ── */}
         <View style={styles.sectionHeader}>

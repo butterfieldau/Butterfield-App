@@ -25,6 +25,11 @@ export interface PrintJob {
   paymentMethod?: string;
   autoDrawer?: boolean;
   drawerPin?: 0 | 1;
+  invoiceBusinessName?:  string;
+  invoiceBusinessLine1?: string;
+  invoiceBusinessLine2?: string;
+  invoiceAbn?:           string;
+  invoiceWebsite?:       string;
 }
 
 export interface RegisterSummaryPrintJob {
@@ -104,8 +109,37 @@ export async function sendReceiptPrint(job: PrintJob, printerIp: string, printer
   await sendPrinterBytes(printerIp, printerPort, await fetchBytes(job), job.printerBrand);
 }
 
+// Session-level cache for invoice identity settings. Fetched once per session;
+// reset on next app launch. Falls back to built-in defaults if fetch fails.
+let _invoiceSettingsCache: Record<string, string> | null = null;
+
+async function getInvoiceSettingsCached(): Promise<Record<string, string>> {
+  if (_invoiceSettingsCache) return _invoiceSettingsCache;
+  try {
+    const res = await api.shopDisplay.getInvoiceSettings();
+    _invoiceSettingsCache = res.data ?? {};
+  } catch {
+    _invoiceSettingsCache = {};
+  }
+  return _invoiceSettingsCache;
+}
+
+export function clearInvoiceSettingsCache() {
+  _invoiceSettingsCache = null;
+}
+
 export async function sendTaxInvoicePrint(job: PrintJob, printerIp: string, printerPort = 9100, fetchBytes: BytesFetcher = api.director.printerBytes): Promise<void> {
-  return sendPrinterBytes(printerIp, printerPort, await fetchBytes({ ...job, jobType: 'tax_invoice' }), job.printerBrand);
+  const inv = await getInvoiceSettingsCached();
+  const enrichedJob = {
+    ...job,
+    jobType: 'tax_invoice' as const,
+    invoiceBusinessName:  inv['invoice_business_name']  ?? job.invoiceBusinessName,
+    invoiceBusinessLine1: inv['invoice_business_line1'] ?? job.invoiceBusinessLine1,
+    invoiceBusinessLine2: inv['invoice_business_line2'] ?? job.invoiceBusinessLine2,
+    invoiceAbn:           inv['invoice_abn']            ?? job.invoiceAbn,
+    invoiceWebsite:       inv['invoice_website']        ?? job.invoiceWebsite,
+  };
+  return sendPrinterBytes(printerIp, printerPort, await fetchBytes(enrichedJob), job.printerBrand);
 }
 
 export async function sendRegisterSummaryPrint(job: RegisterSummaryPrintJob, printerIp: string, printerPort = 9100, fetchBytes: BytesFetcher = api.director.printerBytes): Promise<void> {

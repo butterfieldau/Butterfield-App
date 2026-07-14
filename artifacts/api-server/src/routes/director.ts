@@ -2971,15 +2971,20 @@ router.delete('/products/:id/permanent', requireRole('director', 'master'), asyn
 // ── Store settings ───────────────────────────────────────────────────────────
 router.get('/settings', async (req, res) => {
   await db.insert(storeSettingsTable).values([
-    { key: 'geo_radius_meters',  value: '20' },
-    { key: 'shop_lat',           value: '-33.8349' },
-    { key: 'shop_lng',           value: '150.9942' },
-    { key: 'store_open',         value: 'true' },
-    { key: 'daily_special',      value: 'Cookie & Cream Sandwich' },
-    { key: 'order_cutoff_time',  value: '' },
-    { key: 'printer_ip',         value: '' },
-    { key: 'printer_port',       value: '9100' },
-    { key: 'printer_brand',      value: 'epson' },
+    { key: 'geo_radius_meters',        value: '20' },
+    { key: 'shop_lat',                 value: '-33.8349' },
+    { key: 'shop_lng',                 value: '150.9942' },
+    { key: 'store_open',               value: 'true' },
+    { key: 'daily_special',            value: 'Cookie & Cream Sandwich' },
+    { key: 'order_cutoff_time',        value: '' },
+    { key: 'printer_ip',               value: '' },
+    { key: 'printer_port',             value: '9100' },
+    { key: 'printer_brand',            value: 'epson' },
+    { key: 'invoice_business_name',    value: 'BUTTERFIELD COOKIES PTY LTD' },
+    { key: 'invoice_business_line1',   value: 'Shop 3/2 Main Lane' },
+    { key: 'invoice_business_line2',   value: 'Merrylands NSW 2160' },
+    { key: 'invoice_abn',              value: '24 680 761 166' },
+    { key: 'invoice_website',          value: 'butterfieldcookies.com.au' },
   ]).onConflictDoNothing();
   const rows = await db.select().from(storeSettingsTable);
   return res.json({ data: Object.fromEntries(rows.map(r => [r.key, r.value])) });

@@ -370,6 +370,58 @@ async function fetchAvailableClaimedRewards(userId: string) {
   return rows;
 }
 
+// ── GET /pos/invoice-settings — fetch tax invoice identity fields ────────────
+// Accessible to all POS roles (staff, manager, director, master, shop_display).
+// Returns the five store_settings keys used to populate the TAX INVOICE header.
+const INVOICE_SETTING_KEYS = [
+  'invoice_business_name',
+  'invoice_business_line1',
+  'invoice_business_line2',
+  'invoice_abn',
+  'invoice_website',
+] as const;
+
+const INVOICE_DEFAULTS: Record<string, string> = {
+  invoice_business_name:  'BUTTERFIELD COOKIES PTY LTD',
+  invoice_business_line1: 'Shop 3/2 Main Lane',
+  invoice_business_line2: 'Merrylands NSW 2160',
+  invoice_abn:            '24 680 761 166',
+  invoice_website:        'butterfieldcookies.com.au',
+};
+
+router.get('/invoice-settings', async (req, res) => {
+  const rows = await db.select().from(storeSettingsTable)
+    .where(sql`${storeSettingsTable.key} = ANY(${INVOICE_SETTING_KEYS})`);
+  const map: Record<string, string> = { ...INVOICE_DEFAULTS };
+  for (const r of rows) map[r.key] = r.value;
+  return res.json({ data: map });
+});
+
+// ── PATCH /pos/invoice-settings — update tax invoice identity fields ──────────
+// Director, master, or shop_display may update these fields.
+router.patch('/invoice-settings', async (req, res) => {
+  const role = (req.user as any)?.role;
+  if (!['director', 'master', 'shop_display'].includes(role)) {
+    return res.status(403).json({ error: 'Forbidden: director access required.' });
+  }
+  const body = req.body as Record<string, unknown>;
+  const allowed = new Set<string>(INVOICE_SETTING_KEYS);
+  for (const [key, val] of Object.entries(body)) {
+    if (!allowed.has(key) || typeof val !== 'string') continue;
+    await db.insert(storeSettingsTable)
+      .values({ key, value: val.trim(), updatedBy: (req.user as any)?.id ?? null })
+      .onConflictDoUpdate({
+        target: storeSettingsTable.key,
+        set: { value: val.trim(), updatedAt: new Date(), updatedBy: (req.user as any)?.id ?? null },
+      });
+  }
+  const rows = await db.select().from(storeSettingsTable)
+    .where(sql`${storeSettingsTable.key} = ANY(${INVOICE_SETTING_KEYS})`);
+  const map: Record<string, string> = { ...INVOICE_DEFAULTS };
+  for (const r of rows) map[r.key] = r.value;
+  return res.json({ data: map });
+});
+
 // ── GET /pos/customer-search — find customers by text or QR userId ─────────
 router.get('/customer-search', async (req, res) => {
   await ensurePosSchemaReady();

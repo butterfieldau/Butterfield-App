@@ -79,6 +79,11 @@ export interface PrintJob {
   customerEmail?:      string;
   autoDrawer?:         boolean;
   drawerPin?:          0 | 1;
+  invoiceBusinessName?:  string;
+  invoiceBusinessLine1?: string;
+  invoiceBusinessLine2?: string;
+  invoiceAbn?:           string;
+  invoiceWebsite?:       string;
 }
 
 export interface RegisterSummaryPrintJob {
@@ -245,6 +250,8 @@ export function buildReceiptBytes(job: PrintJob): Buffer {
 // ── Tax Invoice builder ───────────────────────────────────────────────────────
 // Produces a GST-compliant "TAX INVOICE" for Australian businesses.
 // All prices are GST-inclusive; GST component = total / 11.
+// Business identity fields are read from the job (fetched from store_settings);
+// hardcoded defaults are used only when fields are absent.
 export function buildTaxInvoiceBytes(job: PrintJob): Buffer {
   const isStar = job.printerBrand === 'star';
   const now = new Date();
@@ -256,6 +263,12 @@ export function buildTaxInvoiceBytes(job: PrintJob): Buffer {
     hour: 'numeric', minute: '2-digit', hour12: true,
     timeZone: 'Australia/Sydney',
   });
+
+  const businessName  = job.invoiceBusinessName  ?? 'BUTTERFIELD COOKIES PTY LTD';
+  const businessLine1 = job.invoiceBusinessLine1 ?? 'Shop 3/2 Main Lane';
+  const businessLine2 = job.invoiceBusinessLine2 ?? 'Merrylands NSW 2160';
+  const businessAbn   = job.invoiceAbn           ?? '24 680 761 166';
+  const businessWeb   = job.invoiceWebsite       ?? 'butterfieldcookies.com.au';
 
   const discountCents  = job.discountCents  ?? 0;
   const surchargeCents = job.surchargeCents ?? 0;
@@ -277,10 +290,11 @@ export function buildTaxInvoiceBytes(job: PrintJob): Buffer {
     CMD_NORMAL_SIZE,
     CMD_BOLD_OFF,
     lf(1),
-    Buffer.from('BUTTERFIELD COOKIES PTY LTD\n', 'utf-8'),
-    Buffer.from('Merrylands NSW 2160\n', 'utf-8'),
-    Buffer.from('ABN: 24 680 761 166\n', 'utf-8'),
-    Buffer.from('butterfieldcookies.com.au\n', 'utf-8'),
+    Buffer.from(`${businessName}\n`, 'utf-8'),
+    ...(businessLine1 ? [Buffer.from(`${businessLine1}\n`, 'utf-8')] : []),
+    ...(businessLine2 ? [Buffer.from(`${businessLine2}\n`, 'utf-8')] : []),
+    Buffer.from(`ABN: ${businessAbn}\n`, 'utf-8'),
+    ...(businessWeb ? [Buffer.from(`${businessWeb}\n`, 'utf-8')] : []),
     divider('='),
     CMD_ALIGN_LEFT,
     twoCol('Invoice #', job.orderId.slice(0, 8).toUpperCase()),
@@ -346,10 +360,9 @@ export function buildTaxInvoiceBytes(job: PrintJob): Buffer {
     Buffer.from('Thank you for your purchase!\n', 'utf-8'),
     Buffer.from('Please retain for your records.\n', 'utf-8'),
     divider('='),
+    // Tax invoice is a paper copy only — no cash drawer kick.
     // Star MCP30: ESC d 3 (CMD_STAR_FEED) before GS V 0; Epson: plain lf(3).
-    // Star DLE DC4 (0x10 0x14 0x01) for drawer; ESC p for Epson.
     isStar ? CMD_STAR_FEED : lf(3),
-    ...(job.autoDrawer ? [isStar ? buildStarOpenDrawerBytes(job.drawerPin ?? 0) : buildOpenDrawerBytes(job.drawerPin ?? 0)] : []),
     CMD_EPSON_CUT,  // GS V 0 — works on both brands
   );
 

@@ -326,6 +326,10 @@ export const api = {
       if (storeId) p.set('storeId', storeId);
       return request<{ data: ShopDisplayAnalytics }>(`/shop-display/analytics?${p}`);
     },
+    getInvoiceSettings: () =>
+      request<{ data: Record<string, string> }>('/pos/invoice-settings'),
+    patchInvoiceSetting: (key: string, value: string) =>
+      request<{ data: Record<string, string> }>('/pos/invoice-settings', { method: 'PATCH', body: JSON.stringify({ [key]: value }) }),
   },
   wholesale: {
     profile:     () => request<{ data: WholesaleProfile }>('/wholesale/profile'),
