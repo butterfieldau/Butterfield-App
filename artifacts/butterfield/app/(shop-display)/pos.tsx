@@ -515,7 +515,7 @@ function PosScreenInner() {
       if (activeTicket.customer?.userId && res.loyaltyResult) {
         recentBalancesRef.current[activeTicket.customer.userId] = { loyaltyPoints: res.loyaltyResult.newBalance, stampCount: res.loyaltyResult.newStampCount, freeCoffeeRewards: activeTicket.customer.freeCoffeeRewards };
       }
-      setCompletedOrder({ id: res.data.id, orderNumber: res.data.orderNumber, totalCents: res.data.totalCents, paymentMethod: vars.paymentMethod, amountTenderedCents: vars.amountTenderedCents, surchargeCents: vars.surchargeCents ?? 0, splitPayments: vars.splitPayments, loyaltyResult: res.loyaltyResult, customerName: snapshotCustomerName, customerEmail: activeTicket.customer?.email, ticketItems: snapshotItems, discountAmountCents, discountLabel });
+      setCompletedOrder({ id: res.data.id, orderNumber: res.data.orderNumber, invoiceNumber: res.data.invoiceNumber ?? `INV-${res.data.id.slice(0, 8).toUpperCase()}`, totalCents: res.data.totalCents, paymentMethod: vars.paymentMethod, amountTenderedCents: vars.amountTenderedCents, surchargeCents: vars.surchargeCents ?? 0, splitPayments: vars.splitPayments, loyaltyResult: res.loyaltyResult, customerName: snapshotCustomerName, customerEmail: activeTicket.customer?.email, ticketItems: snapshotItems, discountAmountCents, discountLabel });
       setShowPayment(false);
       clearActiveTicket();
       refetchSummary();
@@ -593,7 +593,7 @@ function PosScreenInner() {
       const entry: OfflineQueueEntry = { idempotencyKey: activeIdempotencyKey, queuedAt: new Date().toISOString(), syncStatus: 'pending', payload: payload as any, totalCents, customerName: activeTicket.customer?.name, itemSummary: activeTicket.items.map(i => `${i.quantity}× ${i.productName}`).join(', ').slice(0, 80) };
       enqueueOrder(entry).then(() => {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        setCompletedOrder({ id: 'offline-' + activeIdempotencyKey, orderNumber: 'QUEUED', totalCents, paymentMethod: params.method, amountTenderedCents: params.amountTenderedCents, surchargeCents: params.surchargeCents ?? 0, splitPayments: params.splitPayments, loyaltyResult: null, customerName: activeTicket.customer?.name ?? 'Walk-in', customerEmail: activeTicket.customer?.email, ticketItems: activeTicket.items.map(i => ({ name: i.productName, quantity: i.quantity, unitPriceCents: i.unitPriceCents, variantName: i.variantName ?? undefined, options: (i.selectedOptions ?? []).map((o: any) => o.optionName ?? o.textValue ?? '').filter(Boolean) as string[] })), discountAmountCents: activeTicket.appliedDiscount?.amountCents ?? 0, discountLabel: activeTicket.appliedDiscount?.label ?? '' });
+        setCompletedOrder({ id: 'offline-' + activeIdempotencyKey, orderNumber: 'QUEUED', invoiceNumber: 'INV-OFFLINE', totalCents, paymentMethod: params.method, amountTenderedCents: params.amountTenderedCents, surchargeCents: params.surchargeCents ?? 0, splitPayments: params.splitPayments, loyaltyResult: null, customerName: activeTicket.customer?.name ?? 'Walk-in', customerEmail: activeTicket.customer?.email, ticketItems: activeTicket.items.map(i => ({ name: i.productName, quantity: i.quantity, unitPriceCents: i.unitPriceCents, variantName: i.variantName ?? undefined, options: (i.selectedOptions ?? []).map((o: any) => o.optionName ?? o.textValue ?? '').filter(Boolean) as string[] })), discountAmountCents: activeTicket.appliedDiscount?.amountCents ?? 0, discountLabel: activeTicket.appliedDiscount?.label ?? '' });
         setShowPayment(false);
         clearActiveTicket();
       });
@@ -779,7 +779,7 @@ function PosScreenInner() {
             const store = storeData as any;
             if (!store?.printerIp) { Alert.alert('No Printer', 'Configure a printer IP in POS settings to print.'); return; }
             const fetchBytes = isShopDisplay ? api.shopDisplay.printerBytes : api.director.printerBytes;
-            sendTaxInvoicePrint({ orderId: completedOrder.id, customerName: completedOrder.customerName, type: 'pickup', items: completedOrder.ticketItems, totalCents: completedOrder.totalCents, discountCents: completedOrder.discountAmountCents, surchargeCents: completedOrder.surchargeCents, loyaltyPointsEarned: completedOrder.loyaltyResult?.pointsEarned, printerBrand: store.printerBrand ?? 'epson', paymentMethod: completedOrder.paymentMethod }, store.printerIp, store.printerPort ?? 9100, fetchBytes).catch((e: any) => Alert.alert('Print Failed', e?.message ?? 'Could not reach printer.'));
+            sendTaxInvoicePrint({ orderId: completedOrder.id, invoiceNumber: completedOrder.invoiceNumber, customerName: completedOrder.customerName, type: 'pickup', items: completedOrder.ticketItems, totalCents: completedOrder.totalCents, discountCents: completedOrder.discountAmountCents, surchargeCents: completedOrder.surchargeCents, loyaltyPointsEarned: completedOrder.loyaltyResult?.pointsEarned, printerBrand: store.printerBrand ?? 'epson', paymentMethod: completedOrder.paymentMethod }, store.printerIp, store.printerPort ?? 9100, fetchBytes).catch((e: any) => Alert.alert('Print Failed', e?.message ?? 'Could not reach printer.'));
           }}
         />
       )}

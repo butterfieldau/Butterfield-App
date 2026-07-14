@@ -201,6 +201,26 @@ async function getLoyaltyPosSettings(): Promise<{ birthdayBonusMultiplier: numbe
   }
 }
 
+// ── Sequential invoice number (atomic, stored in store_settings) ──────────
+// Uses a PostgreSQL upsert so two concurrent POS sales cannot receive the
+// same number. The counter starts at 1 the first time it is used and
+// increments monotonically. Format returned: "INV-0001" (zero-padded to 4).
+const INVOICE_SEQ_KEY = 'invoice_number_seq';
+
+async function getNextInvoiceNumber(): Promise<string> {
+  const result = await db.execute(sql`
+    INSERT INTO store_settings (key, value, updated_at)
+    VALUES (${INVOICE_SEQ_KEY}, '1', now())
+    ON CONFLICT (key) DO UPDATE
+      SET value      = (CAST(store_settings.value AS integer) + 1)::text,
+          updated_at = now()
+    RETURNING value
+  `);
+  const rows = (result as any).rows ?? (result as any) ?? [];
+  const seq = parseInt(String(rows[0]?.value ?? '1'), 10);
+  return `INV-${String(seq).padStart(4, '0')}`;
+}
+
 // ── Schema migration (idempotent) ─────────────────────────────────────────
 let posSchemaReady: Promise<void> | null = null;
 
@@ -226,6 +246,9 @@ async function ensurePosSchemaReady() {
         ));
         await db.execute(sql.raw(
           `ALTER TABLE orders ADD COLUMN IF NOT EXISTS split_payments jsonb`
+        ));
+        await db.execute(sql.raw(
+          `ALTER TABLE orders ADD COLUMN IF NOT EXISTS invoice_number text`
         ));
         // pos_surcharges table
         await db.execute(sql.raw(`
@@ -1242,6 +1265,7 @@ const handleCreatePosOrder: import('express').RequestHandler = async (req, res) 
 
   const orderId = randomUUID();
   const orderNumber = await generateOrderNumber();
+  const invoiceNumber = await getNextInvoiceNumber();
 
   // ── Points earned: server-side tier + birthday verification ─────────────
   let tierMultiplierVal = 1.0;
@@ -1284,7 +1308,7 @@ const handleCreatePosOrder: import('express').RequestHandler = async (req, res) 
           items, loyalty_points_earned, loyalty_points_used, discount_cents, discount_code,
           stripe_payment_status, source, staff_user_id, payment_method,
           tip_cents, surcharge_cents, split_payments, register_session_id,
-          client_idempotency_key,
+          client_idempotency_key, invoice_number,
           created_at, updated_at
         ) VALUES (
           ${orderId},
@@ -1308,6 +1332,7 @@ const handleCreatePosOrder: import('express').RequestHandler = async (req, res) 
           ${splitPayments ? JSON.stringify(splitPayments) : null}::jsonb,
           ${registerSession.id},
           ${idempotencyKey && typeof idempotencyKey === 'string' ? idempotencyKey : null},
+          ${invoiceNumber},
           now(),
           now()
         )
@@ -1503,7 +1528,7 @@ const handleCreatePosOrder: import('express').RequestHandler = async (req, res) 
   }
 
   return res.status(201).json({
-    data: { id: orderId, orderNumber, totalCents, paymentMethod, status: 'completed' },
+    data: { id: orderId, orderNumber, invoiceNumber, totalCents, paymentMethod, status: 'completed' },
     loyaltyResult,
   });
 };
@@ -2395,7 +2420,7 @@ router.post('/orders/:id/email-invoice', async (req, res) => {
 
   const result = await db.execute(sql`
     SELECT
-      o.id, o.order_number, o.total_cents, o.items, o.payment_method,
+      o.id, o.order_number, o.invoice_number, o.total_cents, o.items, o.payment_method,
       o.surcharge_cents, o.discount_cents,
       u.name AS customer_name,
       (SELECT SUM(lt2.points) FROM loyalty_transactions lt2
@@ -2425,15 +2450,16 @@ router.post('/orders/:id/email-invoice', async (req, res) => {
   const subtotalCents  = totalCents - surchargeCents + discountCents;
   const loyaltyPointsEarned = row.loyalty_points_earned ? Number(row.loyalty_points_earned) : null;
   const customerName = row.customer_name ?? 'Customer';
-  const orderNumber  = row.order_number ?? id.slice(0, 8).toUpperCase();
+  // Prefer the sequential invoice number (INV-XXXX); fall back to order number for legacy rows
+  const invoiceLabel = row.invoice_number ?? row.order_number ?? id.slice(0, 8).toUpperCase();
   const paymentMethod = row.payment_method ?? 'eftpos';
   const date = new Date().toLocaleDateString('en-AU', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'Australia/Sydney' });
 
   const { sendEmail, buildPosReceiptEmail } = await import('../lib/emailService.js');
-  const html = buildPosReceiptEmail({ orderNumber, customerName, items, subtotalCents, surchargeCents, discountCents, totalCents, paymentMethod, loyaltyPointsEarned, date });
+  const html = buildPosReceiptEmail({ orderNumber: invoiceLabel, customerName, items, subtotalCents, surchargeCents, discountCents, totalCents, paymentMethod, loyaltyPointsEarned, date });
   const { success } = await sendEmail({
     to: email,
-    subject: `Your Butterfield Cookies receipt — #${orderNumber}`,
+    subject: `Your Butterfield Cookies receipt — ${invoiceLabel}`,
     html,
   });
 

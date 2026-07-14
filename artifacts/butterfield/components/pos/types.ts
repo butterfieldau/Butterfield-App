@@ -225,7 +225,7 @@ export function buildRegisterSummaryPrintLines(report: RegisterSessionReport, ch
 import type { PosOrderItem, PosLoyaltyResult } from '@/lib/api';
 
 export interface PosCompletedOrder {
-  id: string; orderNumber: string; totalCents: number;
+  id: string; orderNumber: string; invoiceNumber: string; totalCents: number;
   paymentMethod: 'cash' | 'eftpos' | 'split';
   amountTenderedCents?: number; surchargeCents: number;
   splitPayments?: { method: string; amountCents: number; linklySessionId?: string | null }[];

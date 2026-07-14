@@ -53,6 +53,7 @@ export const ordersTable = pgTable("orders", {
   tipCents: integer("tip_cents").default(0),
   surchargeCents: integer("surcharge_cents").default(0),
   splitPayments: jsonb("split_payments").$type<Array<{ method: string; amountCents: number }>>(),
+  invoiceNumber: text("invoice_number"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 }, (table) => [

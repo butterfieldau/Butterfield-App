@@ -84,6 +84,7 @@ export interface PrintJob {
   invoiceBusinessLine2?: string;
   invoiceAbn?:           string;
   invoiceWebsite?:       string;
+  invoiceNumber?:        string;
 }
 
 export interface RegisterSummaryPrintJob {
@@ -297,7 +298,7 @@ export function buildTaxInvoiceBytes(job: PrintJob): Buffer {
     ...(businessWeb ? [Buffer.from(`${businessWeb}\n`, 'utf-8')] : []),
     divider('='),
     CMD_ALIGN_LEFT,
-    twoCol('Invoice #', job.orderId.slice(0, 8).toUpperCase()),
+    twoCol('Invoice #', job.invoiceNumber ?? job.orderId.slice(0, 8).toUpperCase()),
     twoCol('Date', dateStr),
     twoCol('Time', timeStr),
     twoCol('Customer', job.customerName),

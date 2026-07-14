@@ -30,6 +30,7 @@ export interface PrintJob {
   invoiceBusinessLine2?: string;
   invoiceAbn?:           string;
   invoiceWebsite?:       string;
+  invoiceNumber?:        string;
 }
 
 export interface RegisterSummaryPrintJob {
