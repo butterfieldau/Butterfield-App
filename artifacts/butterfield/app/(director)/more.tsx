@@ -42,14 +42,14 @@ function buildSections(
       items: [
         { icon: 'bar-chart-2',    label: 'Reports',    iconColor: '#007AFF', perm: 'reports',     onPress: () => router.push('/director-reports' as any) },
         { icon: 'clock',          label: 'Timesheets', iconColor: '#FF9500', perm: 'timesheets',  onPress: () => router.push('/director-staff-hours' as any) },
-        { icon: 'users',          label: 'Staff Hub',  iconColor: '#34C759',                      onPress: () => router.push('/(director)/staffhub' as any) },
+        { icon: 'users',          label: 'Staff Hub',  iconColor: '#34C759',                      onPress: () => router.push('/director-staffhub' as any) },
       ],
     },
     {
       header: 'OPERATIONS',
       items: [
         { icon: 'calendar',      label: 'Schedule',   iconColor: '#FF2D55', perm: 'timesheets',  onPress: () => router.push('/director-roster' as any) },
-        { icon: 'check-square',  label: 'Tasks',      iconColor: '#5856D6',                      onPress: () => router.push({ pathname: '/(director)/staffhub', params: { tab: 'tasks' } } as any) },
+        { icon: 'check-square',  label: 'Tasks',      iconColor: '#5856D6',                      onPress: () => router.push({ pathname: '/director-staffhub', params: { tab: 'tasks' } } as any) },
         { icon: 'package',       label: 'Stock',      iconColor: '#FF9500', perm: 'stock',       onPress: () => router.push('/(director)/stock' as any) },
         { icon: 'monitor',       label: 'POS Orders', iconColor: '#007AFF', directorOnly: true,  onPress: () => router.push('/(director)/pos-orders' as any) },
       ],

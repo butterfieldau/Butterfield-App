@@ -264,6 +264,7 @@ function RootLayoutNav() {
       <Stack.Screen name="director-store-locations" options={directorStandaloneScreenOptions} />
       <Stack.Screen name="director-inventory" options={directorStandaloneScreenOptions} />
       <Stack.Screen name="director-staff-hours" options={directorStandaloneScreenOptions} />
+      <Stack.Screen name="director-staffhub" options={directorStandaloneScreenOptions} />
       <Stack.Screen name="director-reports" options={directorStandaloneScreenOptions} />
       <Stack.Screen name="director-pricing" options={directorStandaloneScreenOptions} />
       <Stack.Screen name="director-discounts" options={directorStandaloneScreenOptions} />
