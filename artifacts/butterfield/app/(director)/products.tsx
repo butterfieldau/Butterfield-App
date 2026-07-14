@@ -239,7 +239,7 @@ export default function DirectorProductsScreen() {
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
-            contentContainerStyle={{ paddingHorizontal: 16, paddingVertical: 10, gap: 8 }}
+            contentContainerStyle={{ paddingHorizontal: 16, paddingVertical: 10, gap: 8, alignItems: 'center' }}
           >
             {/* Status pills */}
             {STATUS_OPTIONS.map(opt => {
@@ -248,14 +248,14 @@ export default function DirectorProductsScreen() {
                 <Pressable
                   key={opt}
                   onPress={() => { setStatusFilter(opt); setCatFilter('all'); Haptics.selectionAsync(); }}
-                  style={{ paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, backgroundColor: active ? '#000' : '#fff', borderWidth: 1, borderColor: active ? '#000' : '#E5E7EB' }}
+                  style={{ height: 34, paddingHorizontal: 14, borderRadius: 17, backgroundColor: active ? '#000' : CARD, borderWidth: 1, borderColor: active ? '#000' : '#E5E7EB', alignItems: 'center', justifyContent: 'center' }}
                 >
-                  <Text style={{ fontSize: 14, fontWeight: '600', color: active ? '#fff' : '#000' }}>{opt}</Text>
+                  <Text numberOfLines={1} style={{ fontSize: 13, fontWeight: '600', color: active ? '#fff' : TEXT }}>{opt}</Text>
                 </Pressable>
               );
             })}
             {/* Separator */}
-            <View style={{ width: 1, backgroundColor: '#E5E7EB', alignSelf: 'center', height: 20, marginHorizontal: 4 }} />
+            <View style={{ width: 1, backgroundColor: '#E5E7EB', height: 20, marginHorizontal: 4 }} />
             {/* Category pills */}
             {dbCategories.map((c: any) => {
               const active = catFilter === c.slug;
@@ -263,9 +263,9 @@ export default function DirectorProductsScreen() {
                 <Pressable
                   key={c.slug}
                   onPress={() => { setCatFilter(active ? 'all' : c.slug); setStatusFilter('All'); Haptics.selectionAsync(); }}
-                  style={{ paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, backgroundColor: active ? '#000' : '#fff', borderWidth: 1, borderColor: active ? '#000' : '#E5E7EB' }}
+                  style={{ height: 34, paddingHorizontal: 14, borderRadius: 17, backgroundColor: active ? '#000' : CARD, borderWidth: 1, borderColor: active ? '#000' : '#E5E7EB', alignItems: 'center', justifyContent: 'center' }}
                 >
-                  <Text style={{ fontSize: 14, fontWeight: '600', color: active ? '#fff' : '#000' }}>{c.name}</Text>
+                  <Text numberOfLines={1} style={{ fontSize: 13, fontWeight: '600', color: active ? '#fff' : TEXT }}>{c.name}</Text>
                 </Pressable>
               );
             })}
