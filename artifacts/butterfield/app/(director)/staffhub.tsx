@@ -1,6 +1,6 @@
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
-import { useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator, Alert, KeyboardAvoidingView, Modal, Platform,
@@ -1587,6 +1587,15 @@ export default function StaffHubScreen() {
     <DirectorTabScreen
       title="Staff Hub"
       subtitle={showManagerContent ? 'Manage your team' : 'Your shift tools'}
+      headerLeft={
+        <Pressable
+          onPress={() => { Haptics.selectionAsync(); router.back(); }}
+          style={{ width: 36, height: 36, borderRadius: 12, borderWidth: 1, borderColor: '#E5E7EB', backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' }}
+          hitSlop={8}
+        >
+          <Feather name="arrow-left" size={18} color={NAVY} />
+        </Pressable>
+      }
       headerBottom={isManager ? (
         <View style={s.modeToggleBar}>
           <View style={s.modeToggle}>

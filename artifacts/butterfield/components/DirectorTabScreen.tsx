@@ -13,6 +13,7 @@ const MUTED      = '#6B7280';
 interface Props {
   title: string;
   subtitle?: string;
+  headerLeft?: ReactNode;
   headerRight?: ReactNode;
   headerBottom?: ReactNode;
   children: ReactNode;
@@ -29,6 +30,7 @@ interface Props {
 export function DirectorTabScreen({
   title,
   subtitle,
+  headerLeft,
   headerRight,
   headerBottom,
   children,
@@ -56,7 +58,7 @@ export function DirectorTabScreen({
       {!hideHeader && (
         <View style={[ss.header, { backgroundColor: headerBackgroundColor }]}>
           {/* Left side: flex:1 so it mirror-matches the right side width */}
-          <View style={ss.sideLeft} />
+          <View style={ss.sideLeft}>{headerLeft ?? null}</View>
 
           {/* Centre: title + optional subtitle */}
           <View style={ss.center}>
