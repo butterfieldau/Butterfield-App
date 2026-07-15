@@ -295,7 +295,7 @@ function StaffProfileModal({ userId, visible, onClose, onRefresh, onDelete }: {
     rejected: { bg: '#FEE2E2', text: '#991B1B' },
   };
   return (
-    <Modal visible={visible} animationType="slide" presentationStyle="fullScreen" onRequestClose={handleClose}>
+    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={handleClose}>
       <View style={{ flex: 1, backgroundColor: BG }}>
         {/* ── Navy header strip ──────────────────────────────────────── */}
         <View style={sp_s.header}>
