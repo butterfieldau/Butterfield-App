@@ -186,11 +186,23 @@ export function DirectorUsersScreen({ modeOverride }: { modeOverride?: UsersMode
   const handleRefreshUsers = async () => {
     await qc.invalidateQueries({ queryKey: ['director-users'] });
   };
+  const canGoBack = router.canGoBack();
   return (
     <DirectorTabScreen
       title={deletedMode ? 'Deleted Accounts' : wholesaleMode ? 'Wholesale Accounts' : staffMode ? 'Staff Accounts' : posMode ? 'POS Screens' : 'People'}
+      backgroundColor="#EFF6FF"
+      headerBackgroundColor="#EFF6FF"
+      headerLeft={(dedicatedMode || deletedMode) && canGoBack ? (
+        <Pressable
+          onPress={() => { Haptics.selectionAsync(); router.back(); }}
+          style={{ width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' }}
+          hitSlop={12}
+        >
+          <Feather name="arrow-left" size={20} color={NAVY} />
+        </Pressable>
+      ) : undefined}
       headerBottom={!dedicatedMode ? (
-        <View style={{ paddingHorizontal: 16, paddingVertical: 10, backgroundColor: '#F2F2F7' }}>
+        <View style={{ paddingHorizontal: 16, paddingVertical: 10, backgroundColor: '#EFF6FF' }}>
           <View style={{ flexDirection: 'row', backgroundColor: '#E5E5EA', borderRadius: 9, padding: 2, gap: 0 }}>
             {TABS.map((t) => {
               const active = tab === t;

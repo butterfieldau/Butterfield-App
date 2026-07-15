@@ -1,5 +1,6 @@
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
+import { router } from 'expo-router';
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import type { ComponentProps } from 'react';
 import {
@@ -807,8 +808,24 @@ export default function DirectorPricing() {
     ruleForm.qtyBreaks.length > 0 && ruleForm.qtyBreaks.every((r) => !!r.minQty && !!r.price)
   );
 
+  const canGoBack = router.canGoBack();
+
   return (
-    <DirectorTabScreen title="Pricing Management" subtitle="Tiers · volume rules · customer overrides">
+    <DirectorTabScreen
+      title="Pricing Management"
+      subtitle="Tiers · volume rules · customer overrides"
+      backgroundColor="#EFF6FF"
+      headerBackgroundColor="#EFF6FF"
+      headerLeft={canGoBack ? (
+        <Pressable
+          onPress={() => { Haptics.selectionAsync(); router.back(); }}
+          style={{ width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' }}
+          hitSlop={12}
+        >
+          <Feather name="arrow-left" size={20} color="#1A2B4A" />
+        </Pressable>
+      ) : undefined}
+    >
 
       <View style={[styles.tabBar, { backgroundColor: CARD, borderBottomColor: BORDER }]}>
         {TABS.map((t) => {

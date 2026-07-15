@@ -275,8 +275,7 @@ function RootLayoutNav() {
       <Stack.Screen name="director-settings-delivery" options={directorStandaloneScreenOptions} />
       <Stack.Screen name="director-build-a-box"      options={directorStandaloneScreenOptions} />
       <Stack.Screen name="director-settings"         options={directorStandaloneScreenOptions} />
-      <Stack.Screen name="director-audit-log"        options={directorStandaloneScreenOptions} />
-      <Stack.Screen name="director-login-history"    options={directorStandaloneScreenOptions} />
+      <Stack.Screen name="director-security-log"      options={directorStandaloneScreenOptions} />
       <Stack.Screen name="(shop-display)" options={{ headerShown: false, animation: "slide_from_right", gestureEnabled: false }} />
       <Stack.Screen name="(wholesale)" options={{ headerShown: false, animation: "slide_from_right", gestureEnabled: false }} />
       <Stack.Screen name="(director)" options={{ headerShown: false, animation: "slide_from_right", gestureEnabled: false }} />

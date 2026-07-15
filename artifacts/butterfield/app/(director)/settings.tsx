@@ -180,9 +180,20 @@ export default function DirectorSettingsScreen() {
 
   const isLoading = loadingSettings && loadingDelivery;
 
+  const canGoBack = router.canGoBack();
+  const backBtn = canGoBack ? (
+    <Pressable
+      onPress={() => { Haptics.selectionAsync(); router.back(); }}
+      style={{ width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' }}
+      hitSlop={12}
+    >
+      <Feather name="arrow-left" size={20} color="#1A2B4A" />
+    </Pressable>
+  ) : undefined;
+
   if (isLoading) {
     return (
-      <DirectorTabScreen title="Settings">
+      <DirectorTabScreen title="Settings" headerLeft={backBtn} backgroundColor="#EFF6FF" headerBackgroundColor="#EFF6FF">
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
           <ActivityIndicator color={BLUE} />
         </View>
@@ -195,7 +206,7 @@ export default function DirectorSettingsScreen() {
     : '—';
 
   return (
-    <DirectorTabScreen title="Settings">
+    <DirectorTabScreen title="Settings" headerLeft={backBtn} backgroundColor="#EFF6FF" headerBackgroundColor="#EFF6FF">
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={s.content}

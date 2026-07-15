@@ -28,7 +28,6 @@ type NavRow = {
 type NavSection = {
   header?: string;
   items: NavRow[];
-  vault?: boolean;
 };
 
 // ─── Section data ─────────────────────────────────────────────────────────────
@@ -48,18 +47,6 @@ function buildSections(
   const cats = buildCategories(canSee, isDirector);
 
   const catSections: NavSection[] = cats.map(cat => {
-    if (cat.key === 'vault') {
-      const vaultItem = cat.groups[0]?.items[0];
-      return {
-        vault: true,
-        items: [{
-          icon: 'lock',
-          label: 'Director Vault',
-          iconColor: GOLD,
-          onPress: vaultItem?.onPress ?? (() => {}),
-        }],
-      };
-    }
     const items: NavRow[] = cat.groups
       .flatMap(g => g.items)
       .filter(i => !i.soon)
@@ -97,30 +84,6 @@ function NavRowItem({ row, isLast }: { row: NavRow; isLast: boolean }) {
 }
 
 function SectionCard({ section }: { section: NavSection }) {
-  if (section.vault) {
-    const item = section.items[0];
-    return (
-      <Pressable
-        onPress={() => { Haptics.selectionAsync(); item.onPress(); }}
-        style={({ pressed }) => [s.vaultCard, { opacity: pressed ? 0.85 : 1 }]}
-      >
-        <View style={s.vaultIconWrap}>
-          <Feather name="lock" size={20} color={GOLD} />
-        </View>
-        <View style={{ flex: 1 }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-            <Text style={s.vaultLabel}>Director Vault</Text>
-            <View style={s.vaultBadge}>
-              <Text style={s.vaultBadgeText}>DIRECTOR ONLY</Text>
-            </View>
-          </View>
-          <Text style={s.vaultDesc}>Secure recipe & cost repository</Text>
-        </View>
-        <Feather name="chevron-right" size={18} color={GOLD + 'AA'} />
-      </Pressable>
-    );
-  }
-
   return (
     <View>
       {section.header ? (
@@ -185,6 +148,28 @@ export default function MoreScreen() {
           {sections.map((sec, i) => (
             <SectionCard key={i} section={sec} />
           ))}
+
+          {/* ── Vault card — director only, anchored above Sign Out ── */}
+          {isDirector && (
+            <Pressable
+              onPress={() => { Haptics.selectionAsync(); router.push('/director-vault' as any); }}
+              style={({ pressed }) => [s.vaultCard, { opacity: pressed ? 0.85 : 1 }]}
+            >
+              <View style={s.vaultIconWrap}>
+                <Feather name="lock" size={20} color={GOLD} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <Text style={s.vaultLabel}>Director Vault</Text>
+                  <View style={s.vaultBadge}>
+                    <Text style={s.vaultBadgeText}>DIRECTOR ONLY</Text>
+                  </View>
+                </View>
+                <Text style={s.vaultDesc}>Secure recipe & cost repository</Text>
+              </View>
+              <Feather name="chevron-right" size={18} color={GOLD + 'AA'} />
+            </Pressable>
+          )}
 
           <Pressable
             onPress={() => {
