@@ -91,12 +91,11 @@ test.beforeAll(async ({ request }) => {
 test.describe('Director More screen — section visibility', () => {
   test.setTimeout(240_000);
 
-  test('director sees all five category sections and director-only items', async ({ page }) => {
+  test('director sees all four category sections and director-only items', async ({ page }) => {
     await goToAs(page, _directorToken, _directorUserJson, '/(director)/more');
 
-    await expect(page.locator('text=WHOLESALE').first()).toBeVisible({ timeout: 30_000 });
-    await expect(page.locator('text=OPERATIONS').first()).toBeVisible({ timeout: 12_000 });
-    await expect(page.locator('text=STAFF').first()).toBeVisible({ timeout: 12_000 });
+    await expect(page.locator('text=OPERATIONS').first()).toBeVisible({ timeout: 30_000 });
+    await expect(page.locator('text=WHOLESALE').first()).toBeVisible({ timeout: 12_000 });
     await expect(page.locator('text=SALES & MARKETING').first()).toBeVisible({ timeout: 12_000 });
     await expect(page.locator('text=SYSTEM').first()).toBeVisible({ timeout: 12_000 });
 

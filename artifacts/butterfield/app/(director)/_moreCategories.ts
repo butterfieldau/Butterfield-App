@@ -29,6 +29,83 @@ export type Category = {
 
 const ALL_CATEGORIES: Category[] = [
 
+  // ── OPERATIONS ─────────────────────────────────────────────────────────────
+  {
+    key: 'operations',
+    label: 'Operations',
+    icon: 'tool',
+    color: BLUE,
+    description: 'Store setup, stock & hardware',
+    groups: [
+      {
+        label: 'Store Setup',
+        items: [
+          { icon: 'map-pin', label: 'Store Locations',   sub: 'Open status, hours, printers, pickup, geofence and notes per store', color: BLUE, perm: 'settings', onPress: () => router.push('/director-store-locations' as any) },
+          { icon: 'truck',   label: 'Delivery Settings', sub: 'Slots, fee, blackout dates & category eligibility',                  color: BLUE, perm: 'settings', onPress: () => router.push('/director-settings-delivery' as any) },
+        ],
+      },
+      {
+        label: 'Catalogue & Menu',
+        items: [
+          { icon: 'package', label: 'Build a Box', sub: 'Box sizes, prices, exclusions & premium add-ons', color: BLUE, perm: 'products', onPress: () => router.push('/director-build-a-box' as any) },
+        ],
+      },
+      {
+        label: 'Stock & Inventory',
+        items: [
+          { icon: 'archive',      label: 'Inventory',        sub: 'View & adjust stock on hand',          color: BLUE, perm: 'stock', onPress: () => router.push('/director-inventory' as any) },
+          { icon: 'repeat',       label: 'Stock Movements',  sub: 'Receipts, write-offs & transfers',     color: BLUE, perm: 'stock', soon: true },
+          { icon: 'alert-circle', label: 'Low Stock Alerts', sub: 'Reorder thresholds & email alerts',    color: BLUE, perm: 'stock', soon: true },
+          { icon: 'dollar-sign',  label: 'Cost Tracking',    sub: 'COGS, margins & supplier pricing',     color: BLUE, perm: 'stock', soon: true },
+        ],
+      },
+      {
+        label: 'Hardware & Devices',
+        items: [
+          { icon: 'monitor', label: 'POS Devices',      sub: 'Counter iPad logins, store assignments & permissions', color: BLUE, directorOnly: true, onPress: () => router.push({ pathname: '/(director)/users', params: { mode: 'pos' } } as any) },
+          { icon: 'server',  label: 'Kitchen Printers', sub: 'Kitchen display & order tickets',                      color: BLUE, directorOnly: true, soon: true },
+        ],
+      },
+    ],
+  },
+
+  // ── WHOLESALE ──────────────────────────────────────────────────────────────
+  {
+    key: 'wholesale',
+    label: 'Wholesale',
+    icon: 'briefcase',
+    color: BLUE,
+    description: 'Pricing tiers, quantity breaks & credit limits',
+    groups: [
+      {
+        label: 'Accounts',
+        items: [
+          { icon: 'briefcase', label: 'Wholesale Accounts', sub: 'B2B customers, account status & credit setup', color: BLUE, perm: 'users', onPress: () => router.push('/director-wholesale-accounts' as any) },
+          { icon: 'file-text', label: 'Invoice Management', sub: 'View unpaid & overdue invoices, mark as paid',  color: BLUE, perm: 'users', onPress: () => router.push('/director-wholesale-invoices' as any) },
+        ],
+      },
+      {
+        label: 'Pricing & Tiers',
+        items: [
+          { icon: 'tag',         label: 'Pricing Tiers', sub: 'Tier names, discounts, qty breaks & customer assignments', color: BLUE, perm: 'pricing', onPress: () => router.push('/director-pricing' as any) },
+          { icon: 'credit-card', label: 'Credit Limits', sub: 'Enable credit & set limits per client',                   color: BLUE, perm: 'users',   soon: true },
+        ],
+      },
+      {
+        label: 'Delivery',
+        items: [
+          { icon: 'truck', label: 'Delivery Settings', sub: 'Cutoff times, delivery windows & order reminders', color: BLUE, directorOnly: true, onPress: () => router.push('/director-wholesale-delivery' as any) },
+        ],
+      },
+      {
+        label: 'Security & Compliance',
+        items: [
+          { icon: 'shield', label: 'Wholesale Security Logs', sub: 'Pricing views, screenshots & terms acceptances', color: BLUE, perm: 'users', onPress: () => router.push('/director-wholesale-security' as any) },
+        ],
+      },
+    ],
+  },
+
   // ── SALES & MARKETING ──────────────────────────────────────────────────────
   {
     key: 'sales',
@@ -75,113 +152,6 @@ const ALL_CATEGORIES: Category[] = [
         label: 'Customer Feedback',
         items: [
           { icon: 'message-square', label: 'Feedback Inbox', sub: 'Star ratings, comments & order reviews', color: BLUE, perm: 'announcements', onPress: () => router.push('/director-feedback' as any) },
-        ],
-      },
-    ],
-  },
-
-  // ── OPERATIONS ─────────────────────────────────────────────────────────────
-  {
-    key: 'operations',
-    label: 'Operations',
-    icon: 'tool',
-    color: BLUE,
-    description: 'Store setup, stock & hardware',
-    groups: [
-      {
-        label: 'Store Setup',
-        items: [
-          { icon: 'map-pin', label: 'Store Locations',   sub: 'Open status, hours, printers, pickup, geofence and notes per store', color: BLUE, perm: 'settings', onPress: () => router.push('/director-store-locations' as any) },
-          { icon: 'truck',   label: 'Delivery Settings', sub: 'Slots, fee, blackout dates & category eligibility',                  color: BLUE, perm: 'settings', onPress: () => router.push('/director-settings-delivery' as any) },
-        ],
-      },
-      {
-        label: 'Catalogue & Menu',
-        items: [
-          { icon: 'package', label: 'Build a Box', sub: 'Box sizes, prices, exclusions & premium add-ons', color: BLUE, perm: 'products', onPress: () => router.push('/director-build-a-box' as any) },
-        ],
-      },
-      {
-        label: 'Stock & Inventory',
-        items: [
-          { icon: 'archive',      label: 'Inventory',        sub: 'View & adjust stock on hand',          color: BLUE, perm: 'stock', onPress: () => router.push('/director-inventory' as any) },
-          { icon: 'repeat',       label: 'Stock Movements',  sub: 'Receipts, write-offs & transfers',     color: BLUE, perm: 'stock', soon: true },
-          { icon: 'alert-circle', label: 'Low Stock Alerts', sub: 'Reorder thresholds & email alerts',    color: BLUE, perm: 'stock', soon: true },
-          { icon: 'dollar-sign',  label: 'Cost Tracking',    sub: 'COGS, margins & supplier pricing',     color: BLUE, perm: 'stock', soon: true },
-        ],
-      },
-      {
-        label: 'Hardware & Devices',
-        items: [
-          { icon: 'monitor', label: 'POS Devices',      sub: 'Counter iPad logins, store assignments & permissions', color: BLUE, directorOnly: true, onPress: () => router.push({ pathname: '/(director)/users', params: { mode: 'pos' } } as any) },
-          { icon: 'server',  label: 'Kitchen Printers', sub: 'Kitchen display & order tickets',                      color: BLUE, directorOnly: true, soon: true },
-        ],
-      },
-    ],
-  },
-
-  // ── STAFF ──────────────────────────────────────────────────────────────────
-  {
-    key: 'staff',
-    label: 'Staff',
-    icon: 'users',
-    color: BLUE,
-    description: 'Accounts, roster & wellbeing',
-    groups: [
-      {
-        label: 'Staff Directory',
-        items: [
-          { icon: 'user', label: 'Staff Accounts', sub: 'Approvals, profiles & invite links', color: BLUE, perm: 'users', onPress: () => router.push('/director-staff-accounts' as any) },
-        ],
-      },
-      {
-        label: 'Rostering & Time',
-        items: [
-          { icon: 'calendar', label: 'Roster',         sub: 'Build & publish the weekly shift schedule', color: BLUE, perm: 'timesheets', onPress: () => router.push('/director-roster' as any) },
-          { icon: 'download', label: 'Payroll Export', sub: 'Export hours as CSV for payroll',           color: BLUE, perm: 'timesheets', soon: true },
-        ],
-      },
-      {
-        label: 'Tasks & Wellbeing',
-        items: [
-          { icon: 'clipboard', label: 'Staff Hub', sub: 'Tasks, issues, wastage & leave requests', color: BLUE, onPress: () => router.push('/director-staffhub' as any) },
-        ],
-      },
-    ],
-  },
-
-  // ── WHOLESALE ──────────────────────────────────────────────────────────────
-  {
-    key: 'wholesale',
-    label: 'Wholesale',
-    icon: 'briefcase',
-    color: BLUE,
-    description: 'Pricing tiers, quantity breaks & credit limits',
-    groups: [
-      {
-        label: 'Accounts',
-        items: [
-          { icon: 'briefcase', label: 'Wholesale Accounts', sub: 'B2B customers, account status & credit setup', color: BLUE, perm: 'users', onPress: () => router.push('/director-wholesale-accounts' as any) },
-          { icon: 'file-text', label: 'Invoice Management', sub: 'View unpaid & overdue invoices, mark as paid',  color: BLUE, perm: 'users', onPress: () => router.push('/director-wholesale-invoices' as any) },
-        ],
-      },
-      {
-        label: 'Pricing & Tiers',
-        items: [
-          { icon: 'tag',         label: 'Pricing Tiers', sub: 'Tier names, discounts, qty breaks & customer assignments', color: BLUE, perm: 'pricing', onPress: () => router.push('/director-pricing' as any) },
-          { icon: 'credit-card', label: 'Credit Limits', sub: 'Enable credit & set limits per client',                   color: BLUE, perm: 'users',   soon: true },
-        ],
-      },
-      {
-        label: 'Delivery',
-        items: [
-          { icon: 'truck', label: 'Delivery Settings', sub: 'Cutoff times, delivery windows & order reminders', color: BLUE, directorOnly: true, onPress: () => router.push('/director-wholesale-delivery' as any) },
-        ],
-      },
-      {
-        label: 'Security & Compliance',
-        items: [
-          { icon: 'shield', label: 'Wholesale Security Logs', sub: 'Pricing views, screenshots & terms acceptances', color: BLUE, perm: 'users', onPress: () => router.push('/director-wholesale-security' as any) },
         ],
       },
     ],
