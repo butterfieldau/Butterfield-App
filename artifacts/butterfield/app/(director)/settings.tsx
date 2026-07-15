@@ -183,6 +183,7 @@ export default function DirectorSettingsScreen() {
   const canGoBack = router.canGoBack();
   const backBtn = canGoBack ? (
     <Pressable
+      accessibilityLabel="Go back"
       onPress={() => { Haptics.selectionAsync(); router.back(); }}
       style={{ width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' }}
       hitSlop={12}

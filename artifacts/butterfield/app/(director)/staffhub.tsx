@@ -1591,6 +1591,7 @@ export default function StaffHubScreen() {
       headerBackgroundColor="#EFF6FF"
       headerLeft={
         <Pressable
+          accessibilityLabel="Go back"
           onPress={() => { Haptics.selectionAsync(); router.back(); }}
           style={{ width: 36, height: 36, borderRadius: 12, borderWidth: 1, borderColor: '#E5E7EB', backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' }}
           hitSlop={8}

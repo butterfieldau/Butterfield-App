@@ -35,7 +35,14 @@ export function DirectorStandaloneScreen({
   const handleBack = () => {
     Haptics.selectionAsync();
     if (onBack) { onBack(); return; }
-    if (router.canGoBack()) { router.back(); return; }
+    if (router.canGoBack()) {
+      try {
+        router.back();
+        return;
+      } catch {
+        // fall through — back was not handled (e.g. deep-linked directly)
+      }
+    }
     router.navigate('/(director)/more' as any);
   };
 
@@ -50,7 +57,7 @@ export function DirectorStandaloneScreen({
       <View style={ss.header}>
         {/* Left side: back button, flex:1 mirrors the right side */}
         <View style={ss.sideLeft}>
-          <Pressable onPress={handleBack} style={ss.backBtn} hitSlop={12}>
+          <Pressable accessibilityLabel="Go back" onPress={handleBack} style={ss.backBtn} hitSlop={12}>
             <Feather name="arrow-left" size={20} color={NAVY} />
           </Pressable>
         </View>
