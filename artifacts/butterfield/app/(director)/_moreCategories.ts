@@ -193,17 +193,13 @@ const ALL_CATEGORIES: Category[] = [
         items: [
           { icon: 'briefcase',  label: 'Wholesale Accounts', sub: 'B2B customers, account status & credit setup', color: BLUE, perm: 'users', onPress: () => router.push('/director-wholesale-accounts' as any) },
           { icon: 'file-text',  label: 'Invoice Management', sub: 'View unpaid & overdue invoices, mark as paid',  color: BLUE, perm: 'users', onPress: () => router.push('/director-wholesale-invoices' as any) },
-          { icon: 'phone',      label: 'Account Managers',   sub: 'Assign account managers to wholesale customers', color: BLUE, perm: 'users', onPress: () => router.push('/director-wholesale-accounts' as any) },
         ],
       },
       {
         label: 'Pricing & Tiers',
         items: [
-          { icon: 'tag',         label: 'Pricing Tiers',        sub: 'Tier names, discounts & min orders',    color: BLUE, perm: 'pricing', onPress: () => router.push({ pathname: '/director-pricing', params: { tab: 'Tiers' } } as any) },
-          { icon: 'layers',      label: 'Qty Breaks',           sub: 'Volume discount rules per product',     color: BLUE, perm: 'pricing', onPress: () => router.push({ pathname: '/director-pricing', params: { tab: 'QtyBreaks' } } as any) },
-          { icon: 'dollar-sign', label: 'Custom Pricing',       sub: 'Per-customer product overrides',        color: BLUE, perm: 'pricing', onPress: () => router.push({ pathname: '/director-pricing', params: { tab: 'Custom' } } as any) },
-          { icon: 'user-plus',   label: 'Customer Assignments', sub: 'Assign wholesale clients to tiers',     color: BLUE, perm: 'pricing', onPress: () => router.push({ pathname: '/director-pricing', params: { tab: 'Assign' } } as any) },
-          { icon: 'credit-card', label: 'Credit Limits',        sub: 'Enable credit & set limits per client', color: BLUE, perm: 'users',   soon: true },
+          { icon: 'tag',         label: 'Pricing Tiers',  sub: 'Tier names, discounts, qty breaks & customer assignments', color: BLUE, perm: 'pricing', onPress: () => router.push('/director-pricing' as any) },
+          { icon: 'credit-card', label: 'Credit Limits',  sub: 'Enable credit & set limits per client',                   color: BLUE, perm: 'users',   soon: true },
         ],
       },
       {
@@ -241,6 +237,13 @@ const ALL_CATEGORIES: Category[] = [
         items: [
           { icon: 'lock',         label: 'POS Thresholds',   sub: 'Require manager PIN for refunds & large discounts', color: BLUE, directorOnly: true, onPress: () => router.push('/director-pos-thresholds' as any) },
           { icon: 'shopping-bag', label: 'POS Transactions', sub: 'Read-only terminal sales history',                  color: BLUE, directorOnly: true, onPress: () => router.push('/director-pos-orders' as any) },
+        ],
+      },
+      {
+        label: 'Security & Audit',
+        items: [
+          { icon: 'list',    label: 'Audit Log',      sub: 'POS refunds, setting changes & director actions',  color: BLUE, directorOnly: true, onPress: () => router.push('/director-audit-log' as any) },
+          { icon: 'log-in',  label: 'Login History',  sub: 'All login attempts, successes & failures',         color: BLUE, directorOnly: true, onPress: () => router.push('/director-login-history' as any) },
         ],
       },
       {

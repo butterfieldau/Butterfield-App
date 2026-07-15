@@ -254,23 +254,27 @@ function RootLayoutNav() {
       <Stack.Screen name="director-settings-notify" options={directorStandaloneScreenOptions} />
       <Stack.Screen name="director-settings-scheduled-notifications" options={directorStandaloneScreenOptions} />
       <Stack.Screen name="director-settings-managers" options={directorStandaloneScreenOptions} />
-      <Stack.Screen name="director-settings-directors" options={directorStandaloneScreenOptions} />
       <Stack.Screen name="director-wholesale-accounts" options={directorStandaloneScreenOptions} />
       <Stack.Screen name="director-wholesale-delivery" options={directorStandaloneScreenOptions} />
+      <Stack.Screen name="director-wholesale-security" options={directorStandaloneScreenOptions} />
       <Stack.Screen name="director-staff-accounts" options={directorStandaloneScreenOptions} />
-      <Stack.Screen name="director-pos-screens" options={directorStandaloneScreenOptions} />
       <Stack.Screen name="director-customer-segments" options={directorStandaloneScreenOptions} />
       <Stack.Screen name="director-feedback"          options={directorStandaloneScreenOptions} />
       <Stack.Screen name="director-store-locations" options={directorStandaloneScreenOptions} />
       <Stack.Screen name="director-inventory" options={directorStandaloneScreenOptions} />
       <Stack.Screen name="director-staff-hours" options={directorStandaloneScreenOptions} />
       <Stack.Screen name="director-staffhub" options={directorStandaloneScreenOptions} />
-      <Stack.Screen name="director-reports" options={directorStandaloneScreenOptions} />
-      <Stack.Screen name="director-pricing" options={directorStandaloneScreenOptions} />
-      <Stack.Screen name="director-discounts" options={directorStandaloneScreenOptions} />
+      <Stack.Screen name="director-reports"          options={directorStandaloneScreenOptions} />
+      <Stack.Screen name="director-pricing"          options={directorStandaloneScreenOptions} />
+      <Stack.Screen name="director-discounts"        options={directorStandaloneScreenOptions} />
       <Stack.Screen name="director-wholesale-invoices" options={directorStandaloneScreenOptions} />
-      <Stack.Screen name="director-pos-orders"        options={directorStandaloneScreenOptions} />
-      <Stack.Screen name="director-stock"             options={directorStandaloneScreenOptions} />
+      <Stack.Screen name="director-pos-orders"       options={directorStandaloneScreenOptions} />
+      <Stack.Screen name="director-pos-thresholds"   options={directorStandaloneScreenOptions} />
+      <Stack.Screen name="director-stock"            options={directorStandaloneScreenOptions} />
+      <Stack.Screen name="director-roster"           options={directorStandaloneScreenOptions} />
+      <Stack.Screen name="director-settings-delivery" options={directorStandaloneScreenOptions} />
+      <Stack.Screen name="director-audit-log"        options={directorStandaloneScreenOptions} />
+      <Stack.Screen name="director-login-history"    options={directorStandaloneScreenOptions} />
       <Stack.Screen name="(shop-display)" options={{ headerShown: false, animation: "slide_from_right", gestureEnabled: false }} />
       <Stack.Screen name="(wholesale)" options={{ headerShown: false, animation: "slide_from_right", gestureEnabled: false }} />
       <Stack.Screen name="(director)" options={{ headerShown: false, animation: "slide_from_right", gestureEnabled: false }} />

@@ -11,7 +11,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
 import { useLayoutHandledSafeArea } from '@/context/LayoutSafeAreaContext';
 import { api } from '@/lib/api';
-import { BG, CARD, TEXT, MUTED, BLUE, RED, GOLD } from '@/components/director/directorColors';
+import { BG, CARD, TEXT, MUTED, RED, GOLD } from '@/components/director/directorColors';
+import { buildCategories } from './_moreCategories';
 
 const OBSIDIAN = '#0A0A0A';
 
@@ -20,8 +21,6 @@ type NavRow = {
   icon: string;
   label: string;
   iconColor: string;
-  perm?: string;
-  directorOnly?: boolean;
   badge?: number;
   onPress: () => void;
 };
@@ -37,64 +36,43 @@ function buildSections(
   canSee: (p: string) => boolean,
   isDirector: boolean,
 ): NavSection[] {
-  const all: NavSection[] = [
-    {
-      items: [
-        { icon: 'bar-chart-2',    label: 'Reports',    iconColor: '#007AFF', perm: 'reports',     onPress: () => router.push('/director-reports' as any) },
-        { icon: 'clock',          label: 'Timesheets', iconColor: '#FF9500', perm: 'timesheets',  onPress: () => router.push('/director-staff-hours' as any) },
-        { icon: 'users',          label: 'Staff Hub',  iconColor: '#34C759',                      onPress: () => router.push('/director-staffhub' as any) },
-      ],
-    },
-    {
-      header: 'OPERATIONS',
-      items: [
-        { icon: 'calendar',      label: 'Schedule',   iconColor: '#FF2D55', perm: 'timesheets',  onPress: () => router.push('/director-roster' as any) },
-        { icon: 'check-square',  label: 'Tasks',      iconColor: '#5856D6',                      onPress: () => router.push({ pathname: '/director-staffhub', params: { tab: 'tasks' } } as any) },
-        { icon: 'package',       label: 'Stock',      iconColor: '#FF9500', perm: 'stock',       onPress: () => router.push('/director-stock' as any) },
-        { icon: 'monitor',       label: 'POS Orders', iconColor: '#007AFF', directorOnly: true,  onPress: () => router.push('/director-pos-orders' as any) },
-      ],
-    },
-    {
-      header: 'COMMERCE',
-      items: [
-        { icon: 'tag',           label: 'Pricing',     iconColor: '#34C759', perm: 'pricing',    onPress: () => router.push('/director-pricing' as any) },
-        { icon: 'percent',       label: 'Discounts',   iconColor: '#FF2D55', perm: 'pricing',    onPress: () => router.push('/director-discounts' as any) },
-        { icon: 'gift',          label: 'Build-a-Box', iconColor: '#AF52DE', perm: 'products',   onPress: () => router.push('/(director)/build-a-box' as any) },
-      ],
-    },
-    {
-      header: 'CUSTOMERS',
-      items: [
-        { icon: 'users',          label: 'Customers', iconColor: '#007AFF', perm: 'users',         onPress: () => router.push('/(director)/users' as any) },
-        { icon: 'pie-chart',      label: 'Segments',  iconColor: '#FF9500', perm: 'announcements', onPress: () => router.push('/director-customer-segments' as any) },
-        { icon: 'message-square', label: 'Feedback',  iconColor: '#34C759', perm: 'announcements', onPress: () => router.push('/director-feedback' as any) },
-      ],
-    },
-    {
-      header: 'SYSTEM',
-      items: [
-        { icon: 'settings',      label: 'Settings',        iconColor: '#8E8E93',                   onPress: () => router.push('/(director)/settings' as any) },
-        { icon: 'map-pin',       label: 'Stores',           iconColor: '#007AFF', perm: 'settings', onPress: () => router.push('/director-store-locations' as any) },
-      ],
-    },
-    {
-      vault: true,
-      items: [
-        { icon: 'lock', label: 'Director Vault', iconColor: GOLD, directorOnly: true, onPress: () => router.push('/director-vault' as any) },
-      ],
-    },
-  ];
+  // Top quick-access strip — hardcoded UI affordance, not a nav registry entry
+  const quickAccess: NavSection = {
+    items: [
+      { icon: 'bar-chart-2', label: 'Reports',    iconColor: '#007AFF', onPress: () => router.push('/director-reports' as any) },
+      { icon: 'clock',       label: 'Timesheets', iconColor: '#FF9500', onPress: () => router.push('/director-staff-hours' as any) },
+      { icon: 'users',       label: 'Staff Hub',  iconColor: '#34C759', onPress: () => router.push('/director-staffhub' as any) },
+    ],
+  };
 
-  return all
-    .map(sec => ({
-      ...sec,
-      items: sec.items.filter(item => {
-        if (item.directorOnly && !isDirector) return false;
-        if (item.perm && !canSee(item.perm)) return false;
-        return true;
-      }),
-    }))
-    .filter(sec => sec.items.length > 0);
+  const cats = buildCategories(canSee, isDirector);
+
+  const catSections: NavSection[] = cats.map(cat => {
+    if (cat.key === 'vault') {
+      const vaultItem = cat.groups[0]?.items[0];
+      return {
+        vault: true,
+        items: [{
+          icon: 'lock',
+          label: 'Director Vault',
+          iconColor: GOLD,
+          onPress: vaultItem?.onPress ?? (() => {}),
+        }],
+      };
+    }
+    const items: NavRow[] = cat.groups
+      .flatMap(g => g.items)
+      .filter(i => !i.soon)
+      .map(i => ({
+        icon: i.icon,
+        label: i.label,
+        iconColor: i.color,
+        onPress: i.onPress ?? (() => {}),
+      }));
+    return { header: cat.label.toUpperCase(), items };
+  }).filter(s => s.items.length > 0);
+
+  return [quickAccess, ...catSections];
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
