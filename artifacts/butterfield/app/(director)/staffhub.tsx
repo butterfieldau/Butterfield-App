@@ -1587,6 +1587,8 @@ export default function StaffHubScreen() {
     <DirectorTabScreen
       title="Staff Hub"
       subtitle={showManagerContent ? 'Manage your team' : 'Your shift tools'}
+      backgroundColor="#EFF6FF"
+      headerBackgroundColor="#EFF6FF"
       headerLeft={
         <Pressable
           onPress={() => { Haptics.selectionAsync(); router.back(); }}
