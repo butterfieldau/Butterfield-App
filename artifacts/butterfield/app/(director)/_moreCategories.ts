@@ -226,6 +226,12 @@ const ALL_CATEGORIES: Category[] = [
     description: 'Notifications, integrations & POS',
     groups: [
       {
+        label: 'General',
+        items: [
+          { icon: 'settings', label: 'Settings', sub: 'Store open toggle, daily special, geo-fence & demo accounts', color: BLUE, onPress: () => router.push('/director-settings' as any) },
+        ],
+      },
+      {
         label: 'Notification Preferences',
         items: [
           { icon: 'bell', label: 'My Notifications', sub: 'Control what you get notified about', color: BLUE, onPress: () => router.push('/notification-prefs' as any) },
