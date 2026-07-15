@@ -7,11 +7,16 @@
 # Test info
 
 - Name: director-more.spec.ts >> Director More screen — section visibility >> director sees all five category sections and director-only items
+<<<<<<< HEAD
 - Location: e2e/director-more.spec.ts:44:7
+=======
+- Location: e2e/director-more.spec.ts:94:7
+>>>>>>> a98534b (Add test results explaining a login failure due to the API server not running)
 
 # Error details
 
 ```
+<<<<<<< HEAD
 Error: expect(locator).toBeVisible() failed
 
 Locator: locator('text=Audit Log').first()
@@ -37,6 +42,13 @@ Call log:
   - text: "2 Internal React error: Expected static fl"
   - button:
     - img
+=======
+Error: director login failed: 502 — run POST /api/auth/seed-demo first
+
+expect(received).toBeTruthy()
+
+Received: false
+>>>>>>> a98534b (Add test results explaining a login failure due to the API server not running)
 ```
 
 # Test source
@@ -99,8 +111,12 @@ Call log:
   55  |  * We match by [aria-label="Go back"] to avoid any role-resolution ambiguity.
   56  |  */
   57  | async function clickBackButton(page: Page) {
+<<<<<<< HEAD
 > 58  |   const btn = page.locator('[aria-label="Go back"]').first();
       |                                                          ^ Error: expect(locator).toBeVisible() failed
+=======
+  58  |   const btn = page.locator('[aria-label="Go back"]').first();
+>>>>>>> a98534b (Add test results explaining a login failure due to the API server not running)
   59  |   await btn.waitFor({ state: 'visible', timeout: 20_000 });
   60  |   await btn.click();
   61  |   await page.waitForLoadState('networkidle', { timeout: 30_000 });
@@ -118,7 +134,12 @@ Call log:
   73  |   const dirRes = await request.post(`${BASE_URL}/api/auth/staff-login`, {
   74  |     data: { email: 'director@demo.com', password: 'Demo1234!' },
   75  |   });
+<<<<<<< HEAD
   76  |   expect(dirRes.ok(), `director login failed: ${dirRes.status()} — run POST /api/auth/seed-demo first`).toBeTruthy();
+=======
+> 76  |   expect(dirRes.ok(), `director login failed: ${dirRes.status()} — run POST /api/auth/seed-demo first`).toBeTruthy();
+      |                                                                                                         ^ Error: director login failed: 502 — run POST /api/auth/seed-demo first
+>>>>>>> a98534b (Add test results explaining a login failure due to the API server not running)
   77  |   const { token: dirToken, user: dirUser } = await dirRes.json() as { token: string; user: unknown };
   78  |   _directorToken = dirToken;
   79  |   _directorUserJson = JSON.stringify(dirUser);
@@ -201,4 +222,25 @@ Call log:
   156 | 
   157 |     await expect(page.locator('[aria-label="Go back"]').first()).toBeVisible({ timeout: 20_000 });
   158 | 
+<<<<<<< HEAD
+=======
+  159 |     await clickBackButton(page);
+  160 | 
+  161 |     await expect(page.locator('text=Sign Out').first()).toBeVisible({ timeout: 20_000 });
+  162 |     await expect(page.locator('text=More').first()).toBeVisible({ timeout: 12_000 });
+  163 |   });
+  164 | 
+  165 |   test('Director Vault card is visible for director and routes to director-vault screen', async ({ page }) => {
+  166 |     await goToAs(page, _directorToken, _directorUserJson, '/(director)/more');
+  167 | 
+  168 |     const vaultCard = page.locator('text=Director Vault').first();
+  169 |     await vaultCard.waitFor({ state: 'visible', timeout: 20_000 });
+  170 |     await vaultCard.scrollIntoViewIfNeeded();
+  171 |     await page.waitForTimeout(300);
+  172 | 
+  173 |     await expect(page.locator('text=DIRECTOR ONLY').first()).toBeVisible({ timeout: 12_000 });
+  174 | 
+  175 |     await vaultCard.click();
+  176 |     await page.waitForLoadState('networkidle', { timeout: 30_000 });
+>>>>>>> a98534b (Add test results explaining a login failure due to the API server not running)
 ```
