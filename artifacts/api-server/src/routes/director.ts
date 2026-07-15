@@ -83,6 +83,8 @@ function resolveDirectorPermission(method: string, path: string): ManagerPermiss
 
   // Users / staff / wholesale management
   if (path === '/users' || path.startsWith('/users/')) return 'users';
+  // Promoting to director is director-only, regardless of users perm
+  if (path.endsWith('/promote-director')) return 'director_only';
   if (path === '/staff' || path.startsWith('/staff/')) return 'users';
   if (path === '/wholesale' || path.startsWith('/wholesale/')) return 'users';
   if (path.startsWith('/wholesale-cards/')) return 'users';
@@ -91,7 +93,7 @@ function resolveDirectorPermission(method: string, path: string): ManagerPermiss
   // so every staffhub operation must be accessible to every manager.
   if (path === '/staff-list') return 'always';
   if (path === '/tasks') return method === 'GET' ? 'always' : 'tasks';
-  if (path === '/tasks/history') return 'always';
+  if (path === '/tasks/history') return 'tasks';
   if (path.startsWith('/tasks/')) return method === 'GET' ? 'always' : 'tasks';
   if (path === '/wastage' || path.startsWith('/wastage/')) return 'always';
   if (path === '/issues' || path.startsWith('/issues/')) return 'always';
@@ -2314,15 +2316,19 @@ router.get('/staff/:userId', async (req, res) => {
       parsedEmergencyContact = null;
     }
   }
+  const staffProfile = profile
+    ? { ...profile, emergencyContact: parsedEmergencyContact }
+    : null;
+
+  // Strip tax file number from manager responses — TFNs are director/payroll-only
+  if (staffProfile && req.user!.role === 'manager') {
+    (staffProfile as any).taxFileNumber = undefined;
+  }
+
   return res.json({
     data: {
       ...safeUser,
-      staffProfile: profile
-        ? {
-            ...profile,
-            emergencyContact: parsedEmergencyContact,
-          }
-        : null,
+      staffProfile,
       recentShifts,
     },
   });
@@ -2579,12 +2585,23 @@ router.patch('/wholesale/:accountId/status', async (req, res) => {
 // ── Wholesale account general update ─────────────────────────────────────────
 router.patch('/wholesale/:accountId', async (req, res) => {
   const { accountId } = req.params;
+
+  // Credit limits, pricing tier, and payment terms are director/master-only fields.
+  // Managers with the 'users' permission can edit business details but not financial controls.
+  const DIRECTOR_ONLY_FIELDS = ['creditEnabled', 'creditLimitCents', 'creditNotes', 'pricingTier', 'paymentTerms'] as const;
+  if (req.user!.role === 'manager') {
+    const attempted = DIRECTOR_ONLY_FIELDS.filter(f => req.body[f] !== undefined);
+    if (attempted.length > 0) {
+      return res.status(403).json({ error: 'Forbidden: only directors can modify credit, pricing tier, and payment term settings.' });
+    }
+  }
+
   const updates: Record<string, any> = {};
-  // Credit management
+  // Credit management (director/master only — blocked for managers above)
   if (req.body.creditEnabled       !== undefined) updates.creditEnabled       = Boolean(req.body.creditEnabled);
   if (req.body.creditLimitCents    !== undefined) updates.creditLimitCents    = Number(req.body.creditLimitCents);
   if (req.body.creditNotes         !== undefined) updates.creditNotes         = req.body.creditNotes ? String(req.body.creditNotes) : null;
-  // Payment & delivery
+  // Payment & delivery (paymentTerms is director-only — blocked for managers above)
   if (req.body.paymentTerms        !== undefined) updates.paymentTerms        = req.body.paymentTerms ? String(req.body.paymentTerms) : null;
   if (req.body.deliveryAddress     !== undefined) updates.deliveryAddress     = String(req.body.deliveryAddress);
   if (req.body.deliveryFeeCents    !== undefined) updates.deliveryFeeCents    = Number(req.body.deliveryFeeCents);

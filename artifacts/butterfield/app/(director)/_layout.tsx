@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
-import { Href, Redirect, router, Tabs } from 'expo-router';
-import React, { useMemo } from 'react';
+import { Href, Redirect, router, Tabs, usePathname } from 'expo-router';
+import React, { useEffect, useMemo } from 'react';
 import { StatusBar, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
@@ -58,7 +58,7 @@ export default function DirectorLayout() {
     enabled:  isStaff,
   });
 
-  const { data: managerProfileData } = useQuery({
+  const { data: managerProfileData, isLoading: managerPermsLoading } = useQuery({
     queryKey: ['manager-profile'],
     queryFn:  () => api.manager.profile(),
     enabled:  isManager,
@@ -99,6 +99,57 @@ export default function DirectorLayout() {
                    : isManager ? '#16A34A'
                    : isMaster  ? '#7C3AED'
                    :             '#EF4444';
+
+  // ── Route guard: redirect staff/managers who navigate to restricted screens ──
+  // This covers direct URL navigation (e.g. deep-links or address bar on web)
+  // where href:null on Tabs.Screen suppresses the tab but doesn't block the route.
+  const pathname = usePathname();
+  useEffect(() => {
+    if (!isInternal) return;
+    // Wait for manager permissions to load before checking — avoids false redirects
+    if (isManager && managerPermsLoading) return;
+
+    // Extract the segment after /(director)/
+    const match = pathname.match(/\/\(director\)\/([^/]+)/);
+    const segment = match ? match[1] : '';
+
+    if (isStaff) {
+      const staffAllowed = new Set(['', 'orders', 'schedule', 'staffhub', 'profile', 'tasks']);
+      if (!staffAllowed.has(segment)) {
+        router.replace('/(director)' as any);
+      }
+    } else if (isManager) {
+      // null = always allowed for managers; string = required permission
+      const segmentPerms: Record<string, string | null> = {
+        '':                  null,
+        'orders':            'orders',
+        'products':          'products',
+        'users':             'users',
+        'customers':         'users',
+        'reports':           'reports',
+        'timesheets':        'timesheets',
+        'stock':             'stock',
+        'pricing':           'pricing',
+        'discounts':         'pricing',
+        'stores':            'settings',
+        'feedback':          'announcements',
+        'customer-segments': 'announcements',
+        'build-a-box':       'products',
+        'staffhub':          null,
+        'more':              null,
+        'more-category':     null,
+      };
+      if (segment in segmentPerms) {
+        const perm = segmentPerms[segment];
+        if (perm !== null && !hasPerm(perm)) {
+          router.replace('/(director)' as any);
+        }
+      } else if (segment !== '') {
+        // Director-only or unknown segment — redirect to dashboard
+        router.replace('/(director)' as any);
+      }
+    }
+  }, [pathname, isStaff, isManager, managerPermsLoading, managerPerms]);
 
   // ── Staff / Manager: light bg + animated glass floating tab bar ──────────────
   if (isInternal) {
