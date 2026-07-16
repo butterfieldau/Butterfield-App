@@ -14,7 +14,7 @@ import {
   getCustomerNextStatuses,
 } from '@/lib/orderStatus';
 import type { ApiOrder } from '@/lib/api';
-import { fmtTime, openMap } from './ordersHelpers';
+import { fmtTime, openMap, openMapWithChoice } from './ordersHelpers';
 import {
   BG, SURFACE, SURFACE_RAISED, BORDER, TEXT, TEXT_MUTED, TEXT_FAINT, BRAND, BRAND_TEXT_ON,
   GREEN, GREEN_DIM, AMBER, AMBER_DIM, RED, RED_DIM, PURPLE, PURPLE_DIM,
@@ -269,34 +269,44 @@ export default function DirectorOrderDetailModal({
           </View>
 
           {/* ── Contact buttons ────────────────────────────────────── */}
-          {(order.customerPhone || order.customerEmail) && (
-            <View style={{ flexDirection: 'row', gap: 12, marginBottom: 20 }}>
-              {order.customerPhone && (
-                <Pressable
-                  onPress={() => { Haptics.selectionAsync(); Linking.openURL(`tel:${order.customerPhone}`); }}
-                  style={({ pressed }) => [d.contactCard, { opacity: pressed ? 0.8 : 1 }]}
-                >
-                  <Feather name="phone" size={20} color={BRAND} />
-                  <Text style={d.contactLabel}>Call</Text>
-                </Pressable>
-              )}
-              {order.customerEmail && (
-                <Pressable
-                  onPress={() => { Haptics.selectionAsync(); Linking.openURL(`mailto:${order.customerEmail}`); }}
-                  style={({ pressed }) => [d.contactCard, { opacity: pressed ? 0.8 : 1 }]}
-                >
-                  <Feather name="mail" size={20} color={BRAND} />
-                  <Text style={d.contactLabel}>Email</Text>
-                </Pressable>
-              )}
-              {isWholesale && order.companyAbn && (
-                <View style={[d.contactCard, { flex: 2 }]}>
-                  <Feather name="briefcase" size={20} color={TEXT_MUTED} />
-                  <Text style={[d.contactLabel, { color: TEXT_MUTED }]} numberOfLines={1}>ABN {order.companyAbn}</Text>
-                </View>
-              )}
-            </View>
-          )}
+          {(() => {
+            const wholesaleAddr = isWholesale
+              ? (order.deliveryAddress ?? [(order as any).street, (order as any).suburb, (order as any).postcode].filter(Boolean).join(', ')) || ''
+              : '';
+            const hasDeliveryAddr = wholesaleAddr.length > 0;
+            if (!order.customerPhone && !order.customerEmail && !hasDeliveryAddr) return null;
+            return (
+              <View style={{ flexDirection: 'row', gap: 12, marginBottom: 20 }}>
+                {order.customerPhone && (
+                  <Pressable
+                    onPress={() => { Haptics.selectionAsync(); Linking.openURL(`tel:${order.customerPhone}`); }}
+                    style={({ pressed }) => [d.contactCard, { opacity: pressed ? 0.8 : 1 }]}
+                  >
+                    <Feather name="phone" size={20} color={BRAND} />
+                    <Text style={d.contactLabel}>Call</Text>
+                  </Pressable>
+                )}
+                {order.customerEmail && (
+                  <Pressable
+                    onPress={() => { Haptics.selectionAsync(); Linking.openURL(`mailto:${order.customerEmail}`); }}
+                    style={({ pressed }) => [d.contactCard, { opacity: pressed ? 0.8 : 1 }]}
+                  >
+                    <Feather name="mail" size={20} color={BRAND} />
+                    <Text style={d.contactLabel}>Email</Text>
+                  </Pressable>
+                )}
+                {hasDeliveryAddr && (
+                  <Pressable
+                    onPress={() => { Haptics.selectionAsync(); openMapWithChoice(wholesaleAddr, Alert); }}
+                    style={({ pressed }) => [d.contactCard, { flex: 2, opacity: pressed ? 0.8 : 1 }]}
+                  >
+                    <Feather name="map-pin" size={20} color={BRAND} />
+                    <Text style={[d.contactLabel, { flex: 1 }]} numberOfLines={1}>{wholesaleAddr}</Text>
+                  </Pressable>
+                )}
+              </View>
+            );
+          })()}
 
           {/* ── Scheduled awaiting acceptance banner ───────────────── */}
           {order.status === 'scheduled' && (

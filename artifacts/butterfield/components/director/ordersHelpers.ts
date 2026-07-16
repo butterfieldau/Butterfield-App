@@ -79,6 +79,21 @@ export function openMap(address: string) {
   Linking.openURL(url).catch(() => Linking.openURL(`https://maps.google.com/?q=${q}`));
 }
 
+export function openMapWithChoice(address: string, Alert: { alert: (title: string, message?: string, buttons?: any[]) => void }) {
+  const q = encodeURIComponent(address);
+  Alert.alert('Open in Maps', address, [
+    {
+      text: 'Apple Maps',
+      onPress: () => Linking.openURL(`maps://maps.apple.com/?q=${q}`).catch(() => Linking.openURL(`https://maps.google.com/?q=${q}`)),
+    },
+    {
+      text: 'Google Maps',
+      onPress: () => Linking.openURL(`https://maps.google.com/?q=${q}`),
+    },
+    { text: 'Cancel', style: 'cancel' },
+  ]);
+}
+
 export function getOrderTimelineDate(order: ApiOrder): Date {
   if (order.orderSource !== 'wholesale' && order.scheduledFor) {
     return new Date(order.scheduledFor);
