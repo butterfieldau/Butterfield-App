@@ -271,7 +271,7 @@ export default function DirectorOrderDetailModal({
           {/* ── Contact buttons ────────────────────────────────────── */}
           {(() => {
             const wholesaleAddr = isWholesale
-              ? (order.deliveryAddress ?? [(order as any).street, (order as any).suburb, (order as any).postcode].filter(Boolean).join(', ')) || ''
+              ? (order.deliveryAddress ?? [(order as any).street, (order as any).suburb, (order as any).postcode].filter(Boolean).join(', ') ?? '').trim()
               : '';
             const hasDeliveryAddr = wholesaleAddr.length > 0;
             if (!order.customerPhone && !order.customerEmail && !hasDeliveryAddr) return null;
@@ -297,7 +297,7 @@ export default function DirectorOrderDetailModal({
                 )}
                 {hasDeliveryAddr && (
                   <Pressable
-                    onPress={() => { Haptics.selectionAsync(); openMapWithChoice(wholesaleAddr, Alert); }}
+                    onPress={() => { Haptics.selectionAsync(); openMapWithChoice(wholesaleAddr); }}
                     style={({ pressed }) => [d.contactCard, { flex: 2, opacity: pressed ? 0.8 : 1 }]}
                   >
                     <Feather name="map-pin" size={20} color={BRAND} />

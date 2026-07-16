@@ -79,7 +79,7 @@ export function openMap(address: string) {
   Linking.openURL(url).catch(() => Linking.openURL(`https://maps.google.com/?q=${q}`));
 }
 
-export function openMapWithChoice(address: string, Alert: { alert: (title: string, message?: string, buttons?: any[]) => void }) {
+export function openMapWithChoice(address: string) {
   const q = encodeURIComponent(address);
   Alert.alert('Open in Maps', address, [
     {
