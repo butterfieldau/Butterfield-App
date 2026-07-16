@@ -10,6 +10,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { normalizeOrderItems } from '@/lib/orderItems';
 import {
   STATUS_COLORS, STATUS_LABEL, ACTION_LABEL, WHOLESALE_NEXT,
+  WHOLESALE_FORWARD, WHOLESALE_ALL_STATUSES,
   getCustomerNextStatuses,
 } from '@/lib/orderStatus';
 import type { ApiOrder } from '@/lib/api';
@@ -161,6 +162,43 @@ export default function DirectorOrderDetailModal({
     setPendingStatus(status); setCancelReasonText(''); setShowCancelModal(true);
   };
 
+  // Wholesale: directly advance to the single next forward status — no Alert.
+  const handleWholesaleForward = () => {
+    const forwardStatus = WHOLESALE_FORWARD[order.status];
+    if (!forwardStatus) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setUpdating(true);
+    onStatusChange(order.id, forwardStatus).finally(() => setUpdating(false));
+  };
+
+  // Wholesale: "Update Status" link — all statuses except current, no cancel/refund.
+  const handleWholesaleUpdateStatus = () => {
+    const options = WHOLESALE_ALL_STATUSES.filter(s => s !== order.status);
+    if (options.length === 0) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    Alert.alert('Update Status', 'Move this order to:', [
+      ...options.map(s => ({
+        text: STATUS_LABEL[s] ?? s,
+        onPress: () => {
+          setUpdating(true);
+          onStatusChange(order.id, s).finally(() => setUpdating(false));
+        },
+      })),
+      { text: 'Dismiss', style: 'cancel' as const },
+    ]);
+  };
+
+  // Wholesale: "Cancel / Refund Order" button — shows two options then reason modal.
+  const handleWholesaleCancelRefund = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    Alert.alert('Cancel or Refund', 'Choose an action:', [
+      { text: 'Cancel Order',    onPress: () => triggerCancel('cancelled') },
+      { text: 'Process Refund',  onPress: () => triggerCancel('refunded') },
+      { text: 'Dismiss', style: 'cancel' as const },
+    ]);
+  };
+
+  // Non-wholesale: existing catch-all (retail / customer orders).
   const handleChangeStatus = () => {
     if (next.length === 0) {
       Alert.alert('No Changes Available', `This order is ${label} and has no further status options.`); return;
@@ -314,9 +352,12 @@ export default function DirectorOrderDetailModal({
                   <TimelineStep key={i} label={step.label} done={step.done} current={step.current} />
                 ))}
               </View>
-              {next.length > 0 && (
+              {(isWholesale
+                ? WHOLESALE_ALL_STATUSES.filter(s => s !== order.status).length > 0
+                : next.length > 0
+              ) && (
                 <Pressable
-                  onPress={handleChangeStatus}
+                  onPress={isWholesale ? handleWholesaleUpdateStatus : handleChangeStatus}
                   disabled={updating}
                   style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 16, paddingTop: 16, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: BORDER }}
                 >
@@ -349,20 +390,40 @@ export default function DirectorOrderDetailModal({
           )}
 
           {/* ── Primary CTA ────────────────────────────────────────── */}
-          {next.filter(s => s !== 'cancelled' && s !== 'refunded').length > 0 && (
-            <Pressable
-              onPress={handleChangeStatus}
-              disabled={updating}
-              style={({ pressed }) => [d.primaryBtn, { opacity: pressed || updating ? 0.8 : 1 }]}
-            >
-              {updating
-                ? <ActivityIndicator color="#fff" size="small" />
-                : <Text style={d.primaryBtnText}>
-                    {ACTION_LABEL[next.filter(s => s !== 'cancelled' && s !== 'refunded')[0]] ??
-                     `Mark as ${STATUS_LABEL[next.filter(s => s !== 'cancelled' && s !== 'refunded')[0]] ?? ''}`}
-                  </Text>
-              }
-            </Pressable>
+          {isWholesale ? (
+            // Wholesale: blue button advances directly — no modal.
+            WHOLESALE_FORWARD[order.status] && (
+              <Pressable
+                onPress={handleWholesaleForward}
+                disabled={updating}
+                style={({ pressed }) => [d.primaryBtn, { opacity: pressed || updating ? 0.8 : 1 }]}
+              >
+                {updating
+                  ? <ActivityIndicator color="#fff" size="small" />
+                  : <Text style={d.primaryBtnText}>
+                      {ACTION_LABEL[WHOLESALE_FORWARD[order.status]] ??
+                       `Mark as ${STATUS_LABEL[WHOLESALE_FORWARD[order.status]] ?? ''}`}
+                    </Text>
+                }
+              </Pressable>
+            )
+          ) : (
+            // Non-wholesale: existing behaviour.
+            next.filter(s => s !== 'cancelled' && s !== 'refunded').length > 0 && (
+              <Pressable
+                onPress={handleChangeStatus}
+                disabled={updating}
+                style={({ pressed }) => [d.primaryBtn, { opacity: pressed || updating ? 0.8 : 1 }]}
+              >
+                {updating
+                  ? <ActivityIndicator color="#fff" size="small" />
+                  : <Text style={d.primaryBtnText}>
+                      {ACTION_LABEL[next.filter(s => s !== 'cancelled' && s !== 'refunded')[0]] ??
+                       `Mark as ${STATUS_LABEL[next.filter(s => s !== 'cancelled' && s !== 'refunded')[0]] ?? ''}`}
+                    </Text>
+                }
+              </Pressable>
+            )
           )}
 
           {/* ── Items card ─────────────────────────────────────────── */}
@@ -506,6 +567,16 @@ export default function DirectorOrderDetailModal({
                 >
                   <Feather name="send" size={15} color={PURPLE} />
                   <Text style={{ color: PURPLE, fontWeight: '600', fontSize: 15 }}>Resend Revised Invoice</Text>
+                </Pressable>
+              )}
+              {/* Cancel / Refund — separate from the status flow, always at the bottom */}
+              {canCancelRefund && !isCancelledOrRefunded && (
+                <Pressable
+                  onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); handleWholesaleCancelRefund(); }}
+                  style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, height: 48, borderRadius: 14, backgroundColor: RED_DIM, borderWidth: 1, borderColor: RED + '40' }}
+                >
+                  <Feather name="x-circle" size={15} color={RED} />
+                  <Text style={{ color: RED, fontWeight: '600', fontSize: 15 }}>Cancel / Refund Order</Text>
                 </Pressable>
               )}
             </View>

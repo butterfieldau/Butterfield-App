@@ -54,6 +54,16 @@ export const WHOLESALE_NEXT: Record<string, string[]> = {
   delivered: [], cancelled: [], refunded: [],
 };
 
+/** Single next forward status for the blue CTA button (no modal). */
+export const WHOLESALE_FORWARD: Record<string, string> = {
+  pending:    'processing',
+  processing: 'dispatched',
+  dispatched: 'delivered',
+};
+
+/** All valid non-terminal wholesale statuses — used by the Update Status picker. */
+export const WHOLESALE_ALL_STATUSES = ['pending', 'processing', 'dispatched', 'delivered'] as const;
+
 export function getCustomerNextStatuses(order: ApiOrder): string[] {
   const isDelivery = order.type === 'delivery' || order.deliveryType === 'delivery';
   const isQuickPickup = !isDelivery && !order.scheduledFor;
