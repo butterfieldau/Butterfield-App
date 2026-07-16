@@ -353,7 +353,7 @@ export default function DirectorOrderDetailModal({
                 ))}
               </View>
               {(isWholesale
-                ? WHOLESALE_ALL_STATUSES.filter(s => s !== order.status).length > 0
+                ? !isCancelledOrRefunded && order.status !== 'delivered' && WHOLESALE_ALL_STATUSES.filter(s => s !== order.status).length > 0
                 : next.length > 0
               ) && (
                 <Pressable
@@ -572,7 +572,7 @@ export default function DirectorOrderDetailModal({
               {/* Cancel / Refund — separate from the status flow, always at the bottom */}
               {canCancelRefund && !isCancelledOrRefunded && (
                 <Pressable
-                  onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); handleWholesaleCancelRefund(); }}
+                  onPress={handleWholesaleCancelRefund}
                   style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, height: 48, borderRadius: 14, backgroundColor: RED_DIM, borderWidth: 1, borderColor: RED + '40' }}
                 >
                   <Feather name="x-circle" size={15} color={RED} />
