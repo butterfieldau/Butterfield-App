@@ -899,7 +899,6 @@ const handleCreatePosOrder: import('express').RequestHandler = async (req, res) 
     discountCodeId,
     manualDiscountPct,
     redeemFreeCoffee,
-    claimedRewardId,
     birthdayBonus,
     notes,
     idempotencyKey,
@@ -1207,53 +1206,8 @@ const handleCreatePosOrder: import('express').RequestHandler = async (req, res) 
     }
   }
 
-  // ── Validate catalog claimed reward (if provided) ──────────────────────────
-  let claimedRewardData: { id: string } | null = null;
-  if (claimedRewardId && customerId) {
-    const [cr] = await db
-      .select({
-        id: claimedRewardsTable.id,
-        userId: claimedRewardsTable.userId,
-        status: claimedRewardsTable.status,
-        expiresAt: claimedRewardsTable.expiresAt,
-        claimVoucherCents: claimedRewardsTable.voucherValueCents,
-        rewardVoucherCents: loyaltyRewardsTable.voucherValueCents,
-        rewardType: loyaltyRewardsTable.rewardType,
-      })
-      .from(claimedRewardsTable)
-      .innerJoin(loyaltyRewardsTable, eq(claimedRewardsTable.rewardId, loyaltyRewardsTable.id))
-      .where(eq(claimedRewardsTable.id, claimedRewardId));
-    if (!cr) return res.status(400).json({ error: 'Claimed reward not found.' });
-    if (cr.userId !== customerId) return res.status(403).json({ error: 'This reward belongs to a different customer.' });
-    if (!['available', 'applied_to_cart'].includes(cr.status)) {
-      return res.status(400).json({ error: 'This reward has already been used or has expired.' });
-    }
-    if (cr.expiresAt && cr.expiresAt < new Date()) {
-      return res.status(400).json({ error: 'This reward has expired.' });
-    }
-    // Apply monetary value based on reward type
-    const voucherCents = cr.claimVoucherCents ?? cr.rewardVoucherCents ?? null;
-    let rewardDiscountCents: number;
-    if (voucherCents != null) {
-      // Money voucher — deduct face value, capped to subtotal
-      rewardDiscountCents = Math.min(voucherCents, subtotalCents);
-    } else if (cr.rewardType === 'birthday_cookie' || cr.rewardType === 'cookie_any') {
-      // Free cookie reward — discount only the cheapest cookie item, not the whole order
-      const cookieCategories = ['cookies', 'cookie-frappes'];
-      const cookieItems = items.filter((i: any) =>
-        cookieCategories.includes(String(i.category ?? '').toLowerCase()),
-      );
-      if (cookieItems.length === 0) {
-        return res.status(400).json({ error: 'No cookie items in the order to apply this reward.' });
-      }
-      rewardDiscountCents = Math.min(...cookieItems.map((i: any) => i.unitPriceCents));
-    } else {
-      // Other non-voucher rewards (item_reward without linkedProduct etc.) — full order free
-      rewardDiscountCents = subtotalCents;
-    }
-    discountAmountCents += rewardDiscountCents;
-    claimedRewardData = { id: cr.id };
-  }
+  // Catalogue claimed rewards (cookies, vouchers, etc.) are not redeemable at the POS.
+  // Only free-coffee redemptions (redeemFreeCoffee flag) are supported here.
 
   discountAmountCents = Math.min(discountAmountCents, subtotalCents);
   const baseTotalCents = Math.max(0, subtotalCents - discountAmountCents);
@@ -1338,21 +1292,6 @@ const handleCreatePosOrder: import('express').RequestHandler = async (req, res) 
         )
       `);
 
-      // Catalog claimed reward — transition to redeemed atomically with order insert
-      if (claimedRewardData) {
-        const redeemResult = await tx
-          .update(claimedRewardsTable)
-          .set({ status: 'redeemed', redeemedAt: new Date(), orderId })
-          .where(and(
-            eq(claimedRewardsTable.id, claimedRewardData.id),
-            inArray(claimedRewardsTable.status, ['available', 'applied_to_cart']),
-          ))
-          .returning({ id: claimedRewardsTable.id });
-        if (redeemResult.length === 0) {
-          throw new Error('REWARD_ALREADY_CONSUMED');
-        }
-      }
-
       // Stamp-based free coffee — decrement counter atomically with order insert
       if (freeCoffeeRedeemed && customerId) {
         const freeCoffeeResult = await tx.execute(sql`
@@ -1369,9 +1308,6 @@ const handleCreatePosOrder: import('express').RequestHandler = async (req, res) 
       }
     });
   } catch (err: any) {
-    if (err?.message === 'REWARD_ALREADY_CONSUMED') {
-      return res.status(409).json({ error: 'This reward has already been used. Please remove it and try again.' });
-    }
     if (err?.message === 'FREE_COFFEE_ALREADY_USED') {
       return res.status(409).json({ error: 'Free coffee reward has already been redeemed. Please remove it and try again.' });
     }

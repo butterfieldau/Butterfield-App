@@ -8,7 +8,7 @@ import { api } from '@/lib/api';
 import TicketItemRow from './TicketItemRow';
 import styles from './posStyles';
 import { BLUE, CHERRY, MUTED, MID, WHITE, STAMP_GOAL, fmtCents, ticketSubtotal, ticketTotal, isBirthdayMonth } from './types';
-import type { AppliedDiscount, AttachedCustomerClaimedReward, OrderType, Ticket, TicketItem } from './types';
+import type { AppliedDiscount, OrderType, Ticket, TicketItem } from './types';
 
 export default function TicketPanel({
   ticket, onUpdateTicket, onRemoveItem, onUpdateQty, onPriceOverride,
@@ -60,32 +60,6 @@ export default function TicketPanel({
     onUpdateTicket({
       appliedDiscount: { type: 'free_coffee', amountCents: cheapest, label: `☕ Free Coffee (–${fmtCents(cheapest)})` },
     });
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-  };
-
-  const applyClaimedReward = (cr: AttachedCustomerClaimedReward) => {
-    const sub = ticketSubtotal(ticket);
-    let amountCents: number;
-    let label: string;
-    if (cr.voucherValueCents) {
-      amountCents = Math.min(cr.voucherValueCents, sub);
-      label = `🎁 ${cr.rewardName} (–${fmtCents(amountCents)})`;
-    } else if (cr.rewardType === 'birthday_cookie' || cr.rewardType === 'cookie_any') {
-      const cookieCategories = ['cookies', 'cookie-frappes'];
-      const cookieItems = ticket.items.filter(i => cookieCategories.includes(i.category.toLowerCase()));
-      if (cookieItems.length === 0) {
-        amountCents = 0;
-        label = `🍪 ${cr.rewardName} (add a cookie to cart)`;
-      } else {
-        const cheapestCookie = Math.min(...cookieItems.map(i => i.priceOverrideCents ?? i.unitPriceCents));
-        amountCents = cheapestCookie;
-        label = `🍪 ${cr.rewardName} (–${fmtCents(cheapestCookie)})`;
-      }
-    } else {
-      amountCents = sub;
-      label = `🎁 ${cr.rewardName} (free)`;
-    }
-    onUpdateTicket({ appliedDiscount: { type: 'claimed_reward', claimedRewardId: cr.id, amountCents, label } });
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
   };
 
@@ -270,16 +244,6 @@ export default function TicketPanel({
                     <Text style={styles.discountChipText}>☕ Free</Text>
                   </Pressable>
                 )}
-                {(ticket.customer?.availableClaimedRewards ?? []).map(cr => {
-                  const chipLabel = cr.voucherValueCents
-                    ? `🎁 $${(cr.voucherValueCents / 100).toFixed(0)} off`
-                    : `🎁 ${cr.rewardName}`;
-                  return (
-                    <Pressable key={cr.id} onPress={() => applyClaimedReward(cr)} style={styles.discountChipReward}>
-                      <Text style={styles.discountChipText}>{chipLabel}</Text>
-                    </Pressable>
-                  );
-                })}
               </View>
               {showCodeInput && (
                 <View style={styles.discountCodeRow}>

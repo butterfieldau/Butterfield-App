@@ -238,6 +238,8 @@ export async function applyCoffeeStamps(params: {
     return { customerName: 'Customer', stampCount: 0, freeCoffeeRewards: 0, earnedFree: false, pointsDelta: 0, loyaltyQrToken: null };
   }
 
+  const FREE_COFFEE_CAP = 7;
+
   const profile = await getOrCreateCustomerLoyaltyProfile(params.userId);
   const stampGoal = Number(profile.coffeeStampGoal ?? 6);
   const baseStampCount = Number(profile.coffeeStampCount ?? profile.stampCount ?? 0);
@@ -245,22 +247,28 @@ export async function applyCoffeeStamps(params: {
   const totalStamps = baseStampCount + stampsToAdd;
   const earnedFree = Math.floor(totalStamps / stampGoal);
   const nextStampCount = totalStamps % stampGoal;
-  const nextRewards = baseRewards + earnedFree;
+  // Cap free coffee rewards at FREE_COFFEE_CAP — if already at or above the cap,
+  // no additional rewards are issued. Stamps still accumulate normally so progress
+  // toward the next coffee is preserved. The cap is enforced via a LEAST() in the
+  // DB UPDATE so concurrent requests cannot race past it.
+  const uncappedNextRewards = baseRewards + earnedFree;
+  const nextRewards = Math.min(uncappedNextRewards, FREE_COFFEE_CAP);
+  const cappedEarnedFree = nextRewards - baseRewards; // may be 0 if already at cap
 
   const [userRow] = await db.select({ name: usersTable.name }).from(usersTable).where(eq(usersTable.id, params.userId));
 
-  await db.update(customerProfilesTable)
-    .set({
-      coffeeStampCount: nextStampCount,
-      freeCoffeeRewards: nextRewards,
-      stampCount: nextStampCount,
-      freeCoffeesEarned: nextRewards,
-      updatedAt: new Date(),
-    })
-    .where(eq(customerProfilesTable.userId, params.userId));
+  await db.execute(sql`
+    UPDATE customer_profiles
+    SET coffee_stamp_count  = ${nextStampCount},
+        free_coffee_rewards = LEAST(free_coffee_rewards + ${cappedEarnedFree}, ${FREE_COFFEE_CAP}),
+        stamp_count         = ${nextStampCount},
+        free_coffees_earned = LEAST(free_coffees_earned + ${cappedEarnedFree}, ${FREE_COFFEE_CAP}),
+        updated_at          = now()
+    WHERE user_id = ${params.userId}
+  `);
 
-  const description = earnedFree > 0
-    ? `${params.description} — ${earnedFree} free coffee reward${earnedFree > 1 ? 's' : ''} earned`
+  const description = cappedEarnedFree > 0
+    ? `${params.description} — ${cappedEarnedFree} free coffee reward${cappedEarnedFree > 1 ? 's' : ''} earned`
     : params.description;
 
   await logLoyaltyActivity({
@@ -271,11 +279,11 @@ export async function applyCoffeeStamps(params: {
     activityType: params.source,
     pointsDelta: 0,
     coffeeStampsDelta: stampsToAdd,
-    freeCoffeeRewardsDelta: earnedFree,
+    freeCoffeeRewardsDelta: cappedEarnedFree,
     description,
   });
 
-  if (earnedFree > 0) {
+  if (cappedEarnedFree > 0) {
     await db.insert(loyaltyTransactionsTable).values({
       id: randomUUID(),
       userId: params.userId,
@@ -290,7 +298,7 @@ export async function applyCoffeeStamps(params: {
     customerName: userRow?.name ?? 'Customer',
     stampCount: nextStampCount,
     freeCoffeeRewards: nextRewards,
-    earnedFree: earnedFree > 0,
+    earnedFree: cappedEarnedFree > 0,
     pointsDelta: 0,
     loyaltyQrToken: profile.loyaltyQrToken,
   };
