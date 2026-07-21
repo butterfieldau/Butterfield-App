@@ -379,6 +379,14 @@ function LoyaltyContent() {
                   </View>
                 );
               })()}
+              {freeCoffeeRewards >= 7 && (
+                <View style={styles.coffeeCapBanner}>
+                  <Feather name="alert-circle" size={14} color="#F59E0B" style={{ marginTop: 1 }} />
+                  <Text style={styles.coffeeCapBannerText}>
+                    Reward limit reached — redeem a coffee to keep earning
+                  </Text>
+                </View>
+              )}
             </LinearGradient>
           </View>
 
@@ -604,6 +612,8 @@ const styles = StyleSheet.create({
   freeCoffeeBadgeLabel: { color: 'rgba(64,192,242,0.75)', fontSize: 11, fontWeight: '600' },
   coffeeStampRail:  { alignItems: 'center' },
   coffeeStampRow:   { flexDirection: 'row', alignItems: 'center' },
+  coffeeCapBanner:  { flexDirection: 'row', alignItems: 'flex-start', gap: 7, backgroundColor: 'rgba(245,158,11,0.12)', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 9, borderWidth: 1, borderColor: 'rgba(245,158,11,0.28)' },
+  coffeeCapBannerText: { flex: 1, color: '#F59E0B', fontSize: 12, fontWeight: '600', lineHeight: 17 },
   // Birthday banner
   birthdayBannerCard: { borderRadius: 16, overflow: 'hidden', padding: 16 },
   birthdayBannerRow:  { flexDirection: 'row', alignItems: 'center', gap: 12 },
