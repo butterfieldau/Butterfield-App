@@ -1,5 +1,14 @@
 import type { ApiOrder } from './api';
 
+/** Returns true if a wholesale order has been paid, regardless of workflow status. */
+export function isWholesaleOrderPaid(order: ApiOrder): boolean {
+  return !!(
+    (order as any).isPaid ||
+    String((order as any).stripePaymentStatus ?? '').toLowerCase() === 'paid' ||
+    String((order as any).invoiceStatus ?? '').toLowerCase() === 'paid'
+  );
+}
+
 export const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
   received:         { bg: '#FEF9C3', text: '#854D0E' },
   being_prepared:   { bg: '#EDE9FE', text: '#5B21B6' },

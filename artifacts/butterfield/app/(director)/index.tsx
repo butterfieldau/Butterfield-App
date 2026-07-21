@@ -15,7 +15,7 @@ import { useRefreshControl } from '@/hooks/useRefreshControl';
 import { StaffDashboard } from './_staff-dashboard';
 import { fmtAUD, timeAgo } from '@/components/director/dashboardHelpers';
 import { QuickBtn, AovCustomerRow, HourlyInsightsChart } from '@/components/director';
-import { STATUS_COLORS, STATUS_LABEL } from '@/lib/orderStatus';
+import { STATUS_COLORS, STATUS_LABEL, isWholesaleOrderPaid } from '@/lib/orderStatus';
 import { BG, CARD, BLUE, TEXT, MUTED, BORDER, GREEN, AMBER, RED, PURPLE } from '@/components/director/directorColors';
 import { useFocusStatusBar } from '@/hooks/useScrollStatusBar';
 
@@ -62,7 +62,15 @@ function DirectorDashboardInner({ onScroll }: { onScroll?: (e: any) => void }) {
     staleTime: 10_000,
     select: (d) =>
       (d?.data ?? [])
-        .filter(o => !['completed', 'delivered', 'cancelled', 'refunded'].includes(o.status))
+        .filter(o => {
+          if (['completed', 'delivered', 'cancelled', 'refunded'].includes(o.status)) return false;
+          const isWholesale = (o as any).orderSource === 'wholesale' || o.type === 'wholesale';
+          if (isWholesale) {
+            if (['dispatched', 'delivered', 'paid'].includes(o.status)) return false;
+            if (isWholesaleOrderPaid(o)) return false;
+          }
+          return true;
+        })
         .slice(0, 6),
   });
 

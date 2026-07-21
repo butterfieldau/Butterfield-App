@@ -11,7 +11,7 @@ import { normalizeOrderItems } from '@/lib/orderItems';
 import {
   STATUS_COLORS, STATUS_LABEL, ACTION_LABEL, WHOLESALE_NEXT,
   WHOLESALE_FORWARD, WHOLESALE_ALL_STATUSES,
-  getCustomerNextStatuses,
+  getCustomerNextStatuses, isWholesaleOrderPaid,
 } from '@/lib/orderStatus';
 import type { ApiOrder } from '@/lib/api';
 import { fmtTime, openMap, openMapWithChoice } from './ordersHelpers';
@@ -21,14 +21,6 @@ import {
 } from './commandCenterColors';
 
 const TWO_WEEKS_MS = 14 * 24 * 60 * 60 * 1000;
-
-function isWholesaleOrderPaid(order: ApiOrder): boolean {
-  return !!(
-    (order as any).isPaid ||
-    String((order as any).stripePaymentStatus ?? '').toLowerCase() === 'paid' ||
-    String((order as any).invoiceStatus ?? '').toLowerCase() === 'paid'
-  );
-}
 
 // ── Timeline builder ──────────────────────────────────────────────────────────
 function getTimeline(order: ApiOrder): { label: string; done: boolean; current: boolean }[] {
@@ -499,11 +491,17 @@ export default function DirectorOrderDetailModal({
                 </View>
               )}
               {isWholesale && (
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingBottom: 2 }}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingBottom: 2, flexWrap: 'wrap', gap: 2 }}>
                   <Text style={{ fontSize: 13, color: TEXT_MUTED }}>Payment</Text>
-                  <Text style={{ fontSize: 13, fontWeight: '600', color: isWholesaleOrderPaid(order) ? GREEN : RED }}>
-                    {isWholesaleOrderPaid(order) ? 'Paid' : 'Awaiting Payment'}
-                  </Text>
+                  {isWholesaleOrderPaid(order) ? (
+                    <Text style={{ fontSize: 13, fontWeight: '600', color: GREEN }}>
+                      {(order as any).paidAt
+                        ? `Paid on ${new Date((order as any).paidAt).toLocaleDateString([], { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}, ${new Date((order as any).paidAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true })}`
+                        : 'Paid'}
+                    </Text>
+                  ) : (
+                    <Text style={{ fontSize: 13, fontWeight: '600', color: RED }}>Awaiting Payment</Text>
+                  )}
                 </View>
               )}
             </View>
