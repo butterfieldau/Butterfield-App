@@ -367,14 +367,23 @@ function LoyaltyContent() {
               {(() => {
                 const availableWidth = screenWidth - 64;
                 const stampSize = Math.min(56, Math.floor(availableWidth / (stampGoal * 1.05)));
+                const isCapped = freeCoffeeRewards >= 7;
                 return (
-                  <View style={styles.coffeeStampRail}>
-                    <View style={[styles.coffeeStampRow, { width: '100%', justifyContent: 'space-between' }]}>
-                      {Array.from({ length: stampGoal }).map((_, idx) => (
-                        <Animated.View key={idx} style={{ transform: [{ scale: stampScaleAnims[idx] ?? 1 }] }}>
-                          <CoffeeStampToken size={stampSize} filled={idx < stampCount} />
-                        </Animated.View>
-                      ))}
+                  <View>
+                    {isCapped && (
+                      <View style={styles.stampPausedRow}>
+                        <Feather name="lock" size={11} color="rgba(255,255,255,0.55)" />
+                        <Text style={styles.stampPausedLabel}>Stamps paused — redeem a reward to continue</Text>
+                      </View>
+                    )}
+                    <View style={[styles.coffeeStampRail, isCapped && { opacity: 0.4 }]}>
+                      <View style={[styles.coffeeStampRow, { width: '100%', justifyContent: 'space-between' }]}>
+                        {Array.from({ length: stampGoal }).map((_, idx) => (
+                          <Animated.View key={idx} style={{ transform: [{ scale: stampScaleAnims[idx] ?? 1 }] }}>
+                            <CoffeeStampToken size={stampSize} filled={idx < stampCount} />
+                          </Animated.View>
+                        ))}
+                      </View>
                     </View>
                   </View>
                 );
@@ -612,6 +621,8 @@ const styles = StyleSheet.create({
   freeCoffeeBadgeLabel: { color: 'rgba(64,192,242,0.75)', fontSize: 11, fontWeight: '600' },
   coffeeStampRail:  { alignItems: 'center' },
   coffeeStampRow:   { flexDirection: 'row', alignItems: 'center' },
+  stampPausedRow:   { flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 6 },
+  stampPausedLabel: { color: 'rgba(255,255,255,0.55)', fontSize: 11, fontWeight: '500' },
   coffeeCapBanner:  { flexDirection: 'row', alignItems: 'flex-start', gap: 7, backgroundColor: 'rgba(245,158,11,0.12)', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 9, borderWidth: 1, borderColor: 'rgba(245,158,11,0.28)' },
   coffeeCapBannerText: { flex: 1, color: '#F59E0B', fontSize: 12, fontWeight: '600', lineHeight: 17 },
   // Birthday banner
