@@ -216,5 +216,99 @@ describe.skipIf(!serverAvailable)(
       const body = await res.json() as { error?: string };
       expect(body?.error).toMatch(/no free coffee/i);
     }, 15_000);
+
+    // ── Concurrency: two simultaneous redemptions must not both succeed ─────────
+
+    describe('Race condition: two concurrent POST /api/orders with useFreeCoffeeReward: true', () => {
+      // Track orders created during the race so we can clean them up.
+      const raceOrderIds: string[] = [];
+
+      beforeAll(async () => {
+        // Reset the counter to exactly 1 so we can test that two simultaneous
+        // requests cannot both consume it.
+        await db
+          .update(customerProfilesTable)
+          .set({ freeCoffeeRewards: 1, updatedAt: new Date() })
+          .where(eq(customerProfilesTable.userId, customerId!));
+      }, 10_000);
+
+      afterAll(async () => {
+        // Remove any orders created during the race test.
+        for (const id of raceOrderIds) {
+          await db.delete(ordersTable).where(eq(ordersTable.id, id));
+        }
+        // Ensure the reward counter is clean regardless of which branch ran.
+        await db
+          .update(customerProfilesTable)
+          .set({ freeCoffeeRewards: 0, updatedAt: new Date() })
+          .where(eq(customerProfilesTable.userId, customerId!));
+      });
+
+      it('DB: free_coffee_rewards reset to 1 before the race', async () => {
+        const [profile] = await db
+          .select({ freeCoffeeRewards: customerProfilesTable.freeCoffeeRewards })
+          .from(customerProfilesTable)
+          .where(eq(customerProfilesTable.userId, customerId!));
+
+        expect(profile?.freeCoffeeRewards).toBe(1);
+      });
+
+      it('exactly one of two concurrent redemptions succeeds; the other is rejected', async () => {
+        // Build an identical payload for both requests.  Using pay_at_pickup
+        // avoids Stripe involvement so there is no stripePaymentIntentId
+        // uniqueness constraint masking the free-coffee guard.
+        const payload = JSON.stringify({
+          items: [{ productId: coffeeProductId, quantity: 1, selectedOptions: [] }],
+          type: 'pickup',
+          paymentMethod: 'pay_at_pickup',
+          useFreeCoffeeReward: true,
+        });
+
+        const headers = {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${jwtToken}`,
+        };
+
+        // Fire both requests in the same event-loop turn so they reach the
+        // server as close together as possible.
+        const [res1, res2] = await Promise.all([
+          fetch(`${API_BASE}/orders`, { method: 'POST', headers, body: payload }),
+          fetch(`${API_BASE}/orders`, { method: 'POST', headers, body: payload }),
+        ]);
+
+        const [body1, body2] = await Promise.all([
+          res1.json() as Promise<{ data?: { id?: string }; error?: string }>,
+          res2.json() as Promise<{ data?: { id?: string }; error?: string }>,
+        ]);
+
+        const statuses = [res1.status, res2.status].sort();
+
+        // Collect any order that was successfully created so afterAll can delete it.
+        if (body1?.data?.id) raceOrderIds.push(body1.data.id);
+        if (body2?.data?.id) raceOrderIds.push(body2.data.id);
+
+        // Exactly one request must have succeeded with 201.
+        const successCount = statuses.filter(s => s === 201).length;
+        expect(successCount).toBe(1);
+
+        // The other request must have been rejected.  The atomic DB guard
+        // (WHERE free_coffee_rewards > 0) returns 409 when two requests both
+        // pass the pre-flight check and race to the UPDATE.  If the server
+        // serialises them (one completes before the other starts), the second
+        // hits the pre-flight 400.  Both are valid race outcomes.
+        const failureStatus = statuses.find(s => s !== 201);
+        expect([400, 409]).toContain(failureStatus);
+      }, 20_000);
+
+      it('DB: free_coffee_rewards is 0 after the race — counter not over-decremented', async () => {
+        const [profile] = await db
+          .select({ freeCoffeeRewards: customerProfilesTable.freeCoffeeRewards })
+          .from(customerProfilesTable)
+          .where(eq(customerProfilesTable.userId, customerId!));
+
+        // Must be exactly 0.  A negative value would indicate the atomic guard failed.
+        expect(profile?.freeCoffeeRewards).toBe(0);
+      });
+    });
   },
 );

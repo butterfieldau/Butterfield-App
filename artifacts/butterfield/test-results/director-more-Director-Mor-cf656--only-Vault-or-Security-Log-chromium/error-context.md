@@ -6,37 +6,28 @@
 
 # Test info
 
-- Name: director-more.spec.ts >> Director More screen — section visibility >> director sees all four category sections and director-only items
-- Location: e2e/director-more.spec.ts:94:7
+- Name: director-more.spec.ts >> Director More screen — section visibility >> manager does not see director-only Vault or Security Log
+- Location: e2e/director-more.spec.ts:107:7
 
 # Error details
 
 ```
 Error: expect(locator).toBeVisible() failed
 
-Locator: locator('text=OPERATIONS').first()
+Locator: locator('text=Sign Out').first()
 Expected: visible
 Timeout: 30000ms
 Error: element(s) not found
 
 Call log:
   - Expect "toBeVisible" with timeout 30000ms
-  - waiting for locator('text=OPERATIONS').first()
+  - waiting for locator('text=Sign Out').first()
 
 ```
 
 # Test source
 
 ```ts
-  1   | import { test, expect, Page } from '@playwright/test';
-  2   | 
-  3   | const BASE_URL = process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:80';
-  4   | 
-  5   | // ── Helpers ──────────────────────────────────────────────────────────────────
-  6   | 
-  7   | /**
-  8   |  * Inject a pre-obtained JWT + user blob into localStorage, then navigate to a
-  9   |  * path and wait for the React app to render something meaningful.
   10  |  */
   11  | async function goToAs(page: Page, token: string, userJson: string, screenPath: string) {
   12  |   await page.goto('/', { waitUntil: 'domcontentloaded', timeout: 90_000 });
@@ -124,8 +115,7 @@ Call log:
   94  |   test('director sees all four category sections and director-only items', async ({ page }) => {
   95  |     await goToAs(page, _directorToken, _directorUserJson, '/(director)/more');
   96  | 
-> 97  |     await expect(page.locator('text=OPERATIONS').first()).toBeVisible({ timeout: 30_000 });
-      |                                                           ^ Error: expect(locator).toBeVisible() failed
+  97  |     await expect(page.locator('text=OPERATIONS').first()).toBeVisible({ timeout: 30_000 });
   98  |     await expect(page.locator('text=WHOLESALE').first()).toBeVisible({ timeout: 12_000 });
   99  |     await expect(page.locator('text=SALES & MARKETING').first()).toBeVisible({ timeout: 12_000 });
   100 |     await expect(page.locator('text=SYSTEM').first()).toBeVisible({ timeout: 12_000 });
@@ -138,7 +128,8 @@ Call log:
   107 |   test('manager does not see director-only Vault or Security Log', async ({ page }) => {
   108 |     await goToAs(page, _managerToken, _managerUserJson, '/(director)/more');
   109 | 
-  110 |     await expect(page.locator('text=Sign Out').first()).toBeVisible({ timeout: 30_000 });
+> 110 |     await expect(page.locator('text=Sign Out').first()).toBeVisible({ timeout: 30_000 });
+      |                                                         ^ Error: expect(locator).toBeVisible() failed
   111 |     await expect(page.locator('text=Director Vault')).toHaveCount(0);
   112 |     await expect(page.getByText('Security Log', { exact: true })).toHaveCount(0);
   113 |   });

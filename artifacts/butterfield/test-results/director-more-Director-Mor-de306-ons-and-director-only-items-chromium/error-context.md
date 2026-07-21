@@ -12,11 +12,17 @@
 # Error details
 
 ```
-Error: director login failed: 502 — run POST /api/auth/seed-demo first
+Error: expect(locator).toBeVisible() failed
 
-expect(received).toBeTruthy()
+Locator: locator('text=OPERATIONS').first()
+Expected: visible
+Timeout: 30000ms
+Error: element(s) not found
 
-Received: false
+Call log:
+  - Expect "toBeVisible" with timeout 30000ms
+  - waiting for locator('text=OPERATIONS').first()
+
 ```
 
 # Test source
@@ -97,8 +103,7 @@ Received: false
   73  |   const dirRes = await request.post(`${BASE_URL}/api/auth/staff-login`, {
   74  |     data: { email: 'director@demo.com', password: 'Demo1234!' },
   75  |   });
-> 76  |   expect(dirRes.ok(), `director login failed: ${dirRes.status()} — run POST /api/auth/seed-demo first`).toBeTruthy();
-      |                                                                                                         ^ Error: director login failed: 502 — run POST /api/auth/seed-demo first
+  76  |   expect(dirRes.ok(), `director login failed: ${dirRes.status()} — run POST /api/auth/seed-demo first`).toBeTruthy();
   77  |   const { token: dirToken, user: dirUser } = await dirRes.json() as { token: string; user: unknown };
   78  |   _directorToken = dirToken;
   79  |   _directorUserJson = JSON.stringify(dirUser);
@@ -119,7 +124,8 @@ Received: false
   94  |   test('director sees all four category sections and director-only items', async ({ page }) => {
   95  |     await goToAs(page, _directorToken, _directorUserJson, '/(director)/more');
   96  | 
-  97  |     await expect(page.locator('text=OPERATIONS').first()).toBeVisible({ timeout: 30_000 });
+> 97  |     await expect(page.locator('text=OPERATIONS').first()).toBeVisible({ timeout: 30_000 });
+      |                                                           ^ Error: expect(locator).toBeVisible() failed
   98  |     await expect(page.locator('text=WHOLESALE').first()).toBeVisible({ timeout: 12_000 });
   99  |     await expect(page.locator('text=SALES & MARKETING').first()).toBeVisible({ timeout: 12_000 });
   100 |     await expect(page.locator('text=SYSTEM').first()).toBeVisible({ timeout: 12_000 });
@@ -199,4 +205,21 @@ Received: false
   174 |     await vaultCard.click();
   175 |     await page.waitForLoadState('networkidle', { timeout: 30_000 });
   176 |     await page.waitForTimeout(1_500);
+  177 | 
+  178 |     expect(page.url()).toContain('director-vault');
+  179 |   });
+  180 | 
+  181 |   test('back button on Security Log screen returns to More', async ({ page }) => {
+  182 |     await goToAs(page, _directorToken, _directorUserJson, '/(director)/more');
+  183 |     await tapMoreRow(page, 'Security Log', true);
+  184 | 
+  185 |     await expect(page.locator('text=Audit Log').first()).toBeVisible({ timeout: 20_000 });
+  186 | 
+  187 |     await clickBackButton(page);
+  188 | 
+  189 |     await expect(page.locator('text=Sign Out').first()).toBeVisible({ timeout: 20_000 });
+  190 |     await expect(page.locator('text=More').first()).toBeVisible({ timeout: 12_000 });
+  191 |   });
+  192 | });
+  193 | 
 ```

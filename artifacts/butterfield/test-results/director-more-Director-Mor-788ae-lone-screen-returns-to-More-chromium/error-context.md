@@ -6,22 +6,15 @@
 
 # Test info
 
-- Name: director-more.spec.ts >> Director More screen — section visibility >> director sees all four category sections and director-only items
-- Location: e2e/director-more.spec.ts:94:7
+- Name: director-more.spec.ts >> Director More — standalone screen navigation >> back button on Staff Hub standalone screen returns to More
+- Location: e2e/director-more.spec.ts:128:7
 
 # Error details
 
 ```
-Error: expect(locator).toBeVisible() failed
-
-Locator: locator('text=OPERATIONS').first()
-Expected: visible
-Timeout: 30000ms
-Error: element(s) not found
-
+TimeoutError: locator.waitFor: Timeout 15000ms exceeded.
 Call log:
-  - Expect "toBeVisible" with timeout 30000ms
-  - waiting for locator('text=OPERATIONS').first()
+  - waiting for locator('text=Staff Hub').first() to be visible
 
 ```
 
@@ -70,7 +63,8 @@ Call log:
   40  |   const row = exact
   41  |     ? page.getByText(label, { exact: true }).first()
   42  |     : page.locator(`text=${label}`).first();
-  43  |   await row.waitFor({ state: 'visible', timeout: 15_000 });
+> 43  |   await row.waitFor({ state: 'visible', timeout: 15_000 });
+      |             ^ TimeoutError: locator.waitFor: Timeout 15000ms exceeded.
   44  |   await row.scrollIntoViewIfNeeded();
   45  |   await page.waitForTimeout(300);
   46  |   await row.click();
@@ -124,8 +118,7 @@ Call log:
   94  |   test('director sees all four category sections and director-only items', async ({ page }) => {
   95  |     await goToAs(page, _directorToken, _directorUserJson, '/(director)/more');
   96  | 
-> 97  |     await expect(page.locator('text=OPERATIONS').first()).toBeVisible({ timeout: 30_000 });
-      |                                                           ^ Error: expect(locator).toBeVisible() failed
+  97  |     await expect(page.locator('text=OPERATIONS').first()).toBeVisible({ timeout: 30_000 });
   98  |     await expect(page.locator('text=WHOLESALE').first()).toBeVisible({ timeout: 12_000 });
   99  |     await expect(page.locator('text=SALES & MARKETING').first()).toBeVisible({ timeout: 12_000 });
   100 |     await expect(page.locator('text=SYSTEM').first()).toBeVisible({ timeout: 12_000 });
@@ -172,54 +165,4 @@ Call log:
   141 |     await goToAs(page, _directorToken, _directorUserJson, '/(director)/more');
   142 |     await tapMoreRow(page, 'Pricing Tiers');
   143 | 
-  144 |     await expect(page.locator('[aria-label="Go back"]').first()).toBeVisible({ timeout: 20_000 });
-  145 | 
-  146 |     await clickBackButton(page);
-  147 | 
-  148 |     await expect(page.locator('text=Sign Out').first()).toBeVisible({ timeout: 20_000 });
-  149 |     await expect(page.locator('text=More').first()).toBeVisible({ timeout: 12_000 });
-  150 |   });
-  151 | 
-  152 |   test('back button on Settings standalone screen returns to More', async ({ page }) => {
-  153 |     await goToAs(page, _directorToken, _directorUserJson, '/(director)/more');
-  154 |     await tapMoreRow(page, 'Settings');
-  155 | 
-  156 |     await expect(page.locator('[aria-label="Go back"]').first()).toBeVisible({ timeout: 20_000 });
-  157 | 
-  158 |     await clickBackButton(page);
-  159 | 
-  160 |     await expect(page.locator('text=Sign Out').first()).toBeVisible({ timeout: 20_000 });
-  161 |     await expect(page.locator('text=More').first()).toBeVisible({ timeout: 12_000 });
-  162 |   });
-  163 | 
-  164 |   test('Director Vault card is visible for director and routes to director-vault screen', async ({ page }) => {
-  165 |     await goToAs(page, _directorToken, _directorUserJson, '/(director)/more');
-  166 | 
-  167 |     const vaultCard = page.locator('text=Director Vault').first();
-  168 |     await vaultCard.waitFor({ state: 'visible', timeout: 20_000 });
-  169 |     await vaultCard.scrollIntoViewIfNeeded();
-  170 |     await page.waitForTimeout(300);
-  171 | 
-  172 |     await expect(page.locator('text=DIRECTOR ONLY').first()).toBeVisible({ timeout: 12_000 });
-  173 | 
-  174 |     await vaultCard.click();
-  175 |     await page.waitForLoadState('networkidle', { timeout: 30_000 });
-  176 |     await page.waitForTimeout(1_500);
-  177 | 
-  178 |     expect(page.url()).toContain('director-vault');
-  179 |   });
-  180 | 
-  181 |   test('back button on Security Log screen returns to More', async ({ page }) => {
-  182 |     await goToAs(page, _directorToken, _directorUserJson, '/(director)/more');
-  183 |     await tapMoreRow(page, 'Security Log', true);
-  184 | 
-  185 |     await expect(page.locator('text=Audit Log').first()).toBeVisible({ timeout: 20_000 });
-  186 | 
-  187 |     await clickBackButton(page);
-  188 | 
-  189 |     await expect(page.locator('text=Sign Out').first()).toBeVisible({ timeout: 20_000 });
-  190 |     await expect(page.locator('text=More').first()).toBeVisible({ timeout: 12_000 });
-  191 |   });
-  192 | });
-  193 | 
 ```
