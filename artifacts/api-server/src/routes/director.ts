@@ -15,7 +15,7 @@ import {
   DEFAULT_DELIVERY_SLOTS,
   type WholesaleDeliverySlot,
 } from '../lib/wholesaleCutoffReminder.js';
-import { eq, desc, count, sum, gte, lte, lt, isNull, isNotNull, and, sql, inArray, asc } from 'drizzle-orm';
+import { eq, ne, desc, count, sum, gte, lte, lt, isNull, isNotNull, and, sql, inArray, asc } from 'drizzle-orm';
 import { requireRole } from '../middlewares/auth.js';
 import { requireManagerRoutePermission } from '../middlewares/managerPermission.js';
 import type { ManagerPermission } from '@workspace/db';
@@ -210,7 +210,7 @@ router.get('/stats', async (req, res) => {
     db.select({ count: count() }).from(ordersTable).where(sql`${ordersTable.status} IN ('received','being_prepared','ready_for_pickup')`),
     db.select({ count: count() }).from(wholesaleOrdersTable).where(sql`${wholesaleOrdersTable.status} IN ('pending','confirmed','processing')`),
     db.select({ count: count() }).from(usersTable),
-    db.select({ count: count() }).from(staffProfilesTable).where(eq(staffProfilesTable.approvedByAdmin, false)),
+    db.select({ count: count() }).from(staffProfilesTable).where(and(eq(staffProfilesTable.approvedByAdmin, false), sql`${staffProfilesTable.userId} IN (SELECT id FROM users WHERE status != 'inactive')`)),
     db.select({ count: count() }).from(wholesaleAccountsTable).where(eq(wholesaleAccountsTable.status, 'pending')),
     db.select({ count: count() }).from(wholesaleAccountsTable),
     db.select({ count: count() }).from(productsTable).where(eq(productsTable.isActive, true)),
@@ -1912,7 +1912,11 @@ router.post('/wholesale/orders', async (req, res) => {
 // ── All users ────────────────────────────────────────────────────────────────
 router.get('/users', async (req, res) => {
   await ensureShopDisplaySchemaReady();
-  const users = await db.select().from(usersTable).orderBy(desc(usersTable.createdAt));
+  const includeTerminated = req.query.includeTerminated === 'true';
+  const baseQuery = db.select().from(usersTable).orderBy(desc(usersTable.createdAt));
+  const users = includeTerminated
+    ? await baseQuery
+    : await db.select().from(usersTable).where(ne(usersTable.status, 'inactive')).orderBy(desc(usersTable.createdAt));
   const staffProfiles = await db.select().from(staffProfilesTable);
   const wholesaleAccounts = await db.select().from(wholesaleAccountsTable);
   const spMap = Object.fromEntries(staffProfiles.map(s => [s.userId, s]));
@@ -2454,6 +2458,22 @@ router.patch('/staff/:userId/approve', async (req, res) => {
     .where(eq(staffProfilesTable.userId, userId))
     .returning();
   return res.json({ data: updated });
+});
+
+router.patch('/staff/:userId/terminate', requireRole('director', 'manager'), async (req, res) => {
+  const userId = req.params.userId as string;
+  const [target] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
+  if (!target) return res.status(404).json({ error: 'User not found.' });
+  if (target.role !== 'staff' && target.role !== 'manager') {
+    return res.status(403).json({ error: 'This endpoint can only terminate staff or manager accounts.' });
+  }
+  await db.update(usersTable)
+    .set({ status: 'inactive', isActive: 'false' })
+    .where(eq(usersTable.id, userId));
+  await db.update(staffProfilesTable)
+    .set({ approvedByAdmin: false })
+    .where(eq(staffProfilesTable.userId, userId));
+  return res.json({ data: { status: 'inactive' } });
 });
 
 // ── Promote any customer to staff / manager / director ────────────────────────

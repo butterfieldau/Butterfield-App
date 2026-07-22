@@ -578,6 +578,7 @@ export const api = {
     staffLeave:          (userId: string) => request<{ data: StaffLeaveRequest[] }>(`/director/staff/${userId}/leave`),
     approveLeave:        (leaveId: string, approved: boolean, note?: string) => request<{ data: StaffLeaveRequest }>(`/director/staff/leave/${leaveId}/review`, { method: 'PATCH', body: JSON.stringify({ approved, note }) }),
     approveStaff:        (userId: string, approved: boolean) => request<{ data: DirectorStaffMember }>(`/director/staff/${userId}/approve`, { method: 'PATCH', body: JSON.stringify({ approved }) }),
+    terminateStaff:      (userId: string) => request<{ data: { status: string } }>(`/director/staff/${userId}/terminate`, { method: 'PATCH' }),
     promoteToDirector:   (userId: string) => request<{ data: DirectorStaffMember }>(`/director/staff/${userId}/promote-director`, { method: 'PATCH' }),
     setStaffOrdersPermission: (userId: string, canViewOrders: boolean) =>
       request<{ data: DirectorStaffMember }>(`/director/staff/${userId}/orders-permission`, { method: 'PATCH', body: JSON.stringify({ canViewOrders }) }),

@@ -414,7 +414,7 @@ export function DirectorUsersScreen({ modeOverride }: { modeOverride?: UsersMode
                       <Feather name="chevron-right" size={18} color="#C7C7CC" />
                     </View>
 
-                    {/* Approve / Reject buttons for pending staff */}
+                    {/* Approve / Remove buttons for pending staff */}
                     {isPendingStaff && (
                       <View style={{ flexDirection: 'row', gap: 10, marginTop: 14 }}>
                         <Pressable
@@ -424,10 +424,26 @@ export function DirectorUsersScreen({ modeOverride }: { modeOverride?: UsersMode
                           <Text style={u$.approveBtnText}>Approve</Text>
                         </Pressable>
                         <Pressable
-                          onPress={(e) => { e.stopPropagation?.(); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); approveStaff(user.id, false); }}
+                          onPress={(e) => {
+                            e.stopPropagation?.();
+                            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                            Alert.alert(
+                              'Remove Staff Member',
+                              `Archive ${user.name}'s account? They will be removed from the staff list and blocked from logging in.`,
+                              [
+                                { text: 'Cancel', style: 'cancel' },
+                                { text: 'Remove', style: 'destructive', onPress: async () => {
+                                  try {
+                                    await api.director.terminateStaff(user.id);
+                                    await qc.invalidateQueries({ queryKey: ['director-users'] });
+                                  } catch (error) { Alert.alert('Error', getErrorMessage(error)); }
+                                }},
+                              ]
+                            );
+                          }}
                           style={u$.rejectBtn}
                         >
-                          <Text style={u$.rejectBtnText}>Reject</Text>
+                          <Text style={u$.rejectBtnText}>Remove</Text>
                         </Pressable>
                       </View>
                     )}

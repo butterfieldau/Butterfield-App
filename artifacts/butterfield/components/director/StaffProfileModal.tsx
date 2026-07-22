@@ -856,6 +856,31 @@ function StaffProfileModal({ userId, visible, onClose, onRefresh, onDelete }: {
                   <Text style={sp_s.promoteBtnText}>Promote to Director</Text>
                 </Pressable>
               )}
+              {/* ── Terminate employment (staff/manager only) ─────────── */}
+              {(u?.role === 'staff' || u?.role === 'manager') && (
+                <Pressable
+                  style={[sp_s.deleteBtn, { borderColor: '#F97316', backgroundColor: '#FFF7ED' }]}
+                  onPress={() => Alert.alert(
+                    'Terminate Employment',
+                    `This will archive ${u?.name ?? 'this staff member'}'s account. They will be removed from the staff list and blocked from logging in. This cannot be undone from here.`,
+                    [
+                      { text: 'Cancel', style: 'cancel' },
+                      { text: 'Terminate', style: 'destructive', onPress: async () => {
+                        if (!userId) return;
+                        try {
+                          await api.director.terminateStaff(userId);
+                          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                          handleClose();
+                          onRefresh();
+                        } catch (error) { Alert.alert('Error', getErrorMessage(error)); }
+                      }},
+                    ]
+                  )}
+                >
+                  <Feather name="user-x" size={15} color="#F97316" />
+                  <Text style={[sp_s.deleteBtnText, { color: '#F97316' }]}>Terminate Employment</Text>
+                </Pressable>
+              )}
               {/* ── Delete account ───────────────────────────────────── */}
               <Pressable
                 style={sp_s.deleteBtn}
