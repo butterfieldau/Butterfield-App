@@ -70,15 +70,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             // Re-register push token silently on app reopen
             registerPushToken(token).catch(() => {});
           } catch (e: any) {
-            const status = e instanceof ApiError ? e.status : undefined;
-            // Only clear the session on an unambiguous token rejection from our own
-            // API. Our Express handlers always include a `body.error` string; raw
-            // proxy/gateway 401s (502→401, Replit boot-window errors, etc.) won't
-            // have it. 403s and 5xxs are never token rejections — never log out for them.
+            // Only clear the session when our own API explicitly signals that the
+            // token is invalid (code === 'TOKEN_INVALID'). Proxy/gateway 401s,
+            // 403s, 5xxs, and network errors do NOT clear the token — those are
+            // transient failures that should not force re-login.
             const isTokenRejection =
-              status === 401 &&
               e instanceof ApiError &&
-              typeof (e.body as any)?.error === 'string';
+              e.status === 401 &&
+              (e.body as any)?.code === 'TOKEN_INVALID';
 
             if (isTokenRejection) {
               await clearToken();
