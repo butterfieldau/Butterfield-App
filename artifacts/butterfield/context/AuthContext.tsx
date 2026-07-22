@@ -71,14 +71,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             registerPushToken(token).catch(() => {});
           } catch (e: any) {
             const status = e instanceof ApiError ? e.status : undefined;
-            if (status === 401 || status === 403) {
+            // Only clear the session on an unambiguous token rejection from our own
+            // API. Our Express handlers always include a `body.error` string; raw
+            // proxy/gateway 401s (502→401, Replit boot-window errors, etc.) won't
+            // have it. 403s and 5xxs are never token rejections — never log out for them.
+            const isTokenRejection =
+              status === 401 &&
+              e instanceof ApiError &&
+              typeof (e.body as any)?.error === 'string';
+
+            if (isTokenRejection) {
               await clearToken();
               await AsyncStorage.removeItem(USER_KEY);
               setUser(null);
             } else if (!cachedUser) {
-              // Keep the token in place for a later retry, but don't invent a session.
+              // Transient error and no cached data — show login but keep the token
+              // so the next app open can retry without forcing re-login.
               setUser(null);
             }
+            // else: transient error with a valid cached user — stay logged in.
           }
         }
       } catch {
