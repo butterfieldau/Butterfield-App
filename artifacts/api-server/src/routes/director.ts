@@ -2476,6 +2476,22 @@ router.patch('/staff/:userId/terminate', requireRole('director', 'manager'), asy
   return res.json({ data: { status: 'inactive' } });
 });
 
+router.patch('/staff/:userId/reinstate', requireRole('director'), async (req, res) => {
+  const userId = req.params.userId as string;
+  const [target] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
+  if (!target) return res.status(404).json({ error: 'User not found.' });
+  if (target.role !== 'staff' && target.role !== 'manager') {
+    return res.status(403).json({ error: 'This endpoint can only reinstate staff or manager accounts.' });
+  }
+  await db.update(usersTable)
+    .set({ status: 'active', isActive: 'true' })
+    .where(eq(usersTable.id, userId));
+  await db.update(staffProfilesTable)
+    .set({ approvedByAdmin: true })
+    .where(eq(staffProfilesTable.userId, userId));
+  return res.json({ data: { status: 'active' } });
+});
+
 // ── Promote any customer to staff / manager / director ────────────────────────
 router.patch('/customers/:id/promote', requireRole('director', 'master'), async (req, res) => {
   const id = req.params.id as string;

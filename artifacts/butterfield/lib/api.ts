@@ -569,7 +569,7 @@ export const api = {
       request<{ data: { id: string; status: string; orderNumber: string | null; refundType: 'stripe' | 'cash' } }>(`/director/pos/transactions/${id}/refund`, { method: 'POST', body: JSON.stringify(reason ? { reason } : {}) }),
     acceptOrder:         (id: string) => request<{ data: ApiOrder }>(`/director/orders/${id}/accept`, { method: 'POST' }),
     updateOrderStatus:   (id: string, status: string, cancelReason?: string) => request<{ data: ApiOrder }>(`/director/orders/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status, ...(cancelReason ? { cancelReason } : {}) }) }),
-    users:               () => request<{ data: DirectorUserSummary[] }>('/director/users'),
+    users:               (opts?: { includeTerminated?: boolean }) => request<{ data: DirectorUserSummary[] }>(`/director/users${opts?.includeTerminated ? '?includeTerminated=true' : ''}`),
     staffMember:         (userId: string) => request<{ data: DirectorStaffMember }>(`/director/staff/${userId}`),
     updateStaff:         (userId: string, data: { name?: string; email?: string; phone?: string; address?: string; taxFileNumber?: string; position?: string; department?: string; hourlyRateCents?: number; employmentStatus?: string }) =>
       request<{ data: DirectorStaffMember }>(`/director/staff/${userId}`, { method: 'PATCH', body: JSON.stringify(data) }),
@@ -579,6 +579,7 @@ export const api = {
     approveLeave:        (leaveId: string, approved: boolean, note?: string) => request<{ data: StaffLeaveRequest }>(`/director/staff/leave/${leaveId}/review`, { method: 'PATCH', body: JSON.stringify({ approved, note }) }),
     approveStaff:        (userId: string, approved: boolean) => request<{ data: DirectorStaffMember }>(`/director/staff/${userId}/approve`, { method: 'PATCH', body: JSON.stringify({ approved }) }),
     terminateStaff:      (userId: string) => request<{ data: { status: string } }>(`/director/staff/${userId}/terminate`, { method: 'PATCH' }),
+    reinstateStaff:      (userId: string) => request<{ data: { status: string } }>(`/director/staff/${userId}/reinstate`, { method: 'PATCH' }),
     promoteToDirector:   (userId: string) => request<{ data: DirectorStaffMember }>(`/director/staff/${userId}/promote-director`, { method: 'PATCH' }),
     setStaffOrdersPermission: (userId: string, canViewOrders: boolean) =>
       request<{ data: DirectorStaffMember }>(`/director/staff/${userId}/orders-permission`, { method: 'PATCH', body: JSON.stringify({ canViewOrders }) }),

@@ -99,18 +99,24 @@ export function DirectorUsersScreen({ modeOverride }: { modeOverride?: UsersMode
   const [selectedWholesaleUser, setSelectedWholesaleUser] = useState<DirectorUserSummary | null>(null);
   const [selectedStaffId, setSelectedStaffId] = useState<string | null>(null);
   const [selectedShopDisplayUser, setSelectedShopDisplayUser] = useState<ShopDisplayUser | null>(null);
+  const [showTerminated, setShowTerminated] = useState(false);
   const { data, isLoading, refetch } = useQuery({
-    queryKey: ['director-users'],
-    queryFn: () => api.director.users(),
+    queryKey: ['director-users', showTerminated],
+    queryFn: () => api.director.users({ includeTerminated: showTerminated }),
     placeholderData: keepPreviousData,
   });
   const { refreshing, onRefresh } = useRefreshControl(refetch);
   const allUsers: DirectorUserSummary[] = data?.data ?? [];
+  const isStaffView = staffMode || (!dedicatedMode && tab === 'Staff');
   const filtered = allUsers.filter((u) => {
+    if (showTerminated) {
+      if (!isStaffView) return false;
+      return (u.role === 'staff' || u.role === 'manager') && u.status === 'inactive';
+    }
     if (wholesaleMode) return u.role === 'wholesale';
-    if (staffMode)     return u.role === 'staff' || u.role === 'manager' || u.role === 'director' || u.role === 'master';
+    if (staffMode)     return (u.role === 'staff' || u.role === 'manager' || u.role === 'director' || u.role === 'master') && u.status !== 'inactive';
     if (posMode)       return u.role === 'shop_display';
-    if (tab === 'Staff')     return u.role === 'staff' || u.role === 'manager' || u.role === 'director' || u.role === 'master';
+    if (tab === 'Staff')     return (u.role === 'staff' || u.role === 'manager' || u.role === 'director' || u.role === 'master') && u.status !== 'inactive';
     if (tab === 'Wholesale') return u.role === 'wholesale';
     return false;
   });
@@ -129,6 +135,14 @@ export function DirectorUsersScreen({ modeOverride }: { modeOverride?: UsersMode
       Alert.alert('Restored', 'Account has been restored successfully.');
     },
     onError: (e) => Alert.alert('Error', getErrorMessage(e, 'Failed to restore account.')),
+  });
+  const reinstateMut = useMutation({
+    mutationFn: (id: string) => api.director.reinstateStaff(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['director-users'] });
+      Alert.alert('Reinstated', 'Staff member has been reinstated and approved.');
+    },
+    onError: (e) => Alert.alert('Error', getErrorMessage(e, 'Failed to reinstate staff member.')),
   });
   // ── Staff invite state ─────────────────────────────────────────────────────
   const [showInviteModal, setShowInviteModal] = useState(false);
@@ -177,6 +191,9 @@ export function DirectorUsersScreen({ modeOverride }: { modeOverride?: UsersMode
   const openCreate = (type: CreateType) => {
     setCreateType(type); setShowCreate(true); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
   };
+  useEffect(() => {
+    if (!isStaffView) setShowTerminated(false);
+  }, [isStaffView]);
   const approveStaff = async (userId: string, approved: boolean) => {
     try {
       await api.director.approveStaff(userId, approved);
@@ -226,43 +243,74 @@ export function DirectorUsersScreen({ modeOverride }: { modeOverride?: UsersMode
       {/* Add strip — only shown for Staff/Wholesale/POS, not Customers or Deleted */}
       {!deletedMode && (dedicatedMode || tab !== 'Customers') && (
       <View style={{ backgroundColor: CARD, borderBottomWidth: 1, borderBottomColor: BORDER }}>
-        <View style={[styles.addStrip, { borderTopColor: BORDER }]}>
-          <Text style={[styles.addStripLabel, { color: MUTED }]}>Add new:</Text>
-          {(wholesaleMode || (!dedicatedMode && tab === 'Wholesale')) && (
-            <Pressable onPress={() => openCreate('wholesale')} style={[styles.addBtn, { backgroundColor: '#DCFCE7' }]}>
-              <Feather name="briefcase" size={13} color="#166534" />
-              <Text style={[styles.addBtnText, { color: '#166534' }]}>Wholesale Account</Text>
+        {!showTerminated && (
+          <View style={[styles.addStrip, { borderTopColor: BORDER }]}>
+            <Text style={[styles.addStripLabel, { color: MUTED }]}>Add new:</Text>
+            {(wholesaleMode || (!dedicatedMode && tab === 'Wholesale')) && (
+              <Pressable onPress={() => openCreate('wholesale')} style={[styles.addBtn, { backgroundColor: '#DCFCE7' }]}>
+                <Feather name="briefcase" size={13} color="#166534" />
+                <Text style={[styles.addBtnText, { color: '#166534' }]}>Wholesale Account</Text>
+              </Pressable>
+            )}
+            {(staffMode || (!dedicatedMode && tab === 'Staff')) && (
+              <>
+                <Pressable onPress={() => openCreate('staff')} style={[styles.addBtn, { backgroundColor: '#EDE9FE' }]}>
+                  <Feather name="user-plus" size={13} color="#5B21B6" />
+                  <Text style={[styles.addBtnText, { color: '#5B21B6' }]}>Staff Member</Text>
+                </Pressable>
+                <Pressable
+                  onPress={() => { setShowInviteModal(true); setGeneratedInvite(null); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }}
+                  style={[styles.addBtn, { backgroundColor: '#DBEAFE' }]}
+                >
+                  <Feather name="link" size={13} color="#1D4ED8" />
+                  <Text style={[styles.addBtnText, { color: '#1D4ED8' }]}>Invite Link</Text>
+                </Pressable>
+                <Pressable
+                  onPress={() => { Haptics.selectionAsync(); router.push('/director-settings-managers' as any); }}
+                  style={[styles.addBtn, { backgroundColor: '#EEF4FF' }]}
+                >
+                  <Feather name="shield" size={13} color={BLUE} />
+                  <Text style={[styles.addBtnText, { color: BLUE }]}>Roles & Permissions</Text>
+                </Pressable>
+              </>
+            )}
+            {posMode && (
+              <Pressable onPress={() => openCreate('shop_display')} style={[styles.addBtn, { backgroundColor: '#DBEAFE' }]}>
+                <Feather name="monitor" size={13} color="#1D4ED8" />
+                <Text style={[styles.addBtnText, { color: '#1D4ED8' }]}>POS Screen</Text>
+              </Pressable>
+            )}
+          </View>
+        )}
+        {/* Active / Terminated filter chips — only on Staff tab */}
+        {isStaffView && !posMode && (
+          <View style={{ flexDirection: 'row', gap: 8, paddingHorizontal: 16, paddingVertical: 10 }}>
+            <Pressable
+              onPress={() => { setShowTerminated(false); Haptics.selectionAsync(); }}
+              style={{
+                flexDirection: 'row', alignItems: 'center', gap: 5,
+                paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20,
+                backgroundColor: !showTerminated ? '#EDE9FE' : '#F3F4F6',
+                borderWidth: 1, borderColor: !showTerminated ? '#8B5CF6' : BORDER,
+              }}
+            >
+              <Feather name="check-circle" size={12} color={!showTerminated ? '#5B21B6' : MUTED} />
+              <Text style={{ fontSize: 12, fontWeight: '600', color: !showTerminated ? '#5B21B6' : MUTED }}>Active</Text>
             </Pressable>
-          )}
-          {(staffMode || (!dedicatedMode && tab === 'Staff')) && (
-            <>
-              <Pressable onPress={() => openCreate('staff')} style={[styles.addBtn, { backgroundColor: '#EDE9FE' }]}>
-                <Feather name="user-plus" size={13} color="#5B21B6" />
-                <Text style={[styles.addBtnText, { color: '#5B21B6' }]}>Staff Member</Text>
-              </Pressable>
-              <Pressable
-                onPress={() => { setShowInviteModal(true); setGeneratedInvite(null); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }}
-                style={[styles.addBtn, { backgroundColor: '#DBEAFE' }]}
-              >
-                <Feather name="link" size={13} color="#1D4ED8" />
-                <Text style={[styles.addBtnText, { color: '#1D4ED8' }]}>Invite Link</Text>
-              </Pressable>
-              <Pressable
-                onPress={() => { Haptics.selectionAsync(); router.push('/director-settings-managers' as any); }}
-                style={[styles.addBtn, { backgroundColor: '#EEF4FF' }]}
-              >
-                <Feather name="shield" size={13} color={BLUE} />
-                <Text style={[styles.addBtnText, { color: BLUE }]}>Roles & Permissions</Text>
-              </Pressable>
-            </>
-          )}
-          {posMode && (
-            <Pressable onPress={() => openCreate('shop_display')} style={[styles.addBtn, { backgroundColor: '#DBEAFE' }]}>
-              <Feather name="monitor" size={13} color="#1D4ED8" />
-              <Text style={[styles.addBtnText, { color: '#1D4ED8' }]}>POS Screen</Text>
+            <Pressable
+              onPress={() => { setShowTerminated(true); Haptics.selectionAsync(); }}
+              style={{
+                flexDirection: 'row', alignItems: 'center', gap: 5,
+                paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20,
+                backgroundColor: showTerminated ? '#FEE2E2' : '#F3F4F6',
+                borderWidth: 1, borderColor: showTerminated ? '#EF4444' : BORDER,
+              }}
+            >
+              <Feather name="user-x" size={12} color={showTerminated ? '#991B1B' : MUTED} />
+              <Text style={{ fontSize: 12, fontWeight: '600', color: showTerminated ? '#991B1B' : MUTED }}>Terminated</Text>
             </Pressable>
-          )}
-        </View>
+          </View>
+        )}
       </View>
       )}
       {deletedMode ? (
@@ -364,9 +412,13 @@ export function DirectorUsersScreen({ modeOverride }: { modeOverride?: UsersMode
                 // Status badge values
                 let statusBg = '#F3F4F6', statusText = MUTED, statusLabel = '';
                 if (sp) {
-                  statusBg  = sp.approvedByAdmin ? '#D1FAE5' : '#FEF3C7';
-                  statusText = sp.approvedByAdmin ? '#065F46' : '#92400E';
-                  statusLabel = sp.approvedByAdmin ? 'Approved' : 'Pending';
+                  if (showTerminated) {
+                    statusBg  = '#FEE2E2'; statusText = '#991B1B'; statusLabel = 'Terminated';
+                  } else {
+                    statusBg  = sp.approvedByAdmin ? '#D1FAE5' : '#FEF3C7';
+                    statusText = sp.approvedByAdmin ? '#065F46' : '#92400E';
+                    statusLabel = sp.approvedByAdmin ? 'Approved' : 'Pending';
+                  }
                 } else if (wa) {
                   statusBg  = wa.status === 'approved' ? '#D1FAE5' : wa.status === 'rejected' ? '#FEE2E2' : '#FEF3C7';
                   statusText = wa.status === 'approved' ? '#065F46' : wa.status === 'rejected' ? '#991B1B' : '#92400E';
@@ -415,7 +467,7 @@ export function DirectorUsersScreen({ modeOverride }: { modeOverride?: UsersMode
                     </View>
 
                     {/* Approve / Remove buttons for pending staff */}
-                    {isPendingStaff && (
+                    {isPendingStaff && !showTerminated && (
                       <View style={{ flexDirection: 'row', gap: 10, marginTop: 14 }}>
                         <Pressable
                           onPress={(e) => { e.stopPropagation?.(); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); approveStaff(user.id, true); }}
@@ -444,6 +496,29 @@ export function DirectorUsersScreen({ modeOverride }: { modeOverride?: UsersMode
                           style={u$.rejectBtn}
                         >
                           <Text style={u$.rejectBtnText}>Remove</Text>
+                        </Pressable>
+                      </View>
+                    )}
+                    {/* Reinstate button for terminated staff */}
+                    {showTerminated && (
+                      <View style={{ flexDirection: 'row', gap: 10, marginTop: 14 }}>
+                        <Pressable
+                          onPress={(e) => {
+                            e.stopPropagation?.();
+                            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                            Alert.alert(
+                              'Reinstate Staff Member',
+                              `Reinstate ${user.name}? Their account will be reactivated and they'll be able to log in again.`,
+                              [
+                                { text: 'Cancel', style: 'cancel' },
+                                { text: 'Reinstate', onPress: () => reinstateMut.mutate(user.id) },
+                              ],
+                            );
+                          }}
+                          style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10, backgroundColor: '#D1FAE5' }}
+                        >
+                          <Feather name="user-check" size={13} color="#065F46" />
+                          <Text style={{ fontSize: 13, fontWeight: '600', color: '#065F46' }}>Reinstate</Text>
                         </Pressable>
                       </View>
                     )}
