@@ -3,6 +3,7 @@ import { defineConfig, devices } from '@playwright/test';
 const BASE_URL = process.env.PLAYWRIGHT_BASE_URL || `http://localhost:80`;
 
 export default defineConfig({
+  globalSetup: './e2e/global-setup.ts',
   testDir: './e2e',
   timeout: 60_000,
   expect: { timeout: 10_000 },

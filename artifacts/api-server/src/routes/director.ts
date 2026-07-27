@@ -2826,7 +2826,7 @@ router.patch('/wholesale/invoices/:orderId/mark-paid', async (req, res) => {
         : '';
       const invoiceUrl = baseUrl ? `${baseUrl}/api/invoices/w/${orderId}` : null;
 
-      import('../lib/emailService.js').then(({ sendEmail, buildWholesalePaymentReceivedEmail }) => {
+      import('../lib/emailService.js').then(async ({ sendEmail, buildWholesalePaymentReceivedEmail }) => {
         const html = buildWholesalePaymentReceivedEmail({
           companyName: account?.companyName ?? '',
           invoiceNumber: invNum,
@@ -2835,10 +2835,52 @@ router.patch('/wholesale/invoices/:orderId/mark-paid', async (req, res) => {
           paymentReference: paymentReference ?? null,
           invoiceUrl,
         });
+
+        // Generate PDF attachment (same as reminder flow)
+        let pdfBuffer: Buffer | undefined;
+        try {
+          const { generateInvoicePdf } = await import('../lib/invoicePdf.js');
+          const paymentTermsMap: Record<string, string> = {
+            pay_on_order: 'Pay on order', net_7: '7 days from invoice date',
+            net_14: '14 days from invoice date', net_30: '30 days from invoice date',
+            net_60: '60 days from invoice date',
+          };
+          const paymentTerms = paymentTermsMap[(account as any)?.paymentTerms ?? ''] ?? (account as any)?.paymentTerms ?? '30 days from invoice date';
+          const invoiceDate = updated.createdAt instanceof Date ? updated.createdAt : new Date(updated.createdAt as any);
+          const dueDateRaw = (updated as any).invoiceDueDate ?? (updated as any).dueDate;
+          const dueDate = dueDateRaw ? new Date(dueDateRaw) : invoiceDate;
+          const items = Array.isArray(updated.items) ? (updated.items as any[]).map((i: any) => ({
+            description: i.productName ?? i.name ?? i.description ?? 'Item',
+            qty:         Number(i.quantity ?? i.qty ?? 1),
+            unitCents:   Number(i.unitPriceCents ?? i.unitPrice ?? i.unit_price ?? i.unitCents ?? 0),
+          })) : [];
+          pdfBuffer = await generateInvoicePdf({
+            invoiceNumber:   invNum,
+            invoiceDate,
+            dueDate,
+            status:          'paid',
+            companyName:     account?.companyName ?? '',
+            abn:             account?.abn ?? null,
+            email:           user?.email ?? null,
+            address:         (account as any).deliveryAddress ?? null,
+            accountRef:      account?.id?.slice(0, 8).toUpperCase() ?? null,
+            items,
+            totalCents:      updated.totalCents ?? 0,
+            deliveryFeeCents: (updated as any).deliveryFeeCents ?? 0,
+            poReference:     updated.poReference ?? null,
+            notes:           updated.notes ?? null,
+            paymentTerms,
+            invoiceUrl,
+          });
+        } catch { /* PDF generation failure is non-fatal */ }
+
         sendEmail({
           to: recipientEmail,
           subject: `Payment Received – ${invNum}`,
           html,
+          ...(pdfBuffer
+            ? { attachments: [{ filename: `${invNum}.pdf`, content: pdfBuffer, contentType: 'application/pdf' }] }
+            : {}),
         }).catch(() => {});
       }).catch(() => {});
     }
