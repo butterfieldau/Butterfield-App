@@ -2786,7 +2786,67 @@ router.patch('/wholesale/invoices/:orderId/mark-paid', async (req, res) => {
     markStripeInvoicePaidOutOfBand(existing.stripeInvoiceId).catch(() => {});
   }
 
-  return res.json({ data: updated });
+  // Look up the account email, then fire a payment-received email (fire-and-forget)
+  let sentTo: string | null = null;
+  try {
+    const [account] = await db
+      .select()
+      .from(wholesaleAccountsTable)
+      .where(eq(wholesaleAccountsTable.id, existing.accountId));
+
+    const [user] = account?.userId
+      ? await db
+          .select({ email: usersTable.email })
+          .from(usersTable)
+          .where(eq(usersTable.id, account.userId))
+      : [null];
+
+    const recipientEmail =
+      account?.accountsEmail?.trim() ||
+      (account as any)?.email?.trim() ||
+      user?.email?.trim() ||
+      null;
+
+    if (recipientEmail) {
+      sentTo = recipientEmail;
+      const invNum =
+        updated.invoiceNumber ??
+        updated.poReference ??
+        `INV-${updated.id.slice(0, 6).toUpperCase()}`;
+      const totalAUD = ((updated.totalCents ?? 0) / 100).toLocaleString('en-AU', {
+        style: 'currency', currency: 'AUD',
+      });
+      const paidAtStr = new Date().toLocaleDateString('en-AU', {
+        day: '2-digit', month: 'short', year: 'numeric',
+      });
+      const baseUrl = process.env.REPLIT_DOMAINS
+        ? `https://${process.env.REPLIT_DOMAINS.split(',')[0]}`
+        : process.env.REPLIT_DEV_DOMAIN
+        ? `https://${process.env.REPLIT_DEV_DOMAIN}`
+        : '';
+      const invoiceUrl = baseUrl ? `${baseUrl}/api/invoices/w/${orderId}` : null;
+
+      import('../lib/emailService.js').then(({ sendEmail, buildWholesalePaymentReceivedEmail }) => {
+        const html = buildWholesalePaymentReceivedEmail({
+          companyName: account?.companyName ?? '',
+          invoiceNumber: invNum,
+          totalAUD,
+          paidAt: paidAtStr,
+          paymentReference: paymentReference ?? null,
+          invoiceUrl,
+        });
+        sendEmail({
+          to: recipientEmail,
+          subject: `Payment Received – ${invNum}`,
+          html,
+        }).catch(() => {});
+      }).catch(() => {});
+    }
+  } catch {
+    // Non-fatal — the invoice is already marked paid; just skip the email
+  }
+
+  return res.json({ data: updated, sentTo });
 });
 
 // Send an invoice payment reminder email to the wholesale customer

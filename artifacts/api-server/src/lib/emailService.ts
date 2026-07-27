@@ -379,6 +379,103 @@ export function buildWholesaleInvoiceEmail(opts: WholesaleInvoiceEmailOpts): str
 </html>`;
 }
 
+export function buildWholesalePaymentReceivedEmail(opts: {
+  companyName: string;
+  invoiceNumber: string;
+  totalAUD: string;
+  paidAt: string;
+  paymentReference?: string | null;
+  invoiceUrl?: string | null;
+}): string {
+  const { companyName, invoiceNumber, totalAUD, paidAt, paymentReference, invoiceUrl } = opts;
+
+  const refRow = paymentReference
+    ? '<tr>'
+      + '<td style="color:#7A8496;font-size:14px;padding:8px 0;border-bottom:1px solid #F0F2F5;font-family:Arial,sans-serif;">Reference</td>'
+      + '<td style="color:#172033;font-size:14px;font-weight:700;text-align:right;padding:8px 0;border-bottom:1px solid #F0F2F5;font-family:Arial,sans-serif;">' + paymentReference + '</td>'
+      + '</tr>'
+    : '';
+
+  const viewBtn = invoiceUrl
+    ? '<tr><td height="16"></td></tr>'
+      + '<tr><td style="text-align:center;">'
+      + '<a href="' + invoiceUrl + '" style="display:inline-block;background:#12213A;color:#ffffff;font-size:14px;font-weight:700;text-decoration:none;padding:14px 32px;border-radius:12px;font-family:Arial,sans-serif;">View Invoice</a>'
+      + '</td></tr>'
+    : '';
+
+  return '<!DOCTYPE html>'
+    + '<html lang="en">'
+    + '<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
+    + '<title>Payment Received - ' + invoiceNumber + '</title></head>'
+    + '<body style="margin:0;padding:0;background:#F6F8FB;font-family:Arial,sans-serif;">'
+    + '<table width="100%" cellpadding="0" cellspacing="0" style="background:#F6F8FB;padding:32px 16px;">'
+    + '<tr><td align="center">'
+    + '<table width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;">'
+
+    // Header card
+    + '<tr><td style="background:#12213A;border-radius:24px;padding:28px 32px;">'
+    + '<table width="100%" cellpadding="0" cellspacing="0"><tr>'
+    + '<td>'
+    + '<div style="color:#ffffff;font-size:26px;font-weight:900;letter-spacing:-0.5px;font-family:Arial,sans-serif;">Butterfield</div>'
+    + '<div style="color:rgba(255,255,255,0.6);font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;margin-top:6px;font-family:Arial,sans-serif;">Cookies &middot; Coffee &middot; Soft Serve</div>'
+    + '</td>'
+    + '<td align="right" valign="top">'
+    + '<span style="background:rgba(16,185,129,0.2);color:#D1FAE5;font-size:11px;font-weight:800;letter-spacing:1px;text-transform:uppercase;padding:7px 14px;border-radius:999px;font-family:Arial,sans-serif;">PAID</span>'
+    + '</td>'
+    + '</tr></table>'
+    + '</td></tr>'
+
+    + '<tr><td height="16"></td></tr>'
+
+    // Green payment confirmed card
+    + '<tr><td style="background:#DCFCE7;border:1px solid #86EFAC;border-radius:20px;padding:28px 32px;">'
+    + '<div style="color:#15803D;font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:1.2px;margin-bottom:10px;font-family:Arial,sans-serif;">Payment Received</div>'
+    + '<div style="color:#14532D;font-size:40px;font-weight:900;letter-spacing:-1px;margin-bottom:6px;font-family:Arial,sans-serif;">' + totalAUD + '</div>'
+    + '<div style="color:#166534;font-size:15px;font-weight:700;font-family:Arial,sans-serif;">' + invoiceNumber + '</div>'
+    + '<div style="color:#166534;font-size:13px;margin-top:4px;font-family:Arial,sans-serif;">Received ' + paidAt + '</div>'
+    + '</td></tr>'
+
+    + '<tr><td height="16"></td></tr>'
+
+    // Payment details card
+    + '<tr><td style="background:#ffffff;border:1px solid #E4E8F0;border-radius:20px;padding:24px 28px;">'
+    + '<div style="color:#12213A;font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:1.2px;margin-bottom:16px;font-family:Arial,sans-serif;">Payment Details</div>'
+    + '<table width="100%" cellpadding="0" cellspacing="0">'
+    + '<tr>'
+    + '<td style="color:#7A8496;font-size:14px;padding:8px 0;border-bottom:1px solid #F0F2F5;font-family:Arial,sans-serif;">Customer</td>'
+    + '<td style="color:#172033;font-size:14px;font-weight:700;text-align:right;padding:8px 0;border-bottom:1px solid #F0F2F5;font-family:Arial,sans-serif;">' + companyName + '</td>'
+    + '</tr>'
+    + '<tr>'
+    + '<td style="color:#7A8496;font-size:14px;padding:8px 0;border-bottom:1px solid #F0F2F5;font-family:Arial,sans-serif;">Invoice</td>'
+    + '<td style="color:#172033;font-size:14px;font-weight:700;text-align:right;padding:8px 0;border-bottom:1px solid #F0F2F5;font-family:Arial,sans-serif;">' + invoiceNumber + '</td>'
+    + '</tr>'
+    + refRow
+    + '<tr>'
+    + '<td style="color:#7A8496;font-size:14px;padding:8px 0;font-family:Arial,sans-serif;">Amount Paid</td>'
+    + '<td style="color:#15803D;font-size:16px;font-weight:900;text-align:right;padding:8px 0;font-family:Arial,sans-serif;">' + totalAUD + '</td>'
+    + '</tr>'
+    + '</table>'
+    + '</td></tr>'
+
+    + viewBtn
+
+    + '<tr><td height="24"></td></tr>'
+
+    // Footer
+    + '<tr><td style="text-align:center;padding-bottom:8px;">'
+    + '<div style="color:#12213A;font-size:15px;font-weight:900;margin-bottom:8px;font-family:Arial,sans-serif;">Butterfield Cookies PTY LTD</div>'
+    + '<div style="color:#7A8496;font-size:13px;line-height:22px;font-family:Arial,sans-serif;">ABN: 24 680 761 166</div>'
+    + '<div style="margin:4px 0;"><a href="mailto:accounts@butterfieldcookies.com.au" style="color:#2F80ED;font-size:13px;font-weight:700;text-decoration:none;font-family:Arial,sans-serif;">accounts@butterfieldcookies.com.au</a></div>'
+    + '<div style="color:#172033;font-size:14px;font-weight:700;margin-top:16px;font-family:Arial,sans-serif;">Thank you for your continued partnership.</div>'
+    + '</td></tr>'
+
+    + '<tr><td height="24"></td></tr>'
+    + '</table>'
+    + '</td></tr>'
+    + '</table>'
+    + '</body></html>';
+}
+
 export function buildInvoiceReminderEmail(opts: {
   companyName: string;
   contactName: string;

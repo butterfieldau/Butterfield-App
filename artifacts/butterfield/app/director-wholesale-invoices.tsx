@@ -382,11 +382,17 @@ export default function DirectorWholesaleInvoices() {
   const markPaidMutation = useMutation({
     mutationFn: ({ orderId, paymentReference }: { orderId: string; paymentReference?: string }) =>
       api.director.markWholesaleInvoicePaid(orderId, paymentReference),
-    onSuccess: () => {
+    onSuccess: (res) => {
       queryClient.invalidateQueries({ queryKey: ['director-wholesale-invoices'] });
       setSelectedOrder(null);
       setMarkPaidTarget(null);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      const sentTo = (res as any)?.sentTo;
+      if (sentTo) {
+        Alert.alert('Invoice Marked as Paid', `Confirmation email sent to ${sentTo}.`);
+      } else {
+        Alert.alert('Invoice Marked as Paid', 'Invoice updated. No accounts email on file — no confirmation sent.');
+      }
     },
     onError: () => Alert.alert('Error', 'Could not mark invoice as paid. Please try again.'),
   });
@@ -441,8 +447,11 @@ export default function DirectorWholesaleInvoices() {
         order={selectedOrder}
         onClose={() => setSelectedOrder(null)}
         onMarkPaid={(id) => {
+          // iOS cannot show two modals simultaneously — dismiss the detail sheet
+          // first, then open the confirmation sheet after the animation completes.
           const order = rawOrders.find((o) => o.id === id);
-          setMarkPaidTarget(order ?? null);
+          setSelectedOrder(null);
+          setTimeout(() => setMarkPaidTarget(order ?? null), 380);
         }}
         marking={markPaidMutation.isPending}
         onSendReminder={(id) => sendReminderMutation.mutate(id)}
