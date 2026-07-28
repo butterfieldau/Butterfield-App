@@ -601,7 +601,7 @@ export default function DirectorOrderDetailModal({
                   const addr = order.deliveryAddress ?? [order.street, (order as any).suburb, (order as any).postcode].filter(Boolean).join(', ');
                   return (
                     <Pressable
-                      onPress={() => { openMap(addr); Haptics.selectionAsync(); }}
+                      onPress={() => { openMapWithChoice(addr); Haptics.selectionAsync(); }}
                       style={{ flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: BRAND + '10', borderRadius: 12, padding: 12, borderWidth: 1, borderColor: BRAND + '30' }}
                     >
                       <Feather name="navigation" size={15} color={BRAND} />
