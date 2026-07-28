@@ -52,14 +52,25 @@ export default function DirectorOrderCard({ order, onPress, onPrint, printing }:
         </View>
         {!isWholesale && (() => {
           const isDelivery = order.type === 'delivery' || order.deliveryType === 'delivery';
+          const isDineIn = (order as any).source === 'dine_in';
+          const tableNumber = (order as any).tableNumber ?? null;
           return (
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 6 }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: isDelivery ? BRAND_DIM : GREEN_DIM, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 }}>
-                <Feather name={isDelivery ? 'truck' : 'shopping-bag'} size={11} color={isDelivery ? BRAND : GREEN} />
-                <Text style={{ fontSize: 11, fontWeight: '700', color: isDelivery ? BRAND : GREEN }}>
-                  {isDelivery ? 'Delivery' : (order.scheduledFor ? 'Pickup' : 'ASAP Pickup')}
-                </Text>
-              </View>
+              {isDineIn ? (
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#FEF3C7', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 }}>
+                  <Feather name="coffee" size={11} color={AMBER} />
+                  <Text style={{ fontSize: 11, fontWeight: '700', color: AMBER }}>
+                    {tableNumber ? `Table ${tableNumber}` : 'Dine-In'}
+                  </Text>
+                </View>
+              ) : (
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: isDelivery ? BRAND_DIM : GREEN_DIM, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 }}>
+                  <Feather name={isDelivery ? 'truck' : 'shopping-bag'} size={11} color={isDelivery ? BRAND : GREEN} />
+                  <Text style={{ fontSize: 11, fontWeight: '700', color: isDelivery ? BRAND : GREEN }}>
+                    {isDelivery ? 'Delivery' : (order.scheduledFor ? 'Pickup' : 'ASAP Pickup')}
+                  </Text>
+                </View>
+              )}
               {isDelivery && (order.deliveryAddress || order.street) && (() => {
                 const addr = order.deliveryAddress ?? order.street ?? '';
                 return (

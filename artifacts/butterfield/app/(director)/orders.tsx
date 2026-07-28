@@ -67,6 +67,8 @@ function LiveOrderCard({ order, onPress }: { order: ApiOrder; onPress: () => voi
   const items = normalizeOrderItems(order.items);
   const summary = summarizeOrderItems(items);
   const label = STATUS_LABEL[order.status] ?? order.status;
+  const isDineIn = (order as any).source === 'dine_in';
+  const tableNumber = (order as any).tableNumber ?? null;
   const elapsed = (() => {
     const mins = Math.floor((Date.now() - new Date(order.createdAt).getTime()) / 60000);
     if (mins < 1) return 'Now';
@@ -79,8 +81,8 @@ function LiveOrderCard({ order, onPress }: { order: ApiOrder; onPress: () => voi
       onPress={onPress}
       style={({ pressed }) => ({
         width: 200, backgroundColor: SURFACE_RAISED, borderRadius: 14, padding: 12,
-        borderWidth: 1, borderColor: BORDER, marginRight: 10,
-        borderTopWidth: 3, borderTopColor: BRAND,
+        borderWidth: 1, borderColor: isDineIn ? AMBER + '60' : BORDER, marginRight: 10,
+        borderTopWidth: 3, borderTopColor: isDineIn ? AMBER : BRAND,
         opacity: pressed ? 0.9 : 1,
       })}
     >
@@ -92,6 +94,13 @@ function LiveOrderCard({ order, onPress }: { order: ApiOrder; onPress: () => voi
           <Text style={{ fontSize: 9, fontWeight: '700', color: col?.text ?? TEXT_MUTED }}>{label}</Text>
         </View>
       </View>
+      {isDineIn && (
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, marginBottom: 4 }}>
+          <View style={{ backgroundColor: '#FEF3C7', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 }}>
+            <Text style={{ fontSize: 9, fontWeight: '700', color: AMBER }}>{tableNumber ? `TABLE ${tableNumber}` : 'DINE-IN'}</Text>
+          </View>
+        </View>
+      )}
       {order.customerName && (
         <Text style={{ fontSize: 11, color: TEXT_MUTED, marginBottom: 4 }} numberOfLines={1}>{order.customerName}</Text>
       )}
@@ -116,7 +125,11 @@ function OrderListRow({ order, isLast, onPress }: { order: ApiOrder; isLast?: bo
   const orderRef = `#${order.orderNumber ?? order.id.slice(0, 6).toUpperCase()}`;
   const items = normalizeOrderItems(order.items);
   const itemCount = items.reduce((s, item) => s + (item.quantity ?? 1), 0);
-  const orderType = order.type === 'delivery' || order.deliveryType === 'delivery' ? 'Delivery' : 'Pickup';
+  const isDineIn = (order as any).source === 'dine_in';
+  const tableNumber = (order as any).tableNumber ?? null;
+  const orderType = isDineIn
+    ? (tableNumber ? `Table ${tableNumber}` : 'Dine-In')
+    : order.type === 'delivery' || order.deliveryType === 'delivery' ? 'Delivery' : 'Pickup';
   const timeLabel = fmtTime(order.createdAt);
 
   return (
@@ -140,7 +153,12 @@ function OrderListRow({ order, isLast, onPress }: { order: ApiOrder; isLast?: bo
             <View style={[ios.badge, { backgroundColor: col.bg }]}>
               <Text style={[ios.badgeText, { color: col.text }]}>{lbl}</Text>
             </View>
-            <Text style={ios.listRowMeta} numberOfLines={1}>{orderType} • {itemCount} item{itemCount !== 1 ? 's' : ''}</Text>
+            {isDineIn && (
+              <View style={{ backgroundColor: '#FEF3C7', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 }}>
+                <Text style={{ fontSize: 10, fontWeight: '700', color: AMBER }}>{orderType}</Text>
+              </View>
+            )}
+            <Text style={ios.listRowMeta} numberOfLines={1}>{isDineIn ? '' : `${orderType} • `}{itemCount} item{itemCount !== 1 ? 's' : ''}</Text>
           </View>
           <Text style={ios.listRowTotal}>{fmtCents(order.totalCents ?? 0)}</Text>
         </View>

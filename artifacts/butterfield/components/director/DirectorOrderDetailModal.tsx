@@ -147,7 +147,10 @@ export default function DirectorOrderDetailModal({
   const discountCents = order.discountCents ?? 0;
   const loyaltyUsed   = order.loyaltyPointsUsed ?? 0;
   const loyaltyEarned = order.loyaltyPointsEarned ?? 0;
-  const orderType = order.type === 'delivery' || order.deliveryType === 'delivery'
+  const isDineIn = (order as any).source === 'dine_in';
+  const tableNumber = (order as any).tableNumber ?? null;
+  const orderType = isDineIn ? 'Dine-In'
+    : order.type === 'delivery' || order.deliveryType === 'delivery'
     ? 'Delivery' : order.scheduledFor ? 'Scheduled' : 'Pickup';
 
   const triggerCancel = (status: string) => {
@@ -590,8 +593,31 @@ export default function DirectorOrderDetailModal({
             </View>
           )}
 
+          {/* ── Dine-in table details ──────────────────────────────── */}
+          {isDineIn && (
+            <View style={[d.card, { marginBottom: 20 }]}>
+              <Text style={d.cardTitle}>Dine-In Details</Text>
+              <View style={{ gap: 8, marginTop: 10 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: AMBER + '18', borderRadius: 12, padding: 12, borderWidth: 1, borderColor: AMBER + '40' }}>
+                  <Feather name="coffee" size={15} color={AMBER} />
+                  <Text style={{ flex: 1, fontSize: 15, fontWeight: '600', color: AMBER }}>
+                    Dine-in{tableNumber ? ` · Table ${tableNumber}` : ''}
+                  </Text>
+                </View>
+                {(order.contactName || order.contactPhone) && (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                    <Feather name="user" size={15} color={TEXT_MUTED} />
+                    <Text style={{ fontSize: 14, color: TEXT }}>
+                      {[order.contactName, order.contactPhone].filter(Boolean).join(' · ')}
+                    </Text>
+                  </View>
+                )}
+              </View>
+            </View>
+          )}
+
           {/* ── Delivery / pickup details ───────────────────────────── */}
-          {(order.deliveryAddress || order.street || order.scheduledDate || order.contactName) && (
+          {!isDineIn && (order.deliveryAddress || order.street || order.scheduledDate || order.contactName) && (
             <View style={[d.card, { marginBottom: 20 }]}>
               <Text style={d.cardTitle}>
                 {order.type === 'delivery' || order.deliveryType === 'delivery' ? 'Delivery Details' : order.scheduledFor ? 'Pickup Details' : 'ASAP Pickup'}

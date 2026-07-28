@@ -1547,6 +1547,8 @@ export interface ApiOrder {
   isPaid?: boolean | null;
   deliveryFeeCents?: number | null;
   receiptEmailSentAt?: string | null;
+  source?: string | null;
+  tableNumber?: string | null;
 }
 
 export interface PosTransaction {

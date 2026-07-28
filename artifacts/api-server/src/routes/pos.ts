@@ -1581,6 +1581,8 @@ router.get('/orders', async (req, res) => {
         COALESCE(o.surcharge_cents, 0) AS surcharge_cents,
         o.split_payments,
         o.discount_cents,
+        o.source,
+        o.table_number,
         u.name  AS customer_name,
         su.name AS staff_name
       FROM orders o
@@ -1612,6 +1614,8 @@ router.get('/orders', async (req, res) => {
       surcharge_cents: string | number;
       split_payments: any;
       discount_cents: string | number;
+      source: string | null;
+      table_number: string | null;
       customer_name: string | null;
       staff_name: string | null;
     }>;
@@ -1639,6 +1643,8 @@ router.get('/orders', async (req, res) => {
         surchargeCents: Number(r.surcharge_cents ?? 0),
         splitPayments: r.split_payments ?? null,
         discountCents: Number(r.discount_cents ?? 0),
+        source: r.source ?? 'pos',
+        tableNumber: r.table_number ?? null,
         customerName: r.customer_name,
         staffName: r.staff_name,
       })),

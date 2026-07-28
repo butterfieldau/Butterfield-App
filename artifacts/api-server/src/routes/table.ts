@@ -404,8 +404,8 @@ router.post('/orders', tableRateLimit, async (req, res) => {
       void sendNotification({
         userIds,
         type: 'new_table_order',
-        title: 'New Table Order',
-        body: `Table ${tableNumber} — ${itemCount} item${itemCount !== 1 ? 's' : ''} · $${(totalCents / 100).toFixed(2)}`,
+        title: 'New Dine-In Order',
+        body: `New order — Table ${tableNumber} · ${itemCount} item${itemCount !== 1 ? 's' : ''} · $${(totalCents / 100).toFixed(2)}`,
         data: { orderId, tableNumber, storeId, screen: '/(staff)/orders' },
         channelId: 'butterfield-staff',
       }).catch((err: any) => req.log.warn({ err, orderId }, 'Table order notification failed'));
