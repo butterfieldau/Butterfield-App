@@ -1,0 +1,345 @@
+/**
+ * Table ordering endpoints — unauthenticated guest access.
+ *
+ * Routes:
+ *   GET  /table/:storeId/:tableNumber  — serves the dine-in SPA shell
+ *   POST /table/payment-intent         — create Stripe PI for a table order
+ *   POST /table/orders                 — record a paid table order
+ */
+
+import { Router } from 'express';
+import { randomUUID } from 'crypto';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { db, ordersTable, usersTable, staffProfilesTable } from '@workspace/db';
+import { eq, inArray, sql } from 'drizzle-orm';
+import { prepareRetailCheckout } from '../lib/retailCheckout.js';
+import { generateOrderNumber } from '../lib/orderNumber.js';
+import { sendNotification } from '../lib/notificationService.js';
+
+const router = Router();
+
+// ── Runtime migration ─────────────────────────────────────────────────────────
+let tableSchemaMigrated = false;
+async function ensureTableSchemaReady() {
+  if (tableSchemaMigrated) return;
+  await db.execute(
+    sql`ALTER TABLE orders ADD COLUMN IF NOT EXISTS table_number text`,
+  );
+  tableSchemaMigrated = true;
+}
+
+// ── Rate limiting (10 req / min per IP) ───────────────────────────────────────
+type RateBucket = { count: number; resetAt: number };
+const rateBuckets = new Map<string, RateBucket>();
+
+function getIp(req: any): string {
+  const fwd = req.headers['x-forwarded-for'];
+  if (Array.isArray(fwd)) return fwd[0] ?? req.ip ?? 'unknown';
+  if (typeof fwd === 'string' && fwd.trim()) return fwd.split(',')[0]!.trim();
+  return req.ip ?? req.socket?.remoteAddress ?? 'unknown';
+}
+
+function tableRateLimit(req: any, res: any, next: any) {
+  const key = `table:${getIp(req)}`;
+  const now = Date.now();
+  const bucket = rateBuckets.get(key);
+
+  if (!bucket || bucket.resetAt <= now) {
+    rateBuckets.set(key, { count: 1, resetAt: now + 60_000 });
+    return next();
+  }
+  if (bucket.count >= 10) {
+    const retryAfter = Math.max(1, Math.ceil((bucket.resetAt - now) / 1000));
+    res.setHeader('Retry-After', String(retryAfter));
+    return res.status(429).json({ error: 'Too many requests. Please wait a moment and try again.' });
+  }
+  bucket.count += 1;
+  rateBuckets.set(key, bucket);
+  return next();
+}
+
+// Periodically prune expired buckets to prevent unbounded memory growth.
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, bucket] of rateBuckets.entries()) {
+    if (bucket.resetAt <= now) rateBuckets.delete(key);
+  }
+}, 5 * 60_000).unref();
+
+// ── Helper: canonical QR URL ──────────────────────────────────────────────────
+export function generateTableQrUrl(storeId: string, tableNumber: string): string {
+  const domain =
+    process.env.REPLIT_DOMAINS?.split(',')[0]?.trim()
+    ?? process.env.REPLIT_DEV_DOMAIN
+    ?? '';
+  const base = domain ? `https://${domain}` : '';
+  return `${base}/api/table/${encodeURIComponent(storeId)}/${encodeURIComponent(tableNumber)}`;
+}
+
+// ── SPA shell ─────────────────────────────────────────────────────────────────
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const PUBLIC_DIR = path.resolve(__dirname, '../../public');
+
+router.get('/:storeId/:tableNumber', async (req, res) => {
+  const { storeId, tableNumber } = req.params;
+
+  // Try to serve the pre-built SPA. Fall back to an inline holding page so
+  // the QR link is never a dead end even before the web-app task ships.
+  const spaPath = path.join(PUBLIC_DIR, 'table', 'index.html');
+
+  try {
+    const fs = await import('node:fs/promises');
+    let html = await fs.readFile(spaPath, 'utf8');
+
+    // Inject store + table metadata so the SPA can read them without query params.
+    const configBlock = `<script id="table-config" type="application/json">${JSON.stringify({ storeId, tableNumber })}</script>`;
+    html = html.replace('</head>', `${configBlock}\n</head>`);
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    return res.send(html);
+  } catch {
+    // SPA not yet deployed — serve a minimal holding page.
+    const holding = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Order at the Table — Butterfield Cookies</title>
+  <script id="table-config" type="application/json">${JSON.stringify({ storeId, tableNumber })}</script>
+  <style>
+    body { font-family: system-ui, sans-serif; display: flex; flex-direction: column; align-items: center;
+           justify-content: center; min-height: 100dvh; margin: 0; background: #fdf8f3; color: #1a1a1a; }
+    h1 { font-size: 1.5rem; margin-bottom: 0.5rem; }
+    p  { color: #555; text-align: center; max-width: 26rem; }
+  </style>
+</head>
+<body>
+  <h1>🍪 Table ${tableNumber}</h1>
+  <p>Our table ordering experience is coming soon. In the meantime, please ask a staff member for assistance.</p>
+</body>
+</html>`;
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    return res.send(holding);
+  }
+});
+
+// ── POST /table/payment-intent ────────────────────────────────────────────────
+router.post('/payment-intent', tableRateLimit, async (req, res) => {
+  await ensureTableSchemaReady();
+  const { items: rawItems, tableNumber, storeId } = req.body ?? {};
+
+  if (!tableNumber || typeof tableNumber !== 'string') {
+    return res.status(400).json({ error: 'tableNumber is required.' });
+  }
+  if (!storeId || typeof storeId !== 'string') {
+    return res.status(400).json({ error: 'storeId is required.' });
+  }
+
+  let computed: { totalCents: number; itemizedCents?: Array<{ unitCents: number; lineCents: number }> };
+  let itemizedCents: Array<{ unitCents: number; lineCents: number }>;
+
+  try {
+    const result = await prepareRetailCheckout({
+      userId: 'guest',
+      userRole: 'customer',
+      rawItems,
+      orderType: 'pickup',
+      paymentMethod: 'card',
+      discountCode: undefined,
+      claimedRewardId: undefined,
+      loyaltyPointsUsed: 0,
+      markClaimAppliedToCart: false,
+      useFreeCoffeeReward: false,
+    });
+    computed = result.computed;
+    itemizedCents = result.computed.itemizedCents ?? [];
+  } catch (err: any) {
+    return res.status(400).json({ error: err.message ?? 'Could not compute order total.' });
+  }
+
+  if (computed.totalCents === 0) {
+    return res.json({ paymentRequired: false, clientSecret: null, amountCents: 0 });
+  }
+  if (computed.totalCents < 50) {
+    return res.status(400).json({ error: 'Amount must be at least 50 cents.' });
+  }
+
+  try {
+    const { getUncachableStripeClient } = await import('../stripeClient.js');
+    const stripe = await getUncachableStripeClient();
+    const intent = await stripe.paymentIntents.create({
+      amount: computed.totalCents,
+      currency: 'aud',
+      automatic_payment_methods: { enabled: true },
+      metadata: {
+        source: 'dine_in',
+        tableNumber,
+        storeId,
+        computedAmountCents: String(computed.totalCents),
+      },
+    });
+
+    return res.json({
+      clientSecret: intent.client_secret,
+      paymentIntentId: intent.id,
+      amountCents: computed.totalCents,
+      itemizedCents,
+    });
+  } catch (err: any) {
+    req.log.error({ err }, 'Table payment intent creation failed');
+    return res.status(500).json({ error: 'Payment processing unavailable. Please try again.' });
+  }
+});
+
+// ── POST /table/orders ────────────────────────────────────────────────────────
+router.post('/orders', tableRateLimit, async (req, res) => {
+  await ensureTableSchemaReady();
+  const {
+    stripePaymentIntentId,
+    items: rawItems,
+    tableNumber,
+    storeId,
+    contactName,
+    contactPhone,
+    notes,
+  } = req.body ?? {};
+
+  // ── Input validation ───────────────────────────────────────────────────────
+  if (!stripePaymentIntentId || typeof stripePaymentIntentId !== 'string') {
+    return res.status(400).json({ error: 'stripePaymentIntentId is required.' });
+  }
+  if (!tableNumber || typeof tableNumber !== 'string') {
+    return res.status(400).json({ error: 'tableNumber is required.' });
+  }
+  if (!storeId || typeof storeId !== 'string') {
+    return res.status(400).json({ error: 'storeId is required.' });
+  }
+
+  // ── Duplicate-use guard ────────────────────────────────────────────────────
+  const [existingOrder] = await db
+    .select({ id: ordersTable.id })
+    .from(ordersTable)
+    .where(eq(ordersTable.stripePaymentIntentId, stripePaymentIntentId));
+  if (existingOrder) {
+    return res.status(409).json({ error: 'Payment intent has already been used.' });
+  }
+
+  // ── Re-price server-side ───────────────────────────────────────────────────
+  let totalCents: number;
+  let pricedItems: any[];
+
+  try {
+    const result = await prepareRetailCheckout({
+      userId: 'guest',
+      userRole: 'customer',
+      rawItems,
+      orderType: 'pickup',
+      paymentMethod: 'card',
+      discountCode: undefined,
+      claimedRewardId: undefined,
+      loyaltyPointsUsed: 0,
+      markClaimAppliedToCart: false,
+      useFreeCoffeeReward: false,
+    });
+    totalCents = result.computed.totalCents;
+    pricedItems = result.items.map((item: any, idx: number) => {
+      const priced = result.computed.itemizedCents?.[idx];
+      if (!priced) return item;
+      return { ...item, unitCents: priced.unitCents, lineCents: priced.lineCents };
+    });
+  } catch (err: any) {
+    return res.status(400).json({ error: err.message ?? 'Could not verify order total.' });
+  }
+
+  // ── Verify Stripe PI ───────────────────────────────────────────────────────
+  try {
+    const { getUncachableStripeClient } = await import('../stripeClient.js');
+    const stripe = await getUncachableStripeClient();
+    const pi = await stripe.paymentIntents.retrieve(stripePaymentIntentId);
+
+    if (pi.metadata?.source !== 'dine_in') {
+      return res.status(403).json({ error: 'Payment intent was not created for table ordering.' });
+    }
+    if (pi.metadata?.storeId !== storeId) {
+      return res.status(403).json({ error: 'Payment intent store does not match.' });
+    }
+    if (pi.status !== 'succeeded') {
+      return res.status(400).json({ error: `Payment has not been completed (status: ${pi.status}).` });
+    }
+    if (pi.currency !== 'aud') {
+      return res.status(400).json({ error: 'Payment currency is not AUD.' });
+    }
+    if (Math.abs(pi.amount - totalCents) > 1) {
+      return res.status(400).json({ error: 'Payment amount does not match order total.' });
+    }
+  } catch (err: any) {
+    if (err?.message?.startsWith('Payment intent') || err?.message?.startsWith('Payment has') || err?.message?.startsWith('Payment currency') || err?.message?.startsWith('Payment amount')) {
+      return res.status(400).json({ error: err.message });
+    }
+    req.log.error({ err, stripePaymentIntentId }, 'Table Stripe PI verification failed');
+    return res.status(400).json({ error: 'Payment verification failed. Please try again.' });
+  }
+
+  // ── Insert order ───────────────────────────────────────────────────────────
+  const orderId = randomUUID();
+  const orderNumber = await generateOrderNumber();
+  const resolvedStoreId = storeId || null;
+  const resolvedNotes = notes || null;
+  const resolvedContactName = contactName || null;
+  const resolvedContactPhone = contactPhone || null;
+  const itemsJson = JSON.stringify(pricedItems);
+
+  await db.execute(sql`
+    INSERT INTO orders (
+      id, order_number, user_id, status, type, store_id,
+      notes, total_cents,
+      stripe_payment_intent_id, stripe_payment_status,
+      items, loyalty_points_earned, loyalty_points_used, discount_cents,
+      source, table_number, contact_name, contact_phone,
+      created_at, updated_at
+    ) VALUES (
+      ${orderId}, ${orderNumber}, 'guest', 'received', 'pickup', ${resolvedStoreId},
+      ${resolvedNotes}, ${totalCents},
+      ${stripePaymentIntentId}, 'paid',
+      ${sql.raw(`'${itemsJson.replace(/'/g, "''")}'::jsonb`)}, 0, 0, 0,
+      'dine_in', ${tableNumber}, ${resolvedContactName}, ${resolvedContactPhone},
+      NOW(), NOW()
+    )
+  `);
+
+  // ── Notify staff ───────────────────────────────────────────────────────────
+  try {
+    const [internalUsers, authorisedStaff] = await Promise.all([
+      db.select({ id: usersTable.id }).from(usersTable).where(inArray(usersTable.role, ['director', 'manager', 'master'])),
+      db.select({ id: staffProfilesTable.userId }).from(staffProfilesTable).where(eq(staffProfilesTable.canViewOrders, true)),
+    ]);
+
+    const userIds = [...new Set([...internalUsers.map((u) => u.id), ...authorisedStaff.map((u) => u.id)])];
+    if (userIds.length > 0) {
+      const itemCount = Array.isArray(pricedItems) ? pricedItems.length : 1;
+      void sendNotification({
+        userIds,
+        type: 'new_table_order',
+        title: 'New Table Order',
+        body: `Table ${tableNumber} — ${itemCount} item${itemCount !== 1 ? 's' : ''} · $${(totalCents / 100).toFixed(2)}`,
+        data: { orderId, tableNumber, storeId, screen: '/(staff)/orders' },
+        channelId: 'butterfield-staff',
+      }).catch((err: any) => req.log.warn({ err, orderId }, 'Table order notification failed'));
+    }
+  } catch (notifyErr) {
+    req.log.warn({ notifyErr, orderId }, 'Table order staff notification setup failed');
+  }
+
+  return res.status(201).json({
+    data: {
+      id: orderId,
+      orderNumber,
+      tableNumber,
+      storeId,
+      totalCents,
+      source: 'dine_in',
+    },
+  });
+});
+
+export default router;

@@ -135,6 +135,9 @@ function resolveDirectorPermission(method: string, path: string): ManagerPermiss
   // POS thresholds — director only
   if (path === '/pos-thresholds') return 'director_only';
 
+  // Table QR URL generator — accessible to directors and managers with settings perm
+  if (path === '/table-qr') return 'settings';
+
   // Unknown paths: block managers
   return 'director_only';
 }
@@ -5339,6 +5342,22 @@ router.patch('/build-a-box/config', async (req, res) => {
     return res.status(500).json({ error: 'Failed to update Build a Box config' });
   }
 });
+
+// u2500u2500 Table QR URL u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500u2500
+router.get("/table-qr", async (req, res) => {
+  const { storeId, tableNumber } = req.query as Record<string, string>;
+  if (!storeId || !tableNumber) {
+    return res.status(400).json({ error: "storeId and tableNumber are required." });
+  }
+  const domain =
+    process.env.REPLIT_DOMAINS?.split(",")[0]?.trim()
+    ?? process.env.REPLIT_DEV_DOMAIN
+    ?? "";
+  const base = domain ? `https://${domain}` : "";
+  const url = `${base}/api/table/${encodeURIComponent(storeId)}/${encodeURIComponent(tableNumber)}`;
+  return res.json({ data: { url } });
+});
+
 
 // ── Login History ─────────────────────────────────────────────────────────────
 router.get('/login-history', async (req, res) => {
