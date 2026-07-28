@@ -1,4 +1,3 @@
-import { ShoppingCart } from "lucide-react";
 import { useApp } from "../context";
 import { formatCents } from "../utils";
 
@@ -12,27 +11,22 @@ export function CartBar({ onOpen }: Props) {
   if (cartCount === 0) return null;
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-40 px-4 pb-4 safe-bottom">
+    <div className="fixed bottom-0 left-0 right-0 z-40 px-4 pb-4 mb-safe pointer-events-none">
       <button
         onClick={onOpen}
-        className="w-full max-w-md mx-auto flex items-center justify-between
-                   bg-[#0b70f8] text-white px-4 py-3.5 rounded-2xl shadow-lg
-                   active:scale-[0.98] transition-transform"
-        style={{
-          boxShadow: "0 4px 20px rgba(11,112,248,0.40)",
-          display: "flex",
-        }}
+        className="w-full max-w-lg mx-auto flex items-center justify-between
+                   bg-[#1A1A1A] text-white px-5 py-4 rounded-2xl
+                   active:scale-[0.97] transition-transform pointer-events-auto"
+        style={{ boxShadow: "0 8px 32px rgba(0,0,0,0.28), 0 2px 8px rgba(0,0,0,0.14)" }}
+        data-testid="cart-bar"
       >
-        <div className="flex items-center gap-2">
-          <div className="relative">
-            <ShoppingCart size={20} />
-            <span className="absolute -top-2 -right-2 bg-white text-[#0b70f8] text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center">
-              {cartCount}
-            </span>
+        <div className="flex items-center gap-3">
+          <div className="w-7 h-7 rounded-full bg-[#C17A3A] flex items-center justify-center shrink-0">
+            <span className="text-white text-xs font-bold leading-none">{cartCount}</span>
           </div>
-          <span className="font-semibold">View order</span>
+          <span className="font-semibold text-[15px] tracking-tight">View order</span>
         </div>
-        <span className="font-bold text-base">{formatCents(cartTotal)}</span>
+        <span className="font-bold text-[15px] tracking-tight">{formatCents(cartTotal)}</span>
       </button>
     </div>
   );

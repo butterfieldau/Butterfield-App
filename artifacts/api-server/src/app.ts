@@ -39,6 +39,9 @@ function isAllowedOrigin(origin: string): boolean {
 
   try {
     const parsed = new URL(origin);
+    // Always allow localhost — used by Playwright, local dev browsers, and the
+    // table SPA's <script type="module" crossorigin> requests in dev environments.
+    if (parsed.hostname === 'localhost' || parsed.hostname === '127.0.0.1') return true;
     return allowedOrigins.includes(`${parsed.protocol}//${parsed.host}`);
   } catch {
     return false;

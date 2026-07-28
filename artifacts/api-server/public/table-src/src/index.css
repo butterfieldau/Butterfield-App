@@ -1,13 +1,6 @@
 @import "tailwindcss";
 
 @theme {
-  --color-brand-blue: #0b70f8;
-  --color-brand-blue-light: #00adee;
-  --color-brand-warm: #fdf8f3;
-  --color-brand-cookie: #c97b4a;
-  --color-brand-cookie-dark: #a85f30;
-  --color-brand-text: #1a1a1a;
-  --color-brand-muted: #6b7280;
   --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 }
 
@@ -21,28 +14,62 @@ html, body, #root {
 
 body {
   margin: 0;
-  background: #fdf8f3;
-  color: #1a1a1a;
+  background: #FDFCFA;
+  color: #1A1A1A;
   font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   -webkit-font-smoothing: antialiased;
+  -webkit-text-size-adjust: 100%;
 }
 
-/* Smooth sheet transitions */
-.sheet-enter {
-  transform: translateY(100%);
+/* Sheet slide-up */
+@keyframes sheet-up {
+  from { transform: translateY(100%); }
+  to   { transform: translateY(0); }
 }
-.sheet-enter-active {
-  transform: translateY(0);
-  transition: transform 0.3s cubic-bezier(0.32, 0.72, 0, 1);
+@keyframes fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
 }
-.sheet-exit {
-  transform: translateY(0);
+@keyframes slide-in-right {
+  from { transform: translateX(28px); opacity: 0; }
+  to   { transform: translateX(0);    opacity: 1; }
 }
-.sheet-exit-active {
-  transform: translateY(100%);
-  transition: transform 0.25s cubic-bezier(0.32, 0.72, 0, 1);
+@keyframes slide-in-left {
+  from { transform: translateX(-28px); opacity: 0; }
+  to   { transform: translateX(0);     opacity: 1; }
+}
+@keyframes pop-in {
+  0%   { transform: scale(0.92); opacity: 0; }
+  100% { transform: scale(1);    opacity: 1; }
 }
 
-/* Safe area */
+.animate-sheet-up {
+  animation: sheet-up 0.34s cubic-bezier(0.32, 0.72, 0, 1) forwards;
+}
+.animate-fade-in {
+  animation: fade-in 0.2s ease forwards;
+}
+.animate-slide-in-right {
+  animation: slide-in-right 0.26s cubic-bezier(0.32, 0.72, 0, 1) forwards;
+}
+.animate-slide-in-left {
+  animation: slide-in-left 0.26s cubic-bezier(0.32, 0.72, 0, 1) forwards;
+}
+.animate-pop-in {
+  animation: pop-in 0.22s cubic-bezier(0.32, 0.72, 0, 1) forwards;
+}
+
+/* Safe-area helpers */
 .safe-top    { padding-top:    env(safe-area-inset-top,    0px); }
 .safe-bottom { padding-bottom: env(safe-area-inset-bottom, 0px); }
+.mb-safe     { margin-bottom:  env(safe-area-inset-bottom, 0px); }
+
+/* Hide scrollbars */
+.no-scrollbar { scrollbar-width: none; -ms-overflow-style: none; }
+.no-scrollbar::-webkit-scrollbar { display: none; }
+
+/* Input resets */
+input, textarea {
+  -webkit-appearance: none;
+  border-radius: 0;
+}

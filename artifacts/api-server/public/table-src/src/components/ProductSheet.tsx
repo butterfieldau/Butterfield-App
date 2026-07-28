@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { X, Plus, Minus, ChevronDown, ChevronUp } from "lucide-react";
+import { X, Plus, Minus } from "lucide-react";
 import type { Product, CartItem, OptionGroupOption } from "../types";
 import { useProductDetail } from "../hooks/useMenu";
 import { useApp } from "../context";
@@ -15,12 +15,9 @@ export function ProductSheet({ productId, onClose }: Props) {
   const { product, loading } = useProductDetail(productId);
   const [quantity, setQuantity] = useState(1);
   const [selectedVariantId, setSelectedVariantId] = useState<string | undefined>();
-  // Multi-select capable: maps groupId → Set of selected optionIds
   const [selectedOptions, setSelectedOptions] = useState<Record<string, Set<string>>>({});
   const [notes, setNotes] = useState("");
-  const [showMore, setShowMore] = useState(false);
 
-  // Pre-select first variant when product loads
   useEffect(() => {
     if (product?.variants?.length) {
       setSelectedVariantId(product.variants[0].id);
@@ -30,8 +27,8 @@ export function ProductSheet({ productId, onClose }: Props) {
   if (loading || !product) {
     return (
       <SheetBase onClose={onClose}>
-        <div className="flex items-center justify-center py-20">
-          <div className="w-8 h-8 rounded-full border-2 border-[#e8ddd5] border-t-[#0b70f8] animate-spin" />
+        <div className="flex items-center justify-center py-24">
+          <div className="w-8 h-8 rounded-full border-2 border-[#EDE8E1] border-t-[#C17A3A] animate-spin" />
         </div>
       </SheetBase>
     );
@@ -44,12 +41,11 @@ export function ProductSheet({ productId, onClose }: Props) {
 
   const optionExtra = Object.entries(selectedOptions).reduce((sum, [groupId, ids]) => {
     const group = product.optionGroups?.find((g) => g.id === groupId);
-    let groupSum = 0;
+    let s = 0;
     for (const optionId of ids) {
-      const option = group?.options.find((o) => o.id === optionId);
-      groupSum += option?.priceCents ?? 0;
+      s += group?.options.find((o) => o.id === optionId)?.priceCents ?? 0;
     }
-    return sum + groupSum;
+    return sum + s;
   }, 0);
 
   const unitCents = basePrice + optionExtra;
@@ -69,12 +65,10 @@ export function ProductSheet({ productId, onClose }: Props) {
       if (current.has(optionId)) {
         current.delete(optionId);
       } else {
-        // Enforce maxSelections: if single-select (max=1) replace; otherwise respect cap
         const effectiveMax = maxSelections <= 0 ? Infinity : maxSelections;
         if (effectiveMax === 1) {
           current.clear();
         } else if (current.size >= effectiveMax) {
-          // Remove oldest (first) entry to make room
           const [first] = current;
           current.delete(first!);
         }
@@ -121,25 +115,30 @@ export function ProductSheet({ productId, onClose }: Props) {
 
   return (
     <SheetBase onClose={onClose}>
-      {/* Product image */}
+      {/* Hero image */}
       {image && (
-        <div className="relative h-52 -mx-0 overflow-hidden rounded-t-2xl">
+        <div className="relative h-60 overflow-hidden">
           <img src={image} alt={product.name} className="w-full h-full object-cover" />
+          {/* Soft fade at bottom */}
+          <div className="absolute bottom-0 left-0 right-0 h-16"
+            style={{ background: "linear-gradient(to top, white, transparent)" }} />
         </div>
       )}
 
-      <div className="px-5 pt-4 pb-32">
+      <div className={`px-6 ${image ? "pt-3" : "pt-5"} pb-36`}>
         {/* Name & price */}
-        <div className="flex items-start justify-between gap-3 mb-1">
-          <h2 className="text-xl font-bold text-gray-900 flex-1">{product.name}</h2>
-          <div className="text-right shrink-0">
+        <div className="flex items-start justify-between gap-4 mb-2">
+          <h2 className="text-[22px] font-bold text-[#1A1A1A] tracking-tight flex-1 leading-tight">
+            {product.name}
+          </h2>
+          <div className="text-right shrink-0 pt-0.5">
             {isOnSale ? (
               <>
-                <p className="text-lg font-bold text-[#0b70f8]">{formatCents(product.salePriceCents!)}</p>
-                <p className="text-sm line-through text-gray-400">{formatCents(product.priceCents!)}</p>
+                <p className="text-lg font-bold text-[#C17A3A]">{formatCents(product.salePriceCents!)}</p>
+                <p className="text-xs line-through text-[#C0BAB3]">{formatCents(product.priceCents!)}</p>
               </>
             ) : (
-              <p className="text-lg font-bold text-gray-900">{unitCents ? formatCents(unitCents) : "—"}</p>
+              <p className="text-lg font-bold text-[#1A1A1A]">{unitCents ? formatCents(unitCents) : "—"}</p>
             )}
           </div>
         </div>
@@ -148,9 +147,10 @@ export function ProductSheet({ productId, onClose }: Props) {
         {product.dietaryTags.length > 0 && (
           <div className="flex flex-wrap gap-1.5 mb-3">
             {product.dietaryTags.map((tag) => {
-              const { label, color } = dietaryLabel(tag);
+              const { label } = dietaryLabel(tag);
               return (
-                <span key={tag} className={`text-xs font-medium px-2 py-0.5 rounded-full ${color}`}>
+                <span key={tag}
+                  className="text-[11px] font-semibold px-2.5 py-1 rounded-full bg-[#F0EDE8] text-[#8A6050]">
                   {label}
                 </span>
               );
@@ -160,21 +160,9 @@ export function ProductSheet({ productId, onClose }: Props) {
 
         {/* Description */}
         {product.description && (
-          <div className="mb-4">
-            <p className="text-gray-600 text-sm leading-relaxed">
-              {showMore || product.description.length <= 120
-                ? product.description
-                : product.description.slice(0, 120) + "…"}
-            </p>
-            {product.description.length > 120 && (
-              <button
-                onClick={() => setShowMore(!showMore)}
-                className="text-xs text-[#0b70f8] font-medium mt-1 flex items-center gap-1"
-              >
-                {showMore ? <><ChevronUp size={12} /> Less</> : <><ChevronDown size={12} /> More</>}
-              </button>
-            )}
-          </div>
+          <p className="text-[#5A5550] text-sm leading-relaxed mb-5">
+            {product.description}
+          </p>
         )}
 
         {/* Variants */}
@@ -185,10 +173,10 @@ export function ProductSheet({ productId, onClose }: Props) {
                 <button
                   key={v.id}
                   onClick={() => setSelectedVariantId(v.id)}
-                  className={`px-4 py-2 rounded-xl text-sm font-medium border-2 transition-all ${
+                  className={`px-4 py-2.5 rounded-xl text-sm font-semibold transition-all ${
                     selectedVariantId === v.id
-                      ? "border-[#0b70f8] bg-[#f0f6ff] text-[#0b70f8]"
-                      : "border-gray-200 text-gray-700"
+                      ? "bg-[#1A1A1A] text-white"
+                      : "bg-[#F0EDE8] text-[#5A5550]"
                   }`}
                 >
                   {v.name}
@@ -213,11 +201,7 @@ export function ProductSheet({ productId, onClose }: Props) {
           else if (max > 1) badge = `Up to ${max}`;
 
           return (
-            <Section
-              key={group.id}
-              title={group.name}
-              badge={badge}
-            >
+            <Section key={group.id} title={group.name} badge={badge} required={min > 0}>
               <div className="flex flex-col gap-2">
                 {group.options.map((option: OptionGroupOption) => {
                   const isSelected = selected.has(option.id);
@@ -227,27 +211,35 @@ export function ProductSheet({ productId, onClose }: Props) {
                       key={option.id}
                       onClick={() => toggleOption(group.id, option.id, max)}
                       disabled={atMax}
-                      className={`flex items-center justify-between px-4 py-3 rounded-xl border-2 text-sm transition-all ${
+                      className={`flex items-center justify-between px-4 py-3.5 rounded-xl text-sm transition-all ${
                         isSelected
-                          ? "border-[#0b70f8] bg-[#f0f6ff]"
+                          ? "bg-[#1A1A1A] text-white"
                           : atMax
-                          ? "border-gray-100 opacity-50"
-                          : "border-gray-200"
+                          ? "bg-[#F8F5F2] text-[#C0BAB3] cursor-not-allowed"
+                          : "bg-[#F0EDE8] text-[#1A1A1A] active:bg-[#E5E0D8]"
                       }`}
                     >
-                      <div className="flex items-center gap-2">
-                        {/* Checkbox indicator for multi-select, radio for single */}
-                        <div className={`w-4 h-4 rounded-${isMulti ? "sm" : "full"} border-2 flex items-center justify-center shrink-0 ${
-                          isSelected ? "border-[#0b70f8] bg-[#0b70f8]" : "border-gray-300"
+                      <div className="flex items-center gap-3">
+                        {/* Indicator */}
+                        <div className={`w-4 h-4 flex items-center justify-center shrink-0 ${
+                          isMulti ? "rounded" : "rounded-full"
+                        } border-2 ${
+                          isSelected
+                            ? "border-white bg-white"
+                            : atMax
+                            ? "border-[#C0BAB3]"
+                            : "border-[#C0BAB3]"
                         }`}>
-                          {isSelected && <div className="w-2 h-2 rounded-sm bg-white" />}
+                          {isSelected && (
+                            <div className={`${isMulti ? "w-2 h-2 rounded-sm" : "w-2 h-2 rounded-full"} bg-[#1A1A1A]`} />
+                          )}
                         </div>
-                        <span className={`font-medium ${isSelected ? "text-[#0b70f8]" : "text-gray-700"}`}>
-                          {option.name}
-                        </span>
+                        <span className="font-medium">{option.name}</span>
                       </div>
                       {option.priceCents > 0 && (
-                        <span className="text-gray-500">+{formatCents(option.priceCents)}</span>
+                        <span className={`text-xs ${isSelected ? "text-white/70" : "text-[#8A8580]"}`}>
+                          +{formatCents(option.priceCents)}
+                        </span>
                       )}
                     </button>
                   );
@@ -257,35 +249,37 @@ export function ProductSheet({ productId, onClose }: Props) {
           );
         })}
 
-        {/* Special notes */}
+        {/* Special instructions */}
         <Section title="Special instructions">
           <textarea
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
             placeholder="Allergies, preferences, or requests…"
-            rows={3}
-            className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm text-gray-700 placeholder-gray-400 resize-none focus:outline-none focus:border-[#0b70f8]"
+            rows={2}
+            className="w-full px-4 py-3 border border-[#EDE8E1] rounded-xl text-sm text-[#1A1A1A]
+                       placeholder-[#C0BAB3] resize-none focus:outline-none focus:border-[#C17A3A]
+                       bg-white leading-relaxed"
           />
         </Section>
       </div>
 
-      {/* Fixed bottom bar */}
-      <div className="absolute bottom-0 left-0 right-0 bg-white border-t border-gray-100 px-5 py-4 safe-bottom">
+      {/* Bottom CTA bar */}
+      <div className="absolute bottom-0 left-0 right-0 bg-white border-t border-[#EDE8E1] px-5 py-4 safe-bottom">
         <div className="flex items-center gap-3">
-          {/* Quantity */}
-          <div className="flex items-center gap-3 bg-gray-100 rounded-xl px-3 py-2">
+          {/* Quantity stepper */}
+          <div className="flex items-center bg-[#F0EDE8] rounded-xl overflow-hidden shrink-0">
             <button
               onClick={() => setQuantity(Math.max(1, quantity - 1))}
-              className="text-gray-600 active:scale-90 transition-transform"
+              className="px-3 py-3 text-[#5A5550] active:bg-[#E0DBD4] transition-colors font-bold"
             >
-              <Minus size={18} />
+              <Minus size={15} />
             </button>
-            <span className="font-bold text-gray-900 w-5 text-center">{quantity}</span>
+            <span className="font-bold text-[#1A1A1A] w-7 text-center text-sm">{quantity}</span>
             <button
               onClick={() => setQuantity(quantity + 1)}
-              className="text-gray-600 active:scale-90 transition-transform"
+              className="px-3 py-3 text-[#5A5550] active:bg-[#E0DBD4] transition-colors font-bold"
             >
-              <Plus size={18} />
+              <Plus size={15} />
             </button>
           </div>
 
@@ -293,14 +287,15 @@ export function ProductSheet({ productId, onClose }: Props) {
           <button
             onClick={handleAdd}
             disabled={!canAdd}
-            className={`flex-1 py-3 rounded-xl font-bold text-base transition-all ${
+            className={`flex-1 py-3.5 rounded-xl font-bold text-[15px] transition-all ${
               canAdd
-                ? "bg-[#0b70f8] text-white active:scale-[0.98]"
-                : "bg-gray-200 text-gray-400 cursor-not-allowed"
+                ? "bg-[#1A1A1A] text-white active:scale-[0.98]"
+                : "bg-[#EDE8E1] text-[#C0BAB3] cursor-not-allowed"
             }`}
+            data-testid="add-to-cart-btn"
           >
             {canAdd
-              ? `Add to cart · ${formatCents(unitCents * quantity)}`
+              ? `Add to order · ${formatCents(unitCents * quantity)}`
               : "Select required options"}
           </button>
         </div>
@@ -314,23 +309,22 @@ export function ProductSheet({ productId, onClose }: Props) {
 function SheetBase({ children, onClose }: { children: React.ReactNode; onClose: () => void }) {
   return (
     <div className="fixed inset-0 z-50 flex flex-col">
-      {/* Backdrop */}
-      <div className="flex-1 bg-black/40" onClick={onClose} />
-      {/* Sheet */}
+      <div className="flex-1 bg-black/50 animate-fade-in" onClick={onClose} />
       <div
-        className="relative bg-white rounded-t-2xl max-h-[92dvh] overflow-y-auto overscroll-contain"
-        style={{ boxShadow: "0 -4px 24px rgba(0,0,0,0.12)" }}
+        className="relative bg-white rounded-t-3xl max-h-[94dvh] overflow-y-auto overscroll-contain no-scrollbar animate-sheet-up"
+        style={{ boxShadow: "0 -8px 40px rgba(0,0,0,0.18)" }}
+        data-testid="product-sheet"
       >
         {/* Drag handle */}
-        <div className="flex justify-center pt-3 pb-1">
-          <div className="w-10 h-1 rounded-full bg-gray-300" />
+        <div className="flex justify-center pt-3 pb-0">
+          <div className="w-10 h-1 rounded-full bg-[#D8D3CC]" />
         </div>
         {/* Close button */}
         <button
           onClick={onClose}
-          className="absolute top-3 right-4 p-1.5 rounded-full bg-gray-100 text-gray-500"
+          className="absolute top-3 right-4 w-8 h-8 rounded-full bg-[#F0EDE8] flex items-center justify-center text-[#5A5550]"
         >
-          <X size={16} />
+          <X size={15} />
         </button>
         {children}
       </div>
@@ -341,24 +335,24 @@ function SheetBase({ children, onClose }: { children: React.ReactNode; onClose: 
 function Section({
   title,
   badge,
+  required,
   children,
 }: {
   title: string;
   badge?: string;
+  required?: boolean;
   children: React.ReactNode;
 }) {
   return (
     <div className="mb-5">
-      <div className="flex items-center gap-2 mb-2">
-        <h3 className="font-semibold text-gray-900 text-sm">{title}</h3>
+      <div className="flex items-center gap-2 mb-2.5">
+        <h3 className="font-semibold text-[#1A1A1A] text-sm tracking-tight">{title}</h3>
         {badge && (
-          <span
-            className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-              badge === "Required"
-                ? "bg-red-50 text-red-600"
-                : "bg-gray-100 text-gray-500"
-            }`}
-          >
+          <span className={`text-[11px] px-2 py-0.5 rounded-full font-semibold ${
+            required
+              ? "bg-[#FFF0EC] text-[#E05030]"
+              : "bg-[#F0EDE8] text-[#8A8580]"
+          }`}>
             {badge}
           </span>
         )}

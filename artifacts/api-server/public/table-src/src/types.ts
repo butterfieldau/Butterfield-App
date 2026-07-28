@@ -56,7 +56,7 @@ export interface Product {
 }
 
 export interface CartItem {
-  id: string; // uuid for cart uniqueness
+  id: string;
   productId: string;
   productName: string;
   productImage: string | null;
@@ -75,4 +75,5 @@ export interface OrderConfirmation {
   tableNumber: string;
   items: CartItem[];
   totalCents: number;
+  email?: string;
 }

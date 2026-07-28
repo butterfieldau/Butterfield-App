@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { ArrowLeft, MapPin, Loader2 } from "lucide-react";
+import { useState } from "react";
+import { ArrowLeft, Loader2 } from "lucide-react";
 import {
   Elements,
   PaymentElement,
@@ -23,6 +23,7 @@ export function CheckoutScreen() {
   const { config, goTo, cart, cartTotal } = useApp();
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
+  const [email, setEmail] = useState("");
   const [clientSecret, setClientSecret] = useState<string | null>(null);
   const [paymentIntentId, setPaymentIntentId] = useState<string | null>(null);
   const [amountCents, setAmountCents] = useState<number>(cartTotal);
@@ -31,7 +32,6 @@ export function CheckoutScreen() {
 
   const stripeKey = config.stripePublishableKey ?? "";
 
-  // Build the payment intent when name is confirmed
   async function createIntent() {
     if (!name.trim()) return;
     setFetching(true);
@@ -47,11 +47,7 @@ export function CheckoutScreen() {
       const res = await fetch(apiUrl("/table/payment-intent"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          items,
-          tableNumber: config.tableNumber,
-          storeId: config.storeId,
-        }),
+        body: JSON.stringify({ items, tableNumber: config.tableNumber, storeId: config.storeId }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Payment setup failed");
@@ -76,90 +72,142 @@ export function CheckoutScreen() {
   }
 
   return (
-    <div className="min-h-dvh bg-[#fdf8f3] flex flex-col">
+    <div className="min-h-dvh bg-[#FDFCFA] flex flex-col">
       {/* Header */}
-      <header className="bg-white border-b border-gray-100 px-4 py-3 flex items-center gap-3 safe-top">
+      <header className="bg-[#FDFCFA] px-5 py-4 flex items-center gap-3 safe-top shrink-0">
         <button
           onClick={() => goTo("menu")}
-          className="p-1.5 rounded-full bg-gray-100 text-gray-600"
+          className="w-9 h-9 rounded-full bg-[#F0EDE8] flex items-center justify-center text-[#5A5550]"
         >
-          <ArrowLeft size={18} />
+          <ArrowLeft size={17} strokeWidth={2.5} />
         </button>
-        <h1 className="font-bold text-gray-900 text-lg">Checkout</h1>
+        <h1 className="font-bold text-[#1A1A1A] text-lg tracking-tight">Checkout</h1>
       </header>
 
-      <div className="flex-1 overflow-y-auto px-4 pt-5 pb-32">
+      <div className="flex-1 overflow-y-auto px-5 pt-2 pb-36 no-scrollbar">
+
         {/* Table badge */}
-        <div className="flex items-center gap-2 bg-blue-50 text-[#0b70f8] rounded-xl px-4 py-2.5 mb-5">
-          <MapPin size={16} />
-          <span className="font-semibold text-sm">Table {config.tableNumber}</span>
-          <span className="text-blue-400 text-xs ml-auto">Dine in · Delivered to your table</span>
+        <div className="flex items-center gap-2.5 bg-[#F0EDE8] rounded-2xl px-4 py-3 mb-6">
+          <div className="w-7 h-7 rounded-xl bg-[#1A1A1A] flex items-center justify-center shrink-0">
+            <span className="text-white text-xs font-bold leading-none">{config.tableNumber}</span>
+          </div>
+          <div>
+            <p className="text-sm font-semibold text-[#1A1A1A] leading-tight">Table {config.tableNumber}</p>
+            <p className="text-xs text-[#8A8580]">Dine in · delivered to your table</p>
+          </div>
         </div>
 
         {/* Order summary */}
-        <section className="mb-5">
-          <h2 className="font-bold text-gray-900 mb-3">Order summary</h2>
-          <div className="bg-white rounded-2xl p-4 space-y-2">
-            {cart.map((item) => (
-              <div key={item.id} className="flex justify-between items-start text-sm">
-                <div className="flex-1">
-                  <span className="font-medium text-gray-900">
-                    {item.quantity} × {item.productName}
+        <section className="mb-6">
+          <p className="text-[11px] font-semibold uppercase tracking-widest text-[#8A8580] mb-3">
+            Order summary
+          </p>
+          <div className="bg-white rounded-2xl overflow-hidden"
+            style={{ boxShadow: "0 1px 6px rgba(0,0,0,0.06)" }}>
+            <div className="px-5 py-4 space-y-3">
+              {cart.map((item) => (
+                <div key={item.id} className="flex justify-between items-start">
+                  <div className="flex-1 pr-3">
+                    <span className="font-medium text-[#1A1A1A] text-sm">
+                      {item.quantity} × {item.productName}
+                    </span>
+                    {item.variantName && (
+                      <span className="text-[#8A8580] text-sm"> · {item.variantName}</span>
+                    )}
+                    {item.selectedOptions.length > 0 && (
+                      <p className="text-xs text-[#A0998F] mt-0.5">
+                        {item.selectedOptions.map((o) => o.optionName).join(", ")}
+                      </p>
+                    )}
+                  </div>
+                  <span className="font-semibold text-[#1A1A1A] text-sm shrink-0">
+                    {formatCents(item.unitCents * item.quantity)}
                   </span>
-                  {item.variantName && (
-                    <span className="text-gray-500"> · {item.variantName}</span>
-                  )}
-                  {item.selectedOptions.length > 0 && (
-                    <p className="text-xs text-gray-400 mt-0.5">
-                      {item.selectedOptions.map((o) => o.optionName).join(", ")}
-                    </p>
-                  )}
                 </div>
-                <span className="font-semibold text-gray-900 shrink-0 ml-3">
-                  {formatCents(item.unitCents * item.quantity)}
-                </span>
-              </div>
-            ))}
-            <div className="border-t border-gray-100 pt-2 flex justify-between font-bold text-gray-900">
-              <span>Total</span>
-              <span>{formatCents(amountCents)}</span>
+              ))}
+            </div>
+            <div className="px-5 py-3.5 border-t border-[#F0EDE8] flex justify-between">
+              <span className="font-bold text-[#1A1A1A]">Total</span>
+              <span className="font-bold text-[#1A1A1A] text-lg tracking-tight">{formatCents(amountCents)}</span>
             </div>
           </div>
         </section>
 
-        {/* Contact details */}
-        <section className="mb-5">
-          <h2 className="font-bold text-gray-900 mb-3">Your details</h2>
-          <div className="bg-white rounded-2xl p-4 space-y-3">
-            <div>
-              <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">
-                First name <span className="text-red-500">*</span>
-              </label>
-              <input
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="e.g. Alex"
-                className="w-full mt-1 px-3 py-2.5 border border-gray-200 rounded-xl text-sm text-gray-800 focus:outline-none focus:border-[#0b70f8]"
-              />
-            </div>
-            <div>
-              <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">
-                Phone (optional)
-              </label>
-              <input
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                placeholder="e.g. 0400 000 000"
-                type="tel"
-                className="w-full mt-1 px-3 py-2.5 border border-gray-200 rounded-xl text-sm text-gray-800 focus:outline-none focus:border-[#0b70f8]"
-              />
+        {/* Your details */}
+        <section className="mb-6">
+          <p className="text-[11px] font-semibold uppercase tracking-widest text-[#8A8580] mb-3">
+            Your details
+          </p>
+          <div className="bg-white rounded-2xl overflow-hidden"
+            style={{ boxShadow: "0 1px 6px rgba(0,0,0,0.06)" }}>
+            <div className="divide-y divide-[#F0EDE8]">
+              {/* Name */}
+              <div className="px-5 py-4">
+                <label className="text-[11px] font-semibold uppercase tracking-wider text-[#8A8580]">
+                  First name <span className="text-[#E05030]">*</span>
+                </label>
+                <input
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="e.g. Alex"
+                  autoComplete="given-name"
+                  className="w-full mt-1.5 text-sm text-[#1A1A1A] placeholder-[#C0BAB3]
+                             focus:outline-none bg-transparent"
+                />
+              </div>
+
+              {/* Phone */}
+              <div className="px-5 py-4">
+                <label className="text-[11px] font-semibold uppercase tracking-wider text-[#8A8580]">
+                  Phone
+                  <span className="ml-1.5 text-[10px] font-medium normal-case tracking-normal text-[#C0BAB3]">
+                    optional
+                  </span>
+                </label>
+                <input
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  placeholder="e.g. 0400 000 000"
+                  type="tel"
+                  autoComplete="tel"
+                  className="w-full mt-1.5 text-sm text-[#1A1A1A] placeholder-[#C0BAB3]
+                             focus:outline-none bg-transparent"
+                />
+              </div>
+
+              {/* Email */}
+              <div className="px-5 py-4">
+                <label className="text-[11px] font-semibold uppercase tracking-wider text-[#8A8580]">
+                  Email
+                  <span className="ml-1.5 text-[10px] font-medium normal-case tracking-normal text-[#C0BAB3]">
+                    optional
+                  </span>
+                </label>
+                <input
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="e.g. alex@email.com"
+                  type="email"
+                  autoComplete="email"
+                  className="w-full mt-1.5 text-sm text-[#1A1A1A] placeholder-[#C0BAB3]
+                             focus:outline-none bg-transparent"
+                  data-testid="email-input"
+                />
+                {/* Rewards nudge */}
+                <div className="flex items-start gap-2 mt-3 pt-3 border-t border-[#F0EDE8]">
+                  <span className="text-base leading-none shrink-0 mt-0.5">🍪</span>
+                  <p className="text-xs text-[#8A8580] leading-relaxed">
+                    Add your email to earn stamps on this order and track rewards in the Butterfield app.
+                  </p>
+                </div>
+              </div>
             </div>
           </div>
         </section>
 
         {/* Payment section */}
         {fetchError && (
-          <div className="mb-4 px-4 py-3 bg-red-50 border border-red-200 text-red-700 rounded-xl text-sm">
+          <div className="mb-5 px-4 py-3.5 bg-[#FFF0EC] border border-[#FCCAB4] text-[#C04030] rounded-2xl text-sm">
             {fetchError}
           </div>
         )}
@@ -168,10 +216,11 @@ export function CheckoutScreen() {
           <button
             onClick={createIntent}
             disabled={!name.trim() || fetching}
-            className={`w-full py-4 rounded-xl font-bold text-base transition-all ${
+            data-testid="continue-to-payment-btn"
+            className={`w-full py-4 rounded-2xl font-bold text-[15px] transition-all ${
               !name.trim() || fetching
-                ? "bg-gray-200 text-gray-400 cursor-not-allowed"
-                : "bg-[#0b70f8] text-white active:scale-[0.98]"
+                ? "bg-[#EDE8E1] text-[#C0BAB3] cursor-not-allowed"
+                : "bg-[#1A1A1A] text-white active:scale-[0.97]"
             }`}
           >
             {fetching ? (
@@ -191,9 +240,30 @@ export function CheckoutScreen() {
               appearance: {
                 theme: "stripe",
                 variables: {
-                  colorPrimary: "#0b70f8",
-                  borderRadius: "12px",
+                  colorPrimary: "#1A1A1A",
+                  colorBackground: "#FFFFFF",
+                  colorText: "#1A1A1A",
+                  borderRadius: "16px",
                   fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif',
+                  fontSizeBase: "15px",
+                },
+                rules: {
+                  ".Input": {
+                    border: "1.5px solid #EDE8E1",
+                    boxShadow: "none",
+                    padding: "12px 14px",
+                  },
+                  ".Input:focus": {
+                    border: "1.5px solid #1A1A1A",
+                    boxShadow: "none",
+                  },
+                  ".Label": {
+                    fontSize: "11px",
+                    fontWeight: "600",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.08em",
+                    color: "#8A8580",
+                  },
                 },
               },
             }}
@@ -203,6 +273,7 @@ export function CheckoutScreen() {
               paymentIntentId={paymentIntentId!}
               name={name}
               phone={phone}
+              email={email}
               amountCents={amountCents}
             />
           </Elements>
@@ -212,17 +283,18 @@ export function CheckoutScreen() {
   );
 }
 
-// ── Inner payment form (needs Stripe Elements context) ───────────────────────
+// ── Inner payment form ────────────────────────────────────────────────────────
 
 interface PaymentFormProps {
   clientSecret: string;
   paymentIntentId: string;
   name: string;
   phone: string;
+  email: string;
   amountCents: number;
 }
 
-function PaymentForm({ paymentIntentId, name, phone, amountCents }: PaymentFormProps) {
+function PaymentForm({ paymentIntentId, name, phone, email, amountCents }: PaymentFormProps) {
   const stripe = useStripe();
   const elements = useElements();
   const { config, cart, goTo, clearCart, setConfirmation } = useApp();
@@ -236,7 +308,6 @@ function PaymentForm({ paymentIntentId, name, phone, amountCents }: PaymentFormP
     setError(null);
 
     try {
-      // Confirm payment
       const { error: stripeError } = await stripe.confirmPayment({
         elements,
         redirect: "if_required",
@@ -248,7 +319,6 @@ function PaymentForm({ paymentIntentId, name, phone, amountCents }: PaymentFormP
         return;
       }
 
-      // Record order
       const items = cart.map((i) => ({
         productId: i.productId,
         productName: i.productName,
@@ -271,6 +341,7 @@ function PaymentForm({ paymentIntentId, name, phone, amountCents }: PaymentFormP
           storeId: config.storeId,
           contactName: name,
           contactPhone: phone || undefined,
+          contactEmail: email || undefined,
         }),
       });
 
@@ -282,6 +353,7 @@ function PaymentForm({ paymentIntentId, name, phone, amountCents }: PaymentFormP
         tableNumber: config.tableNumber,
         items: cart,
         totalCents: amountCents,
+        email: email || undefined,
       });
       clearCart();
       goTo("confirmation");
@@ -294,19 +366,22 @@ function PaymentForm({ paymentIntentId, name, phone, amountCents }: PaymentFormP
   return (
     <form onSubmit={handleSubmit}>
       <section className="mb-5">
-        <h2 className="font-bold text-gray-900 mb-3">Payment</h2>
-        <div className="bg-white rounded-2xl p-4">
+        <p className="text-[11px] font-semibold uppercase tracking-widest text-[#8A8580] mb-3">
+          Payment
+        </p>
+        <div className="bg-white rounded-2xl p-4" style={{ boxShadow: "0 1px 6px rgba(0,0,0,0.06)" }}>
           <PaymentElement
             options={{
               layout: "tabs",
               wallets: { applePay: "auto", googlePay: "auto" },
             }}
+            data-testid="payment-element"
           />
         </div>
       </section>
 
       {error && (
-        <div className="mb-4 px-4 py-3 bg-red-50 border border-red-200 text-red-700 rounded-xl text-sm">
+        <div className="mb-5 px-4 py-3.5 bg-[#FFF0EC] border border-[#FCCAB4] text-[#C04030] rounded-2xl text-sm">
           {error}
         </div>
       )}
@@ -314,10 +389,11 @@ function PaymentForm({ paymentIntentId, name, phone, amountCents }: PaymentFormP
       <button
         type="submit"
         disabled={submitting || !stripe}
-        className={`w-full py-4 rounded-xl font-bold text-base transition-all safe-bottom ${
+        data-testid="pay-btn"
+        className={`w-full py-4 rounded-2xl font-bold text-[15px] transition-all safe-bottom ${
           submitting || !stripe
-            ? "bg-gray-200 text-gray-400 cursor-not-allowed"
-            : "bg-[#0b70f8] text-white active:scale-[0.98]"
+            ? "bg-[#EDE8E1] text-[#C0BAB3] cursor-not-allowed"
+            : "bg-[#1A1A1A] text-white active:scale-[0.97]"
         }`}
       >
         {submitting ? (
@@ -333,24 +409,13 @@ function PaymentForm({ paymentIntentId, name, phone, amountCents }: PaymentFormP
   );
 }
 
-function ErrorPage({
-  title,
-  message,
-  onBack,
-}: {
-  title: string;
-  message: string;
-  onBack: () => void;
-}) {
+function ErrorPage({ title, message, onBack }: { title: string; message: string; onBack: () => void }) {
   return (
-    <div className="min-h-dvh flex flex-col items-center justify-center px-6 text-center bg-[#fdf8f3]">
+    <div className="min-h-dvh flex flex-col items-center justify-center px-6 text-center bg-[#FDFCFA]">
       <p className="text-4xl mb-4">😕</p>
-      <h2 className="font-bold text-xl text-gray-900 mb-2">{title}</h2>
-      <p className="text-gray-500 text-sm leading-relaxed mb-6">{message}</p>
-      <button
-        onClick={onBack}
-        className="px-6 py-3 bg-[#0b70f8] text-white rounded-xl font-semibold"
-      >
+      <h2 className="font-bold text-xl text-[#1A1A1A] mb-2 tracking-tight">{title}</h2>
+      <p className="text-[#8A8580] text-sm leading-relaxed mb-6">{message}</p>
+      <button onClick={onBack} className="px-6 py-3 bg-[#1A1A1A] text-white rounded-xl font-semibold">
         Back to menu
       </button>
     </div>
