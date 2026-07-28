@@ -378,11 +378,12 @@ function PaymentForm({ paymentIntentId, name, phone, email, amountCents }: Payme
         type="submit"
         disabled={submitting || !stripe}
         data-testid="pay-btn"
-        className={`w-full py-4 rounded-2xl font-bold text-[16px] transition-all safe-bottom ${
+        className={`w-full py-4 rounded-2xl font-bold text-[16px] transition-all ${
           submitting || !stripe
             ? "bg-[#EDE8E1] text-[#C0BAB3] cursor-not-allowed"
             : "bg-[#1A1A1A] text-white active:scale-[0.97]"
         }`}
+        style={{ marginBottom: "max(env(safe-area-inset-bottom, 0px), 16px)" }}
       >
         {submitting ? (
           <span className="flex items-center justify-center gap-2">

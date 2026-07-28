@@ -129,23 +129,26 @@ function Header({ tableNumber, onOpenCart }: { tableNumber: string; onOpenCart: 
 
 // ── Category colour palette (mirrors portal's categoryColors.ts) ──────────────
 
-interface CatVisual { bg: string; text: string; }
+interface CatVisual { bg: string; text: string; gradient?: string; }
 
 const CATEGORY_COLORS: Record<string, CatVisual> = {
-  cookies:       { bg: "#E8C49A", text: "#3D1F0A" },
-  coffee:        { bg: "#8B6244", text: "#FFFFFF" },
-  matcha:        { bg: "#C8E6C2", text: "#1E4020" },
-  tea:           { bg: "#D4C4A8", text: "#4A3820" },
-  "cold-drinks": { bg: "#BDE0F4", text: "#0E3A5A" },
-  "soft-serve":  { bg: "#F8D8E8", text: "#6A1040" },
-  desserts:      { bg: "#F2B8C6", text: "#6A2040" },
-  sandwiches:    { bg: "#A8C89A", text: "#1A3010" },
-  bundles:       { bg: "#B4A0D4", text: "#2A1060" },
-  boxes:         { bg: "#D4BAE8", text: "#3A1060" },
-  specials:      { bg: "#FFE5A0", text: "#5A3800" },
-  seasonal:      { bg: "#F4D0A8", text: "#4A2010" },
-  merch:         { bg: "#A8C8E8", text: "#0A2850" },
-  pastries:      { bg: "#F0D4A8", text: "#4A2010" },
+  cookies:        { bg: "#E8C49A", text: "#3D1F0A" },
+  coffee:         { bg: "#8B6244", text: "#FFFFFF" },
+  matcha:         { bg: "#C8E6C2", text: "#1E4020" },
+  tea:            { bg: "#D4C4A8", text: "#4A3820" },
+  "cold-drinks":  { bg: "#BDE0F4", text: "#0E3A5A" },
+  "iced-drinks":  { bg: "#60A5FA", text: "#0C2A5A" },
+  milkshakes:     { bg: "#1E3A5F", text: "#FFFFFF" },
+  fusions:        { bg: "#DC2626", text: "#FFFFFF", gradient: "linear-gradient(135deg, #DC2626 0%, #2563EB 100%)" },
+  "soft-serve":   { bg: "#F8D8E8", text: "#6A1040" },
+  desserts:       { bg: "#F2B8C6", text: "#6A2040" },
+  sandwiches:     { bg: "#A8C89A", text: "#1A3010" },
+  bundles:        { bg: "#B4A0D4", text: "#2A1060" },
+  boxes:          { bg: "#D4BAE8", text: "#3A1060" },
+  specials:       { bg: "#FFE5A0", text: "#5A3800" },
+  seasonal:       { bg: "#F4D0A8", text: "#4A2010" },
+  merch:          { bg: "#A8C8E8", text: "#0A2850" },
+  pastries:       { bg: "#F0D4A8", text: "#4A2010" },
 };
 
 const FALLBACK_COLORS: CatVisual[] = [
@@ -242,8 +245,8 @@ function CategoryView({
   return (
     <div className="flex-1 flex flex-col min-h-0">
       <div className="px-5 pt-5 pb-4 shrink-0">
-        <h1 className="text-[34px] font-black text-[#1A1A1A] tracking-tight leading-none">
-          What would<br />you like?
+        <h1 className="text-[34px] font-black text-[#1A1A1A] tracking-tight leading-none whitespace-nowrap">
+          What would you like?
         </h1>
       </div>
 
@@ -327,7 +330,7 @@ function CategoryCard({
   tall: boolean;
   onSelect: (catId: string) => void;
 }) {
-  const { bg, text } = getCatVisual(cat.slug, index);
+  const { bg, text, gradient } = getCatVisual(cat.slug, index);
 
   return (
     <button
@@ -335,7 +338,7 @@ function CategoryCard({
       className={`relative rounded-3xl overflow-hidden text-left active:scale-[0.96] transition-transform ${
         tall ? "h-52" : "h-40"
       }`}
-      style={{ background: bg }}
+      style={{ background: gradient ?? bg }}
       data-testid={`category-card-${cat.slug}`}
       aria-label={cat.name}
     >
