@@ -2,6 +2,71 @@ import { useState } from "react";
 import { ArrowLeft, Search, X } from "lucide-react";
 import { useCategories, useProducts } from "../hooks/useMenu";
 import { useApp } from "../context";
+
+// ── Smart app banner (mobile only) ────────────────────────────────────────────
+
+function AppBanner() {
+  const { config } = useApp();
+  const [dismissed, setDismissed] = useState(() => {
+    try { return sessionStorage.getItem("app_banner_dismissed") === "1"; } catch { return false; }
+  });
+
+  // Only show on mobile browsers
+  const ua = navigator.userAgent;
+  const isMobile = /iPhone|iPad|iPod|Android/i.test(ua);
+  const isIOS = /iPhone|iPad|iPod/i.test(ua);
+
+  if (!isMobile || dismissed) return null;
+
+  const deepLink = `butterfield://table/${encodeURIComponent(config.storeId)}/${encodeURIComponent(config.tableNumber)}`;
+  const storeLink = isIOS
+    ? "https://apps.apple.com/app/butterfield-cookies/id6744892949"
+    : "https://play.google.com/store/apps/details?id=au.com.butterfieldcookies.app";
+
+  const handleOpen = () => {
+    window.location.href = deepLink;
+  };
+
+  const handleDismiss = () => {
+    try { sessionStorage.setItem("app_banner_dismissed", "1"); } catch {}
+    setDismissed(true);
+  };
+
+  return (
+    <div
+      className="flex items-center gap-3 px-4 py-2.5 shrink-0"
+      style={{ background: "#1A1A1A", borderBottom: "1px solid rgba(255,255,255,0.06)" }}
+    >
+      <span className="text-lg shrink-0">🍪</span>
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-semibold text-white leading-tight">
+          Open in Butterfield app
+        </p>
+        <p className="text-[11px] text-[#888] mt-0.5">
+          <a
+            href={storeLink}
+            className="text-[#E8C87A] underline"
+            onClick={(e) => e.stopPropagation()}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Get the app
+          </a>
+        </p>
+      </div>
+      <button
+        onClick={handleOpen}
+        className="shrink-0 text-sm font-semibold px-3.5 py-1.5 rounded-full"
+        style={{ background: "#E8C87A", color: "#1A1A1A" }}
+      >
+        Open
+      </button>
+      <button onClick={handleDismiss} className="shrink-0 p-1" style={{ color: "#555" }}>
+        <X size={15} />
+      </button>
+    </div>
+  );
+}
 import { ProductSheet } from "../components/ProductSheet";
 import { CartSheet } from "../components/CartSheet";
 import { CartBar } from "../components/CartBar";
@@ -90,6 +155,9 @@ export function MenuScreen() {
 
   return (
     <div className="min-h-dvh bg-[#FDFCFA] flex flex-col">
+      {/* Smart app banner */}
+      <AppBanner />
+
       {/* Header */}
       <header className="bg-[#FDFCFA] px-5 pt-4 pb-3 safe-top shrink-0">
         <div className="flex items-center justify-between">

@@ -539,6 +539,34 @@ export const api = {
         { method: 'POST', body: JSON.stringify({ paymentIntentId }) },
       ),
   },
+  table: {
+    createPaymentIntent: (body: {
+      items: Array<{ productId: string; quantity: number; variantId?: string | null }>;
+      tableNumber: string;
+      storeId: string;
+    }) =>
+      request<{
+        clientSecret: string | null;
+        paymentIntentId: string;
+        amountCents: number;
+        paymentRequired?: boolean;
+      }>('/table/payment-intent', { method: 'POST', body: JSON.stringify(body) }),
+    placeOrder: (body: {
+      stripePaymentIntentId: string;
+      items: Array<{ productId: string; quantity: number; variantId?: string | null; name?: string; unitCents?: number }>;
+      tableNumber: string;
+      storeId: string;
+      contactName: string;
+      contactPhone: string;
+      contactEmail?: string;
+      notes?: string;
+    }) =>
+      request<{
+        order: { id: string; orderNumber: string; totalCents: number };
+        stamps?: { count: number; total: number; goal: number };
+        rewardsEarned?: boolean;
+      }>('/table/orders', { method: 'POST', body: JSON.stringify(body) }),
+  },
   director: {
     verifySettingsPin:   (pin: string) => request<{ granted: boolean }>('/director/verify-settings-pin', { method: 'POST', body: JSON.stringify({ pin }) }),
     stats:               () => request<{ data: DirectorStats }>('/director/stats'),
