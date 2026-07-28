@@ -347,6 +347,7 @@ router.post('/orders', tableRateLimit, async (req, res) => {
     storeId,
     contactName,
     contactPhone,
+    contactEmail,
     notes,
   } = req.body ?? {};
 
@@ -433,6 +434,7 @@ router.post('/orders', tableRateLimit, async (req, res) => {
   const resolvedNotes = notes || null;
   const resolvedContactName = contactName || null;
   const resolvedContactPhone = contactPhone || null;
+  const resolvedContactEmail = contactEmail || null;
   const itemsJson = JSON.stringify(pricedItems);
 
   await db.execute(sql`
@@ -441,14 +443,14 @@ router.post('/orders', tableRateLimit, async (req, res) => {
       notes, total_cents,
       stripe_payment_intent_id, stripe_payment_status,
       items, loyalty_points_earned, loyalty_points_used, discount_cents,
-      source, table_number, contact_name, contact_phone,
+      source, table_number, contact_name, contact_phone, contact_email,
       created_at, updated_at
     ) VALUES (
       ${orderId}, ${orderNumber}, 'guest', 'received', 'pickup', ${resolvedStoreId},
       ${resolvedNotes}, ${totalCents},
       ${stripePaymentIntentId}, 'paid',
       ${sql.raw(`'${itemsJson.replace(/'/g, "''")}'::jsonb`)}, 0, 0, 0,
-      'dine_in', ${tableNumber}, ${resolvedContactName}, ${resolvedContactPhone},
+      'dine_in', ${tableNumber}, ${resolvedContactName}, ${resolvedContactPhone}, ${resolvedContactEmail},
       NOW(), NOW()
     )
   `);
