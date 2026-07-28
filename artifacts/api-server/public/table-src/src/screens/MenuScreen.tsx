@@ -30,7 +30,7 @@ function AppBanner() {
   return (
     <div
       className="flex items-center gap-3 px-4 py-2.5 shrink-0"
-      style={{ background: "#1A1A1A", borderBottom: "1px solid rgba(255,255,255,0.06)" }}
+      style={{ background: "#1B4FD8", borderBottom: "1px solid rgba(255,255,255,0.10)" }}
     >
       <div className="flex-1 min-w-0">
         <p className="text-sm font-semibold text-white leading-tight">Open in Butterfield app</p>
@@ -49,7 +49,7 @@ function AppBanner() {
       <button
         onClick={() => { window.location.href = deepLink; }}
         className="shrink-0 text-sm font-semibold px-3.5 py-1.5 rounded-full"
-        style={{ background: "#E8C87A", color: "#1A1A1A" }}
+        style={{ background: "#D20001", color: "#FFFFFF" }}
       >
         Open
       </button>
