@@ -164,9 +164,9 @@ test.describe('Table Ordering SPA', () => {
     await page.locator('[data-testid="checkout-btn"]').click();
     await page.waitForTimeout(600);
 
-    // Checkout screen should show the details form
+    // Checkout screen should show the details form (email is now behind expand link)
     await expect(page.getByText('Checkout')).toBeVisible({ timeout: 10_000 });
-    await expect(page.locator('[data-testid="email-input"]')).toBeVisible({ timeout: 8_000 });
+    await expect(page.locator('[data-testid="show-email-btn"]')).toBeVisible({ timeout: 8_000 });
   });
 
   test('5 · Checkout form accepts name + phone + email and proceeds to payment', async ({ page }) => {
@@ -201,19 +201,21 @@ test.describe('Table Ordering SPA', () => {
     await page.waitForTimeout(600);
 
     // ── Fill details ──
-    await expect(page.locator('[data-testid="email-input"]')).toBeVisible({ timeout: 10_000 });
-
-    // Find the name input (first text input on page)
-    const nameInput = page.locator('input[placeholder*="Alex"]').first();
+    // Name — bare input (no label/card wrapper in the new design)
+    const nameInput = page.locator('input[placeholder="Your name"]').first();
+    await nameInput.waitFor({ state: 'visible', timeout: 10_000 });
     await nameInput.fill('Smoke Test');
 
     const phoneInput = page.locator('input[type="tel"]').first();
     await phoneInput.fill('0400 000 000');
 
-    await page.locator('[data-testid="email-input"]').fill('smoketest@butterfield.test');
-
-    // Verify rewards nudge copy is visible
+    // Email is behind an expandable link in the new design — tap it first
+    const showEmailBtn = page.locator('[data-testid="show-email-btn"]');
+    await expect(showEmailBtn).toBeVisible({ timeout: 5_000 });
+    // Verify the "earn stamps" copy is visible on the expand button
     await expect(page.getByText(/earn stamps/i)).toBeVisible({ timeout: 5_000 });
+    await showEmailBtn.click();
+    await page.locator('[data-testid="email-input"]').fill('smoketest@butterfield.test');
 
     // ── Click Continue to Payment ──
     const continueBtn = page.locator('[data-testid="continue-to-payment-btn"]');

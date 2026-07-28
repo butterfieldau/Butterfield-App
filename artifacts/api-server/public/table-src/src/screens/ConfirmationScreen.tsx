@@ -9,14 +9,16 @@ export function ConfirmationScreen() {
     return null;
   }
 
-  const hasEmail = Boolean(confirmation.email);
+  const hasRewards = Boolean(
+    confirmation.rewards && confirmation.rewards.stampsEarned > 0
+  );
 
   return (
     <div className="min-h-dvh bg-[#FDFCFA] flex flex-col safe-top safe-bottom overflow-y-auto no-scrollbar">
       <div className="flex-1 flex flex-col items-center px-5 pt-12 pb-10 max-w-lg mx-auto w-full">
 
         {/* Success mark */}
-        <div className="relative mb-8 animate-pop-in">
+        <div className="relative mb-6 animate-pop-in">
           <div
             className="w-20 h-20 rounded-full flex items-center justify-center"
             style={{ background: "linear-gradient(135deg, #C17A3A 0%, #E8A85A 100%)" }}
@@ -36,7 +38,7 @@ export function ConfirmationScreen() {
         </p>
 
         {/* Order card */}
-        <div className="w-full bg-white rounded-3xl overflow-hidden mb-4"
+        <div className="w-full bg-white rounded-3xl overflow-hidden mb-5"
           style={{ boxShadow: "0 2px 16px rgba(0,0,0,0.08)" }}>
 
           {/* Order number header */}
@@ -81,75 +83,71 @@ export function ConfirmationScreen() {
           </div>
         </div>
 
-        {/* Rewards card — shown when email was provided */}
-        {hasEmail && (
-          <div className="w-full rounded-3xl overflow-hidden mb-4 animate-fade-in"
-            style={{
-              background: "linear-gradient(135deg, #1C0F07 0%, #3A1F0A 100%)",
-              boxShadow: "0 4px 20px rgba(0,0,0,0.16)",
-            }}
-          >
-            <div className="px-6 py-5">
-              <div className="flex items-start gap-3">
-                <div className="w-10 h-10 rounded-2xl bg-[#C17A3A] flex items-center justify-center shrink-0">
-                  <span className="text-lg">🍪</span>
+        {/* ── App download card — always shown ────────────────────────────────── */}
+        <div
+          className="w-full rounded-3xl overflow-hidden mb-5 animate-fade-in"
+          style={{
+            background: "linear-gradient(135deg, #1C0F07 0%, #3A1F0A 100%)",
+            boxShadow: "0 4px 24px rgba(0,0,0,0.20)",
+          }}
+        >
+          <div className="px-6 pt-5 pb-5">
+
+            {/* Stamps earned — shown when email was provided and rewards were credited */}
+            {hasRewards && (
+              <div className="flex items-center gap-3 mb-5 pb-4 border-b border-white/10">
+                <div className="w-11 h-11 rounded-2xl bg-[#C17A3A] flex items-center justify-center shrink-0">
+                  <span className="text-xl">🍪</span>
                 </div>
                 <div>
                   <p className="font-bold text-white text-[15px] leading-tight">
-                    {confirmation.rewards && confirmation.rewards.stampsEarned > 0
-                      ? `${confirmation.rewards.stampsEarned} stamp${confirmation.rewards.stampsEarned !== 1 ? "s" : ""} earned`
-                      : "You're earning rewards"}
+                    {confirmation.rewards!.stampsEarned} stamp{confirmation.rewards!.stampsEarned !== 1 ? "s" : ""} earned
                   </p>
-                  <p className="text-[#C9A07A] text-[13px] mt-1 leading-relaxed">
-                    {confirmation.rewards && confirmation.rewards.stampsEarned > 0
-                      ? confirmation.rewards.isNewAccount
-                        ? `Welcome! Your rewards account is all set — you're on ${confirmation.rewards.totalStamps} stamp${confirmation.rewards.totalStamps !== 1 ? "s" : ""}. Download the app to track and redeem.`
-                        : `You're on ${confirmation.rewards.totalStamps} stamp${confirmation.rewards.totalStamps !== 1 ? "s" : ""} toward your next reward. Download the app to track and redeem.`
-                      : "This order counts toward your stamps. Download the Butterfield app to track and redeem."}
+                  <p className="text-[#C9A07A] text-[13px] mt-0.5 leading-snug">
+                    {confirmation.rewards!.isNewAccount
+                      ? `Welcome! You're on ${confirmation.rewards!.totalStamps} stamp${confirmation.rewards!.totalStamps !== 1 ? "s" : ""} toward your next reward.`
+                      : `${confirmation.rewards!.totalStamps} stamp${confirmation.rewards!.totalStamps !== 1 ? "s" : ""} in your account.`
+                    }
                   </p>
                 </div>
               </div>
-              <div className="flex gap-2 mt-4">
-                <a
-                  href="https://apps.apple.com"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex-1 py-2.5 bg-white/10 rounded-xl text-center text-white text-xs font-semibold
-                             border border-white/20 active:bg-white/20 transition-colors"
-                >
-                  App Store
-                </a>
-                <a
-                  href="https://play.google.com"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex-1 py-2.5 bg-white/10 rounded-xl text-center text-white text-xs font-semibold
-                             border border-white/20 active:bg-white/20 transition-colors"
-                >
-                  Google Play
-                </a>
-              </div>
-            </div>
-          </div>
-        )}
+            )}
 
-        {/* App promo — shown when no email */}
-        {!hasEmail && (
-          <div className="w-full bg-white rounded-3xl p-5 mb-4 flex items-center gap-4"
-            style={{ boxShadow: "0 1px 8px rgba(0,0,0,0.06)" }}>
-            <div className="w-12 h-12 rounded-2xl bg-[#F7EDD6] flex items-center justify-center shrink-0">
-              <span className="text-2xl">🍪</span>
+            {/* Download headline */}
+            <div className="mb-5">
+              <p className="text-white font-bold text-[18px] leading-tight mb-1">
+                Earn stamps every visit
+              </p>
+              <p className="text-[#C9A07A] text-[13px] leading-relaxed">
+                Download the Butterfield app to track your rewards, reorder your favourites, and unlock exclusive offers.
+              </p>
             </div>
-            <div className="flex-1">
-              <p className="font-semibold text-[#1A1A1A] text-sm leading-tight">
-                Butterfield Cookies app
-              </p>
-              <p className="text-xs text-[#8A8580] mt-0.5 leading-relaxed">
-                Earn stamps, track orders, and get exclusive offers.
-              </p>
+
+            {/* Store buttons */}
+            <div className="flex gap-3">
+              <a
+                href="https://apps.apple.com/app/butterfield-cookies/id6744892949"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex-1 py-3 rounded-2xl text-center font-bold text-[14px] transition-colors
+                           active:opacity-80"
+                style={{ background: "rgba(255,255,255,0.12)", border: "1.5px solid rgba(255,255,255,0.18)", color: "#fff" }}
+              >
+                🍎 App Store
+              </a>
+              <a
+                href="https://play.google.com/store/apps/details?id=com.butterfield.cookies"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex-1 py-3 rounded-2xl text-center font-bold text-[14px] transition-colors
+                           active:opacity-80"
+                style={{ background: "rgba(255,255,255,0.12)", border: "1.5px solid rgba(255,255,255,0.18)", color: "#fff" }}
+              >
+                ▶ Google Play
+              </a>
             </div>
           </div>
-        )}
+        </div>
 
         {/* Order more */}
         <button

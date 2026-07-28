@@ -113,19 +113,56 @@ export function ProductSheet({ productId, onClose }: Props) {
   const image = product.images[0];
   const isOnSale = product.salePriceCents != null && product.salePriceCents < (product.priceCents ?? Infinity);
 
+  // CTA rendered outside the scroll area so it is always visible
+  const cta = (
+    <div className="flex items-center gap-3">
+      {/* Quantity stepper */}
+      <div className="flex items-center bg-[#F0EDE8] rounded-xl overflow-hidden shrink-0">
+        <button
+          onClick={() => setQuantity(Math.max(1, quantity - 1))}
+          className="px-3 py-3 text-[#5A5550] active:bg-[#E0DBD4] transition-colors font-bold"
+        >
+          <Minus size={15} />
+        </button>
+        <span className="font-bold text-[#1A1A1A] w-7 text-center text-sm">{quantity}</span>
+        <button
+          onClick={() => setQuantity(quantity + 1)}
+          className="px-3 py-3 text-[#5A5550] active:bg-[#E0DBD4] transition-colors font-bold"
+        >
+          <Plus size={15} />
+        </button>
+      </div>
+
+      {/* Add button */}
+      <button
+        onClick={handleAdd}
+        disabled={!canAdd}
+        className={`flex-1 py-3.5 rounded-xl font-bold text-[15px] transition-all ${
+          canAdd
+            ? "bg-[#1A1A1A] text-white active:scale-[0.98]"
+            : "bg-[#EDE8E1] text-[#C0BAB3] cursor-not-allowed"
+        }`}
+        data-testid="add-to-cart-btn"
+      >
+        {canAdd
+          ? `Add to order · ${formatCents(unitCents * quantity)}`
+          : "Select required options"}
+      </button>
+    </div>
+  );
+
   return (
-    <SheetBase onClose={onClose}>
+    <SheetBase onClose={onClose} cta={cta}>
       {/* Hero image */}
       {image && (
-        <div className="relative h-60 overflow-hidden">
+        <div className="relative h-56 overflow-hidden">
           <img src={image} alt={product.name} className="w-full h-full object-cover" />
-          {/* Soft fade at bottom */}
           <div className="absolute bottom-0 left-0 right-0 h-16"
             style={{ background: "linear-gradient(to top, white, transparent)" }} />
         </div>
       )}
 
-      <div className={`px-6 ${image ? "pt-3" : "pt-5"} pb-36`}>
+      <div className={`px-6 ${image ? "pt-3" : "pt-5"} pb-6`}>
         {/* Name & price */}
         <div className="flex items-start justify-between gap-4 mb-2">
           <h2 className="text-[22px] font-bold text-[#1A1A1A] tracking-tight flex-1 leading-tight">
@@ -220,7 +257,6 @@ export function ProductSheet({ productId, onClose }: Props) {
                       }`}
                     >
                       <div className="flex items-center gap-3">
-                        {/* Indicator */}
                         <div className={`w-4 h-4 flex items-center justify-center shrink-0 ${
                           isMulti ? "rounded" : "rounded-full"
                         } border-2 ${
@@ -262,63 +298,42 @@ export function ProductSheet({ productId, onClose }: Props) {
           />
         </Section>
       </div>
-
-      {/* Bottom CTA bar */}
-      <div className="absolute bottom-0 left-0 right-0 bg-white border-t border-[#EDE8E1] px-5 py-4 safe-bottom">
-        <div className="flex items-center gap-3">
-          {/* Quantity stepper */}
-          <div className="flex items-center bg-[#F0EDE8] rounded-xl overflow-hidden shrink-0">
-            <button
-              onClick={() => setQuantity(Math.max(1, quantity - 1))}
-              className="px-3 py-3 text-[#5A5550] active:bg-[#E0DBD4] transition-colors font-bold"
-            >
-              <Minus size={15} />
-            </button>
-            <span className="font-bold text-[#1A1A1A] w-7 text-center text-sm">{quantity}</span>
-            <button
-              onClick={() => setQuantity(quantity + 1)}
-              className="px-3 py-3 text-[#5A5550] active:bg-[#E0DBD4] transition-colors font-bold"
-            >
-              <Plus size={15} />
-            </button>
-          </div>
-
-          {/* Add button */}
-          <button
-            onClick={handleAdd}
-            disabled={!canAdd}
-            className={`flex-1 py-3.5 rounded-xl font-bold text-[15px] transition-all ${
-              canAdd
-                ? "bg-[#1A1A1A] text-white active:scale-[0.98]"
-                : "bg-[#EDE8E1] text-[#C0BAB3] cursor-not-allowed"
-            }`}
-            data-testid="add-to-cart-btn"
-          >
-            {canAdd
-              ? `Add to order · ${formatCents(unitCents * quantity)}`
-              : "Select required options"}
-          </button>
-        </div>
-      </div>
     </SheetBase>
   );
 }
 
 // ── Sub-components ─────────────────────────────────────────────────────────────
 
-function SheetBase({ children, onClose }: { children: React.ReactNode; onClose: () => void }) {
+/**
+ * SheetBase renders the bottom-sheet chrome.
+ * `cta` is rendered OUTSIDE the scroll area so it is always pinned to the
+ * bottom of the viewport regardless of content length.
+ */
+function SheetBase({
+  children,
+  cta,
+  onClose,
+}: {
+  children: React.ReactNode;
+  cta?: React.ReactNode;
+  onClose: () => void;
+}) {
   return (
     <div className="fixed inset-0 z-50 flex flex-col">
+      {/* Backdrop */}
       <div className="flex-1 bg-black/50 animate-fade-in" onClick={onClose} />
+
+      {/* Sheet panel — flex column so scroll area + CTA are siblings */}
       <div
-        className="relative bg-white rounded-t-3xl max-h-[94dvh] overflow-y-auto overscroll-contain no-scrollbar animate-sheet-up"
-        style={{ boxShadow: "0 -8px 40px rgba(0,0,0,0.18)" }}
+        className="relative bg-white rounded-t-3xl flex flex-col overflow-hidden animate-sheet-up"
+        style={{ maxHeight: "94dvh", boxShadow: "0 -8px 40px rgba(0,0,0,0.18)" }}
         data-testid="product-sheet"
       >
         {/* Drag handle */}
-        <div className="flex justify-center pt-3 pb-0">
+        <div className="flex justify-center pt-3 pb-1 shrink-0">
           <div className="w-10 h-1 rounded-full bg-[#D8D3CC]" />
         </div>
+
         {/* Close button */}
         <button
           onClick={onClose}
@@ -326,7 +341,18 @@ function SheetBase({ children, onClose }: { children: React.ReactNode; onClose: 
         >
           <X size={15} />
         </button>
-        {children}
+
+        {/* Scrollable content — fills remaining space */}
+        <div className="flex-1 overflow-y-auto overscroll-contain no-scrollbar">
+          {children}
+        </div>
+
+        {/* CTA bar — always visible, never scrolled away */}
+        {cta && (
+          <div className="shrink-0 bg-white border-t border-[#EDE8E1] px-5 py-4 safe-bottom">
+            {cta}
+          </div>
+        )}
       </div>
     </div>
   );
