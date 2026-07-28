@@ -30,6 +30,7 @@ import { getAllowedNextStatuses, getStatusMessage, TERMINAL_STATUSES } from '../
 import { sydneyStartOfDay, sydneyStartOfMonth, getSydneyNow, sydneyHour, sydneyDateParts } from '../lib/sydneyTime.js';
 import { syncWholesaleInvoiceStatuses, markStripeInvoicePaidOutOfBand } from '../lib/stripeWholesaleInvoices.js';
 import { buildInvoiceHtml } from '../lib/invoiceTemplate.js';
+import { formatInvoiceNumber } from '../lib/formatInvoiceNumber.js';
 import { claimedRewardsTable } from '@workspace/db';
 import {
   getRegisterSessionReport,
@@ -1346,9 +1347,7 @@ router.get('/wholesale/orders/:id/invoice', async (req, res) => {
   };
   const paymentTerms = paymentTermsMap[(account as any)?.paymentTerms ?? ''] ?? (account as any)?.paymentTerms ?? '30 days from invoice date';
 
-  const invoiceNumber = (order as any).invoiceNumber
-    ? `INV-${(order as any).invoiceNumber}`
-    : `INV-${order.id.slice(0, 8).toUpperCase()}`;
+  const invoiceNumber = formatInvoiceNumber(order as any);
 
   const html = buildInvoiceHtml({
     invoiceNumber,
@@ -1630,8 +1629,7 @@ router.post('/wholesale/orders/:id/send-revised-invoice', async (req, res) => {
     net_60: '60 days from invoice date',
   };
   const paymentTerms = paymentTermsMap[(account as any)?.paymentTerms ?? ''] ?? (account as any)?.paymentTerms ?? '30 days from invoice date';
-  const invoiceNumber = (order as any).invoiceNumber
-    ? `INV-${(order as any).invoiceNumber}` : `INV-${order.id.slice(0, 8).toUpperCase()}`;
+  const invoiceNumber = formatInvoiceNumber(order as any);
 
   const { sendEmail, buildWholesaleInvoiceEmail } = await import('../lib/emailService.js');
 
@@ -2809,10 +2807,7 @@ router.patch('/wholesale/invoices/:orderId/mark-paid', async (req, res) => {
 
     if (recipientEmail) {
       sentTo = recipientEmail;
-      const invNum =
-        updated.invoiceNumber ??
-        updated.poReference ??
-        `INV-${updated.id.slice(0, 6).toUpperCase()}`;
+      const invNum = formatInvoiceNumber(updated);
       const totalAUD = ((updated.totalCents ?? 0) / 100).toLocaleString('en-AU', {
         style: 'currency', currency: 'AUD',
       });
@@ -2910,7 +2905,7 @@ router.post('/wholesale/invoices/:orderId/send-reminder', async (req, res) => {
   const totalAUD = ((order.totalCents ?? 0) / 100).toLocaleString('en-AU', {
     style: 'currency', currency: 'AUD',
   });
-  const invNum = order.invoiceNumber ?? order.poReference ?? `INV-${order.id.slice(0, 6).toUpperCase()}`;
+  const invNum = formatInvoiceNumber(order);
   const termsLabel: Record<string, string> = {
     net_7: 'NET 7', net_14: 'NET 14', net_30: 'NET 30', net_60: 'NET 60',
   };

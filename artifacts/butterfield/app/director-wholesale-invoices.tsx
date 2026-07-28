@@ -61,7 +61,7 @@ function formatAUD(cents: number): string {
 }
 
 function invoiceNumber(order: any): string {
-  return order.invoiceNumber ?? order.poReference ?? `INV-${String(order.id).slice(0, 6).toUpperCase()}`;
+  return order.invoiceNumber ?? order.poReference ?? `INV-${String(order.id).slice(0, 8).toUpperCase()}`;
 }
 
 function getLines(order: any) {

@@ -19,6 +19,7 @@ import {
   syncWholesaleInvoiceStatuses,
 } from '../lib/stripeWholesaleInvoices.js';
 import { buildInvoiceHtml } from '../lib/invoiceTemplate.js';
+import { formatInvoiceNumber } from '../lib/formatInvoiceNumber.js';
 import { generateWholesaleOrderNumber } from '../lib/orderNumber.js';
 import {
   calculateWholesalePrice,
@@ -275,11 +276,7 @@ router.get('/orders/:id/invoice', async (req, res) => {
   };
   const paymentTerms = paymentTermsMap[(account as any).paymentTerms ?? ''] ?? (account as any).paymentTerms ?? '30 days from invoice date';
 
-  const invoiceNumber = (rawOrder as any).invoiceNumber
-    ? `INV-${(rawOrder as any).invoiceNumber}`
-    : (rawOrder as any).orderNumber
-      ? `INV-${(rawOrder as any).orderNumber}`
-      : `INV-${rawOrder.id.slice(0, 8).toUpperCase()}`;
+  const invoiceNumber = formatInvoiceNumber(rawOrder as any);
 
   const html = buildInvoiceHtml({
     invoiceNumber,

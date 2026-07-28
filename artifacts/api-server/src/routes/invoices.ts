@@ -4,6 +4,7 @@ import {
 } from '@workspace/db';
 import { eq } from 'drizzle-orm';
 import { buildInvoiceHtml } from '../lib/invoiceTemplate.js';
+import { formatInvoiceNumber } from '../lib/formatInvoiceNumber.js';
 import { ensureWholesalePaymentSchemaReady } from '../lib/ensureWholesalePaymentSchemaReady.js';
 import { notifyRole } from '../lib/notificationService.js';
 
@@ -66,9 +67,7 @@ router.get('/w/:orderId', async (req, res) => {
     const rawTerms = (account as any)?.paymentTerms ?? '';
     const paymentTerms = paymentTermsMap[rawTerms] ?? (rawTerms || '30 days from invoice date');
 
-    const invoiceNumber = order.invoiceNumber
-      ? `INV-${order.invoiceNumber}`
-      : `INV-${order.id.slice(0, 8).toUpperCase()}`;
+    const invoiceNumber = formatInvoiceNumber(order);
 
     const effectiveStatus = order.invoiceStatus ?? order.status;
     const payable = isOrderPayable(order);
@@ -128,9 +127,7 @@ router.get('/w/:orderId/checkout', async (req, res) => {
 
     const baseUrl = getBaseUrl(req);
 
-    const invoiceNumber = order.invoiceNumber
-      ? `INV-${order.invoiceNumber}`
-      : `INV-${order.id.slice(0, 8).toUpperCase()}`;
+    const invoiceNumber = formatInvoiceNumber(order);
 
     // Use totalCents as the single authoritative amount to avoid any mismatch
     // between line-item subtotals and the real invoice total (which can include
@@ -253,9 +250,7 @@ router.get('/w/:orderId/paid', async (req, res) => {
           const totalAUDNotif = ((updatedOrder.totalCents ?? 0) / 100).toLocaleString('en-AU', {
             style: 'currency', currency: 'AUD',
           });
-          const invNumNotif = updatedOrder.invoiceNumber
-            ? `INV-${updatedOrder.invoiceNumber}`
-            : `INV-${updatedOrder.id.slice(0, 8).toUpperCase()}`;
+          const invNumNotif = formatInvoiceNumber(updatedOrder);
           notifyRole(
             'director',
             'wholesale_invoice_paid',
@@ -271,10 +266,7 @@ router.get('/w/:orderId/paid', async (req, res) => {
             null;
 
           if (recipientEmail) {
-            const invNum =
-              updatedOrder.invoiceNumber ??
-              updatedOrder.poReference ??
-              `INV-${updatedOrder.id.slice(0, 6).toUpperCase()}`;
+            const invNum = formatInvoiceNumber(updatedOrder);
             const totalAUD = ((updatedOrder.totalCents ?? 0) / 100).toLocaleString('en-AU', {
               style: 'currency', currency: 'AUD',
             });
