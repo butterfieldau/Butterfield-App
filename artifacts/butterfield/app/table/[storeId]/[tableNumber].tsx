@@ -30,38 +30,20 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CardField, StripeProvider, useStripe } from '@stripe/stripe-react-native';
 import { useQuery } from '@tanstack/react-query';
 import { api, type ApiProduct, type ProductCategory } from '@/lib/api';
+import { getPalette } from '@/constants/categoryColors';
 import { useAuth } from '@/context/AuthContext';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 const BLUE   = '#1493FF';
-const AMBER  = '#E8C87A';
-const BG     = '#F9F8F6';
+const CHERRY = '#D20001';
+const BG     = '#EFF6FF';
 const CARD   = '#FFFFFF';
 const TEXT   = '#1C1C1E';
 const MUTED  = '#8E8E93';
 const BORDER = '#E5E7EB';
 const DARK   = '#1A1A1A';
 const MERCHANT_ID = 'merchant.au.com.butterfieldcookies.app';
-
-// ── Category colours ──────────────────────────────────────────────────────────
-
-function getCategoryColor(slug: string, name: string): { bg: string; text: string; emoji: string } {
-  const k = `${slug} ${name}`.toLowerCase();
-  if (k.includes('cookie') || k.includes('bake') || k.includes('pastry'))
-    return { bg: '#F7EDD6', text: '#3D1F0A', emoji: '🍪' };
-  if (k.includes('coffee') || k.includes('espresso') || k.includes('latte'))
-    return { bg: '#1C0F07', text: '#F5E6D0', emoji: '☕' };
-  if (k.includes('matcha'))
-    return { bg: '#E4EDD8', text: '#1E4020', emoji: '🍵' };
-  if (k.includes('tea') || k.includes('chai'))
-    return { bg: '#EEE0D8', text: '#4A2818', emoji: '🫖' };
-  if (k.includes('iced') || k.includes('cold') || k.includes('frappe'))
-    return { bg: '#DDE8F0', text: '#0E3A5A', emoji: '🧊' };
-  if (k.includes('food') || k.includes('sandwich'))
-    return { bg: '#F0EDE8', text: '#2A1A0A', emoji: '🥪' };
-  return { bg: '#EDE8E1', text: '#1C1C1E', emoji: '✨' };
-}
 
 // ── Option types ──────────────────────────────────────────────────────────────
 
@@ -585,19 +567,18 @@ function TableOrderScreen({ stripeReady }: { stripeReady: boolean }) {
       (p) => (p.active || p.isSoldOut) &&
         (p.categoryId === categoryId || p.category === categories.find((c) => c.id === categoryId)?.slug)
     );
-    const isDark = bg.startsWith('#1') || bg.startsWith('#0') || bg.startsWith('#2');
 
     return (
       <View style={[styles.root, { backgroundColor: BG }]}>
-        <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
+        <StatusBar barStyle="dark-content" />
 
-        {/* Coloured category header */}
+        {/* Category header — coloured banner matching the portal */}
         <View style={[styles.catHeader, { backgroundColor: bg, paddingTop: insets.top + 12 }]}>
-          <TouchableOpacity onPress={handleBack} style={styles.backBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-            <Feather name="arrow-left" size={22} color={isDark ? 'rgba(255,255,255,0.8)' : textColor} />
+          <TouchableOpacity onPress={handleBack} style={styles.backBtnWhite} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <Feather name="arrow-left" size={20} color={TEXT} />
           </TouchableOpacity>
           <View style={{ flex: 1 }}>
-            <Text style={[styles.catHeaderEmoji]}>{emoji}</Text>
+            <Text style={styles.catHeaderEmoji}>{emoji}</Text>
             <Text style={[styles.catHeaderTitle, { color: textColor }]}>{categoryName}</Text>
           </View>
           <View style={styles.tableBadge}>
@@ -606,14 +587,17 @@ function TableOrderScreen({ stripeReady }: { stripeReady: boolean }) {
           </View>
         </View>
 
+        {/* 2-column product tile grid — matches portal menu screen */}
         <FlatList
           data={products}
           keyExtractor={(p) => p.id}
-          contentContainerStyle={[styles.productList, { paddingBottom: insets.bottom + 100 }]}
+          numColumns={2}
+          columnWrapperStyle={{ gap: 12 }}
+          contentContainerStyle={[styles.productGrid, { paddingBottom: insets.bottom + 100 }]}
           ListEmptyComponent={
             prodsLoading
               ? <ActivityIndicator color={BLUE} style={{ marginTop: 40 }} />
-              : <Text style={styles.emptyText}>No items here yet.</Text>
+              : <Text style={[styles.emptyText, { marginTop: 40 }]}>No items here yet.</Text>
           }
           renderItem={({ item: product }) => {
             const cartItems = cart.filter((i) => i.productId === product.id);
@@ -621,44 +605,52 @@ function TableOrderScreen({ stripeReady }: { stripeReady: boolean }) {
             const price = product.salePriceCents ?? product.priceCents ?? 0;
             const soldOut = product.isSoldOut || !product.active;
             const hasOptions = product.hasVariants || (product as any).optionGroups?.length > 0;
+            const pal = getPalette((product as any).category ?? (product as any).metadata?.category);
+            const imageUrl = product.images?.[0] ?? null;
             return (
-              <TouchableOpacity
-                style={[styles.productRow, soldOut && styles.productRowSoldOut]}
+              <Pressable
+                style={[styles.productTile, { flex: 1, opacity: soldOut ? 0.6 : 1 }]}
                 onPress={() => { if (!soldOut) handleProductTap(product); }}
-                activeOpacity={soldOut ? 1 : 0.7}
               >
-                <View style={styles.productRowInfo}>
-                  {product.images?.[0] ? (
-                    <Image source={{ uri: product.images[0] }} style={styles.productThumb} />
+                {/* Image area */}
+                <View style={[styles.productTileImage, { backgroundColor: imageUrl ? '#F4F1EC' : pal.bg }]}>
+                  {imageUrl ? (
+                    <Image source={{ uri: imageUrl }} style={{ width: '100%', height: '100%', resizeMode: 'cover' }} />
                   ) : (
-                    <View style={[styles.productThumb, styles.productThumbFallback]}>
-                      <Text style={{ fontSize: 24 }}>🍪</Text>
+                    <Text style={{ fontSize: 40 }}>{pal.emoji}</Text>
+                  )}
+                  {soldOut && (
+                    <View style={styles.soldOutOverlay}>
+                      <Text style={styles.soldOutOverlayText}>Sold Out</Text>
                     </View>
                   )}
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.productName}>{product.name}</Text>
-                    {product.description ? (
-                      <Text style={styles.productDesc} numberOfLines={2}>{product.description}</Text>
-                    ) : null}
-                    <Text style={styles.productPrice}>{fmt(price)}</Text>
-                    {soldOut && <Text style={styles.soldOutTag}>Sold out</Text>}
-                    {hasOptions && !soldOut && (
-                      <Text style={styles.customiseHint}>Tap to customise</Text>
+                  {totalQty > 0 && !soldOut && (
+                    <View style={styles.tileQtyBadge}>
+                      <Text style={styles.tileQtyBadgeText}>{totalQty}</Text>
+                    </View>
+                  )}
+                </View>
+
+                {/* Info area */}
+                <View style={styles.productTileInfo}>
+                  <Text style={styles.productTileName} numberOfLines={1}>{product.name}</Text>
+                  <Text style={styles.productTileDesc} numberOfLines={1}>
+                    {hasOptions ? 'Tap to customise' : (product.description ? product.description : `${pal.emoji} ${pal.emoji}`)}
+                  </Text>
+                  <View style={styles.productTilePriceRow}>
+                    <Text style={styles.productTilePrice}>{fmt(price)}</Text>
+                    {!soldOut && (
+                      <Pressable
+                        style={styles.tileCherryBtn}
+                        onPress={(e) => { e.stopPropagation(); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); handleProductTap(product); }}
+                        hitSlop={6}
+                      >
+                        <Feather name="shopping-bag" size={13} color="#fff" />
+                      </Pressable>
                     )}
                   </View>
                 </View>
-                {!soldOut && (
-                  totalQty > 0 ? (
-                    <View style={[styles.addBtn, { backgroundColor: '#EDE8E1' }]}>
-                      <Text style={[styles.qtyText, { minWidth: 0, color: DARK }]}>{totalQty}</Text>
-                    </View>
-                  ) : (
-                    <View style={styles.addBtn}>
-                      <Feather name="plus" size={16} color={CARD} />
-                    </View>
-                  )
-                )}
-              </TouchableOpacity>
+              </Pressable>
             );
           }}
         />
@@ -722,7 +714,11 @@ function TableOrderScreen({ stripeReady }: { stripeReady: boolean }) {
           showsVerticalScrollIndicator={false}
         >
           {categories.map((cat, i) => {
-            const { bg, text, emoji } = getCategoryColor(cat.slug, cat.name);
+            const pal = getPalette(cat.slug);
+            const { bg, banner, emoji } = pal;
+            // Dark cards: coffee (#8B6244) and similar deep hues
+            const isDarkCard = banner.startsWith('#1') || banner.startsWith('#2') || banner.startsWith('#3') || banner.startsWith('#4') || banner.startsWith('#5');
+            const textColor = '#fff';
             const count = allProducts.filter(
               (p) => (p.active || p.isSoldOut) && (p.categoryId === cat.id || p.category === cat.slug)
             ).length;
@@ -736,19 +732,19 @@ function TableOrderScreen({ stripeReady }: { stripeReady: boolean }) {
                 ]}
                 onPress={() => {
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  setView({ kind: 'products', categoryId: cat.id, categoryName: cat.name, emoji, bg, textColor: text });
+                  setView({ kind: 'products', categoryId: cat.id, categoryName: cat.name, emoji, bg, textColor: banner });
                 }}
               >
-                <View style={[styles.catEmojiWrap, { backgroundColor: bg.startsWith('#1') ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.06)' }]}>
+                <View style={[styles.catEmojiWrap, { backgroundColor: 'rgba(0,0,0,0.08)' }]}>
                   <Text style={{ fontSize: 20 }}>{emoji}</Text>
                 </View>
                 <View style={{ marginTop: 'auto' as any }}>
                   {count > 0 && (
-                    <Text style={[styles.catCount, { color: text, opacity: 0.6 }]}>
+                    <Text style={[styles.catCount, { color: banner }]}>
                       {count} item{count !== 1 ? 's' : ''}
                     </Text>
                   )}
-                  <Text style={[styles.catName, { color: text, fontSize: i < 2 ? 20 : 16 }]}>
+                  <Text style={[styles.catName, { color: banner, fontSize: i < 2 ? 20 : 16 }]}>
                     {cat.name.toUpperCase()}
                   </Text>
                 </View>
@@ -1092,12 +1088,13 @@ const styles = StyleSheet.create({
   root:                { flex: 1 },
   // Header
   header:              { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingBottom: 14, gap: 10, backgroundColor: BG },
-  backBtn:             { width: 36, height: 36, borderRadius: 18, backgroundColor: CARD, justifyContent: 'center', alignItems: 'center', shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 4, shadowOffset: { width: 0, height: 1 }, elevation: 2 },
+  backBtn:             { width: 36, height: 36, borderRadius: 18, backgroundColor: BG, justifyContent: 'center', alignItems: 'center', shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 4, shadowOffset: { width: 0, height: 1 }, elevation: 2 },
+  backBtnWhite:        { width: 36, height: 36, borderRadius: 18, backgroundColor: CARD, justifyContent: 'center', alignItems: 'center', shadowColor: '#000', shadowOpacity: 0.10, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 3 },
   headerTitle:         { flex: 1, fontSize: 18, fontWeight: '600', color: TEXT },
   greetingTitle:       { fontSize: 22, fontWeight: '700', color: TEXT },
-  tableBadge:          { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#EDE8E1', borderRadius: 20, paddingHorizontal: 10, paddingVertical: 5 },
-  tableBadgeLabel:     { fontSize: 11, fontWeight: '500', color: MUTED, textTransform: 'uppercase', letterSpacing: 0.5 },
-  tableBadgeNum:       { fontSize: 14, fontWeight: '700', color: TEXT },
+  tableBadge:          { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(20,147,255,0.12)', borderRadius: 20, paddingHorizontal: 10, paddingVertical: 5 },
+  tableBadgeLabel:     { fontSize: 11, fontWeight: '500', color: BLUE, textTransform: 'uppercase', letterSpacing: 0.5 },
+  tableBadgeNum:       { fontSize: 14, fontWeight: '700', color: BLUE },
   cartChip:            { backgroundColor: DARK, borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6 },
   cartChipText:        { color: CARD, fontSize: 13, fontWeight: '600' },
   // Categories
@@ -1111,35 +1108,36 @@ const styles = StyleSheet.create({
   loadingWrap:         { flex: 1, justifyContent: 'center', alignItems: 'center' },
   emptyText:           { textAlign: 'center', color: MUTED, fontSize: 15 },
   // Category product list header
-  catHeader:           { flexDirection: 'row', alignItems: 'flex-end', paddingHorizontal: 16, paddingBottom: 16, gap: 10 },
-  catHeaderEmoji:      { fontSize: 28, marginBottom: 2 },
-  catHeaderTitle:      { fontSize: 24, fontWeight: '700', marginTop: 4 },
-  // Products
-  productList:         { paddingHorizontal: 14, paddingTop: 10 },
-  productRow:          { flexDirection: 'row', alignItems: 'center', backgroundColor: CARD, borderRadius: 16, padding: 12, marginBottom: 10, shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 6, shadowOffset: { width: 0, height: 1 }, elevation: 1 },
-  productRowSoldOut:   { opacity: 0.5 },
-  productRowInfo:      { flex: 1, flexDirection: 'row', gap: 12, alignItems: 'center' },
-  productThumb:        { width: 64, height: 64, borderRadius: 12 },
-  productThumbFallback:{ backgroundColor: '#F0EDE8', justifyContent: 'center', alignItems: 'center' },
-  productName:         { fontSize: 15, fontWeight: '600', color: TEXT, marginBottom: 2 },
-  productDesc:         { fontSize: 12, color: MUTED, lineHeight: 17, marginBottom: 4 },
-  productPrice:        { fontSize: 14, fontWeight: '600', color: TEXT },
-  soldOutTag:          { fontSize: 11, color: MUTED, fontWeight: '500', marginTop: 2 },
-  customiseHint:       { fontSize: 11, color: BLUE, fontWeight: '500', marginTop: 2 },
-  addBtn:              { width: 34, height: 34, borderRadius: 17, backgroundColor: BLUE, justifyContent: 'center', alignItems: 'center', marginLeft: 8 },
+  catHeader:           { flexDirection: 'row', alignItems: 'flex-end', paddingHorizontal: 16, paddingBottom: 20, gap: 10 },
+  catHeaderEmoji:      { fontSize: 32, marginBottom: 4 },
+  catHeaderTitle:      { fontSize: 26, fontWeight: '800', marginTop: 4, letterSpacing: -0.5, color: TEXT },
+  // Product 2-column tile grid (matches portal menu screen)
+  productGrid:         { paddingHorizontal: 14, paddingTop: 14, gap: 12 },
+  productTile:         { backgroundColor: CARD, borderRadius: 18, overflow: 'hidden', shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 12, shadowOffset: { width: 0, height: 4 }, elevation: 4 },
+  productTileImage:    { height: 140, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
+  productTileInfo:     { padding: 12, gap: 3, backgroundColor: CARD },
+  productTileName:     { fontSize: 14, fontWeight: '700', color: TEXT },
+  productTileDesc:     { fontSize: 11, color: MUTED, lineHeight: 15 },
+  productTilePriceRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 6 },
+  productTilePrice:    { fontSize: 16, fontWeight: '700', color: TEXT },
+  tileCherryBtn:       { width: 36, height: 36, borderRadius: 18, backgroundColor: CHERRY, alignItems: 'center', justifyContent: 'center' },
+  soldOutOverlay:      { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.45)', alignItems: 'center', justifyContent: 'center' },
+  soldOutOverlayText:  { color: '#fff', fontWeight: '700', fontSize: 12 },
+  tileQtyBadge:        { position: 'absolute', top: 8, right: 8, backgroundColor: CHERRY, borderRadius: 12, minWidth: 24, height: 24, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 6 },
+  tileQtyBadgeText:    { color: '#fff', fontSize: 12, fontWeight: '700' },
   qtyRow:              { flexDirection: 'row', alignItems: 'center', gap: 8, marginLeft: 8 },
-  qtyBtn:              { width: 30, height: 30, borderRadius: 15, backgroundColor: '#F0EDE8', justifyContent: 'center', alignItems: 'center' },
+  qtyBtn:              { width: 30, height: 30, borderRadius: 15, backgroundColor: '#F2F2F7', justifyContent: 'center', alignItems: 'center' },
   qtyText:             { fontSize: 15, fontWeight: '700', color: TEXT, minWidth: 18, textAlign: 'center' },
   // Cart bar
   cartBar:             { position: 'absolute', bottom: 0, left: 0, right: 0, paddingHorizontal: 16, paddingTop: 12, backgroundColor: 'transparent' },
   cartBarBtn:          { backgroundColor: DARK, borderRadius: 20, flexDirection: 'row', alignItems: 'center', paddingVertical: 14, paddingHorizontal: 18, gap: 8 },
-  cartBarBadge:        { backgroundColor: AMBER, borderRadius: 12, width: 24, height: 24, justifyContent: 'center', alignItems: 'center' },
-  cartBarBadgeText:    { color: DARK, fontSize: 12, fontWeight: '700' },
+  cartBarBadge:        { backgroundColor: BLUE, borderRadius: 12, width: 24, height: 24, justifyContent: 'center', alignItems: 'center' },
+  cartBarBadgeText:    { color: CARD, fontSize: 12, fontWeight: '700' },
   cartBarText:         { flex: 1, color: CARD, fontSize: 16, fontWeight: '600' },
-  cartBarPrice:        { color: AMBER, fontSize: 16, fontWeight: '700' },
+  cartBarPrice:        { color: CARD, fontSize: 16, fontWeight: '700' },
   // Cart screen
   cartScroll:          { paddingHorizontal: 16, paddingTop: 12 },
-  cartRow:             { flexDirection: 'row', alignItems: 'center', backgroundColor: CARD, borderRadius: 14, padding: 12, marginBottom: 10, shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 4, shadowOffset: { width: 0, height: 1 }, elevation: 1 },
+  cartRow:             { flexDirection: 'row', alignItems: 'center', backgroundColor: CARD, borderRadius: 18, padding: 12, marginBottom: 10, shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 12, shadowOffset: { width: 0, height: 4 }, elevation: 4 },
   cartRowLeft:         { flex: 1, flexDirection: 'row', gap: 10, alignItems: 'center' },
   cartThumb:           { width: 52, height: 52, borderRadius: 10 },
   cartThumbFallback:   { backgroundColor: '#F0EDE8', justifyContent: 'center', alignItems: 'center' },
@@ -1157,15 +1155,15 @@ const styles = StyleSheet.create({
   totalRow:            { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10 },
   totalLabel:          { fontSize: 15, color: MUTED, fontWeight: '500' },
   totalAmount:         { fontSize: 15, fontWeight: '700', color: TEXT },
-  primaryBtn:          { backgroundColor: BLUE, borderRadius: 14, paddingVertical: 15, alignItems: 'center' },
-  primaryBtnDisabled:  { backgroundColor: '#B0C4D8' },
+  primaryBtn:          { backgroundColor: CHERRY, borderRadius: 14, paddingVertical: 15, alignItems: 'center' },
+  primaryBtnDisabled:  { backgroundColor: '#D0BEBE' },
   primaryBtnText:      { color: CARD, fontSize: 17, fontWeight: '700' },
   // Confirmation
   doneWrap:            { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24 },
   doneCircle:          { width: 90, height: 90, borderRadius: 45, backgroundColor: '#FFF8EE', justifyContent: 'center', alignItems: 'center', marginBottom: 20 },
   doneTitle:           { fontSize: 28, fontWeight: '800', color: TEXT, marginBottom: 8, textAlign: 'center' },
   doneSub:             { fontSize: 16, color: MUTED, textAlign: 'center', lineHeight: 22, marginBottom: 28 },
-  doneCard:            { backgroundColor: CARD, borderRadius: 16, width: '100%', overflow: 'hidden', borderWidth: 1, borderColor: BORDER },
+  doneCard:            { backgroundColor: CARD, borderRadius: 18, width: '100%', overflow: 'hidden', shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 12, shadowOffset: { width: 0, height: 4 }, elevation: 4 },
   doneRow:             { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: BORDER },
   doneRowLabel:        { fontSize: 15, color: MUTED },
   doneRowValue:        { fontSize: 15, fontWeight: '700', color: TEXT },
@@ -1298,7 +1296,7 @@ const sheetStyles = StyleSheet.create({
     backgroundColor: '#F0EDE8',
   },
   pillSelected: {
-    backgroundColor: DARK,
+    backgroundColor: CHERRY,
   },
   pillText: {
     fontSize: 13,
@@ -1319,7 +1317,7 @@ const sheetStyles = StyleSheet.create({
     gap: 12,
   },
   optionRowSelected: {
-    backgroundColor: DARK,
+    backgroundColor: CHERRY,
   },
   optionRowDisabled: {
     opacity: 0.4,
@@ -1422,7 +1420,7 @@ const sheetStyles = StyleSheet.create({
   },
   addBtn: {
     flex: 1,
-    backgroundColor: DARK,
+    backgroundColor: CHERRY,
     borderRadius: 12,
     paddingVertical: 13,
     alignItems: 'center',

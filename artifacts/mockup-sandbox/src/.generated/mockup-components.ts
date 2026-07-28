@@ -18,6 +18,7 @@ export const modules: ModuleMap = {
   "./components/mockups/director-orders-current/CurrentPosTerminal.tsx": () => import("../components/mockups/director-orders-current/CurrentPosTerminal.tsx"),
   "./components/mockups/director-orders-current/CurrentWholesale.tsx": () => import("../components/mockups/director-orders-current/CurrentWholesale.tsx"),
   "./components/mockups/director-reports/Reports.tsx": () => import("../components/mockups/director-reports/Reports.tsx"),
+  "./components/mockups/roster-redesign/RosterApple.tsx": () => import("../components/mockups/roster-redesign/RosterApple.tsx"),
   "./components/mockups/ts-design/Approvals.tsx": () => import("../components/mockups/ts-design/Approvals.tsx"),
   "./components/mockups/ts-design/PayRun.tsx": () => import("../components/mockups/ts-design/PayRun.tsx"),
   "./components/mockups/ts-design/Roster.tsx": () => import("../components/mockups/ts-design/Roster.tsx"),
@@ -27,6 +28,5 @@ export const modules: ModuleMap = {
   "./components/mockups/wholesale-apple/WholesaleDashboard.tsx": () => import("../components/mockups/wholesale-apple/WholesaleDashboard.tsx"),
   "./components/mockups/wholesale-apple/WholesaleInvoices.tsx": () => import("../components/mockups/wholesale-apple/WholesaleInvoices.tsx"),
   "./components/mockups/wholesale-apple/WholesaleOrderDetail.tsx": () => import("../components/mockups/wholesale-apple/WholesaleOrderDetail.tsx"),
-  "./components/mockups/wholesale-apple/WholesaleOrders.tsx": () => import("../components/mockups/wholesale-apple/WholesaleOrders.tsx"),
-  "./components/mockups/roster-redesign/RosterApple.tsx": () => import("../components/mockups/roster-redesign/RosterApple.tsx")
+  "./components/mockups/wholesale-apple/WholesaleOrders.tsx": () => import("../components/mockups/wholesale-apple/WholesaleOrders.tsx")
 };
