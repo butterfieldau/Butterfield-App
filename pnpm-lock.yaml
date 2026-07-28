@@ -293,6 +293,45 @@ importers:
         specifier: ^4.1.9
         version: 4.1.9(@types/node@25.3.5)(jiti@2.6.1)(lightningcss@1.31.1)(terser@5.46.2)(tsx@4.21.0)(yaml@2.9.0)
 
+  artifacts/api-server/public/table-src:
+    devDependencies:
+      '@stripe/react-stripe-js':
+        specifier: ^3.7.0
+        version: 3.10.0(@stripe/stripe-js@7.9.0)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
+      '@stripe/stripe-js':
+        specifier: ^7.4.0
+        version: 7.9.0
+      '@tailwindcss/vite':
+        specifier: 'catalog:'
+        version: 4.2.1(vite@7.3.2(@types/node@25.3.5)(jiti@2.6.1)(lightningcss@1.31.1)(terser@5.46.2)(tsx@4.21.0)(yaml@2.9.0))
+      '@types/node':
+        specifier: 'catalog:'
+        version: 25.3.5
+      '@types/react':
+        specifier: 'catalog:'
+        version: 19.2.14
+      '@types/react-dom':
+        specifier: 'catalog:'
+        version: 19.2.3(@types/react@19.2.14)
+      '@vitejs/plugin-react':
+        specifier: 'catalog:'
+        version: 5.1.4(vite@7.3.2(@types/node@25.3.5)(jiti@2.6.1)(lightningcss@1.31.1)(terser@5.46.2)(tsx@4.21.0)(yaml@2.9.0))
+      lucide-react:
+        specifier: 'catalog:'
+        version: 0.545.0(react@19.2.0)
+      react:
+        specifier: 'catalog:'
+        version: 19.2.0
+      react-dom:
+        specifier: 'catalog:'
+        version: 19.2.0(react@19.2.0)
+      tailwindcss:
+        specifier: 'catalog:'
+        version: 4.2.1
+      vite:
+        specifier: 'catalog:'
+        version: 7.3.2(@types/node@25.3.5)(jiti@2.6.1)(lightningcss@1.31.1)(terser@5.46.2)(tsx@4.21.0)(yaml@2.9.0)
+
   artifacts/butterfield:
     dependencies:
       '@expo-google-fonts/dancing-script':
@@ -2878,6 +2917,17 @@ packages:
 
   '@stardazed/streams-text-encoding@1.0.2':
     resolution: {integrity: sha512-f2Z15BId3t44a/u21yYSGXFAkCyKocmAyduoAy7swnZ4xIfbaZlOWsgly/jDNNOuj6hYQN72UaBRe3Z/tOHfqg==}
+
+  '@stripe/react-stripe-js@3.10.0':
+    resolution: {integrity: sha512-UPqHZwMwDzGSax0ZI7XlxR3tZSpgIiZdk3CiwjbTK978phwR/fFXeAXQcN/h8wTAjR4ZIAzdlI9DbOqJhuJdeg==}
+    peerDependencies:
+      '@stripe/stripe-js': '>=1.44.1 <8.0.0'
+      react: '>=16.8.0 <20.0.0'
+      react-dom: '>=16.8.0 <20.0.0'
+
+  '@stripe/stripe-js@7.9.0':
+    resolution: {integrity: sha512-ggs5k+/0FUJcIgNY08aZTqpBTtbExkJMYMLSMwyucrhtWexVOEY1KJmhBsxf+E/Q15f5rbwBpj+t0t2AW2oCsQ==}
+    engines: {node: '>=12.16'}
 
   '@stripe/stripe-react-native@0.63.0':
     resolution: {integrity: sha512-5vy+b+sP3xOqtHDZ2nezOIx0MWbcrJ/hwoL74gAc2Qa+/wF/JVjzirG8zVD7AtMYFjlIldmznpSePaPEaLJLWA==}
@@ -10965,6 +11015,15 @@ snapshots:
   '@standard-schema/spec@1.1.0': {}
 
   '@stardazed/streams-text-encoding@1.0.2': {}
+
+  '@stripe/react-stripe-js@3.10.0(@stripe/stripe-js@7.9.0)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)':
+    dependencies:
+      '@stripe/stripe-js': 7.9.0
+      prop-types: 15.8.1
+      react: 19.2.0
+      react-dom: 19.2.0(react@19.2.0)
+
+  '@stripe/stripe-js@7.9.0': {}
 
   '@stripe/stripe-react-native@0.63.0(expo@55.0.26)(react-native@0.83.6(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.2.0))(react@19.2.0)':
     dependencies:

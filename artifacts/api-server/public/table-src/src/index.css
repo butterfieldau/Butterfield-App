@@ -1,0 +1,48 @@
+@import "tailwindcss";
+
+@theme {
+  --color-brand-blue: #0b70f8;
+  --color-brand-blue-light: #00adee;
+  --color-brand-warm: #fdf8f3;
+  --color-brand-cookie: #c97b4a;
+  --color-brand-cookie-dark: #a85f30;
+  --color-brand-text: #1a1a1a;
+  --color-brand-muted: #6b7280;
+  --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html, body, #root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: #fdf8f3;
+  color: #1a1a1a;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Smooth sheet transitions */
+.sheet-enter {
+  transform: translateY(100%);
+}
+.sheet-enter-active {
+  transform: translateY(0);
+  transition: transform 0.3s cubic-bezier(0.32, 0.72, 0, 1);
+}
+.sheet-exit {
+  transform: translateY(0);
+}
+.sheet-exit-active {
+  transform: translateY(100%);
+  transition: transform 0.25s cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+/* Safe area */
+.safe-top    { padding-top:    env(safe-area-inset-top,    0px); }
+.safe-bottom { padding-bottom: env(safe-area-inset-bottom, 0px); }

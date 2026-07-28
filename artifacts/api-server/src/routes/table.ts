@@ -77,9 +77,89 @@ export function generateTableQrUrl(storeId: string, tableNumber: string): string
   return `${base}/api/table/${encodeURIComponent(storeId)}/${encodeURIComponent(tableNumber)}`;
 }
 
+// ── Stripe publishable key (cached per process) ───────────────────────────────
+let cachedPublishableKey: string | null = null;
+async function getPublishableKey(): Promise<string | null> {
+  if (cachedPublishableKey) return cachedPublishableKey;
+  try {
+    const { getUncachableStripeClient } = await import('../stripeClient.js');
+    // Access the publishable key via the connectors SDK the same way getUncachableStripeClient does.
+    // We can't call stripe directly for the publishable key, so we read it from the environment.
+    // The stripe client module internally fetches credentials; we re-use that path.
+    // Fall back to EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY if set.
+    const envKey =
+      process.env.STRIPE_PUBLISHABLE_KEY ??
+      process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY ??
+      null;
+    if (envKey) {
+      cachedPublishableKey = envKey;
+      return cachedPublishableKey;
+    }
+    // Otherwise attempt to fetch from the connectors SDK credentials endpoint.
+    const hostname = process.env.REPLIT_CONNECTORS_HOSTNAME;
+    const xReplitToken = process.env.REPL_IDENTITY
+      ? 'repl ' + process.env.REPL_IDENTITY
+      : process.env.WEB_REPL_RENEWAL
+        ? 'depl ' + process.env.WEB_REPL_RENEWAL
+        : null;
+    if (!hostname || !xReplitToken) return null;
+    const isProduction = process.env.REPLIT_DEPLOYMENT === '1';
+    const envs = isProduction ? ['production', 'development'] : ['development', 'production'];
+    for (const env of envs) {
+      const url = new URL(`https://${hostname}/api/v2/connection`);
+      url.searchParams.set('include_secrets', 'true');
+      url.searchParams.set('connector_names', 'stripe');
+      url.searchParams.set('environment', env);
+      const resp = await fetch(url.toString(), {
+        headers: { Accept: 'application/json', 'X-Replit-Token': xReplitToken },
+        signal: AbortSignal.timeout(6_000),
+      });
+      if (!resp.ok) continue;
+      const data = await resp.json() as any;
+      const pub = data.items?.[0]?.settings?.publishable;
+      if (pub) { cachedPublishableKey = pub; return cachedPublishableKey; }
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+// ── HTML safety helpers ────────────────────────────────────────────────────────
+
+/**
+ * Safe JSON serialization for inline <script type="application/json"> blocks.
+ * Escapes characters that would allow breaking out of a script tag (reflected XSS).
+ *   < → \u003c   prevents </script> injection
+ *   > → \u003e   belt-and-suspenders
+ *   & → \u0026   prevents HTML entity confusion
+ */
+function safeJson(value: unknown): string {
+  return JSON.stringify(value)
+    .replace(/</g, '\\u003c')
+    .replace(/>/g, '\\u003e')
+    .replace(/&/g, '\\u0026');
+}
+
+/** Minimal HTML entity encoding for values interpolated into HTML text/attribute contexts. */
+function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 // ── SPA shell ─────────────────────────────────────────────────────────────────
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const PUBLIC_DIR = path.resolve(__dirname, '../../public');
+// Compiled bundle lives in dist/index.mjs, so ../public resolves to api-server/public/
+const PUBLIC_DIR = path.resolve(__dirname, '../public');
+
+// Serve compiled SPA static assets at /api/table/assets/* and /api/table/index.html
+// Must be registered before the dynamic :storeId/:tableNumber route.
+const { default: expressModule } = await import('express');
+router.use('/assets', expressModule.static(path.join(PUBLIC_DIR, 'table', 'assets'), { maxAge: '7d', immutable: true }));
 
 router.get('/:storeId/:tableNumber', async (req, res) => {
   const { storeId, tableNumber } = req.params;
@@ -88,12 +168,16 @@ router.get('/:storeId/:tableNumber', async (req, res) => {
   // the QR link is never a dead end even before the web-app task ships.
   const spaPath = path.join(PUBLIC_DIR, 'table', 'index.html');
 
+  const stripePublishableKey = await getPublishableKey().catch(() => null);
+
   try {
     const fs = await import('node:fs/promises');
     let html = await fs.readFile(spaPath, 'utf8');
 
     // Inject store + table metadata so the SPA can read them without query params.
-    const configBlock = `<script id="table-config" type="application/json">${JSON.stringify({ storeId, tableNumber })}</script>`;
+    // safeJson escapes <, >, & to prevent reflected XSS via crafted storeId/tableNumber.
+    const configPayload = { storeId, tableNumber, stripePublishableKey };
+    const configBlock = `<script id="table-config" type="application/json">${safeJson(configPayload)}</script>`;
     html = html.replace('</head>', `${configBlock}\n</head>`);
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
     return res.send(html);
@@ -105,7 +189,7 @@ router.get('/:storeId/:tableNumber', async (req, res) => {
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Order at the Table — Butterfield Cookies</title>
-  <script id="table-config" type="application/json">${JSON.stringify({ storeId, tableNumber })}</script>
+  <script id="table-config" type="application/json">${safeJson({ storeId, tableNumber })}</script>
   <style>
     body { font-family: system-ui, sans-serif; display: flex; flex-direction: column; align-items: center;
            justify-content: center; min-height: 100dvh; margin: 0; background: #fdf8f3; color: #1a1a1a; }
@@ -114,7 +198,7 @@ router.get('/:storeId/:tableNumber', async (req, res) => {
   </style>
 </head>
 <body>
-  <h1>🍪 Table ${tableNumber}</h1>
+  <h1>🍪 Table ${escapeHtml(tableNumber)}</h1>
   <p>Our table ordering experience is coming soon. In the meantime, please ask a staff member for assistance.</p>
 </body>
 </html>`;

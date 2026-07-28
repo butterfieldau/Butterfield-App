@@ -1,5 +1,6 @@
 packages:
   - artifacts/*
+  - artifacts/api-server/public/table-src
   - lib/*
   - lib/integrations/*
   - scripts
