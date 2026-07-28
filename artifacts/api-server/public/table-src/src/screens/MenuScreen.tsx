@@ -96,11 +96,12 @@ function Header({ tableNumber, onOpenCart }: { tableNumber: string; onOpenCart: 
         />
 
         <div className="flex items-center gap-2">
-          {/* Table number — plain circle, no "Table" label */}
+          {/* Table badge */}
           <div
-            className="w-9 h-9 rounded-full flex items-center justify-center shrink-0"
+            className="flex items-center gap-1.5 px-3 h-9 rounded-full shrink-0"
             style={{ background: "#1A1A1A" }}
           >
+            <span className="text-[#888] text-xs font-semibold leading-none">Table</span>
             <span className="text-white text-sm font-black leading-none">{tableNumber}</span>
           </div>
 
