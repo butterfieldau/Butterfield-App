@@ -5,6 +5,7 @@ import {
 import { eq } from 'drizzle-orm';
 import { buildInvoiceHtml } from '../lib/invoiceTemplate.js';
 import { ensureWholesalePaymentSchemaReady } from '../lib/ensureWholesalePaymentSchemaReady.js';
+import { notifyRole } from '../lib/notificationService.js';
 
 const router = Router();
 
@@ -246,6 +247,22 @@ router.get('/w/:orderId/paid', async (req, res) => {
                 .from(usersTable)
                 .where(eq(usersTable.id, account.userId))
             : [null];
+
+          // Notify all directors that the invoice has been paid
+          const companyName = account?.companyName ?? 'A customer';
+          const totalAUDNotif = ((updatedOrder.totalCents ?? 0) / 100).toLocaleString('en-AU', {
+            style: 'currency', currency: 'AUD',
+          });
+          const invNumNotif = updatedOrder.invoiceNumber
+            ? `INV-${updatedOrder.invoiceNumber}`
+            : `INV-${updatedOrder.id.slice(0, 8).toUpperCase()}`;
+          notifyRole(
+            'director',
+            'wholesale_invoice_paid',
+            'Invoice Paid',
+            `${companyName} paid ${totalAUDNotif} (${invNumNotif})`,
+            { orderId, invoiceNumber: invNumNotif },
+          ).catch(() => { /* non-fatal */ });
 
           const recipientEmail =
             account?.accountsEmail?.trim() ||
