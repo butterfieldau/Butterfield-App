@@ -2,7 +2,7 @@ import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import React from 'react';
 import { Pressable, Text, View } from 'react-native';
-import { normalizeOrderItems, summarizeOrderItems } from '@/lib/orderItems';
+import { normalizeOrderItems } from '@/lib/orderItems';
 import { STATUS_COLORS, STATUS_LABEL } from '@/lib/orderStatus';
 import type { ApiOrder } from '@/lib/api';
 import { styles } from './directorOrdersStyles';
@@ -14,7 +14,6 @@ export default function DirectorOrderCard({ order, onPress, onPrint, printing }:
   const colors = STATUS_COLORS[order.status] ?? { bg: '#F3F4F6', text: '#6B7280' };
   const label = STATUS_LABEL[order.status] ?? order.status;
   const items  = normalizeOrderItems(order.items);
-  const itemSummary = summarizeOrderItems(items).replaceAll(' · ', ', ');
   return (
     <Pressable
       onPress={onPress}
@@ -90,7 +89,29 @@ export default function DirectorOrderCard({ order, onPress, onPrint, printing }:
             <Text style={{ fontSize: 11, fontWeight: '700', color: AMBER }}>Needs Acceptance</Text>
           </View>
         )}
-        <Text style={{ color: TEXT_MUTED, fontWeight: '400', fontSize: 12, marginTop: 4 }} numberOfLines={1}>{itemSummary || 'No items'}</Text>
+        {items.length === 0 ? (
+          <Text style={{ color: TEXT_MUTED, fontWeight: '400', fontSize: 12, marginTop: 4 }}>No items</Text>
+        ) : (
+          <View style={{ marginTop: 4, gap: 2 }}>
+            {items.slice(0, 3).map((it, idx) => (
+              <View key={idx}>
+                <Text style={{ color: TEXT_MUTED, fontWeight: '500', fontSize: 12 }} numberOfLines={1}>
+                  {it.quantity > 1 ? `${it.quantity}× ` : ''}{it.name}{it.variantName ? ` (${it.variantName})` : ''}
+                </Text>
+                {it.notableOptions.length > 0 && (
+                  <Text style={{ color: TEXT_MUTED, fontWeight: '400', fontSize: 11, marginLeft: 10 }} numberOfLines={1}>
+                    {it.notableOptions.join(' · ')}
+                  </Text>
+                )}
+              </View>
+            ))}
+            {items.length > 3 && (
+              <Text style={{ color: TEXT_MUTED, fontWeight: '400', fontSize: 11, fontStyle: 'italic' }}>
+                +{items.length - 3} more
+              </Text>
+            )}
+          </View>
+        )}
         {items.some((it) => it.boxContents.length > 0) && (
           <View style={{ marginTop: 4, gap: 2 }}>
             {items.filter((it) => it.boxContents.length > 0).map((it, bi) => (

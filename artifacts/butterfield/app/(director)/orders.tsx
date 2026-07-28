@@ -34,7 +34,7 @@ import {
   BG, SURFACE, SURFACE_RAISED, BORDER, TEXT, TEXT_MUTED, TEXT_FAINT, BRAND, BRAND_DIM, BRAND_TEXT_ON,
   GREEN, GREEN_DIM, AMBER, AMBER_DIM, RED,
 } from '@/components/director/commandCenterColors';
-import { normalizeOrderItems, summarizeOrderItems } from '@/lib/orderItems';
+import { normalizeOrderItems } from '@/lib/orderItems';
 
 const APP_FILTER_TABS = [
   { key: 'all',              label: 'All' },
@@ -65,7 +65,6 @@ const TERMINAL_STATUSES    = ['completed', 'cancelled', 'refunded'];
 function LiveOrderCard({ order, onPress }: { order: ApiOrder; onPress: () => void }) {
   const col   = STATUS_COLORS[order.status] ?? STATUS_COLORS.received;
   const items = normalizeOrderItems(order.items);
-  const summary = summarizeOrderItems(items);
   const label = STATUS_LABEL[order.status] ?? order.status;
   const isDineIn = (order as any).source === 'dine_in';
   const tableNumber = (order as any).tableNumber ?? null;
@@ -104,8 +103,24 @@ function LiveOrderCard({ order, onPress }: { order: ApiOrder; onPress: () => voi
       {order.customerName && (
         <Text style={{ fontSize: 11, color: TEXT_MUTED, marginBottom: 4 }} numberOfLines={1}>{order.customerName}</Text>
       )}
-      {summary ? (
-        <Text style={{ fontSize: 11, color: TEXT_MUTED, marginBottom: 6 }} numberOfLines={1}>{summary}</Text>
+      {items.length > 0 ? (
+        <View style={{ marginBottom: 6, gap: 2 }}>
+          {items.slice(0, 2).map((it, idx) => (
+            <View key={idx}>
+              <Text style={{ fontSize: 11, color: TEXT_MUTED, fontWeight: '500' }} numberOfLines={1}>
+                {it.quantity > 1 ? `${it.quantity}× ` : ''}{it.name}{it.variantName ? ` (${it.variantName})` : ''}
+              </Text>
+              {it.notableOptions.length > 0 && (
+                <Text style={{ fontSize: 10, color: TEXT_MUTED, marginLeft: 8 }} numberOfLines={1}>
+                  {it.notableOptions.join(' · ')}
+                </Text>
+              )}
+            </View>
+          ))}
+          {items.length > 2 && (
+            <Text style={{ fontSize: 10, color: TEXT_MUTED, fontStyle: 'italic' }}>+{items.length - 2} more</Text>
+          )}
+        </View>
       ) : null}
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
