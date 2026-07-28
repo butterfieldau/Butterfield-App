@@ -354,6 +354,7 @@ function PaymentForm({ paymentIntentId, name, phone, email, amountCents }: Payme
         items: cart,
         totalCents: amountCents,
         email: email || undefined,
+        rewards: data.data.rewards ?? null,
       });
       clearCart();
       goTo("confirmation");

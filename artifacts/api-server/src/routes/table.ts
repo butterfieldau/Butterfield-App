@@ -11,11 +11,15 @@ import { Router } from 'express';
 import { randomUUID } from 'crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { db, ordersTable, usersTable, staffProfilesTable, storeTablesTable, storeSettingsTable } from '@workspace/db';
+import { db, ordersTable, usersTable, staffProfilesTable, storeTablesTable, storeSettingsTable, customerProfilesTable } from '@workspace/db';
 import { eq, inArray, sql, and } from 'drizzle-orm';
 import { prepareRetailCheckout } from '../lib/retailCheckout.js';
 import { generateOrderNumber } from '../lib/orderNumber.js';
 import { sendNotification } from '../lib/notificationService.js';
+import { applyCoffeeStamps, ensureLoyaltySchemaReady } from '../lib/loyaltyIdentity.js';
+import { countCoffeeItemsFromOrderItems } from '../lib/orderLoyaltyUtils.js';
+import { sydneyDateParts } from '../lib/sydneyTime.js';
+import { sendEmail, buildCustomerWelcomeEmail, getLogoUrl } from '../lib/emailService.js';
 
 const router = Router();
 
@@ -427,14 +431,93 @@ router.post('/orders', tableRateLimit, async (req, res) => {
     return res.status(400).json({ error: 'Payment verification failed. Please try again.' });
   }
 
+  // ── Resolve rewards identity before insert ────────────────────────────────
+  // Doing this before the INSERT means user_id on the order row reflects the
+  // real customer, so refund/reversal paths that key on order.user_id work correctly.
+  const resolvedContactEmail = contactEmail || null;
+  const resolvedContactName  = contactName  || null;
+
+  let resolvedUserId = 'guest';
+  let rewardsPrep: {
+    userId: string;
+    coffeeCount: number;
+    isNewAccount: boolean;
+    customerName: string;
+  } | null = null;
+
+  if (resolvedContactEmail) {
+    try {
+      await ensureLoyaltySchemaReady();
+
+      const email = resolvedContactEmail.toLowerCase().trim();
+      const [existingUser] = await db
+        .select({ id: usersTable.id, name: usersTable.name })
+        .from(usersTable)
+        .where(eq(usersTable.email, email));
+
+      let loyaltyUserId: string;
+      let isNewAccount = false;
+      let customerName = (resolvedContactName ?? '').trim() || 'Guest';
+
+      if (existingUser) {
+        loyaltyUserId = existingUser.id;
+        customerName = existingUser.name ?? customerName;
+      } else {
+        isNewAccount = true;
+        loyaltyUserId = randomUUID();
+        const name = customerName;
+
+        // Derive stamp goal the same way auth.ts does (July 2026+ → 9, else → 6)
+        const { year, monthNum } = sydneyDateParts();
+        const stampGoal = (year > 2026 || (year === 2026 && monthNum >= 7)) ? 9 : 6;
+
+        // passwordHash must be non-null; this placeholder can never match bcrypt
+        await db.insert(usersTable).values({
+          id: loyaltyUserId,
+          email,
+          passwordHash: `PENDING_TABLE_${randomUUID()}`,
+          role: 'customer',
+          name,
+          status: 'pending',
+        });
+
+        await db.insert(customerProfilesTable).values({
+          userId: loyaltyUserId,
+          loyaltyPoints: 0,
+          loyaltyTier: 'blue',
+          referralCode: name.replace(/\s+/g, '').toUpperCase().slice(0, 4) + randomUUID().replace(/-/g, '').slice(0, 4),
+          coffeeStampCount: 0,
+          freeCoffeeRewards: 0,
+          stampCount: 0,
+          freeCoffeesEarned: 0,
+          coffeeStampGoal: stampGoal,
+        });
+
+        // Welcome email — fire-and-forget
+        sendEmail({
+          to: email,
+          subject: 'Welcome to Butterfield Cookies!',
+          html: buildCustomerWelcomeEmail({ name: customerName, logoUrl: getLogoUrl(req) }),
+        }).catch((err: any) => req.log?.warn({ err }, 'Table order welcome email failed'));
+      }
+
+      // Count coffee items now so the order user_id and stamp count are consistent
+      const coffeeCount = await countCoffeeItemsFromOrderItems(pricedItems);
+
+      resolvedUserId = loyaltyUserId;
+      rewardsPrep = { userId: loyaltyUserId, coffeeCount, isNewAccount, customerName };
+    } catch (rewardsErr: any) {
+      req.log?.warn({ rewardsErr }, 'Table order rewards pre-enrolment failed — order will use guest identity');
+      // Do not block the order on rewards errors; proceed as guest
+    }
+  }
+
   // ── Insert order ───────────────────────────────────────────────────────────
   const orderId = randomUUID();
   const orderNumber = await generateOrderNumber();
-  const resolvedStoreId = storeId || null;
-  const resolvedNotes = notes || null;
-  const resolvedContactName = contactName || null;
+  const resolvedStoreId   = storeId || null;
+  const resolvedNotes     = notes   || null;
   const resolvedContactPhone = contactPhone || null;
-  const resolvedContactEmail = contactEmail || null;
   const itemsJson = JSON.stringify(pricedItems);
 
   await db.execute(sql`
@@ -446,7 +529,7 @@ router.post('/orders', tableRateLimit, async (req, res) => {
       source, table_number, contact_name, contact_phone, contact_email,
       created_at, updated_at
     ) VALUES (
-      ${orderId}, ${orderNumber}, 'guest', 'received', 'pickup', ${resolvedStoreId},
+      ${orderId}, ${orderNumber}, ${resolvedUserId}, 'received', 'pickup', ${resolvedStoreId},
       ${resolvedNotes}, ${totalCents},
       ${stripePaymentIntentId}, 'paid',
       ${sql.raw(`'${itemsJson.replace(/'/g, "''")}'::jsonb`)}, 0, 0, 0,
@@ -478,6 +561,38 @@ router.post('/orders', tableRateLimit, async (req, res) => {
     req.log.warn({ notifyErr, orderId }, 'Table order staff notification setup failed');
   }
 
+  // ── Apply stamps ───────────────────────────────────────────────────────────
+  // Runs after insert so orderId is available; safe because user_id on the row
+  // already reflects the resolved identity (not 'guest').
+  let rewardsInfo: { stampsEarned: number; totalStamps: number; isNewAccount: boolean } | null = null;
+  if (rewardsPrep && rewardsPrep.coffeeCount > 0) {
+    try {
+      const stampResult = await applyCoffeeStamps({
+        userId: rewardsPrep.userId,
+        stampsToAdd: rewardsPrep.coffeeCount,
+        source: 'in_app_order',
+        orderId,
+        description: `Dine-in table order #${orderNumber}`,
+      });
+
+      rewardsInfo = {
+        stampsEarned: rewardsPrep.coffeeCount,
+        totalStamps: stampResult.stampCount,
+        isNewAccount: rewardsPrep.isNewAccount,
+      };
+    } catch (stampErr: any) {
+      req.log?.warn({ stampErr, orderId }, 'Table order stamp application failed');
+    }
+  } else if (rewardsPrep) {
+    // Account was found/created but no coffee items — still report the enrolment
+    // (account exists, just 0 stamps earned this order)
+    rewardsInfo = {
+      stampsEarned: 0,
+      totalStamps: 0,
+      isNewAccount: rewardsPrep.isNewAccount,
+    };
+  }
+
   return res.status(201).json({
     data: {
       id: orderId,
@@ -486,6 +601,7 @@ router.post('/orders', tableRateLimit, async (req, res) => {
       storeId,
       totalCents,
       source: 'dine_in',
+      rewards: rewardsInfo,
     },
   });
 });

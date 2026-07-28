@@ -96,10 +96,16 @@ export function ConfirmationScreen() {
                 </div>
                 <div>
                   <p className="font-bold text-white text-[15px] leading-tight">
-                    You're earning rewards
+                    {confirmation.rewards && confirmation.rewards.stampsEarned > 0
+                      ? `${confirmation.rewards.stampsEarned} stamp${confirmation.rewards.stampsEarned !== 1 ? "s" : ""} earned`
+                      : "You're earning rewards"}
                   </p>
                   <p className="text-[#C9A07A] text-[13px] mt-1 leading-relaxed">
-                    This order counts toward your stamps. Download the Butterfield app to track and redeem.
+                    {confirmation.rewards && confirmation.rewards.stampsEarned > 0
+                      ? confirmation.rewards.isNewAccount
+                        ? `Welcome! Your rewards account is all set — you're on ${confirmation.rewards.totalStamps} stamp${confirmation.rewards.totalStamps !== 1 ? "s" : ""}. Download the app to track and redeem.`
+                        : `You're on ${confirmation.rewards.totalStamps} stamp${confirmation.rewards.totalStamps !== 1 ? "s" : ""} toward your next reward. Download the app to track and redeem.`
+                      : "This order counts toward your stamps. Download the Butterfield app to track and redeem."}
                   </p>
                 </div>
               </div>

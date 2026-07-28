@@ -76,4 +76,9 @@ export interface OrderConfirmation {
   items: CartItem[];
   totalCents: number;
   email?: string;
+  rewards?: {
+    stampsEarned: number;
+    totalStamps: number;
+    isNewAccount: boolean;
+  } | null;
 }
