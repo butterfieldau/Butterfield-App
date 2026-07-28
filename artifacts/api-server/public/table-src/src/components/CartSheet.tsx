@@ -123,7 +123,7 @@ export function CartSheet({ onClose }: Props) {
 
         {/* Footer */}
         {cart.length > 0 && (
-          <div className="px-6 pt-3 pb-5 safe-bottom shrink-0">
+          <div className="px-6 pt-3 shrink-0" style={{ paddingBottom: "max(env(safe-area-inset-bottom, 0px), 20px)" }}>
             <div className="h-px bg-[#EDE8E1] mb-4" />
             <div className="flex items-center justify-between mb-4">
               <span className="text-[#8A8580] font-medium">Subtotal</span>
