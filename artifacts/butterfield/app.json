@@ -18,7 +18,8 @@
       "bundleIdentifier": "au.com.butterfieldcookies.app",
       "buildNumber": "10",
       "entitlements": {
-        "com.apple.developer.in-app-payments": ["merchant.au.com.butterfieldcookies.app"]
+        "com.apple.developer.in-app-payments": ["merchant.au.com.butterfieldcookies.app"],
+        "com.apple.developer.associated-domains": ["applinks:app.butterfieldcookies.com.au"]
       },
       "infoPlist": {
         "NSCameraUsageDescription": "Butterfield uses the camera to scan loyalty QR codes and earn coffee stamps at the counter.",

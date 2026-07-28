@@ -105,6 +105,31 @@ app.use(cookieParser());
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 app.use("/api/static", express.static(path.join(__dirname, "../public"), { maxAge: "7d" }));
 
+// Apple App Site Association — enables Universal Links so iOS opens the app
+// directly when a customer scans a table QR code.
+// Set APPLE_TEAM_ID to your 10-character Apple Developer Team ID in production.
+app.get("/.well-known/apple-app-site-association", (_req, res) => {
+  const teamId = process.env.APPLE_TEAM_ID ?? "XXXXXXXXXX";
+  const bundleId = "au.com.butterfieldcookies.app";
+  const aasa = {
+    applinks: {
+      details: [
+        {
+          appIDs: [`${teamId}.${bundleId}`],
+          components: [
+            {
+              "/": "/api/table/*/*",
+              comment: "Table ordering deep link — opens table order screen in the Butterfield app",
+            },
+          ],
+        },
+      ],
+    },
+  };
+  res.setHeader("Content-Type", "application/json");
+  res.json(aasa);
+});
+
 app.use("/s", shareRouter);
 app.use("/api", router);
 
