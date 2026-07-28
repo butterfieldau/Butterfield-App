@@ -15,6 +15,7 @@ import {
   FlatList,
   Image,
   KeyboardAvoidingView,
+  Modal,
   Platform,
   Pressable,
   ScrollView,
@@ -62,54 +63,83 @@ function getCategoryColor(slug: string, name: string): { bg: string; text: strin
   return { bg: '#EDE8E1', text: '#1C1C1E', emoji: '✨' };
 }
 
+// ── Option types ──────────────────────────────────────────────────────────────
+
+interface OptionGroupOption {
+  id: string;
+  name: string;
+  priceAdjustmentCents: number;
+  isActive: boolean;
+  sortOrder?: number;
+}
+
+interface OptionGroup {
+  id: string;
+  name: string;
+  required: boolean;
+  minSelections: number;
+  maxSelections: number;
+  options: OptionGroupOption[];
+}
+
+interface SelectedOption {
+  groupId: string;
+  groupName: string;
+  optionId: string;
+  optionName: string;
+  priceCents: number;
+}
+
 // ── Local cart ─────────────────────────────────────────────────────────────────
 
 interface TableCartItem {
-  id: string;           // productId used as key
+  /** Unique per product+variant+options combo so different option sets are separate rows */
+  cartKey: string;
   productId: string;
   name: string;
   priceCents: number;
   quantity: number;
   imageUrl?: string | null;
   category?: string | null;
+  variantId?: string | null;
+  variantName?: string | null;
+  selectedOptions: SelectedOption[];
+  notes?: string;
 }
 
 type CartAction =
-  | { type: 'ADD'; product: ApiProduct }
-  | { type: 'INC'; productId: string }
-  | { type: 'DEC'; productId: string }
+  | { type: 'ADD_ITEM'; item: Omit<TableCartItem, 'quantity'>; quantity?: number }
+  | { type: 'INC'; cartKey: string }
+  | { type: 'DEC'; cartKey: string }
   | { type: 'CLEAR' };
 
 function cartReducer(state: TableCartItem[], action: CartAction): TableCartItem[] {
   switch (action.type) {
-    case 'ADD': {
-      const p = action.product;
-      const price = p.salePriceCents ?? p.priceCents ?? 0;
-      const existing = state.find((i) => i.productId === p.id);
+    case 'ADD_ITEM': {
+      const qty = action.quantity ?? 1;
+      const existing = state.find((i) => i.cartKey === action.item.cartKey);
       if (existing) {
-        return state.map((i) => i.productId === p.id ? { ...i, quantity: i.quantity + 1 } : i);
+        return state.map((i) => i.cartKey === action.item.cartKey ? { ...i, quantity: i.quantity + qty } : i);
       }
-      return [...state, {
-        id: p.id,
-        productId: p.id,
-        name: p.name,
-        priceCents: price,
-        quantity: 1,
-        imageUrl: p.images?.[0] ?? null,
-        category: p.category ?? null,
-      }];
+      return [...state, { ...action.item, quantity: qty }];
     }
     case 'INC':
-      return state.map((i) => i.productId === action.productId ? { ...i, quantity: i.quantity + 1 } : i);
+      return state.map((i) => i.cartKey === action.cartKey ? { ...i, quantity: i.quantity + 1 } : i);
     case 'DEC':
       return state
-        .map((i) => i.productId === action.productId ? { ...i, quantity: i.quantity - 1 } : i)
+        .map((i) => i.cartKey === action.cartKey ? { ...i, quantity: i.quantity - 1 } : i)
         .filter((i) => i.quantity > 0);
     case 'CLEAR':
       return [];
     default:
       return state;
   }
+}
+
+/** Build a stable cart key from productId + optional variantId + sorted option ids */
+function buildCartKey(productId: string, variantId: string | null | undefined, options: SelectedOption[]): string {
+  const sortedOpts = [...options].map((o) => o.optionId).sort().join(',');
+  return `${productId}|${variantId ?? ''}|${sortedOpts}`;
 }
 
 // ── View state machine ────────────────────────────────────────────────────────
@@ -178,6 +208,9 @@ function TableOrderScreen({ stripeReady }: { stripeReady: boolean }) {
   // Navigation state
   const [view, setView] = useState<ViewState>({ kind: 'categories' });
 
+  // Product options sheet
+  const [sheetProduct, setSheetProduct] = useState<ApiProduct | null>(null);
+
   // Contact details for checkout
   const [contactName, setContactName]   = useState(user?.name ?? '');
   const [contactPhone, setContactPhone] = useState((meData?.user as any)?.phone ?? '');
@@ -198,6 +231,19 @@ function TableOrderScreen({ stripeReady }: { stripeReady: boolean }) {
     router.canGoBack() ? router.back() : router.replace('/');
   }, [view]);
 
+  /** Open the product options sheet; if the product has no options/variants, add directly */
+  const handleProductTap = useCallback((product: ApiProduct) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setSheetProduct(product);
+  }, []);
+
+  /** Called by the sheet when user confirms their selection */
+  const handleSheetAdd = useCallback((item: Omit<TableCartItem, 'quantity'>, quantity: number) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    dispatch({ type: 'ADD_ITEM', item, quantity });
+    setSheetProduct(null);
+  }, []);
+
   // ── Pay handler ─────────────────────────────────────────────────────────────
 
   const handlePay = async () => {
@@ -216,9 +262,18 @@ function TableOrderScreen({ stripeReady }: { stripeReady: boolean }) {
     setPayError(null);
 
     try {
-      // Create payment intent
+      // Create payment intent — include variantId + selectedOptions for server-side pricing
       const intentRes = await api.table.createPaymentIntent({
-        items: cart.map((i) => ({ productId: i.productId, quantity: i.quantity })),
+        items: cart.map((i) => ({
+          productId: i.productId,
+          quantity: i.quantity,
+          variantId: i.variantId ?? undefined,
+          selectedOptions: i.selectedOptions.map((o) => ({
+            optionId: o.optionId,
+            groupId: o.groupId,
+            priceAdjustmentCents: o.priceCents,
+          })),
+        })),
         tableNumber: tableNumber ?? '',
         storeId: storeId ?? '',
       });
@@ -253,10 +308,25 @@ function TableOrderScreen({ stripeReady }: { stripeReady: boolean }) {
         return;
       }
 
-      // Record the order
+      // Record the order — include options so kitchen ticket shows customisations
       const orderRes = await api.table.placeOrder({
         stripePaymentIntentId: intentRes.paymentIntentId,
-        items: cart.map((i) => ({ productId: i.productId, quantity: i.quantity, name: i.name, unitCents: i.priceCents })),
+        items: cart.map((i) => ({
+          productId: i.productId,
+          quantity: i.quantity,
+          name: i.name,
+          unitCents: i.priceCents,
+          variantId: i.variantId ?? undefined,
+          variantName: i.variantName ?? undefined,
+          selectedOptions: i.selectedOptions.map((o) => ({
+            optionId: o.optionId,
+            groupId: o.groupId,
+            optionName: o.optionName,
+            groupName: o.groupName,
+            priceAdjustmentCents: o.priceCents,
+          })),
+          notes: i.notes || undefined,
+        })),
         tableNumber: tableNumber ?? '',
         storeId: storeId ?? '',
         contactName: contactName.trim(),
@@ -380,7 +450,7 @@ function TableOrderScreen({ stripeReady }: { stripeReady: boolean }) {
           >
             {/* Items */}
             {cart.map((item) => (
-              <View key={item.productId} style={styles.cartRow}>
+              <View key={item.cartKey} style={styles.cartRow}>
                 <View style={styles.cartRowLeft}>
                   {item.imageUrl ? (
                     <Image source={{ uri: item.imageUrl }} style={styles.cartThumb} />
@@ -391,19 +461,28 @@ function TableOrderScreen({ stripeReady }: { stripeReady: boolean }) {
                   )}
                   <View style={{ flex: 1 }}>
                     <Text style={styles.cartItemName}>{item.name}</Text>
+                    {/* Show variant + options as a subtitle */}
+                    {(item.variantName || item.selectedOptions.length > 0) && (
+                      <Text style={styles.cartItemOptions} numberOfLines={2}>
+                        {[
+                          item.variantName,
+                          ...item.selectedOptions.map((o) => o.optionName),
+                        ].filter(Boolean).join(', ')}
+                      </Text>
+                    )}
                     <Text style={styles.cartItemPrice}>{fmt(item.priceCents)} each</Text>
                   </View>
                 </View>
                 <View style={styles.qtyRow}>
                   <TouchableOpacity
-                    onPress={() => { Haptics.selectionAsync(); dispatch({ type: 'DEC', productId: item.productId }); }}
+                    onPress={() => { Haptics.selectionAsync(); dispatch({ type: 'DEC', cartKey: item.cartKey }); }}
                     style={styles.qtyBtn}
                   >
                     <Feather name="minus" size={14} color={TEXT} />
                   </TouchableOpacity>
                   <Text style={styles.qtyText}>{item.quantity}</Text>
                   <TouchableOpacity
-                    onPress={() => { Haptics.selectionAsync(); dispatch({ type: 'INC', productId: item.productId }); }}
+                    onPress={() => { Haptics.selectionAsync(); dispatch({ type: 'INC', cartKey: item.cartKey }); }}
                     style={styles.qtyBtn}
                   >
                     <Feather name="plus" size={14} color={TEXT} />
@@ -537,11 +616,17 @@ function TableOrderScreen({ stripeReady }: { stripeReady: boolean }) {
               : <Text style={styles.emptyText}>No items here yet.</Text>
           }
           renderItem={({ item: product }) => {
-            const inCart = cart.find((i) => i.productId === product.id);
+            const cartItems = cart.filter((i) => i.productId === product.id);
+            const totalQty = cartItems.reduce((s, i) => s + i.quantity, 0);
             const price = product.salePriceCents ?? product.priceCents ?? 0;
             const soldOut = product.isSoldOut || !product.active;
+            const hasOptions = product.hasVariants || (product as any).optionGroups?.length > 0;
             return (
-              <View style={[styles.productRow, soldOut && styles.productRowSoldOut]}>
+              <TouchableOpacity
+                style={[styles.productRow, soldOut && styles.productRowSoldOut]}
+                onPress={() => { if (!soldOut) handleProductTap(product); }}
+                activeOpacity={soldOut ? 1 : 0.7}
+              >
                 <View style={styles.productRowInfo}>
                   {product.images?.[0] ? (
                     <Image source={{ uri: product.images[0] }} style={styles.productThumb} />
@@ -557,35 +642,23 @@ function TableOrderScreen({ stripeReady }: { stripeReady: boolean }) {
                     ) : null}
                     <Text style={styles.productPrice}>{fmt(price)}</Text>
                     {soldOut && <Text style={styles.soldOutTag}>Sold out</Text>}
+                    {hasOptions && !soldOut && (
+                      <Text style={styles.customiseHint}>Tap to customise</Text>
+                    )}
                   </View>
                 </View>
                 {!soldOut && (
-                  inCart ? (
-                    <View style={styles.qtyRow}>
-                      <TouchableOpacity
-                        onPress={() => { Haptics.selectionAsync(); dispatch({ type: 'DEC', productId: product.id }); }}
-                        style={styles.qtyBtn}
-                      >
-                        <Feather name="minus" size={14} color={TEXT} />
-                      </TouchableOpacity>
-                      <Text style={styles.qtyText}>{inCart.quantity}</Text>
-                      <TouchableOpacity
-                        onPress={() => { Haptics.selectionAsync(); dispatch({ type: 'INC', productId: product.id }); }}
-                        style={styles.qtyBtn}
-                      >
-                        <Feather name="plus" size={14} color={TEXT} />
-                      </TouchableOpacity>
+                  totalQty > 0 ? (
+                    <View style={[styles.addBtn, { backgroundColor: '#EDE8E1' }]}>
+                      <Text style={[styles.qtyText, { minWidth: 0, color: DARK }]}>{totalQty}</Text>
                     </View>
                   ) : (
-                    <TouchableOpacity
-                      onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); dispatch({ type: 'ADD', product }); }}
-                      style={styles.addBtn}
-                    >
+                    <View style={styles.addBtn}>
                       <Feather name="plus" size={16} color={CARD} />
-                    </TouchableOpacity>
+                    </View>
                   )
                 )}
-              </View>
+              </TouchableOpacity>
             );
           }}
         />
@@ -601,6 +674,16 @@ function TableOrderScreen({ stripeReady }: { stripeReady: boolean }) {
               <Text style={styles.cartBarPrice}>{fmt(cartTotal)}</Text>
             </TouchableOpacity>
           </View>
+        )}
+
+        {/* Product options bottom sheet */}
+        {sheetProduct && (
+          <ProductOptionsSheet
+            product={sheetProduct}
+            onClose={() => setSheetProduct(null)}
+            onAdd={handleSheetAdd}
+            insets={insets}
+          />
         )}
       </View>
     );
@@ -691,6 +774,318 @@ function TableOrderScreen({ stripeReady }: { stripeReady: boolean }) {
   );
 }
 
+// ── ProductOptionsSheet ───────────────────────────────────────────────────────
+
+interface ProductOptionsSheetProps {
+  product: ApiProduct;
+  onClose: () => void;
+  onAdd: (item: Omit<TableCartItem, 'quantity'>, quantity: number) => void;
+  insets: { bottom: number; top: number };
+}
+
+function ProductOptionsSheet({ product, onClose, onAdd, insets }: ProductOptionsSheetProps) {
+  // Fetch full product detail (with optionGroups + variants)
+  const { data: detailData, isLoading } = useQuery({
+    queryKey: ['product-detail', product.id],
+    queryFn: () => api.products.get(product.id),
+    staleTime: 5 * 60_000,
+  });
+
+  const detail = detailData?.data as (ApiProduct & { variants?: any[]; optionGroups?: OptionGroup[] }) | undefined;
+  const variants: Array<{ id: string; name: string; priceCents: number; isActive: boolean }> = detail?.variants ?? [];
+  const optionGroups: OptionGroup[] = (detail?.optionGroups ?? []) as OptionGroup[];
+
+  const [quantity, setQuantity] = useState(1);
+  const [selectedVariantId, setSelectedVariantId] = useState<string | null>(null);
+  const [selectedOptions, setSelectedOptions] = useState<Record<string, Set<string>>>({});
+  const [notes, setNotes] = useState('');
+
+  // Auto-select first variant
+  React.useEffect(() => {
+    if (variants.length > 0 && !selectedVariantId) {
+      setSelectedVariantId(variants[0]!.id);
+    }
+  }, [variants.length]);
+
+  const fmt = (cents: number) => `$${(cents / 100).toFixed(2)}`;
+
+  const basePrice = (() => {
+    if (selectedVariantId && variants.length > 0) {
+      return variants.find((v) => v.id === selectedVariantId)?.priceCents
+        ?? product.salePriceCents ?? product.priceCents ?? 0;
+    }
+    return product.salePriceCents ?? product.priceCents ?? 0;
+  })();
+
+  const optionExtra = Object.entries(selectedOptions).reduce((sum, [groupId, ids]) => {
+    const group = optionGroups.find((g) => g.id === groupId);
+    let s = 0;
+    for (const optionId of ids) {
+      s += group?.options.find((o) => o.id === optionId)?.priceAdjustmentCents ?? 0;
+    }
+    return sum + s;
+  }, 0);
+
+  const unitCents = basePrice + optionExtra;
+
+  // Validate required groups are satisfied
+  const canAdd = (() => {
+    if (isLoading) return false;
+    for (const group of optionGroups) {
+      const min = group.minSelections ?? (group.required ? 1 : 0);
+      const count = selectedOptions[group.id]?.size ?? 0;
+      if (count < min) return false;
+    }
+    return true;
+  })();
+
+  function toggleOption(groupId: string, optionId: string, maxSelections: number) {
+    setSelectedOptions((prev) => {
+      const current = new Set(prev[groupId] ?? []);
+      if (current.has(optionId)) {
+        current.delete(optionId);
+      } else {
+        const effectiveMax = maxSelections <= 0 ? Infinity : maxSelections;
+        if (effectiveMax === 1) {
+          current.clear();
+        } else if (current.size >= effectiveMax) {
+          const [first] = current;
+          current.delete(first!);
+        }
+        current.add(optionId);
+      }
+      return { ...prev, [groupId]: current };
+    });
+  }
+
+  function handleAdd() {
+    if (!canAdd) return;
+
+    const builtOptions: SelectedOption[] = Object.entries(selectedOptions).flatMap(([groupId, ids]) => {
+      const group = optionGroups.find((g) => g.id === groupId);
+      return [...ids].map((optionId) => {
+        const option = group?.options.find((o) => o.id === optionId);
+        return {
+          groupId,
+          groupName: group?.name ?? '',
+          optionId,
+          optionName: option?.name ?? '',
+          priceCents: option?.priceAdjustmentCents ?? 0,
+        };
+      });
+    });
+
+    const selectedVariant = variants.find((v) => v.id === selectedVariantId);
+    const cartKey = buildCartKey(product.id, selectedVariantId, builtOptions);
+
+    onAdd({
+      cartKey,
+      productId: product.id,
+      name: product.name,
+      priceCents: unitCents,
+      imageUrl: product.images?.[0] ?? null,
+      category: product.category ?? null,
+      variantId: selectedVariantId,
+      variantName: selectedVariant?.name ?? null,
+      selectedOptions: builtOptions,
+      notes: notes.trim() || undefined,
+    }, quantity);
+  }
+
+  const image = product.images?.[0];
+
+  return (
+    <Modal
+      visible
+      transparent
+      animationType="slide"
+      onRequestClose={onClose}
+    >
+      <View style={sheetStyles.backdrop}>
+        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
+        <View style={[sheetStyles.sheet, { paddingBottom: Math.max(insets.bottom, 16) }]}>
+          {/* Drag handle */}
+          <View style={sheetStyles.handleWrap}>
+            <View style={sheetStyles.handle} />
+          </View>
+
+          {/* Close button */}
+          <TouchableOpacity style={sheetStyles.closeBtn} onPress={onClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <Feather name="x" size={16} color={MUTED} />
+          </TouchableOpacity>
+
+          {/* Scrollable content */}
+          <ScrollView
+            style={{ flex: 1 }}
+            contentContainerStyle={sheetStyles.scrollContent}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+          >
+            {/* Hero image */}
+            {image && (
+              <View style={sheetStyles.heroWrap}>
+                <Image source={{ uri: image }} style={sheetStyles.heroImage} />
+              </View>
+            )}
+
+            {/* Name + price */}
+            <View style={sheetStyles.nameRow}>
+              <Text style={sheetStyles.productName}>{product.name}</Text>
+              <Text style={sheetStyles.productPrice}>{fmt(unitCents)}</Text>
+            </View>
+
+            {/* Description */}
+            {product.description ? (
+              <Text style={sheetStyles.description}>{product.description}</Text>
+            ) : null}
+
+            {isLoading && (
+              <View style={{ alignItems: 'center', paddingVertical: 24 }}>
+                <ActivityIndicator color={BLUE} />
+              </View>
+            )}
+
+            {/* Variants (Size) */}
+            {variants.length > 0 && (
+              <View style={sheetStyles.section}>
+                <Text style={sheetStyles.sectionTitle}>Size</Text>
+                <View style={sheetStyles.pillRow}>
+                  {variants.map((v) => (
+                    <TouchableOpacity
+                      key={v.id}
+                      onPress={() => { Haptics.selectionAsync(); setSelectedVariantId(v.id); }}
+                      style={[sheetStyles.pill, selectedVariantId === v.id && sheetStyles.pillSelected]}
+                    >
+                      <Text style={[sheetStyles.pillText, selectedVariantId === v.id && sheetStyles.pillTextSelected]}>
+                        {v.name}{v.priceCents ? ` · ${fmt(v.priceCents)}` : ''}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+            )}
+
+            {/* Option groups */}
+            {optionGroups.map((group) => {
+              const min = group.minSelections ?? (group.required ? 1 : 0);
+              const max = group.maxSelections ?? 1;
+              const isMulti = max !== 1;
+              const selected = selectedOptions[group.id] ?? new Set<string>();
+              const count = selected.size;
+
+              let badge = 'Optional';
+              if (min > 0 && max > 1) badge = `Choose ${min}–${max}`;
+              else if (min > 0) badge = 'Required';
+              else if (max > 1) badge = `Up to ${max}`;
+
+              return (
+                <View key={group.id} style={sheetStyles.section}>
+                  <View style={sheetStyles.sectionHeader}>
+                    <Text style={sheetStyles.sectionTitle}>{group.name}</Text>
+                    <View style={[sheetStyles.badge, min > 0 && sheetStyles.badgeRequired]}>
+                      <Text style={[sheetStyles.badgeText, min > 0 && sheetStyles.badgeTextRequired]}>{badge}</Text>
+                    </View>
+                  </View>
+                  {group.options.map((option) => {
+                    const isSelected = selected.has(option.id);
+                    const atMax = !isSelected && max > 0 && count >= max && !isMulti;
+                    return (
+                      <TouchableOpacity
+                        key={option.id}
+                        onPress={() => {
+                          if (atMax) return;
+                          Haptics.selectionAsync();
+                          toggleOption(group.id, option.id, max);
+                        }}
+                        style={[
+                          sheetStyles.optionRow,
+                          isSelected && sheetStyles.optionRowSelected,
+                          atMax && sheetStyles.optionRowDisabled,
+                        ]}
+                        disabled={atMax}
+                      >
+                        {/* Radio / checkbox indicator */}
+                        <View style={[
+                          sheetStyles.optionIndicator,
+                          isMulti ? sheetStyles.optionIndicatorCheckbox : sheetStyles.optionIndicatorRadio,
+                          isSelected && sheetStyles.optionIndicatorSelected,
+                        ]}>
+                          {isSelected && (
+                            <View style={[
+                              sheetStyles.optionIndicatorDot,
+                              isMulti ? sheetStyles.optionIndicatorDotCheckbox : sheetStyles.optionIndicatorDotRadio,
+                            ]} />
+                          )}
+                        </View>
+                        <Text style={[sheetStyles.optionName, isSelected && sheetStyles.optionNameSelected, atMax && sheetStyles.optionNameDisabled]}>
+                          {option.name}
+                        </Text>
+                        {option.priceAdjustmentCents > 0 && (
+                          <Text style={[sheetStyles.optionPrice, isSelected && sheetStyles.optionPriceSelected]}>
+                            +{fmt(option.priceAdjustmentCents)}
+                          </Text>
+                        )}
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              );
+            })}
+
+            {/* Special instructions */}
+            <View style={sheetStyles.section}>
+              <Text style={sheetStyles.sectionTitle}>Special instructions</Text>
+              <TextInput
+                style={sheetStyles.notesInput}
+                placeholder="Allergies, preferences, or requests…"
+                placeholderTextColor={MUTED}
+                value={notes}
+                onChangeText={setNotes}
+                multiline
+                numberOfLines={2}
+                textAlignVertical="top"
+              />
+            </View>
+          </ScrollView>
+
+          {/* CTA bar */}
+          <View style={sheetStyles.cta}>
+            {/* Quantity stepper */}
+            <View style={sheetStyles.stepper}>
+              <TouchableOpacity
+                onPress={() => { Haptics.selectionAsync(); setQuantity(Math.max(1, quantity - 1)); }}
+                style={sheetStyles.stepperBtn}
+              >
+                <Feather name="minus" size={14} color={TEXT} />
+              </TouchableOpacity>
+              <Text style={sheetStyles.stepperQty}>{quantity}</Text>
+              <TouchableOpacity
+                onPress={() => { Haptics.selectionAsync(); setQuantity(quantity + 1); }}
+                style={sheetStyles.stepperBtn}
+              >
+                <Feather name="plus" size={14} color={TEXT} />
+              </TouchableOpacity>
+            </View>
+
+            {/* Add button */}
+            <TouchableOpacity
+              style={[sheetStyles.addBtn, !canAdd && sheetStyles.addBtnDisabled]}
+              onPress={handleAdd}
+              disabled={!canAdd}
+            >
+              <Text style={[sheetStyles.addBtnText, !canAdd && sheetStyles.addBtnTextDisabled]}>
+                {canAdd
+                  ? `Add to order · ${fmt(unitCents * quantity)}`
+                  : 'Select required options'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
 // ── Styles ─────────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
@@ -730,6 +1125,7 @@ const styles = StyleSheet.create({
   productDesc:         { fontSize: 12, color: MUTED, lineHeight: 17, marginBottom: 4 },
   productPrice:        { fontSize: 14, fontWeight: '600', color: TEXT },
   soldOutTag:          { fontSize: 11, color: MUTED, fontWeight: '500', marginTop: 2 },
+  customiseHint:       { fontSize: 11, color: BLUE, fontWeight: '500', marginTop: 2 },
   addBtn:              { width: 34, height: 34, borderRadius: 17, backgroundColor: BLUE, justifyContent: 'center', alignItems: 'center', marginLeft: 8 },
   qtyRow:              { flexDirection: 'row', alignItems: 'center', gap: 8, marginLeft: 8 },
   qtyBtn:              { width: 30, height: 30, borderRadius: 15, backgroundColor: '#F0EDE8', justifyContent: 'center', alignItems: 'center' },
@@ -748,6 +1144,7 @@ const styles = StyleSheet.create({
   cartThumb:           { width: 52, height: 52, borderRadius: 10 },
   cartThumbFallback:   { backgroundColor: '#F0EDE8', justifyContent: 'center', alignItems: 'center' },
   cartItemName:        { fontSize: 14, fontWeight: '600', color: TEXT, marginBottom: 2 },
+  cartItemOptions:     { fontSize: 11, color: MUTED, marginBottom: 2, lineHeight: 15 },
   cartItemPrice:       { fontSize: 12, color: MUTED },
   sectionDivider:      { height: 1, backgroundColor: BORDER, marginVertical: 20 },
   sectionLabel:        { fontSize: 13, fontWeight: '600', color: MUTED, textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 12 },
@@ -775,4 +1172,270 @@ const styles = StyleSheet.create({
   stampsCard:          { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: '#FFF8EE', borderRadius: 14, padding: 14, marginTop: 16, width: '100%' },
   stampsEmoji:         { fontSize: 24 },
   stampsText:          { flex: 1, fontSize: 14, color: TEXT, lineHeight: 20 },
+});
+
+// Sheet-specific styles
+const sheetStyles = StyleSheet.create({
+  backdrop: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    backgroundColor: 'rgba(0,0,0,0.45)',
+  },
+  sheet: {
+    backgroundColor: CARD,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    maxHeight: '92%',
+    overflow: 'hidden',
+  },
+  handleWrap: {
+    alignItems: 'center',
+    paddingTop: 12,
+    paddingBottom: 4,
+  },
+  handle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#D0CCC8',
+  },
+  closeBtn: {
+    position: 'absolute',
+    top: 12,
+    right: 16,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: '#F0EDE8',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  scrollContent: {
+    paddingBottom: 8,
+  },
+  heroWrap: {
+    height: 200,
+    overflow: 'hidden',
+  },
+  heroImage: {
+    width: '100%',
+    height: '100%',
+    resizeMode: 'cover',
+  },
+  nameRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingBottom: 4,
+    gap: 12,
+  },
+  productName: {
+    flex: 1,
+    fontSize: 20,
+    fontWeight: '700',
+    color: TEXT,
+    lineHeight: 26,
+  },
+  productPrice: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: TEXT,
+    paddingTop: 2,
+  },
+  description: {
+    paddingHorizontal: 20,
+    paddingBottom: 12,
+    fontSize: 13,
+    color: MUTED,
+    lineHeight: 19,
+  },
+  section: {
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingBottom: 4,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 10,
+  },
+  sectionTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: TEXT,
+    marginBottom: 10,
+  },
+  badge: {
+    backgroundColor: '#F0EDE8',
+    borderRadius: 20,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    marginBottom: 10,
+  },
+  badgeRequired: {
+    backgroundColor: '#FFF0EC',
+  },
+  badgeText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: MUTED,
+  },
+  badgeTextRequired: {
+    color: '#E05030',
+  },
+  pillRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  pill: {
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    borderRadius: 12,
+    backgroundColor: '#F0EDE8',
+  },
+  pillSelected: {
+    backgroundColor: DARK,
+  },
+  pillText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: MUTED,
+  },
+  pillTextSelected: {
+    color: CARD,
+  },
+  optionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F4F1EE',
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 13,
+    marginBottom: 8,
+    gap: 12,
+  },
+  optionRowSelected: {
+    backgroundColor: DARK,
+  },
+  optionRowDisabled: {
+    opacity: 0.4,
+  },
+  optionIndicator: {
+    width: 18,
+    height: 18,
+    borderWidth: 2,
+    borderColor: '#B0AAA4',
+    justifyContent: 'center',
+    alignItems: 'center',
+    flexShrink: 0,
+  },
+  optionIndicatorRadio: {
+    borderRadius: 9,
+  },
+  optionIndicatorCheckbox: {
+    borderRadius: 4,
+  },
+  optionIndicatorSelected: {
+    borderColor: CARD,
+  },
+  optionIndicatorDot: {
+    backgroundColor: DARK,
+  },
+  optionIndicatorDotRadio: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: CARD,
+  },
+  optionIndicatorDotCheckbox: {
+    width: 8,
+    height: 8,
+    borderRadius: 2,
+    backgroundColor: CARD,
+  },
+  optionName: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: '500',
+    color: TEXT,
+  },
+  optionNameSelected: {
+    color: CARD,
+    fontWeight: '600',
+  },
+  optionNameDisabled: {
+    color: MUTED,
+  },
+  optionPrice: {
+    fontSize: 12,
+    color: MUTED,
+    fontWeight: '500',
+  },
+  optionPriceSelected: {
+    color: 'rgba(255,255,255,0.65)',
+  },
+  notesInput: {
+    backgroundColor: BG,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: BORDER,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 14,
+    color: TEXT,
+    minHeight: 70,
+  },
+  cta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingHorizontal: 16,
+    paddingTop: 14,
+    paddingBottom: 8,
+    borderTopWidth: 1,
+    borderTopColor: BORDER,
+    backgroundColor: CARD,
+  },
+  stepper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F0EDE8',
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  stepperBtn: {
+    width: 38,
+    height: 46,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  stepperQty: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: TEXT,
+    minWidth: 22,
+    textAlign: 'center',
+  },
+  addBtn: {
+    flex: 1,
+    backgroundColor: DARK,
+    borderRadius: 12,
+    paddingVertical: 13,
+    alignItems: 'center',
+  },
+  addBtnDisabled: {
+    backgroundColor: '#EDE8E1',
+  },
+  addBtnText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: CARD,
+  },
+  addBtnTextDisabled: {
+    color: '#B0AAA4',
+  },
 });

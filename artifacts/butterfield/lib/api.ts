@@ -541,7 +541,12 @@ export const api = {
   },
   table: {
     createPaymentIntent: (body: {
-      items: Array<{ productId: string; quantity: number; variantId?: string | null }>;
+      items: Array<{
+        productId: string;
+        quantity: number;
+        variantId?: string | null;
+        selectedOptions?: Array<{ optionId?: string; groupId?: string; priceAdjustmentCents?: number }>;
+      }>;
       tableNumber: string;
       storeId: string;
     }) =>
@@ -553,7 +558,22 @@ export const api = {
       }>('/table/payment-intent', { method: 'POST', body: JSON.stringify(body) }),
     placeOrder: (body: {
       stripePaymentIntentId: string;
-      items: Array<{ productId: string; quantity: number; variantId?: string | null; name?: string; unitCents?: number }>;
+      items: Array<{
+        productId: string;
+        quantity: number;
+        variantId?: string | null;
+        variantName?: string;
+        name?: string;
+        unitCents?: number;
+        selectedOptions?: Array<{
+          optionId?: string;
+          groupId?: string;
+          optionName?: string;
+          groupName?: string;
+          priceAdjustmentCents?: number;
+        }>;
+        notes?: string;
+      }>;
       tableNumber: string;
       storeId: string;
       contactName: string;
