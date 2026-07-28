@@ -96,6 +96,42 @@ export function CheckoutScreen() {
 
       <div className="flex-1 overflow-y-auto px-5 pb-10 no-scrollbar">
 
+        {/* Order summary */}
+        <div className="mt-5 bg-white rounded-2xl overflow-hidden" style={{ boxShadow: "0 1px 4px rgba(0,0,0,0.06)" }}>
+          <div className="px-4 py-3 border-b border-[#F0EDE8]">
+            <p className="text-xs font-semibold uppercase tracking-widest text-[#8A8580]">Your order</p>
+          </div>
+          <div className="px-4 py-3 space-y-3">
+            {cart.map((item) => (
+              <div key={item.id} className="flex justify-between items-start gap-2">
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-[#1A1A1A] leading-snug">
+                    {item.quantity} × {item.productName}
+                    {item.variantName && (
+                      <span className="font-normal text-[#8A8580]"> · {item.variantName}</span>
+                    )}
+                  </p>
+                  {item.selectedOptions.length > 0 && (
+                    <p className="text-xs text-[#A0998F] mt-0.5">
+                      {item.selectedOptions.map((o) => o.optionName).join(" · ")}
+                    </p>
+                  )}
+                  {item.notes && (
+                    <p className="text-xs text-[#C17A3A] mt-0.5 italic">"{item.notes}"</p>
+                  )}
+                </div>
+                <p className="text-sm font-semibold text-[#1A1A1A] shrink-0">
+                  {formatCents(item.unitCents * item.quantity)}
+                </p>
+              </div>
+            ))}
+          </div>
+          <div className="px-4 py-3 border-t border-[#F0EDE8] flex justify-between">
+            <span className="text-sm font-semibold text-[#8A8580]">Total</span>
+            <span className="text-sm font-bold text-[#1A1A1A]">{formatCents(cartTotal)}</span>
+          </div>
+        </div>
+
         {/* Bare form — no card wrappers, maximum momentum */}
         <div className="mt-5">
           {/* Name */}
