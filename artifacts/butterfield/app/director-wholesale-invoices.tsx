@@ -1,6 +1,7 @@
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
-import React, { useState } from 'react';
+import { useLocalSearchParams } from 'expo-router';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator, Alert, FlatList, KeyboardAvoidingView, Modal, Platform, Pressable,
   RefreshControl, ScrollView, StyleSheet, Text, TextInput, View,
@@ -371,6 +372,7 @@ const FILTER_TABS: FilterTab[] = ['All', 'Unpaid', 'Overdue', 'Paid'];
 
 export default function DirectorWholesaleInvoices() {
   const queryClient = useQueryClient();
+  const { orderId: deepLinkOrderId } = useLocalSearchParams<{ orderId?: string }>();
 
   const { data, isLoading, refetch } = useQuery({
     queryKey: ['director-wholesale-invoices'],
@@ -411,6 +413,18 @@ export default function DirectorWholesaleInvoices() {
   const [markPaidTarget, setMarkPaidTarget] = useState<any | null>(null);
 
   const rawOrders: any[] = data?.data ?? [];
+
+  // Deep-link: when arriving via a notification tap, auto-open the matching invoice.
+  // Use a ref so we only trigger once even if data refreshes later.
+  const autoOpenedRef = useRef(false);
+  useEffect(() => {
+    if (!deepLinkOrderId || autoOpenedRef.current || !rawOrders.length) return;
+    const match = rawOrders.find((o) => o.id === deepLinkOrderId);
+    if (match) {
+      autoOpenedRef.current = true;
+      setSelectedOrder(match);
+    }
+  }, [deepLinkOrderId, rawOrders]);
 
   const unpaidOrders   = rawOrders.filter((o) => deriveStatus(o) !== 'paid');
   const overdueOrders  = rawOrders.filter((o) => deriveStatus(o) === 'overdue');

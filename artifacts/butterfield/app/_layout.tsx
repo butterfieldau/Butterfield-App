@@ -165,6 +165,11 @@ function NotificationTapHandler() {
           return;
         }
       } else if (['director', 'manager', 'master'].includes(role)) {
+        // Wholesale invoice paid notification — open the invoice directly
+        if (orderId && typeof data.invoiceNumber === 'string') {
+          router.push(`/director-wholesale-invoices?orderId=${encodeURIComponent(orderId)}` as any);
+          return;
+        }
         if (screen?.startsWith('/(director)/')) {
           router.push(screen as any);
           return;
