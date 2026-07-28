@@ -213,7 +213,7 @@ router.get('/w/:orderId/paid', async (req, res) => {
       }
     }
 
-    await db
+    const [updatedOrder] = await db
       .update(wholesaleOrdersTable)
       .set({
         status:               'paid',
@@ -226,9 +226,113 @@ router.get('/w/:orderId/paid', async (req, res) => {
           ? { stripePaymentIntentId: String(session.payment_intent) }
           : {}),
       })
-      .where(eq(wholesaleOrdersTable.id, orderId));
+      .where(eq(wholesaleOrdersTable.id, orderId))
+      .returning();
 
     req.log?.info({ orderId, sessionId }, 'Wholesale invoice marked paid via Stripe Checkout');
+
+    // Fire-and-forget payment-received email (same as manual mark-paid flow)
+    if (updatedOrder) {
+      (async () => {
+        try {
+          const [account] = await db
+            .select()
+            .from(wholesaleAccountsTable)
+            .where(eq(wholesaleAccountsTable.id, updatedOrder.accountId));
+
+          const [user] = account?.userId
+            ? await db
+                .select({ email: usersTable.email })
+                .from(usersTable)
+                .where(eq(usersTable.id, account.userId))
+            : [null];
+
+          const recipientEmail =
+            account?.accountsEmail?.trim() ||
+            (account as any)?.email?.trim() ||
+            user?.email?.trim() ||
+            null;
+
+          if (recipientEmail) {
+            const invNum =
+              updatedOrder.invoiceNumber ??
+              updatedOrder.poReference ??
+              `INV-${updatedOrder.id.slice(0, 6).toUpperCase()}`;
+            const totalAUD = ((updatedOrder.totalCents ?? 0) / 100).toLocaleString('en-AU', {
+              style: 'currency', currency: 'AUD',
+            });
+            const paidAtStr = new Date().toLocaleDateString('en-AU', {
+              day: '2-digit', month: 'short', year: 'numeric',
+            });
+            const proto = (req.headers['x-forwarded-proto'] as string | undefined)?.split(',')[0]?.trim() ?? req.protocol ?? 'https';
+            const host = req.headers.host ?? '';
+            const baseUrl = host ? `${proto}://${host}` : '';
+            const invoiceViewUrl = baseUrl ? `${baseUrl}/api/invoices/w/${orderId}` : null;
+
+            const { sendEmail, buildWholesalePaymentReceivedEmail } = await import('../lib/emailService.js');
+            const html = buildWholesalePaymentReceivedEmail({
+              companyName:      account?.companyName ?? '',
+              invoiceNumber:    invNum,
+              totalAUD,
+              paidAt:           paidAtStr,
+              paymentReference: session.payment_intent ? String(session.payment_intent) : null,
+              invoiceUrl:       invoiceViewUrl,
+            });
+
+            // Generate PDF attachment (best-effort)
+            let pdfBuffer: Buffer | undefined;
+            try {
+              const { generateInvoicePdf } = await import('../lib/invoicePdf.js');
+              const paymentTermsMap: Record<string, string> = {
+                pay_on_order: 'Pay on order', net_7: '7 days from invoice date',
+                net_14: '14 days from invoice date', net_30: '30 days from invoice date',
+                net_60: '60 days from invoice date',
+              };
+              const paymentTerms = paymentTermsMap[(account as any)?.paymentTerms ?? ''] ?? (account as any)?.paymentTerms ?? '30 days from invoice date';
+              const invoiceDate = updatedOrder.createdAt instanceof Date ? updatedOrder.createdAt : new Date(updatedOrder.createdAt as any);
+              const dueDateRaw = (updatedOrder as any).invoiceDueDate ?? (updatedOrder as any).dueDate;
+              const dueDate = dueDateRaw ? new Date(dueDateRaw) : invoiceDate;
+              const items = Array.isArray(updatedOrder.items)
+                ? (updatedOrder.items as any[]).map((i: any) => ({
+                    description: i.productName ?? i.name ?? i.description ?? 'Item',
+                    qty:         Number(i.quantity ?? i.qty ?? 1),
+                    unitCents:   Number(i.unitPriceCents ?? i.unitPrice ?? i.unit_price ?? i.unitCents ?? 0),
+                  }))
+                : [];
+              pdfBuffer = await generateInvoicePdf({
+                invoiceNumber:    invNum,
+                invoiceDate,
+                dueDate,
+                status:           'paid',
+                companyName:      account?.companyName ?? '',
+                abn:              account?.abn ?? null,
+                email:            user?.email ?? null,
+                address:          (account as any).deliveryAddress ?? null,
+                accountRef:       account?.id?.slice(0, 8).toUpperCase() ?? null,
+                items,
+                totalCents:       updatedOrder.totalCents ?? 0,
+                deliveryFeeCents: (updatedOrder as any).deliveryFeeCents ?? 0,
+                poReference:      updatedOrder.poReference ?? null,
+                notes:            updatedOrder.notes ?? null,
+                paymentTerms,
+                invoiceUrl:       invoiceViewUrl,
+              });
+            } catch { /* PDF generation failure is non-fatal */ }
+
+            await sendEmail({
+              to:      recipientEmail,
+              subject: `Payment Received – ${invNum}`,
+              html,
+              ...(pdfBuffer
+                ? { attachments: [{ filename: `${invNum}.pdf`, content: pdfBuffer, contentType: 'application/pdf' }] }
+                : {}),
+            });
+          }
+        } catch {
+          // Non-fatal — order is already marked paid; email failure must not affect the redirect
+        }
+      })();
+    }
 
     return res.redirect(invoiceUrl);
   } catch (err: any) {
