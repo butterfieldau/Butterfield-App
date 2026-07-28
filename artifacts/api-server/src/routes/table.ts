@@ -11,8 +11,8 @@ import { Router } from 'express';
 import { randomUUID } from 'crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { db, ordersTable, usersTable, staffProfilesTable } from '@workspace/db';
-import { eq, inArray, sql } from 'drizzle-orm';
+import { db, ordersTable, usersTable, staffProfilesTable, storeTablesTable, storeSettingsTable } from '@workspace/db';
+import { eq, inArray, sql, and } from 'drizzle-orm';
 import { prepareRetailCheckout } from '../lib/retailCheckout.js';
 import { generateOrderNumber } from '../lib/orderNumber.js';
 import { sendNotification } from '../lib/notificationService.js';
@@ -163,6 +163,68 @@ router.use('/assets', expressModule.static(path.join(PUBLIC_DIR, 'table', 'asset
 
 router.get('/:storeId/:tableNumber', async (req, res) => {
   const { storeId, tableNumber } = req.params;
+
+  // ── Validate table ordering is enabled for this store ────────────────────
+  try {
+    const [setting] = await db.select().from(storeSettingsTable)
+      .where(eq(storeSettingsTable.key, `store_${storeId}_table_ordering_enabled`));
+    if (setting && setting.value !== 'true') {
+      const errorPage = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Table Ordering Unavailable — Butterfield Cookies</title>
+  <style>
+    body { font-family: system-ui, sans-serif; display: flex; flex-direction: column; align-items: center;
+           justify-content: center; min-height: 100dvh; margin: 0; background: #fdf8f3; color: #1a1a1a; }
+    h1 { font-size: 1.5rem; margin-bottom: 0.5rem; }
+    p  { color: #555; text-align: center; max-width: 26rem; }
+  </style>
+</head>
+<body>
+  <h1>🍪 Table ordering is not available</h1>
+  <p>Table ordering has been paused at this store. Please ask a staff member for assistance.</p>
+</body>
+</html>`;
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      return res.status(503).send(errorPage);
+    }
+
+    // ── Validate the table exists and is active ───────────────────────────
+    const [tableRow] = await db.select({ id: storeTablesTable.id, isActive: storeTablesTable.isActive })
+      .from(storeTablesTable)
+      .where(and(
+        eq(storeTablesTable.storeId, storeId),
+        eq(storeTablesTable.tableNumber, tableNumber),
+      ));
+    if (tableRow && !tableRow.isActive) {
+      const errorPage = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Table Not Available — Butterfield Cookies</title>
+  <style>
+    body { font-family: system-ui, sans-serif; display: flex; flex-direction: column; align-items: center;
+           justify-content: center; min-height: 100dvh; margin: 0; background: #fdf8f3; color: #1a1a1a; }
+    h1 { font-size: 1.5rem; margin-bottom: 0.5rem; }
+    p  { color: #555; text-align: center; max-width: 26rem; }
+  </style>
+</head>
+<body>
+  <h1>🍪 This table is not set up for ordering</h1>
+  <p>Table ${escapeHtml(tableNumber)} is not currently available for ordering. Please ask a staff member for assistance.</p>
+</body>
+</html>`;
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      return res.status(404).send(errorPage);
+    }
+    // If table_ordering_enabled is true but table doesn't exist in store_tables,
+    // still allow through (store may not have configured tables yet — graceful fallback).
+  } catch {
+    // If validation query fails, continue serving the SPA (fail open for resilience)
+  }
 
   // Try to serve the pre-built SPA. Fall back to an inline holding page so
   // the QR link is never a dead end even before the web-app task ships.

@@ -2,9 +2,10 @@ import { Router } from 'express';
 import { randomUUID } from 'crypto';
 import {
   db, storesTable, storeOpeningHoursTable, staffStoreAssignmentsTable,
-  staffShiftsTable, staffProfilesTable, usersTable,
+  staffShiftsTable, staffProfilesTable, usersTable, storeTablesTable,
+  storeSettingsTable,
 } from '@workspace/db';
-import { eq, and, desc, isNull, isNotNull, lte } from 'drizzle-orm';
+import { eq, and, desc, isNull, isNotNull, lte, count, sql } from 'drizzle-orm';
 import { requireRole } from '../middlewares/auth.js';
 import { requireManagerPermission } from '../middlewares/managerPermission.js';
 import { ensureStoreConfigSchemaReady } from '../lib/ensureStoreConfigSchemaReady.js';
@@ -247,6 +248,145 @@ router.patch('/store-assignments/:id', requireManagerPermission('settings'), asy
 router.delete('/store-assignments/:id', requireManagerPermission('settings'), async (req, res) => {
   await db.delete(staffStoreAssignmentsTable).where(eq(staffStoreAssignmentsTable.id, req.params.id as string));
   return res.json({ success: true });
+});
+
+// ── Store Tables CRUD ─────────────────────────────────────────────────────────
+
+let storeTablesMigrated = false;
+async function ensureStoreTablesReady() {
+  if (storeTablesMigrated) return;
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS store_tables (
+      id TEXT PRIMARY KEY,
+      store_id TEXT NOT NULL REFERENCES stores(id) ON DELETE CASCADE,
+      table_number TEXT NOT NULL,
+      label TEXT,
+      is_active BOOLEAN NOT NULL DEFAULT TRUE,
+      sort_order INTEGER NOT NULL DEFAULT 0,
+      created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+    )
+  `);
+  await db.execute(sql`
+    CREATE UNIQUE INDEX IF NOT EXISTS store_tables_store_id_table_number_idx
+    ON store_tables(store_id, table_number)
+  `);
+  storeTablesMigrated = true;
+}
+
+router.get('/stores/:id/tables', async (req, res) => {
+  try {
+    await ensureStoreTablesReady();
+    const tables = await db.select().from(storeTablesTable)
+      .where(eq(storeTablesTable.storeId, req.params.id))
+      .orderBy(storeTablesTable.sortOrder, storeTablesTable.tableNumber);
+    return res.json({ data: tables });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message ?? 'Failed to fetch tables.' });
+  }
+});
+
+router.post('/stores/:id/tables', async (req, res) => {
+  try {
+    await ensureStoreTablesReady();
+    const { tableNumber, label, isActive = true, sortOrder = 0 } = req.body ?? {};
+    if (!tableNumber || !String(tableNumber).trim()) {
+      return res.status(400).json({ error: 'tableNumber is required.' });
+    }
+    const tn = String(tableNumber).trim();
+    // Check uniqueness
+    const [existing] = await db.select({ id: storeTablesTable.id })
+      .from(storeTablesTable)
+      .where(and(eq(storeTablesTable.storeId, req.params.id), eq(storeTablesTable.tableNumber, tn)));
+    if (existing) return res.status(409).json({ error: `Table "${tn}" already exists for this store.` });
+
+    const [row] = await db.insert(storeTablesTable).values({
+      id: randomUUID(),
+      storeId: req.params.id,
+      tableNumber: tn,
+      label: label ? String(label).trim() : null,
+      isActive: isActive !== false,
+      sortOrder: Number(sortOrder) || 0,
+    }).returning();
+    return res.status(201).json({ data: row });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message ?? 'Failed to create table.' });
+  }
+});
+
+router.patch('/stores/:id/tables/:tableId', async (req, res) => {
+  try {
+    await ensureStoreTablesReady();
+    const { tableNumber, label, isActive, sortOrder } = req.body ?? {};
+    const updates: Record<string, any> = { updatedAt: new Date() };
+    if (tableNumber !== undefined) {
+      const tn = String(tableNumber).trim();
+      if (!tn) return res.status(400).json({ error: 'tableNumber cannot be empty.' });
+      // Check uniqueness (excluding self)
+      const [existing] = await db.select({ id: storeTablesTable.id })
+        .from(storeTablesTable)
+        .where(and(eq(storeTablesTable.storeId, req.params.id), eq(storeTablesTable.tableNumber, tn)));
+      if (existing && existing.id !== req.params.tableId) {
+        return res.status(409).json({ error: `Table "${tn}" already exists for this store.` });
+      }
+      updates.tableNumber = tn;
+    }
+    if (label !== undefined) updates.label = label ? String(label).trim() : null;
+    if (typeof isActive === 'boolean') updates.isActive = isActive;
+    if (sortOrder !== undefined) updates.sortOrder = Number(sortOrder) || 0;
+
+    const [updated] = await db.update(storeTablesTable)
+      .set(updates)
+      .where(and(eq(storeTablesTable.id, req.params.tableId), eq(storeTablesTable.storeId, req.params.id)))
+      .returning();
+    if (!updated) return res.status(404).json({ error: 'Table not found.' });
+    return res.json({ data: updated });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message ?? 'Failed to update table.' });
+  }
+});
+
+router.delete('/stores/:id/tables/:tableId', async (req, res) => {
+  try {
+    await ensureStoreTablesReady();
+    await db.delete(storeTablesTable)
+      .where(and(eq(storeTablesTable.id, req.params.tableId), eq(storeTablesTable.storeId, req.params.id)));
+    return res.json({ success: true });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message ?? 'Failed to delete table.' });
+  }
+});
+
+// ── table_ordering_enabled store setting ──────────────────────────────────────
+
+router.get('/stores/:id/table-ordering', async (req, res) => {
+  try {
+    await ensureStoreTablesReady();
+    const [setting] = await db.select().from(storeSettingsTable)
+      .where(eq(storeSettingsTable.key, `store_${req.params.id}_table_ordering_enabled`));
+    const enabled = setting?.value === 'true';
+    const [{ value: activeCount }] = await db.select({ value: count() }).from(storeTablesTable)
+      .where(and(eq(storeTablesTable.storeId, req.params.id), eq(storeTablesTable.isActive, true)));
+    const [{ value: totalCount }] = await db.select({ value: count() }).from(storeTablesTable)
+      .where(eq(storeTablesTable.storeId, req.params.id));
+    return res.json({ data: { enabled, activeTableCount: Number(activeCount), totalTableCount: Number(totalCount) } });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message ?? 'Failed to fetch table ordering setting.' });
+  }
+});
+
+router.patch('/stores/:id/table-ordering', async (req, res) => {
+  try {
+    const { enabled } = req.body ?? {};
+    if (typeof enabled !== 'boolean') return res.status(400).json({ error: 'enabled (boolean) is required.' });
+    const key = `store_${req.params.id}_table_ordering_enabled`;
+    await db.insert(storeSettingsTable)
+      .values({ key, value: enabled ? 'true' : 'false', updatedAt: new Date(), updatedBy: req.user?.id ?? null })
+      .onConflictDoUpdate({ target: storeSettingsTable.key, set: { value: enabled ? 'true' : 'false', updatedAt: new Date(), updatedBy: req.user?.id ?? null } });
+    return res.json({ data: { enabled } });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message ?? 'Failed to update table ordering setting.' });
+  }
 });
 
 // ── Director Clock Override ───────────────────────────────────────────────────

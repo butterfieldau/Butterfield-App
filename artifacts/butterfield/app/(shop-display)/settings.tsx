@@ -524,6 +524,137 @@ function PrinterConfigCard() {
   );
 }
 
+// ── Table Ordering Card ───────────────────────────────────────────────────────
+function TableOrderingCard({ storeId }: { storeId: string }) {
+  const [expanded, setExpanded] = useState(false);
+  const [enabled, setEnabled] = useState(false);
+  const [activeCount, setActiveCount] = useState(0);
+  const [totalCount, setTotalCount] = useState(0);
+  const [loaded, setLoaded] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null);
+
+  useEffect(() => {
+    if (!storeId) return;
+    api.shopDisplay.tableOrderingSettings(storeId)
+      .then(res => {
+        if (res?.data) {
+          setEnabled(res.data.enabled);
+          setActiveCount(res.data.activeTableCount);
+          setTotalCount(res.data.totalTableCount);
+        }
+        setLoaded(true);
+      })
+      .catch(() => setLoaded(true));
+  }, [storeId]);
+
+  const handleToggle = async (value: boolean) => {
+    setEnabled(value);
+    setSaving(true);
+    setMsg(null);
+    try {
+      await api.shopDisplay.patchTableOrderingSettings(storeId, value);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setMsg({ text: value ? '✓ Table ordering enabled.' : '✓ Table ordering disabled.', ok: true });
+      setTimeout(() => setMsg(null), 2500);
+    } catch (e: any) {
+      setEnabled(!value); // revert
+      setMsg({ text: e?.message ?? 'Failed to save.', ok: false });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <View style={pc.card}>
+      <Pressable style={pc.headerRow} onPress={() => setExpanded(e => !e)}>
+        <View style={pc.iconWrap}>
+          <Feather name="grid" size={18} color={BLUE} />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={pc.cardTitle}>Table Ordering</Text>
+          <Text style={pc.cardSub}>Dine-in QR code ordering</Text>
+        </View>
+        {loaded && (
+          <View style={{
+            borderRadius: 99, paddingHorizontal: 8, paddingVertical: 4, marginRight: 8,
+            backgroundColor: enabled ? '#DCFCE7' : '#F3F4F6',
+          }}>
+            <Text style={{ fontSize: 11, fontWeight: '700', color: enabled ? GREEN : MUTED }}>
+              {enabled ? 'On' : 'Off'}
+            </Text>
+          </View>
+        )}
+        <Feather name={expanded ? 'chevron-up' : 'chevron-down'} size={18} color={MUTED} />
+      </Pressable>
+
+      {expanded && (
+        <>
+          <View style={pc.divider} />
+          {!loaded ? (
+            <ActivityIndicator color={BLUE} style={{ paddingVertical: 12 }} />
+          ) : (
+            <>
+              {/* Toggle */}
+              <View style={[pc.toggleRow]}>
+                <View style={{ flex: 1 }}>
+                  <Text style={pc.toggleLabel}>Enable Table Ordering</Text>
+                  <Text style={pc.toggleSub}>
+                    Allow customers to scan table QR codes and order from their seat
+                  </Text>
+                </View>
+                <Switch
+                  value={enabled}
+                  onValueChange={handleToggle}
+                  disabled={saving}
+                  trackColor={{ true: BLUE }}
+                  thumbColor="#fff"
+                />
+              </View>
+
+              {/* Table count */}
+              <View style={[pc.toggleRow, { borderTopWidth: 1, borderTopColor: '#F3F4F6' }]}>
+                <View style={{ flex: 1 }}>
+                  <Text style={pc.toggleLabel}>Configured Tables</Text>
+                  <Text style={pc.toggleSub}>
+                    {totalCount === 0
+                      ? 'No tables set up yet — configure them in the Director app'
+                      : `${activeCount} active of ${totalCount} total`}
+                  </Text>
+                </View>
+                <View style={{
+                  borderRadius: 10, paddingHorizontal: 10, paddingVertical: 6,
+                  backgroundColor: '#EFF6FF',
+                }}>
+                  <Text style={{ fontSize: 18, fontWeight: '800', color: BLUE }}>{activeCount}</Text>
+                </View>
+              </View>
+
+              {msg ? (
+                <Text style={{ fontSize: 13, fontWeight: '600', color: msg.ok ? GREEN : RED, paddingTop: 4 }}>
+                  {msg.text}
+                </Text>
+              ) : null}
+
+              {totalCount === 0 && (
+                <View style={{
+                  flexDirection: 'row', alignItems: 'flex-start', gap: 8,
+                  backgroundColor: '#FFFBEB', borderRadius: 10, padding: 10, marginTop: 4,
+                }}>
+                  <Feather name="alert-circle" size={14} color={AMBER} style={{ marginTop: 1 }} />
+                  <Text style={{ flex: 1, fontSize: 12, color: '#92400E', lineHeight: 17 }}>
+                    No tables are configured. Open the Store Editor in the Director section to add tables and generate QR codes.
+                  </Text>
+                </View>
+              )}
+            </>
+          )}
+        </>
+      )}
+    </View>
+  );
+}
+
 // ── Main settings screen ──────────────────────────────────────────────────────
 export default function ShopDisplaySettingsScreen() {
   const { user, logout } = useAuth();
@@ -618,6 +749,19 @@ export default function ShopDisplaySettingsScreen() {
         </View>
 
         <PrinterConfigCard />
+
+        {/* ── Table Ordering ── */}
+        {stores.length > 0 && (
+          <>
+            <View style={styles.sectionHeader}>
+              <Feather name="grid" size={15} color={NAVY} />
+              <Text style={styles.sectionTitle}>Table Ordering</Text>
+            </View>
+            {stores.map((store) => (
+              <TableOrderingCard key={store.id} storeId={store.id} />
+            ))}
+          </>
+        )}
 
         {/* ── Tax Invoice Details ── */}
         <View style={styles.sectionHeader}>

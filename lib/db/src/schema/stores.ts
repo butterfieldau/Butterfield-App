@@ -63,6 +63,18 @@ export const staffStoreAssignmentsTable = pgTable("staff_store_assignments", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
+export const storeTablesTable = pgTable("store_tables", {
+  id:          text("id").primaryKey(),
+  storeId:     text("store_id").notNull().references(() => storesTable.id, { onDelete: "cascade" }),
+  tableNumber: text("table_number").notNull(),
+  label:       text("label"),
+  isActive:    boolean("is_active").notNull().default(true),
+  sortOrder:   integer("sort_order").notNull().default(0),
+  createdAt:   timestamp("created_at").notNull().defaultNow(),
+  updatedAt:   timestamp("updated_at").notNull().defaultNow(),
+});
+
 export type Store               = typeof storesTable.$inferSelect;
 export type StoreOpeningHours   = typeof storeOpeningHoursTable.$inferSelect;
 export type StaffStoreAssignment= typeof staffStoreAssignmentsTable.$inferSelect;
+export type StoreTable          = typeof storeTablesTable.$inferSelect;

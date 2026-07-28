@@ -29,6 +29,12 @@ export function getProductShareUrl(productId: string, slug?: string): string {
   return `${base}/s/${slug ?? productId}`;
 }
 
+export function getTableQrUrl(storeId: string, tableNumber: string): string {
+  const domain = process.env.EXPO_PUBLIC_DOMAIN;
+  const base = domain ? `https://${domain}` : '';
+  return `${base}/api/table/${encodeURIComponent(storeId)}/${encodeURIComponent(tableNumber)}`;
+}
+
 export class ApiError extends Error {
   status: number;
   body: unknown;
@@ -330,6 +336,11 @@ export const api = {
       request<{ data: Record<string, string> }>('/pos/invoice-settings'),
     patchInvoiceSetting: (key: string, value: string) =>
       request<{ data: Record<string, string> }>('/pos/invoice-settings', { method: 'PATCH', body: JSON.stringify({ [key]: value }) }),
+    // Table ordering — reads/writes via director routes (shop display user must have director/manager/master role)
+    tableOrderingSettings: (storeId: string) =>
+      request<{ data: { enabled: boolean; activeTableCount: number; totalTableCount: number } }>(`/director/stores/${storeId}/table-ordering`),
+    patchTableOrderingSettings: (storeId: string, enabled: boolean) =>
+      request<{ data: { enabled: boolean } }>(`/director/stores/${storeId}/table-ordering`, { method: 'PATCH', body: JSON.stringify({ enabled }) }),
   },
   wholesale: {
     profile:     () => request<{ data: WholesaleProfile }>('/wholesale/profile'),
@@ -608,6 +619,18 @@ export const api = {
     restoreStore:    (id: string) => request<{ success: boolean; data: StoreDetail }>(`/director/stores/${id}/restore`, { method: 'POST' }),
     storeHours:      (id: string) => request<{ data: StoreHour[] }>(`/director/stores/${id}/hours`),
     setStoreHours:   (id: string, hours: StoreHour[] ) => request<{ data: StoreHour[] }>(`/director/stores/${id}/hours`, { method: 'PUT', body: JSON.stringify({ hours }) }),
+    // Store tables
+    storeTables:     (storeId: string) => request<{ data: StoreTable[] }>(`/director/stores/${storeId}/tables`),
+    createTable:     (storeId: string, data: { tableNumber: string; label?: string; isActive?: boolean; sortOrder?: number }) =>
+      request<{ data: StoreTable }>(`/director/stores/${storeId}/tables`, { method: 'POST', body: JSON.stringify(data) }),
+    updateTable:     (storeId: string, tableId: string, data: { tableNumber?: string; label?: string; isActive?: boolean; sortOrder?: number }) =>
+      request<{ data: StoreTable }>(`/director/stores/${storeId}/tables/${tableId}`, { method: 'PATCH', body: JSON.stringify(data) }),
+    deleteTable:     (storeId: string, tableId: string) =>
+      request<{ success: boolean }>(`/director/stores/${storeId}/tables/${tableId}`, { method: 'DELETE' }),
+    tableOrderingSettings: (storeId: string) =>
+      request<{ data: { enabled: boolean; activeTableCount: number; totalTableCount: number } }>(`/director/stores/${storeId}/table-ordering`),
+    patchTableOrderingSettings: (storeId: string, enabled: boolean) =>
+      request<{ data: { enabled: boolean } }>(`/director/stores/${storeId}/table-ordering`, { method: 'PATCH', body: JSON.stringify({ enabled }) }),
     // Staff-store assignments
     staffAssignments:(userId: string) => request<{ data: StaffStoreAssignment[] }>(`/director/staff/${userId}/store-assignments`),
     createAssignment:(data: { staffId: string; storeId: string; isPrimary?: boolean }) =>
@@ -2818,6 +2841,17 @@ export interface StoreHour {
   closeTime?: string | null;
   isClosed?: boolean;
   notes?: string | null;
+}
+
+export interface StoreTable {
+  id: string;
+  storeId: string;
+  tableNumber: string;
+  label?: string | null;
+  isActive: boolean;
+  sortOrder: number;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface DirectorStats {

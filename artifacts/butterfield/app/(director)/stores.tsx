@@ -1,7 +1,7 @@
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator, Alert, FlatList, KeyboardAvoidingView, Modal,
   Platform, Pressable, RefreshControl, ScrollView, StyleSheet,
@@ -10,13 +10,14 @@ import {
 import { Image } from 'expo-image';
 
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { api } from '@/lib/api';
-import type { StoreDetail, StoreHour, StoreSummary } from '@/lib/api';
+import { api, getTableQrUrl } from '@/lib/api';
+import type { StoreDetail, StoreHour, StoreSummary, StoreTable } from '@/lib/api';
 import { useRefreshControl } from '@/hooks/useRefreshControl';
 import { AddressSearchInput } from '@/components/AddressSearchInput';
 import { DirectorStandaloneScreen } from '@/components/DirectorStandaloneScreen';
 import { sendTestPrint, sendOpenDrawer } from '@/lib/printer';
 import { BG, CARD, BLUE, NAVY, TEXT, MUTED, BORDER, GREEN, AMBER, RED, PURPLE, PINK, TEAL, ROSE, GOLD, GLASS_BG, GLASS_BORDER } from '@/components/director/directorColors';
+import { TableQrModal } from './table-qr';
 
 const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 const SHORT_DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -28,7 +29,7 @@ const STATUS_OPTIONS: Array<{ value: StoreStatus; label: string; color: string }
   { value: 'temporarily_closed', label: 'Temporarily Closed', color: AMBER  },
   { value: 'closed',             label: 'Closed',             color: RED    },
 ];
-const STORE_EDITOR_TABS = ['Details', 'Hours', 'Geofence', 'Printer', 'Notes'] as const;
+const STORE_EDITOR_TABS = ['Details', 'Hours', 'Geofence', 'Printer', 'Tables', 'Notes'] as const;
 
 function statusColor(status: string) {
   return STATUS_OPTIONS.find(s => s.value === status)?.color ?? MUTED;
@@ -181,6 +182,16 @@ function StoreEditorModal({
   const [hours,            setHours]             = useState<HourRow[]>(defaultHours());
   const [activeTab,        setActiveTab]         = useState<(typeof STORE_EDITOR_TABS)[number]>('Details');
 
+  // Tables tab state
+  const [tables,           setTables]            = useState<StoreTable[]>([]);
+  const [tablesLoading,    setTablesLoading]      = useState(false);
+  const [addingTable,      setAddingTable]        = useState(false);
+  const [newTableNumber,   setNewTableNumber]     = useState('');
+  const [newTableLabel,    setNewTableLabel]      = useState('');
+  const [savingTable,      setSavingTable]        = useState(false);
+  const [qrTable,          setQrTable]            = useState<StoreTable | null>(null);
+  const [qrStoreId,        setQrStoreId]          = useState<string>('');
+
   // Derived: are any printer fields changed from the last saved value?
   // Test print uses current form state; order printing uses what's in the DB.
   // If these differ, orders will print with the old (saved) brand until the director saves.
@@ -189,6 +200,25 @@ function StoreEditorModal({
     printerIp     !== (store.printerIp ?? '') ||
     printerPort   !== (store.printerPort != null ? String(store.printerPort) : '9100')
   );
+
+  // Fetch tables when Tables tab is active
+  const fetchTables = useCallback(async (storeId: string) => {
+    setTablesLoading(true);
+    try {
+      const r = await api.director.storeTables(storeId);
+      setTables(r.data ?? []);
+    } catch {
+      setTables([]);
+    } finally {
+      setTablesLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (activeTab === 'Tables' && store?.id) {
+      fetchTables(store.id);
+    }
+  }, [activeTab, store?.id]);
 
   // Populate from existing store
   useEffect(() => {
@@ -266,6 +296,60 @@ function StoreEditorModal({
 
   const updateHour = (dow: number, field: keyof HourRow, value: HourRow[keyof HourRow]) => {
     setHours(prev => prev.map(h => h.dayOfWeek === dow ? { ...h, [field]: value } : h));
+  };
+
+  const handleAddTable = async () => {
+    if (!store?.id) return;
+    const tn = newTableNumber.trim();
+    if (!tn) { Alert.alert('Required', 'Enter a table number or name.'); return; }
+    setSavingTable(true);
+    try {
+      await api.director.createTable(store.id, {
+        tableNumber: tn,
+        label: newTableLabel.trim() || undefined,
+        sortOrder: tables.length,
+      });
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setNewTableNumber('');
+      setNewTableLabel('');
+      setAddingTable(false);
+      fetchTables(store.id);
+    } catch (err: any) {
+      Alert.alert('Error', err?.message ?? 'Could not add table.');
+    } finally {
+      setSavingTable(false);
+    }
+  };
+
+  const handleToggleTableActive = async (table: StoreTable) => {
+    if (!store?.id) return;
+    try {
+      await api.director.updateTable(store.id, table.id, { isActive: !table.isActive });
+      Haptics.selectionAsync();
+      fetchTables(store.id);
+    } catch (err: any) {
+      Alert.alert('Error', err?.message ?? 'Could not update table.');
+    }
+  };
+
+  const handleDeleteTable = (table: StoreTable) => {
+    if (!store?.id) return;
+    Alert.alert(
+      'Delete Table',
+      `Remove "${table.label || ('Table ' + table.tableNumber)}"? This cannot be undone.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Delete', style: 'destructive', onPress: async () => {
+          try {
+            await api.director.deleteTable(store!.id, table.id);
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+            fetchTables(store!.id);
+          } catch (err: any) {
+            Alert.alert('Error', err?.message ?? 'Could not delete table.');
+          }
+        }},
+      ],
+    );
   };
 
   const handleSave = async () => {
@@ -860,6 +944,173 @@ function StoreEditorModal({
           </View>
           )}
 
+          {activeTab === 'Tables' && (
+          <View style={s.section}>
+            <Text style={s.sectionTitle}>TABLE LAYOUT</Text>
+            {/* Add Table button */}
+            <Pressable
+              onPress={() => { setAddingTable(v => !v); Haptics.selectionAsync(); }}
+              style={[s.sectionCard, {
+                flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+                padding: 14, marginBottom: 10,
+              }]}
+            >
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                <View style={{ width: 32, height: 32, borderRadius: 8, backgroundColor: BLUE + '22', alignItems: 'center', justifyContent: 'center' }}>
+                  <Feather name={addingTable ? 'minus' : 'plus'} size={16} color={BLUE} />
+                </View>
+                <Text style={{ fontWeight: '600', fontSize: 15, color: BLUE }}>
+                  {addingTable ? 'Cancel' : 'Add Table'}
+                </Text>
+              </View>
+              <Feather name={addingTable ? 'chevron-up' : 'chevron-right'} size={16} color={MUTED} />
+            </Pressable>
+
+            {addingTable && (
+              <View style={[s.sectionCard, { padding: 14, marginBottom: 10, gap: 10 }]}>
+                <Text style={[s.sectionTitle, { marginBottom: 0 }]}>NEW TABLE</Text>
+                <View style={{ flexDirection: 'row', gap: 10 }}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={s.fieldLabel}>Number / ID *</Text>
+                    <TextInput
+                      style={[s.fieldInput, { borderWidth: 1, borderColor: BORDER, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8 }]}
+                      value={newTableNumber}
+                      onChangeText={setNewTableNumber}
+                      placeholder="e.g. 4 or Bar-1"
+                      placeholderTextColor={MUTED}
+                      autoCapitalize="none"
+                    />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={s.fieldLabel}>Label (optional)</Text>
+                    <TextInput
+                      style={[s.fieldInput, { borderWidth: 1, borderColor: BORDER, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8 }]}
+                      value={newTableLabel}
+                      onChangeText={setNewTableLabel}
+                      placeholder="e.g. Window Table"
+                      placeholderTextColor={MUTED}
+                    />
+                  </View>
+                </View>
+                <Pressable
+                  onPress={handleAddTable}
+                  disabled={savingTable || !newTableNumber.trim()}
+                  style={[{
+                    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+                    backgroundColor: newTableNumber.trim() ? BLUE : BORDER,
+                    borderRadius: 10, paddingVertical: 11,
+                    opacity: savingTable ? 0.6 : 1,
+                  }]}
+                >
+                  {savingTable
+                    ? <ActivityIndicator size="small" color="#fff" />
+                    : <Feather name="plus" size={14} color="#fff" />
+                  }
+                  <Text style={{ fontWeight: '600', fontSize: 14, color: '#fff' }}>
+                    {savingTable ? 'Adding…' : 'Add Table'}
+                  </Text>
+                </Pressable>
+              </View>
+            )}
+
+            {tablesLoading ? (
+              <View style={[s.sectionCard, { padding: 24, alignItems: 'center' }]}>
+                <ActivityIndicator color={BLUE} />
+              </View>
+            ) : tables.length === 0 ? (
+              <View style={[s.sectionCard, { padding: 24, alignItems: 'center', gap: 8 }]}>
+                <Feather name="grid" size={28} color={MUTED} />
+                <Text style={{ fontWeight: '600', fontSize: 15, color: TEXT }}>No tables configured</Text>
+                <Text style={{ fontWeight: '400', fontSize: 13, color: MUTED, textAlign: 'center' }}>
+                  Add tables above. Each table gets its own QR code for customers to scan and order.
+                </Text>
+              </View>
+            ) : (
+              <View style={s.sectionCard}>
+                {/* 2-column grid */}
+                {Array.from({ length: Math.ceil(tables.length / 2) }, (_, rowIdx) => (
+                  <View
+                    key={rowIdx}
+                    style={{
+                      flexDirection: 'row',
+                      borderTopWidth: rowIdx > 0 ? StyleSheet.hairlineWidth : 0,
+                      borderTopColor: BORDER,
+                    }}
+                  >
+                    {tables.slice(rowIdx * 2, rowIdx * 2 + 2).map((table, colIdx) => (
+                      <Pressable
+                        key={table.id}
+                        onPress={() => {
+                          Haptics.selectionAsync();
+                          setQrTable(table);
+                          setQrStoreId(store?.id ?? '');
+                        }}
+                        style={({ pressed }) => [{
+                          flex: 1, padding: 14, gap: 6,
+                          borderLeftWidth: colIdx > 0 ? StyleSheet.hairlineWidth : 0,
+                          borderLeftColor: BORDER,
+                          backgroundColor: pressed ? BG : 'transparent',
+                        }]}
+                      >
+                        {/* Table number + active badge */}
+                        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                          <View style={{
+                            width: 40, height: 40, borderRadius: 10, alignItems: 'center', justifyContent: 'center',
+                            backgroundColor: table.isActive ? (BLUE + '18') : (MUTED + '18'),
+                          }}>
+                            <Text style={{ fontSize: 15, fontWeight: '800', color: table.isActive ? BLUE : MUTED }}>
+                              {table.tableNumber}
+                            </Text>
+                          </View>
+                          <Feather name="qr-code" size={14} color={MUTED} />
+                        </View>
+                        {/* Label */}
+                        <Text style={{ fontSize: 12, fontWeight: '600', color: TEXT }} numberOfLines={1}>
+                          {table.label || `Table ${table.tableNumber}`}
+                        </Text>
+                        {/* Active/inactive indicator + controls */}
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                          <View style={{
+                            borderRadius: 99, paddingHorizontal: 7, paddingVertical: 3,
+                            backgroundColor: table.isActive ? '#DCFCE7' : '#F3F4F6',
+                          }}>
+                            <Text style={{ fontSize: 10, fontWeight: '700', color: table.isActive ? GREEN : MUTED }}>
+                              {table.isActive ? 'Active' : 'Inactive'}
+                            </Text>
+                          </View>
+                        </View>
+                        {/* Action row */}
+                        <View style={{ flexDirection: 'row', gap: 6, marginTop: 2 }}>
+                          <Pressable
+                            onPress={(e) => { e.stopPropagation(); handleToggleTableActive(table); }}
+                            style={{ padding: 5, borderRadius: 6, backgroundColor: BG }}
+                          >
+                            <Feather name={table.isActive ? 'eye-off' : 'eye'} size={13} color={MUTED} />
+                          </Pressable>
+                          <Pressable
+                            onPress={(e) => { e.stopPropagation(); handleDeleteTable(table); }}
+                            style={{ padding: 5, borderRadius: 6, backgroundColor: BG }}
+                          >
+                            <Feather name="trash-2" size={13} color={RED} />
+                          </Pressable>
+                        </View>
+                      </Pressable>
+                    ))}
+                    {/* Fill empty cell if odd number of tables */}
+                    {rowIdx * 2 + 1 >= tables.length && (
+                      <View style={{ flex: 1, borderLeftWidth: StyleSheet.hairlineWidth, borderLeftColor: BORDER }} />
+                    )}
+                  </View>
+                ))}
+              </View>
+            )}
+
+            <Text style={{ fontSize: 12, color: MUTED, marginTop: 8, paddingHorizontal: 4 }}>
+              Tap any table card to view its QR code. Inactive tables still exist but their QR link shows an error page.
+            </Text>
+          </View>
+          )}
+
           {activeTab === 'Notes' && (
           <View style={s.section}>
             <Text style={s.sectionTitle}>NOTES</Text>
@@ -923,6 +1174,16 @@ function StoreEditorModal({
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      {/* QR code modal for a selected table */}
+      {qrTable && qrStoreId && (
+        <TableQrModal
+          visible={!!qrTable}
+          onClose={() => setQrTable(null)}
+          tableLabel={qrTable.label || `Table ${qrTable.tableNumber}`}
+          qrUrl={getTableQrUrl(qrStoreId, qrTable.tableNumber)}
+        />
+      )}
     </Modal>
   );
 }
