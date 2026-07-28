@@ -3,7 +3,7 @@ import { X, Plus, Minus } from "lucide-react";
 import type { Product, CartItem, OptionGroupOption } from "../types";
 import { useProductDetail } from "../hooks/useMenu";
 import { useApp } from "../context";
-import { formatCents, dietaryLabel, randomId } from "../utils";
+import { formatCents, randomId } from "../utils";
 
 interface Props {
   productId: string;
@@ -28,7 +28,7 @@ export function ProductSheet({ productId, onClose }: Props) {
     return (
       <SheetBase onClose={onClose}>
         <div className="flex items-center justify-center py-24">
-          <div className="w-8 h-8 rounded-full border-2 border-[#EDE8E1] border-t-[#C17A3A] animate-spin" />
+          <div className="w-8 h-8 rounded-full border-2 border-[#EDE8E1] border-t-[#D20001] animate-spin" />
         </div>
       </SheetBase>
     );
@@ -36,7 +36,10 @@ export function ProductSheet({ productId, onClose }: Props) {
 
   const basePrice =
     selectedVariantId && product.variants?.length
-      ? (product.variants.find((v) => v.id === selectedVariantId)?.priceCents ?? product.salePriceCents ?? product.priceCents ?? 0)
+      ? (product.variants.find((v) => v.id === selectedVariantId)?.priceCents ??
+          product.salePriceCents ??
+          product.priceCents ??
+          0)
       : (product.salePriceCents ?? product.priceCents ?? 0);
 
   const optionExtra = Object.entries(selectedOptions).reduce((sum, [groupId, ids]) => {
@@ -110,10 +113,9 @@ export function ProductSheet({ productId, onClose }: Props) {
     onClose();
   }
 
-  const image = product.images[0];
-  const isOnSale = product.salePriceCents != null && product.salePriceCents < (product.priceCents ?? Infinity);
+  const isOnSale =
+    product.salePriceCents != null && product.salePriceCents < (product.priceCents ?? Infinity);
 
-  // CTA rendered outside the scroll area so it is always visible
   const cta = (
     <div className="flex items-center gap-3">
       {/* Quantity stepper */}
@@ -139,7 +141,7 @@ export function ProductSheet({ productId, onClose }: Props) {
         disabled={!canAdd}
         className={`flex-1 py-3.5 rounded-xl font-bold text-[15px] transition-all ${
           canAdd
-            ? "bg-[#1A1A1A] text-white active:scale-[0.98]"
+            ? "bg-[#D20001] text-white active:scale-[0.98]"
             : "bg-[#EDE8E1] text-[#C0BAB3] cursor-not-allowed"
         }`}
         data-testid="add-to-cart-btn"
@@ -153,16 +155,7 @@ export function ProductSheet({ productId, onClose }: Props) {
 
   return (
     <SheetBase onClose={onClose} cta={cta}>
-      {/* Hero image */}
-      {image && (
-        <div className="relative h-56 overflow-hidden">
-          <img src={image} alt={product.name} className="w-full h-full object-cover" />
-          <div className="absolute bottom-0 left-0 right-0 h-16"
-            style={{ background: "linear-gradient(to top, white, transparent)" }} />
-        </div>
-      )}
-
-      <div className={`px-6 ${image ? "pt-3" : "pt-5"} pb-6`}>
+      <div className="px-6 pt-5 pb-4">
         {/* Name & price */}
         <div className="flex items-start justify-between gap-4 mb-2">
           <h2 className="text-[22px] font-bold text-[#1A1A1A] tracking-tight flex-1 leading-tight">
@@ -171,35 +164,20 @@ export function ProductSheet({ productId, onClose }: Props) {
           <div className="text-right shrink-0 pt-0.5">
             {isOnSale ? (
               <>
-                <p className="text-lg font-bold text-[#C17A3A]">{formatCents(product.salePriceCents!)}</p>
+                <p className="text-lg font-bold text-[#D20001]">{formatCents(product.salePriceCents!)}</p>
                 <p className="text-xs line-through text-[#C0BAB3]">{formatCents(product.priceCents!)}</p>
               </>
             ) : (
-              <p className="text-lg font-bold text-[#1A1A1A]">{unitCents ? formatCents(unitCents) : "—"}</p>
+              <p className="text-lg font-bold text-[#1A1A1A]">
+                {unitCents ? formatCents(unitCents) : "—"}
+              </p>
             )}
           </div>
         </div>
 
-        {/* Dietary tags */}
-        {product.dietaryTags.length > 0 && (
-          <div className="flex flex-wrap gap-1.5 mb-3">
-            {product.dietaryTags.map((tag) => {
-              const { label } = dietaryLabel(tag);
-              return (
-                <span key={tag}
-                  className="text-[11px] font-semibold px-2.5 py-1 rounded-full bg-[#F0EDE8] text-[#8A6050]">
-                  {label}
-                </span>
-              );
-            })}
-          </div>
-        )}
-
         {/* Description */}
         {product.description && (
-          <p className="text-[#5A5550] text-sm leading-relaxed mb-5">
-            {product.description}
-          </p>
+          <p className="text-[#5A5550] text-sm leading-relaxed mb-5">{product.description}</p>
         )}
 
         {/* Variants */}
@@ -212,7 +190,7 @@ export function ProductSheet({ productId, onClose }: Props) {
                   onClick={() => setSelectedVariantId(v.id)}
                   className={`px-4 py-2.5 rounded-xl text-sm font-semibold transition-all ${
                     selectedVariantId === v.id
-                      ? "bg-[#1A1A1A] text-white"
+                      ? "bg-[#D20001] text-white"
                       : "bg-[#F0EDE8] text-[#5A5550]"
                   }`}
                 >
@@ -257,17 +235,17 @@ export function ProductSheet({ productId, onClose }: Props) {
                       }`}
                     >
                       <div className="flex items-center gap-3">
-                        <div className={`w-4 h-4 flex items-center justify-center shrink-0 ${
-                          isMulti ? "rounded" : "rounded-full"
-                        } border-2 ${
-                          isSelected
-                            ? "border-white bg-white"
-                            : atMax
-                            ? "border-[#C0BAB3]"
-                            : "border-[#C0BAB3]"
-                        }`}>
+                        <div
+                          className={`w-4 h-4 flex items-center justify-center shrink-0 ${
+                            isMulti ? "rounded" : "rounded-full"
+                          } border-2 ${
+                            isSelected ? "border-white bg-white" : "border-[#C0BAB3]"
+                          }`}
+                        >
                           {isSelected && (
-                            <div className={`${isMulti ? "w-2 h-2 rounded-sm" : "w-2 h-2 rounded-full"} bg-[#1A1A1A]`} />
+                            <div
+                              className={`${isMulti ? "w-2 h-2 rounded-sm" : "w-2 h-2 rounded-full"} bg-[#1A1A1A]`}
+                            />
                           )}
                         </div>
                         <span className="font-medium">{option.name}</span>
@@ -293,7 +271,7 @@ export function ProductSheet({ productId, onClose }: Props) {
             placeholder="Allergies, preferences, or requests…"
             rows={2}
             className="w-full px-4 py-3 border border-[#EDE8E1] rounded-xl text-sm text-[#1A1A1A]
-                       placeholder-[#C0BAB3] resize-none focus:outline-none focus:border-[#C17A3A]
+                       placeholder-[#C0BAB3] resize-none focus:outline-none focus:border-[#D20001]
                        bg-white leading-relaxed"
           />
         </Section>
@@ -302,13 +280,12 @@ export function ProductSheet({ productId, onClose }: Props) {
   );
 }
 
-// ── Sub-components ─────────────────────────────────────────────────────────────
+// ── SheetBase ─────────────────────────────────────────────────────────────────
+//
+// Locks body scroll on mount so the underlying page stops scrolling while the
+// sheet is open. The CTA bar is rendered OUTSIDE the scroll area so it is
+// always pinned to the bottom regardless of content length.
 
-/**
- * SheetBase renders the bottom-sheet chrome.
- * `cta` is rendered OUTSIDE the scroll area so it is always pinned to the
- * bottom of the viewport regardless of content length.
- */
 function SheetBase({
   children,
   cta,
@@ -318,15 +295,27 @@ function SheetBase({
   cta?: React.ReactNode;
   onClose: () => void;
 }) {
+  // Lock body scroll while sheet is open
+  useEffect(() => {
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = prev; };
+  }, []);
+
   return (
     <div className="fixed inset-0 z-50 flex flex-col">
       {/* Backdrop */}
       <div className="flex-1 bg-black/50 animate-fade-in" onClick={onClose} />
 
-      {/* Sheet panel — flex column so scroll area + CTA are siblings */}
+      {/* Sheet panel — flex-col with max height so CTA is never scrolled away */}
       <div
-        className="relative bg-white rounded-t-3xl flex flex-col overflow-hidden animate-sheet-up"
-        style={{ maxHeight: "94dvh", boxShadow: "0 -8px 40px rgba(0,0,0,0.18)" }}
+        className="relative bg-white rounded-t-3xl flex flex-col animate-sheet-up"
+        style={{
+          maxHeight: "92dvh",
+          boxShadow: "0 -8px 40px rgba(0,0,0,0.18)",
+          // Ensure the panel itself doesn't overflow — inner scroll handles content
+          overflow: "hidden",
+        }}
         data-testid="product-sheet"
       >
         {/* Drag handle */}
@@ -342,14 +331,17 @@ function SheetBase({
           <X size={15} />
         </button>
 
-        {/* Scrollable content — fills remaining space */}
-        <div className="flex-1 overflow-y-auto overscroll-contain no-scrollbar">
+        {/* Scrollable content */}
+        <div className="flex-1 overflow-y-auto overscroll-contain no-scrollbar min-h-0">
           {children}
         </div>
 
-        {/* CTA bar — always visible, never scrolled away */}
+        {/* CTA — always visible, never scrolled */}
         {cta && (
-          <div className="shrink-0 bg-white border-t border-[#EDE8E1] px-5 py-4 safe-bottom">
+          <div
+            className="shrink-0 bg-white border-t border-[#EDE8E1] px-5 py-4"
+            style={{ paddingBottom: "max(env(safe-area-inset-bottom, 0px), 16px)" }}
+          >
             {cta}
           </div>
         )}
@@ -374,11 +366,11 @@ function Section({
       <div className="flex items-center gap-2 mb-2.5">
         <h3 className="font-semibold text-[#1A1A1A] text-sm tracking-tight">{title}</h3>
         {badge && (
-          <span className={`text-[11px] px-2 py-0.5 rounded-full font-semibold ${
-            required
-              ? "bg-[#FFF0EC] text-[#E05030]"
-              : "bg-[#F0EDE8] text-[#8A8580]"
-          }`}>
+          <span
+            className={`text-[11px] px-2 py-0.5 rounded-full font-semibold ${
+              required ? "bg-[#FFF0EC] text-[#E05030]" : "bg-[#F0EDE8] text-[#8A8580]"
+            }`}
+          >
             {badge}
           </span>
         )}

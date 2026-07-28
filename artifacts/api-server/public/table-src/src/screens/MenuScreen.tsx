@@ -1,7 +1,12 @@
 import { useState } from "react";
-import { ArrowLeft, Search, X } from "lucide-react";
+import { ArrowLeft, ShoppingBag, X } from "lucide-react";
 import { useCategories, useProducts } from "../hooks/useMenu";
 import { useApp } from "../context";
+import { ProductSheet } from "../components/ProductSheet";
+import { CartSheet } from "../components/CartSheet";
+import { CartBar } from "../components/CartBar";
+import { formatCents } from "../utils";
+import type { Category, Product } from "../types";
 
 // ── Smart app banner (mobile only) ────────────────────────────────────────────
 
@@ -11,7 +16,6 @@ function AppBanner() {
     try { return sessionStorage.getItem("app_banner_dismissed") === "1"; } catch { return false; }
   });
 
-  // Only show on mobile browsers
   const ua = navigator.userAgent;
   const isMobile = /iPhone|iPad|iPod|Android/i.test(ua);
   const isIOS = /iPhone|iPad|iPod/i.test(ua);
@@ -23,25 +27,13 @@ function AppBanner() {
     ? "https://apps.apple.com/app/butterfield-cookies/id6744892949"
     : "https://play.google.com/store/apps/details?id=au.com.butterfieldcookies.app";
 
-  const handleOpen = () => {
-    window.location.href = deepLink;
-  };
-
-  const handleDismiss = () => {
-    try { sessionStorage.setItem("app_banner_dismissed", "1"); } catch {}
-    setDismissed(true);
-  };
-
   return (
     <div
       className="flex items-center gap-3 px-4 py-2.5 shrink-0"
       style={{ background: "#1A1A1A", borderBottom: "1px solid rgba(255,255,255,0.06)" }}
     >
-      <span className="text-lg shrink-0">🍪</span>
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-semibold text-white leading-tight">
-          Open in Butterfield app
-        </p>
+        <p className="text-sm font-semibold text-white leading-tight">Open in Butterfield app</p>
         <p className="text-[11px] text-[#888] mt-0.5">
           <a
             href={storeLink}
@@ -55,68 +47,124 @@ function AppBanner() {
         </p>
       </div>
       <button
-        onClick={handleOpen}
+        onClick={() => { window.location.href = deepLink; }}
         className="shrink-0 text-sm font-semibold px-3.5 py-1.5 rounded-full"
         style={{ background: "#E8C87A", color: "#1A1A1A" }}
       >
         Open
       </button>
-      <button onClick={handleDismiss} className="shrink-0 p-1" style={{ color: "#555" }}>
+      <button
+        onClick={() => {
+          try { sessionStorage.setItem("app_banner_dismissed", "1"); } catch {}
+          setDismissed(true);
+        }}
+        className="shrink-0 p-1"
+        style={{ color: "#555" }}
+      >
         <X size={15} />
       </button>
     </div>
   );
 }
-import { ProductSheet } from "../components/ProductSheet";
-import { CartSheet } from "../components/CartSheet";
-import { CartBar } from "../components/CartBar";
-import { formatCents, dietaryLabel } from "../utils";
-import type { Category, Product } from "../types";
 
-// ── Category visual map ────────────────────────────────────────────────────────
+// ── Header ─────────────────────────────────────────────────────────────────────
 
-interface CategoryVisual {
-  bg: string;
-  text: string;
-  subtext: string;
-  accent: string;
-  emoji: string;
+function Header({ tableNumber, onOpenCart }: { tableNumber: string; onOpenCart: () => void }) {
+  const { cartCount } = useApp();
+  return (
+    <header
+      className="bg-white shrink-0 border-b border-[#F0EDE8]"
+      style={{ paddingTop: "max(env(safe-area-inset-top, 0px), 16px)" }}
+    >
+      <div className="flex items-center justify-between px-5 pb-3">
+        {/* Logo — bigger than before */}
+        <img
+          src="/api/static/butterfield-logo.svg"
+          alt="Butterfield Cookies"
+          className="h-9"
+          onError={(e) => {
+            const el = e.target as HTMLImageElement;
+            el.style.display = "none";
+            const parent = el.parentElement;
+            if (parent && !parent.querySelector("span")) {
+              const text = document.createElement("span");
+              text.className = "text-lg font-black text-[#1A1A1A] tracking-tight";
+              text.textContent = "Butterfield";
+              parent.appendChild(text);
+            }
+          }}
+        />
+
+        <div className="flex items-center gap-2">
+          {/* Table number — plain circle, no "Table" label */}
+          <div
+            className="w-9 h-9 rounded-full flex items-center justify-center shrink-0"
+            style={{ background: "#1A1A1A" }}
+          >
+            <span className="text-white text-sm font-black leading-none">{tableNumber}</span>
+          </div>
+
+          {/* Cart icon — cherry red when cart has items */}
+          <button
+            onClick={onOpenCart}
+            className="relative w-9 h-9 rounded-full flex items-center justify-center shrink-0 transition-colors"
+            style={{ background: cartCount > 0 ? "#D20001" : "#F0EDE8" }}
+            aria-label="View cart"
+          >
+            <ShoppingBag size={16} color={cartCount > 0 ? "#fff" : "#5A5550"} />
+            {cartCount > 0 && (
+              <span
+                className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-[#1A1A1A] text-white flex items-center justify-center leading-none font-bold"
+                style={{ fontSize: "9px" }}
+              >
+                {cartCount > 9 ? "9+" : cartCount}
+              </span>
+            )}
+          </button>
+        </div>
+      </div>
+    </header>
+  );
 }
 
-const FALLBACK_VISUALS: CategoryVisual[] = [
-  { bg: "#F7EDD6", text: "#3D1F0A", subtext: "#A07040", accent: "#C17A3A", emoji: "✨" },
-  { bg: "#E4EDD8", text: "#1E4020", subtext: "#5A8055", accent: "#5B8C52", emoji: "🌿" },
-  { bg: "#EEE0D8", text: "#4A2818", subtext: "#9A6050", accent: "#B07050", emoji: "☕" },
-  { bg: "#DDE8F0", text: "#0E3A5A", subtext: "#4A7A9A", accent: "#3A8AC0", emoji: "💧" },
-  { bg: "#EDE4F0", text: "#2A1040", subtext: "#7A5090", accent: "#8A60A0", emoji: "🫖" },
+// ── Category colour palette (mirrors portal's categoryColors.ts) ──────────────
+
+interface CatVisual { bg: string; text: string; }
+
+const CATEGORY_COLORS: Record<string, CatVisual> = {
+  cookies:       { bg: "#E8C49A", text: "#3D1F0A" },
+  coffee:        { bg: "#8B6244", text: "#FFFFFF" },
+  matcha:        { bg: "#C8E6C2", text: "#1E4020" },
+  tea:           { bg: "#D4C4A8", text: "#4A3820" },
+  "cold-drinks": { bg: "#BDE0F4", text: "#0E3A5A" },
+  "soft-serve":  { bg: "#F8D8E8", text: "#6A1040" },
+  desserts:      { bg: "#F2B8C6", text: "#6A2040" },
+  sandwiches:    { bg: "#A8C89A", text: "#1A3010" },
+  bundles:       { bg: "#B4A0D4", text: "#2A1060" },
+  boxes:         { bg: "#D4BAE8", text: "#3A1060" },
+  specials:      { bg: "#FFE5A0", text: "#5A3800" },
+  seasonal:      { bg: "#F4D0A8", text: "#4A2010" },
+  merch:         { bg: "#A8C8E8", text: "#0A2850" },
+  pastries:      { bg: "#F0D4A8", text: "#4A2010" },
+};
+
+const FALLBACK_COLORS: CatVisual[] = [
+  { bg: "#E8C49A", text: "#3D1F0A" },
+  { bg: "#C8E6C2", text: "#1E4020" },
+  { bg: "#BDE0F4", text: "#0E3A5A" },
+  { bg: "#D4C4A8", text: "#4A3820" },
+  { bg: "#F2B8C6", text: "#6A2040" },
 ];
 
-function getCategoryVisual(slug: string, name: string, index: number): CategoryVisual {
-  const key = (slug + " " + name).toLowerCase();
-
-  if (key.includes("cookie") || key.includes("bake") || key.includes("pastry") || key.includes("snack"))
-    return { bg: "#F7EDD6", text: "#3D1F0A", subtext: "#A07040", accent: "#C17A3A", emoji: "🍪" };
-
-  if (key.includes("coffee") || key.includes("espresso") || key.includes("latte") || key.includes("flat white") || key.includes("cap"))
-    return { bg: "#1C0F07", text: "#F5E6D0", subtext: "#C9A07A", accent: "#E8C87A", emoji: "☕" };
-
-  if (key.includes("matcha"))
-    return { bg: "#E4EDD8", text: "#1E4020", subtext: "#5A8055", accent: "#5B8C52", emoji: "🍵" };
-
-  if (key.includes("tea") || key.includes("chai") || key.includes("herbal"))
-    return { bg: "#EEE0D8", text: "#4A2818", subtext: "#9A6050", accent: "#B07050", emoji: "🫖" };
-
-  if (key.includes("iced") || key.includes("cold") || key.includes("frappe") || key.includes("smoothie") || key.includes("shake") || key.includes("juice"))
-    return { bg: "#DDE8F0", text: "#0E3A5A", subtext: "#4A7A9A", accent: "#3A8AC0", emoji: "🧊" };
-
-  if (key.includes("food") || key.includes("sandwich") || key.includes("toastie") || key.includes("wrap"))
-    return { bg: "#F0EDE8", text: "#2A1A0A", subtext: "#8A6A50", accent: "#A07040", emoji: "🥪" };
-
-  // Cycle through fallbacks for unknown categories
-  return FALLBACK_VISUALS[index % FALLBACK_VISUALS.length]!;
+function getCatVisual(slug: string, index: number): CatVisual {
+  return CATEGORY_COLORS[slug] ?? FALLBACK_COLORS[index % FALLBACK_COLORS.length]!;
 }
 
-// ── Main screen ────────────────────────────────────────────────────────────────
+// ── Root screen ───────────────────────────────────────────────────────────────
+//
+// Cart bar, cart sheet, and product sheet are ALL lifted here so they survive
+// category-switching. Previously CartBar was only inside ProductListScreen,
+// which caused it to vanish when navigating back to the category grid.
 
 export function MenuScreen() {
   const { config } = useApp();
@@ -127,105 +175,104 @@ export function MenuScreen() {
   const [cartOpen, setCartOpen] = useState(false);
 
   const loading = catsLoading || prodsLoading;
-
-  // Products for selected category
   const activeCategory = categories.find((c) => c.id === activeCatId) ?? null;
   const categoryProducts = activeCatId
     ? products.filter(
-        (p) => (p.active || p.isSoldOut) && (p.categoryId === activeCatId || p.category === activeCategory?.slug)
+        (p) =>
+          (p.active || p.isSoldOut) &&
+          (p.categoryId === activeCatId || p.category === activeCategory?.slug)
       )
     : [];
 
-  if (activeCatId && activeCategory) {
-    return (
-      <ProductListScreen
-        category={activeCategory}
-        categoryIndex={categories.findIndex((c) => c.id === activeCatId)}
-        products={categoryProducts}
-        onBack={() => setActiveCatId(null)}
-        onSelectProduct={setSelectedProductId}
-        onOpenCart={() => setCartOpen(true)}
-        selectedProductId={selectedProductId}
-        onCloseProduct={() => setSelectedProductId(null)}
-        cartOpen={cartOpen}
-        onCloseCart={() => setCartOpen(false)}
-      />
-    );
-  }
-
   return (
-    <div className="min-h-dvh bg-[#FDFCFA] flex flex-col">
-      {/* Smart app banner */}
+    <div className="h-dvh bg-white flex flex-col overflow-hidden">
       <AppBanner />
 
-      {/* Header */}
-      <header className="bg-[#FDFCFA] px-5 pt-4 pb-3 safe-top shrink-0">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <img
-              src="/api/static/butterfield-logo.svg"
-              alt="Butterfield Cookies"
-              className="h-6"
-              onError={(e) => {
-                const el = e.target as HTMLImageElement;
-                el.style.display = "none";
-                const parent = el.parentElement;
-                if (parent) {
-                  const text = document.createElement("span");
-                  text.className = "text-base font-bold text-[#1A1A1A] tracking-tight";
-                  text.textContent = "Butterfield";
-                  parent.appendChild(text);
-                }
-              }}
-            />
-          </div>
-          <div className="flex items-center gap-2 bg-[#F0EDE8] rounded-full px-3.5 py-1.5">
-            <span className="text-xs font-medium text-[#8A8580] uppercase tracking-wide">Table</span>
-            <span className="text-sm font-bold text-[#1A1A1A]">{config.tableNumber}</span>
-          </div>
-        </div>
-      </header>
+      {/* Header is always mounted — table circle + cart icon always visible */}
+      <Header tableNumber={config.tableNumber} onOpenCart={() => setCartOpen(true)} />
 
-      {/* Hero text */}
-      <div className="px-5 pt-2 pb-5 shrink-0">
-        <h1 className="text-[32px] font-bold text-[#1A1A1A] tracking-tight leading-tight">
-          What would you<br />like today?
+      {activeCatId && activeCategory ? (
+        <ProductListScreen
+          category={activeCategory}
+          categoryIndex={categories.findIndex((c) => c.id === activeCatId)}
+          products={categoryProducts}
+          onBack={() => setActiveCatId(null)}
+          onSelectProduct={setSelectedProductId}
+        />
+      ) : (
+        <CategoryView
+          categories={categories}
+          products={products}
+          loading={loading}
+          error={!!error}
+          onSelect={(catId) => setActiveCatId(catId)}
+        />
+      )}
+
+      {/* Global overlays — always at top level, survive category switches */}
+      <CartBar onOpen={() => setCartOpen(true)} />
+      {cartOpen && <CartSheet onClose={() => setCartOpen(false)} />}
+      {selectedProductId && (
+        <ProductSheet productId={selectedProductId} onClose={() => setSelectedProductId(null)} />
+      )}
+    </div>
+  );
+}
+
+// ── Category view (home screen) ───────────────────────────────────────────────
+
+function CategoryView({
+  categories,
+  products,
+  loading,
+  error,
+  onSelect,
+}: {
+  categories: Category[];
+  products: Product[];
+  loading: boolean;
+  error: boolean;
+  onSelect: (catId: string) => void;
+}) {
+  const countFor = (cat: Category) =>
+    products.filter(
+      (p) => (p.active || p.isSoldOut) && (p.categoryId === cat.id || p.category === cat.slug)
+    ).length;
+
+  return (
+    <div className="flex-1 flex flex-col min-h-0">
+      <div className="px-5 pt-5 pb-4 shrink-0">
+        <h1 className="text-[34px] font-black text-[#1A1A1A] tracking-tight leading-none">
+          What would<br />you like?
         </h1>
       </div>
 
-      {/* Category grid */}
-      <main className="flex-1 overflow-y-auto no-scrollbar px-5 pb-8">
+      <main
+        className="flex-1 overflow-y-auto no-scrollbar px-5"
+        style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 7rem)" }}
+      >
         {loading && (
           <div className="grid grid-cols-2 gap-3">
             {Array.from({ length: 5 }).map((_, i) => (
-              <div
-                key={i}
-                className={`rounded-3xl animate-pulse bg-[#EDE8E1] ${i < 2 ? "h-48" : "h-36"}`}
-              />
+              <div key={i} className={`rounded-3xl animate-pulse bg-[#EDE8E1] ${i < 2 ? "h-52" : "h-40"}`} />
             ))}
           </div>
         )}
 
         {error && !loading && (
           <div className="flex flex-col items-center justify-center py-20 text-center">
-            <div className="text-4xl mb-4">😔</div>
-            <p className="font-semibold text-[#1A1A1A]">Couldn't load the menu</p>
+            <p className="font-bold text-[#1A1A1A] text-lg">Couldn't load the menu</p>
             <p className="text-sm text-[#8A8580] mt-1">Ask a staff member for assistance</p>
           </div>
         )}
 
         {!loading && !error && categories.length > 0 && (
-          <CategoryGrid
-            categories={categories}
-            products={products}
-            onSelect={(catId) => setActiveCatId(catId)}
-          />
+          <CategoryGrid categories={categories} countFor={countFor} onSelect={onSelect} />
         )}
 
         {!loading && !error && categories.length === 0 && (
           <div className="flex flex-col items-center justify-center py-20 text-center">
-            <div className="text-4xl mb-4">🍪</div>
-            <p className="font-semibold text-[#1A1A1A]">Menu coming soon</p>
+            <p className="font-bold text-[#1A1A1A] text-lg">Menu coming soon</p>
           </div>
         )}
       </main>
@@ -237,61 +284,30 @@ export function MenuScreen() {
 
 function CategoryGrid({
   categories,
-  products,
+  countFor,
   onSelect,
 }: {
   categories: Category[];
-  products: Product[];
+  countFor: (cat: Category) => number;
   onSelect: (catId: string) => void;
 }) {
-  const countFor = (cat: Category) =>
-    products.filter(
-      (p) => (p.active || p.isSoldOut) && (p.categoryId === cat.id || p.category === cat.slug)
-    ).length;
-
-  // Split: first 2 in top row (tall), rest in subsequent rows of 2
   const topTwo = categories.slice(0, 2);
   const rest = categories.slice(2);
 
   return (
     <div className="flex flex-col gap-3">
-      {/* Top row — two tall cards */}
       {topTwo.length > 0 && (
         <div className={`grid gap-3 ${topTwo.length === 2 ? "grid-cols-2" : "grid-cols-1"}`}>
-          {topTwo.map((cat, i) => {
-            const visual = getCategoryVisual(cat.slug, cat.name, i);
-            const count = countFor(cat);
-            return (
-              <CategoryCard
-                key={cat.id}
-                cat={cat}
-                visual={visual}
-                count={count}
-                tall
-                onSelect={onSelect}
-              />
-            );
-          })}
+          {topTwo.map((cat, i) => (
+            <CategoryCard key={cat.id} cat={cat} index={i} count={countFor(cat)} tall onSelect={onSelect} />
+          ))}
         </div>
       )}
-
-      {/* Remaining rows — 2 per row */}
       {rest.length > 0 && (
         <div className="grid grid-cols-2 gap-3">
-          {rest.map((cat, i) => {
-            const visual = getCategoryVisual(cat.slug, cat.name, i + 2);
-            const count = countFor(cat);
-            return (
-              <CategoryCard
-                key={cat.id}
-                cat={cat}
-                visual={visual}
-                count={count}
-                tall={false}
-                onSelect={onSelect}
-              />
-            );
-          })}
+          {rest.map((cat, i) => (
+            <CategoryCard key={cat.id} cat={cat} index={i + 2} count={countFor(cat)} tall={false} onSelect={onSelect} />
+          ))}
         </div>
       )}
     </div>
@@ -300,18 +316,18 @@ function CategoryGrid({
 
 function CategoryCard({
   cat,
-  visual,
+  index,
   count,
   tall,
   onSelect,
 }: {
   cat: Category;
-  visual: CategoryVisual;
+  index: number;
   count: number;
   tall: boolean;
   onSelect: (catId: string) => void;
 }) {
-  const isDark = visual.bg.startsWith("#1") || visual.bg.startsWith("#0") || visual.bg.startsWith("#2");
+  const { bg, text } = getCatVisual(cat.slug, index);
 
   return (
     <button
@@ -319,68 +335,32 @@ function CategoryCard({
       className={`relative rounded-3xl overflow-hidden text-left active:scale-[0.96] transition-transform ${
         tall ? "h-52" : "h-40"
       }`}
-      style={{ background: visual.bg }}
+      style={{ background: bg }}
       data-testid={`category-card-${cat.slug}`}
       aria-label={cat.name}
     >
-      {/* Background image if available */}
-      {cat.imageUrl && (
-        <img
-          src={cat.imageUrl}
-          alt=""
-          className="absolute inset-0 w-full h-full object-cover opacity-25"
-        />
-      )}
-
-      {/* Content */}
-      <div className="absolute inset-0 flex flex-col justify-between p-4">
-        {/* Emoji */}
-        <div
-          className="w-10 h-10 rounded-2xl flex items-center justify-center"
-          style={{ background: isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.06)" }}
-        >
-          <span className="text-xl leading-none">{visual.emoji}</span>
-        </div>
-
-        {/* Name + count */}
-        <div>
-          {count > 0 && (
-            <p
-              className="text-[11px] font-semibold uppercase tracking-widest mb-1"
-              style={{ color: visual.subtext }}
-            >
-              {count} item{count !== 1 ? "s" : ""}
-            </p>
-          )}
-          <h2
-            className="font-bold tracking-tight leading-none"
-            style={{
-              color: visual.text,
-              fontSize: tall ? "22px" : "18px",
-            }}
+      {/* Name anchored bottom — no emoji, no background image */}
+      <div className="absolute inset-0 flex flex-col justify-end p-4 gap-0.5">
+        {count > 0 && (
+          <p
+            className="text-[10px] font-bold uppercase tracking-widest"
+            style={{ color: text, opacity: 0.6 }}
           >
-            {cat.name.toUpperCase()}
-          </h2>
-        </div>
+            {count} item{count !== 1 ? "s" : ""}
+          </p>
+        )}
+        <h2
+          className="font-black tracking-tight leading-none"
+          style={{ color: text, fontSize: tall ? "24px" : "19px" }}
+        >
+          {cat.name.toUpperCase()}
+        </h2>
       </div>
     </button>
   );
 }
 
-// ── Product list screen (shown when a category is selected) ───────────────────
-
-interface ProductListProps {
-  category: Category;
-  categoryIndex: number;
-  products: Product[];
-  onBack: () => void;
-  onSelectProduct: (id: string) => void;
-  onOpenCart: () => void;
-  selectedProductId: string | null;
-  onCloseProduct: () => void;
-  cartOpen: boolean;
-  onCloseCart: () => void;
-}
+// ── Product list screen ────────────────────────────────────────────────────────
 
 function ProductListScreen({
   category,
@@ -388,99 +368,49 @@ function ProductListScreen({
   products,
   onBack,
   onSelectProduct,
-  onOpenCart,
-  selectedProductId,
-  onCloseProduct,
-  cartOpen,
-  onCloseCart,
-}: ProductListProps) {
-  const [search, setSearch] = useState("");
-  const visual = getCategoryVisual(category.slug, category.name, categoryIndex);
-  const isDark = visual.bg.startsWith("#1") || visual.bg.startsWith("#0") || visual.bg.startsWith("#2");
-
-  const filtered = products.filter((p) => {
-    if (!search.trim()) return true;
-    const q = search.toLowerCase();
-    return p.name.toLowerCase().includes(q) || p.description.toLowerCase().includes(q);
-  });
+}: {
+  category: Category;
+  categoryIndex: number;
+  products: Product[];
+  onBack: () => void;
+  onSelectProduct: (id: string) => void;
+}) {
+  const { bg, text } = getCatVisual(category.slug, categoryIndex);
 
   return (
-    <div className="min-h-dvh bg-[#FDFCFA] flex flex-col animate-slide-in-right">
-      {/* Category header */}
-      <header
-        className="shrink-0 safe-top"
-        style={{ background: visual.bg }}
-      >
+    <div className="flex-1 flex flex-col min-h-0 animate-slide-in-right">
+      {/* Coloured category banner — no emoji, no background image */}
+      <header className="shrink-0" style={{ background: bg }}>
         <div className="px-5 pt-4 pb-5">
           <button
             onClick={onBack}
-            className="flex items-center gap-1.5 mb-5"
-            style={{ color: isDark ? "rgba(255,255,255,0.6)" : visual.subtext }}
+            className="flex items-center gap-1.5 mb-4"
+            style={{ color: text, opacity: 0.7 }}
           >
             <ArrowLeft size={17} strokeWidth={2.5} />
-            <span className="text-sm font-medium">Menu</span>
+            <span className="text-sm font-semibold">Menu</span>
           </button>
-          <div className="flex items-center gap-3">
-            <div
-              className="w-12 h-12 rounded-2xl flex items-center justify-center text-2xl shrink-0"
-              style={{ background: isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.06)" }}
-            >
-              {visual.emoji}
-            </div>
-            <h1
-              className="text-[26px] font-bold tracking-tight"
-              style={{ color: visual.text }}
-            >
-              {category.name}
-            </h1>
-          </div>
-
-          {/* Search */}
-          <div className="relative mt-4">
-            <Search
-              size={14}
-              className="absolute left-3.5 top-1/2 -translate-y-1/2"
-              style={{ color: isDark ? "rgba(255,255,255,0.4)" : visual.subtext }}
-            />
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder={`Search ${category.name.toLowerCase()}…`}
-              className="w-full pl-9 pr-9 py-2.5 rounded-xl text-sm focus:outline-none"
-              style={{
-                background: isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.06)",
-                color: visual.text,
-              }}
-            />
-            {search && (
-              <button
-                onClick={() => setSearch("")}
-                className="absolute right-3 top-1/2 -translate-y-1/2"
-                style={{ color: visual.subtext }}
-              >
-                <X size={14} />
-              </button>
-            )}
-          </div>
+          <h1
+            className="font-black tracking-tight leading-none"
+            style={{ color: text, fontSize: "28px" }}
+          >
+            {category.name.toUpperCase()}
+          </h1>
         </div>
       </header>
 
-      {/* Product list */}
-      <main className="flex-1 overflow-y-auto no-scrollbar px-5 py-5 pb-28">
-        {filtered.length === 0 && (
+      {/* Product list — safe-area-aware bottom padding */}
+      <main
+        className="flex-1 overflow-y-auto no-scrollbar px-4 pt-4"
+        style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 7rem)" }}
+      >
+        {products.length === 0 && (
           <div className="flex flex-col items-center justify-center py-16 text-center">
-            <p className="text-3xl mb-3">{search ? "🔍" : "🍪"}</p>
-            <p className="font-semibold text-[#1A1A1A]">
-              {search ? "Nothing found" : "No items here yet"}
-            </p>
-            {search && (
-              <p className="text-sm text-[#8A8580] mt-1">Try a different search term</p>
-            )}
+            <p className="font-bold text-[#1A1A1A] text-lg">No items here yet</p>
           </div>
         )}
-
-        <div className="flex flex-col gap-3">
-          {filtered.map((product) => (
+        <div className="flex flex-col gap-2.5">
+          {products.map((product) => (
             <ProductCard
               key={product.id}
               product={product}
@@ -489,14 +419,6 @@ function ProductListScreen({
           ))}
         </div>
       </main>
-
-      {/* Modals */}
-      {selectedProductId && (
-        <ProductSheet productId={selectedProductId} onClose={onCloseProduct} />
-      )}
-      {cartOpen && <CartSheet onClose={onCloseCart} />}
-
-      <CartBar onOpen={onOpenCart} />
     </div>
   );
 }
@@ -504,86 +426,63 @@ function ProductListScreen({
 // ── Product card ───────────────────────────────────────────────────────────────
 
 function ProductCard({ product, onSelect }: { product: Product; onSelect: () => void }) {
-  const image = product.images[0];
   const price = product.salePriceCents ?? product.priceCents;
-  const isOnSale = product.salePriceCents != null && product.salePriceCents < (product.priceCents ?? Infinity);
+  const isOnSale =
+    product.salePriceCents != null && product.salePriceCents < (product.priceCents ?? Infinity);
   const soldOut = product.isSoldOut || !product.active;
 
   return (
     <button
       onClick={onSelect}
       disabled={soldOut}
-      className={`flex items-center gap-4 bg-white rounded-2xl p-3.5 text-left transition-all active:scale-[0.98] ${
+      className={`flex items-center justify-between gap-3 bg-white rounded-2xl px-4 py-3.5 text-left transition-all active:scale-[0.98] w-full ${
         soldOut ? "opacity-50" : ""
       }`}
-      style={{ boxShadow: "0 1px 6px rgba(0,0,0,0.06)" }}
+      style={{ boxShadow: "0 1px 8px rgba(0,0,0,0.07), 0 0 0 1px rgba(0,0,0,0.04)" }}
       data-testid={`product-card-${product.id}`}
     >
-      {/* Image */}
-      {image ? (
-        <div className="relative shrink-0">
-          <img
-            src={image}
-            alt={product.name}
-            className="w-[72px] h-[72px] rounded-xl object-cover"
-          />
-          {soldOut && (
-            <div className="absolute inset-0 bg-white/80 rounded-xl flex items-center justify-center">
-              <span className="text-[10px] font-bold text-[#8A8580] uppercase tracking-wide">Sold out</span>
-            </div>
-          )}
-        </div>
-      ) : (
-        <div className="w-[72px] h-[72px] rounded-xl bg-[#F0EDE8] flex items-center justify-center shrink-0">
-          <span className="text-2xl">🍪</span>
-        </div>
-      )}
-
-      {/* Info */}
+      {/* Text only — no images, no emojis */}
       <div className="flex-1 min-w-0">
-        <p className="font-semibold text-[#1A1A1A] text-[15px] leading-tight">{product.name}</p>
+        <p className="font-bold text-[#1A1A1A] text-[16px] leading-tight">{product.name}</p>
         {product.description && (
-          <p className="text-xs text-[#8A8580] mt-1 line-clamp-2 leading-relaxed">
+          <p className="text-xs text-[#8A8580] mt-0.5 line-clamp-1 leading-relaxed">
             {product.description}
           </p>
         )}
-
-        {/* Dietary tags */}
-        {product.dietaryTags.length > 0 && (
-          <div className="flex flex-wrap gap-1 mt-1.5">
-            {product.dietaryTags.slice(0, 3).map((tag) => {
-              const { label } = dietaryLabel(tag);
-              return (
-                <span
-                  key={tag}
-                  className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-[#F0EDE8] text-[#8A6050]"
-                >
-                  {label}
-                </span>
-              );
-            })}
-          </div>
-        )}
-
-        {/* Price */}
         <div className="flex items-center gap-2 mt-1.5">
-          {price != null && (
-            isOnSale ? (
+          {price != null &&
+            (isOnSale ? (
               <>
-                <span className="font-bold text-[#C17A3A] text-sm">{formatCents(product.salePriceCents!)}</span>
-                <span className="text-xs line-through text-[#C0BAB3]">{formatCents(product.priceCents!)}</span>
+                <span className="font-black text-[#D20001] text-[15px]">
+                  {formatCents(product.salePriceCents!)}
+                </span>
+                <span className="text-xs line-through text-[#C0BAB3]">
+                  {formatCents(product.priceCents!)}
+                </span>
               </>
             ) : (
-              <span className="font-bold text-[#1A1A1A] text-sm">{formatCents(price)}</span>
-            )
+              <span className="font-black text-[#1A1A1A] text-[15px]">{formatCents(price)}</span>
+            ))}
+          {soldOut && (
+            <span className="text-[11px] font-semibold text-[#8A8580] uppercase tracking-wide">
+              Sold out
+            </span>
           )}
         </div>
       </div>
 
-      {/* Add indicator */}
+      {/* Cherry-red add button */}
       {!soldOut && (
-        <div className="shrink-0 w-8 h-8 rounded-full bg-[#1A1A1A] flex items-center justify-center">
-          <span className="text-white text-lg font-light leading-none">+</span>
+        <div
+          className="shrink-0 w-9 h-9 rounded-full flex items-center justify-center"
+          style={{ background: "#D20001" }}
+        >
+          <span
+            className="text-white font-light leading-none select-none"
+            style={{ fontSize: "22px", marginTop: "-1px" }}
+          >
+            +
+          </span>
         </div>
       )}
     </button>
