@@ -78,6 +78,7 @@ export default function LoginScreen() {
   const [error, setError]               = useState('');
   const [successMsg, setSuccessMsg]     = useState('');
   const [showPw, setShowPw]             = useState(false);
+  const [pendingSetup, setPendingSetup] = useState(false);
   const [socialLoading, setSocialLoading] = useState<'apple' | 'google' | null>(null);
   const [appleAvailable, setAppleAvailable] = useState(false);
 
@@ -118,6 +119,7 @@ export default function LoginScreen() {
   const clearPublic = () => {
     setEmail(''); setPassword(''); setName(''); setPhone(''); setCompanyName(''); setAbn('');
     setAddress(''); setHowDidYouHear(''); setError(''); setSuccessMsg(''); setShowPw(false);
+    setPendingSetup(false);
   };
 
   // ── Google Sign-In (native iOS SDK) ──────────────────────────────────────
@@ -210,7 +212,17 @@ export default function LoginScreen() {
         setSubmitted(true);
       } else {
         const res = await login(email.trim(), password, selectedRole);
-        if (!res.success) { setError(res.error ?? 'Login failed.'); return; }
+        if (!res.success) {
+          if (res.code === 'PENDING_SETUP') {
+            setPendingSetup(true);
+            setError('');
+          } else {
+            setPendingSetup(false);
+            setError(res.error ?? 'Login failed.');
+          }
+          return;
+        }
+        setPendingSetup(false);
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         routeAfterAuth(res.role);
       }
@@ -420,6 +432,23 @@ export default function LoginScreen() {
                 </Pressable>
               )}
 
+              {pendingSetup ? (
+                <View style={s.pendingSetupBox}>
+                  <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 8 }}>
+                    <Feather name="mail" size={14} color="#92400E" style={{ marginTop: 2 }} />
+                    <Text style={[s.pendingSetupText, { fontWeight: '600' }]}>Account not set up yet</Text>
+                  </View>
+                  <Text style={[s.pendingSetupBody, { fontWeight: '400' }]}>
+                    Check your email for a setup code, or tap below to get a new one.
+                  </Text>
+                  <Pressable
+                    onPress={() => router.push('/(auth)/forgot-password')}
+                    style={s.pendingSetupBtn}
+                  >
+                    <Text style={[s.pendingSetupBtnText, { fontWeight: '600' }]}>Get a new setup code →</Text>
+                  </Pressable>
+                </View>
+              ) : null}
               {error ? <View style={s.errorBox}><Feather name="alert-circle" size={14} color="#EF4444" /><Text style={[s.errorText, { fontWeight: '400' }]}>{error}</Text></View> : null}
               {successMsg ? <View style={s.successBox}><Feather name="check-circle" size={14} color={GREEN} /><Text style={[s.successText, { fontWeight: '400' }]}>{successMsg}</Text></View> : null}
 
@@ -578,10 +607,15 @@ const s = StyleSheet.create({
   dividerText:     { fontSize: 12 },
   inputRow:        { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, height: 52, borderWidth: 1, borderRadius: 12 },
   input:           { flex: 1, fontSize: 15 },
-  errorBox:        { flexDirection: 'row', alignItems: 'flex-start', gap: 8, padding: 12, backgroundColor: '#FEF2F2', borderRadius: 10 },
-  errorText:       { flex: 1, color: '#EF4444', fontSize: 13 },
-  successBox:      { flexDirection: 'row', alignItems: 'flex-start', gap: 8, padding: 12, backgroundColor: '#F0FDF4', borderRadius: 10 },
-  successText:     { flex: 1, color: GREEN, fontSize: 13 },
+  errorBox:          { flexDirection: 'row', alignItems: 'flex-start', gap: 8, padding: 12, backgroundColor: '#FEF2F2', borderRadius: 10 },
+  errorText:         { flex: 1, color: '#EF4444', fontSize: 13 },
+  successBox:        { flexDirection: 'row', alignItems: 'flex-start', gap: 8, padding: 12, backgroundColor: '#F0FDF4', borderRadius: 10 },
+  successText:       { flex: 1, color: GREEN, fontSize: 13 },
+  pendingSetupBox:   { padding: 14, backgroundColor: '#FFFBEB', borderWidth: 1, borderColor: '#FCD34D', borderRadius: 12, gap: 6 },
+  pendingSetupText:  { flex: 1, color: '#92400E', fontSize: 13 },
+  pendingSetupBody:  { color: '#78350F', fontSize: 13, lineHeight: 18 },
+  pendingSetupBtn:   { marginTop: 4, alignSelf: 'flex-start', paddingVertical: 6, paddingHorizontal: 12, backgroundColor: '#FEF3C7', borderRadius: 8, borderWidth: 1, borderColor: '#FCD34D' },
+  pendingSetupBtnText: { color: '#92400E', fontSize: 13 },
   submitBtn:       { height: 54, borderRadius: 999, alignItems: 'center', justifyContent: 'center', marginTop: 2 },
   submitBtnText:   { color: '#fff', fontSize: 16 },
   toggleText:      { fontSize: 14, textAlign: 'center' },

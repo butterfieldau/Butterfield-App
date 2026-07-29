@@ -20,7 +20,7 @@ interface AuthContextValue {
     password: string,
     role?: UserRole,
     coords?: { latitude: number; longitude: number; accuracyMeters?: number }
-  ) => Promise<{ success: boolean; error?: string; role?: UserRole }>;
+  ) => Promise<{ success: boolean; error?: string; code?: string; role?: UserRole }>;
   internalLogin: (
     email: string,
     password: string,
@@ -129,7 +129,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       registerPushToken(res.token).catch(() => {});
       return { success: true, role: res.user.role as UserRole };
     } catch (e: any) {
-      return { success: false, error: e.message ?? 'Login failed.' };
+      return { success: false, error: e.message ?? 'Login failed.', code: (e as any)?.body?.code };
     }
   }, []);
 

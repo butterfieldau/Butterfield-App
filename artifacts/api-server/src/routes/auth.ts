@@ -8,6 +8,7 @@ import { signToken, requireAuth, getSessionSecret } from '../middlewares/auth.js
 import {
   sendEmail, buildPasswordResetEmail, buildCustomerWelcomeEmail,
   buildWholesaleApplicationReceivedEmail, buildLoginAlertEmail, getLogoUrl,
+  buildTableAccountSetupEmail,
 } from '../lib/emailService.js';
 import { sendSms, buildPasswordResetSms } from '../lib/smsService.js';
 import { ensureShopDisplaySchemaReady } from '../lib/ensureShopDisplaySchemaReady.js';
@@ -264,6 +265,14 @@ router.post('/login', loginRateLimit, async (req, res) => {
   if (user.status === 'inactive' || user.isActive === 'false') {
     recordLoginHistory({ userId: user.id, email: user.email, role: user.role, success: false, failReason: 'ACCOUNT_INACTIVE', req });
     return res.status(403).json({ error: 'This account has been deactivated. Please contact us for help.', code: 'ACCOUNT_INACTIVE' });
+  }
+  // Table-enrolled accounts that haven't set a password yet
+  if (user.status === 'pending') {
+    recordLoginHistory({ userId: user.id, email: user.email, role: user.role, success: false, failReason: 'PENDING_SETUP', req });
+    return res.status(403).json({
+      error: "Check your email for a setup code, or tap 'Forgot password' to get a new one.",
+      code: 'PENDING_SETUP',
+    });
   }
 
   const valid = await bcrypt.compare(password, user.passwordHash);
@@ -878,15 +887,15 @@ router.post('/forgot-password', resetRequestRateLimit, async (req, res) => {
   }
 
   // Lookup user by email or phone
-  let user: { id: string; name: string; email: string; phone: string | null } | undefined;
+  let user: { id: string; name: string; email: string; phone: string | null; status: string | null } | undefined;
   if (deliveryMethod === 'email') {
     const normalised = email!.toLowerCase().trim();
-    const [found] = await db.select({ id: usersTable.id, name: usersTable.name, email: usersTable.email, phone: usersTable.phone })
+    const [found] = await db.select({ id: usersTable.id, name: usersTable.name, email: usersTable.email, phone: usersTable.phone, status: usersTable.status })
       .from(usersTable).where(eq(usersTable.email, normalised));
     user = found;
   } else {
     const normalised = phone!.trim().replace(/\s+/g, '');
-    const [found] = await db.select({ id: usersTable.id, name: usersTable.name, email: usersTable.email, phone: usersTable.phone })
+    const [found] = await db.select({ id: usersTable.id, name: usersTable.name, email: usersTable.email, phone: usersTable.phone, status: usersTable.status })
       .from(usersTable).where(eq(usersTable.phone, normalised));
     user = found;
   }
@@ -906,7 +915,12 @@ router.post('/forgot-password', resetRequestRateLimit, async (req, res) => {
 
   const otp = generateOtp();
   const otpHash = await bcrypt.hash(otp, 10);
-  const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
+
+  // Pending (table-enrolled) accounts get a 7-day setup code; everyone else gets 15 minutes
+  const isPending = user.status === 'pending';
+  const expiresAt = isPending
+    ? new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+    : new Date(Date.now() + 15 * 60 * 1000);
 
   await db.insert(passwordResetTokensTable).values({
     id: randomUUID(),
@@ -924,6 +938,16 @@ router.post('/forgot-password', resetRequestRateLimit, async (req, res) => {
       buildPasswordResetSms(otp),
     );
     sent = smsResult.success;
+  } else if (isPending) {
+    // Pending accounts: send the branded table-account setup email (7-day code)
+    const html = buildTableAccountSetupEmail({ name: user.name, otp, logoUrl: '' });
+    const emailResult = await sendEmail({
+      to: user.email,
+      subject: 'Your Butterfield account setup code',
+      html,
+      text: `Your Butterfield account setup code is: ${otp}\n\nThis code is valid for 7 days.\n\nDownload the Butterfield app, tap "Forgot password?" on the sign-in screen, enter your email and this code, then choose a new password.\n\nIf you didn't request this, you can safely ignore this email.`,
+    });
+    sent = emailResult.success;
   } else {
     const html = buildPasswordResetEmail(otp, user.name);
     const emailResult = await sendEmail({
