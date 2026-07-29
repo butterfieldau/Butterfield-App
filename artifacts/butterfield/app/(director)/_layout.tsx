@@ -212,6 +212,7 @@ export default function DirectorLayout() {
           <Tabs.Screen name="build-a-box"      options={{ href: mgrHref('products') }} />
 
           {/* Always hidden for staff/manager */}
+          <Tabs.Screen name="table-qr"            options={{ href: null }} />
           <Tabs.Screen name="_staff-dashboard"    options={{ href: null }} />
           <Tabs.Screen name="_crmCustomersTab"    options={{ href: null }} />
           <Tabs.Screen name="more-category"                  options={{ href: null }} />
