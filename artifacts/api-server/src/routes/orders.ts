@@ -81,7 +81,7 @@ router.post('/', async (req, res) => {
     deliveryAddress, deliveryPostcode, deliveryState, paymentMethod,
     discountCode, discountCodeId: clientDiscountCodeId, paymentMethodType,
     claimedRewardId, storeId, contactName, contactPhone, contactEmail,
-    useFreeCoffeeReward,
+    useFreeCoffeeReward, tableNumber,
   } = req.body;
 
   // ── Sydney-only delivery enforcement ─────────────────────────────────────
@@ -97,6 +97,16 @@ router.post('/', async (req, res) => {
     return res.status(400).json({ error: 'Pay at pickup is only available for pickup orders.' });
   }
 
+  // ── Table order validation ─────────────────────────────────────────────────
+  if (type === 'table') {
+    if (!tableNumber || typeof tableNumber !== 'string' || !tableNumber.trim()) {
+      return res.status(400).json({ error: 'tableNumber is required for table orders.' });
+    }
+    if (!storeId || typeof storeId !== 'string' || !storeId.trim()) {
+      return res.status(400).json({ error: 'storeId is required for table orders.' });
+    }
+  }
+
   let items: any[];
   let claimedLoyaltyPoints = 0;
   let discountCodeAmountCents = 0;
@@ -106,16 +116,19 @@ router.post('/', async (req, res) => {
   let authorativeTotalCents = 0;
   let authorativeDiscountCents = 0;
   let computed: any;
-  let resolvedOrderType: 'pickup' | 'delivery' = type === 'delivery' ? 'delivery' : 'pickup';
+  let resolvedOrderType: 'pickup' | 'delivery' | 'table' = type === 'delivery' ? 'delivery' : type === 'table' ? 'table' : 'pickup';
   let resolvedPaymentMethod: 'card' | 'pay_at_pickup' = paymentMethod === 'pay_at_pickup' ? 'pay_at_pickup' : 'card';
   let freeCoffeeRewardUsed = false;
   let claimedRewardDiscountCents = 0;
   let freeCoffeeDiscountCents = 0;
   let birthdayCookieDiscountCents = 0;
   try {
+    // Table orders are priced identically to pickup (no delivery fee).
+    // We pass the resolved checkout type ('pickup') separately from the DB order type ('table')
+    // so prepareRetailCheckout applies the right fee logic without overwriting resolvedOrderType.
+    const checkoutOrderType = resolvedOrderType === 'table' ? 'pickup' : resolvedOrderType;
     ({
       items,
-      resolvedOrderType,
       resolvedPaymentMethod,
       claimedLoyaltyPoints,
       discountCodeAmountCents,
@@ -133,7 +146,7 @@ router.post('/', async (req, res) => {
       userId: req.user!.id,
       userRole: req.user!.role,
       rawItems,
-      orderType: type,
+      orderType: checkoutOrderType,
       paymentMethod,
       discountCode,
       claimedRewardId,
@@ -195,14 +208,14 @@ router.post('/', async (req, res) => {
   }
 
   let resolvedStoreId: string | null = storeId ? String(storeId) : null;
-  if (resolvedOrderType === 'pickup') {
+  if (resolvedOrderType === 'pickup' || resolvedOrderType === 'table') {
     if (!resolvedStoreId) {
       const [profile] = await db.select({
         preferredStoreId: customerProfilesTable.preferredStoreId,
       }).from(customerProfilesTable).where(eq(customerProfilesTable.userId, req.user!.id));
       resolvedStoreId = profile?.preferredStoreId ?? null;
     }
-    if (!resolvedStoreId) {
+    if (!resolvedStoreId && resolvedOrderType === 'pickup') {
       const [fallbackStore] = await db.select({ id: storesTable.id })
         .from(storesTable)
         .where(and(
@@ -301,10 +314,13 @@ router.post('/', async (req, res) => {
   // An order requires acceptance (starts as 'scheduled') if:
   // - It is a delivery order (any delivery needs staff to confirm), or
   // - It is a pickup with a scheduledFor time (standard pickup, not ASAP)
-  // Quick pickup (pickup + no scheduledFor) starts as 'received' and goes straight to preparation.
+  // Quick pickup (pickup + no scheduledFor) and table orders start as 'received' — immediate preparation.
   const requiresAcceptance = resolvedOrderType === 'delivery' || (resolvedOrderType === 'pickup' && !!scheduledFor);
   // Keep isFutureDelivery for backwards-compatible notification branching
   const isFutureDelivery = requiresAcceptance;
+  // DB schema constrains type to 'pickup' | 'delivery'; table orders store as 'pickup' in that
+  // column and are distinguished by source='dine_in' + tableNumber.
+  const dbOrderType: 'pickup' | 'delivery' = resolvedOrderType === 'delivery' ? 'delivery' : 'pickup';
 
   try {
     await db.transaction(async (tx) => {
@@ -313,7 +329,7 @@ router.post('/', async (req, res) => {
         orderNumber,
         userId: req.user!.id,
         status: requiresAcceptance ? ('scheduled' as any) : 'received',
-        type: resolvedOrderType,
+        type: dbOrderType,
         storeId: resolvedStoreId,
         scheduledFor: scheduledFor ? new Date(scheduledFor) : null,
         notes,
@@ -331,6 +347,8 @@ router.post('/', async (req, res) => {
         contactName: contactName ?? null,
         contactPhone: contactPhone ?? null,
         contactEmail: contactEmail ?? null,
+        source: resolvedOrderType === 'table' ? 'dine_in' : 'customer_app',
+        tableNumber: resolvedOrderType === 'table' ? (tableNumber as string) : null,
       }).returning();
       order = inserted;
 
@@ -443,11 +461,14 @@ router.post('/', async (req, res) => {
     ).catch((err) => req.log.warn({ err, orderId }, 'Scheduled order internal notification failed'));
 
   } else {
-    // Quick pickup — immediate, no acceptance needed
+    // Quick pickup or table order — immediate, no acceptance needed
+    const immediateTypeLabel = resolvedOrderType === 'table'
+      ? `Table ${tableNumber as string}`
+      : 'Pickup';
     void sendNotificationToInternalTeam(
       'new_order',
       'New Order In',
-      `${itemCount} item${itemCount !== 1 ? 's' : ''} · $${(authorativeTotalCents / 100).toFixed(2)} · Pickup`,
+      `${itemCount} item${itemCount !== 1 ? 's' : ''} · $${(authorativeTotalCents / 100).toFixed(2)} · ${immediateTypeLabel}`,
       { orderId, screen: '/(staff)/orders' },
     ).catch((err) => req.log.warn({ err, orderId }, 'Internal order notification failed'));
   }
@@ -496,7 +517,7 @@ router.post('/', async (req, res) => {
           loyaltyPointsEarned: order.loyaltyPointsEarned ?? 0,
           rewardSavingsCents: emailRewardSavingsCents > 0 ? emailRewardSavingsCents : null,
           rewardName: emailRewardName,
-          orderType: order.type as 'pickup' | 'delivery',
+          orderType: (resolvedOrderType === 'table' ? 'pickup' : resolvedOrderType) as 'pickup' | 'delivery',
           scheduledFor: order.scheduledFor ? order.scheduledFor.toISOString() : null,
           storeName: selectedStore?.name ?? null,
           date: new Date().toLocaleString('en-AU', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
@@ -636,7 +657,7 @@ router.patch(
               totalCents: order.totalCents,
               loyaltyPointsEarned: order.loyaltyPointsEarned ?? 0,
               loyaltyPointsBalance: profile?.loyaltyPoints ?? 0,
-              orderType: order.type as 'pickup' | 'delivery',
+              orderType: ((order.type as string) === 'table' ? 'pickup' : order.type) as 'pickup' | 'delivery',
               scheduledFor: order.scheduledFor ? order.scheduledFor.toISOString() : null,
               date: new Date().toLocaleString('en-AU', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
               orderUrl: appDomain ? `https://${appDomain}` : null,
