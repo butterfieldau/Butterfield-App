@@ -620,21 +620,32 @@ router.get('/products', async (req, res) => {
   if (!permissions.includes('products')) {
     return res.status(403).json({ error: 'Products access not enabled for this display.' });
   }
-  // SQL-level filter: active, available, not sold-out, not coming-soon, not staff-only.
+
+  // ?manage=true: management view for the Products tab — includes sold-out products so
+  // staff can see and re-toggle them. All other active/availability filters still apply.
+  const isManageView = req.query.manage === 'true';
+
+  // SQL-level filter: active, available, not coming-soon, not staff-only.
   // isPosOnly is NOT filtered out — POS-exclusive items must appear.
+  // isSoldOut is included in the management view so staff can reverse the toggle.
+  const whereConditions = [
+    eq(productsTable.isActive, true),
+    eq(productsTable.isAvailable, true),
+    eq(productsTable.isComingSoon, false),
+    eq(productsTable.isStaffOnly, false),
+    ...(!isManageView ? [eq(productsTable.isSoldOut, false)] : []),
+  ];
+
   const products = await db.select().from(productsTable)
-    .where(and(
-      eq(productsTable.isActive, true),
-      eq(productsTable.isAvailable, true),
-      eq(productsTable.isSoldOut, false),
-      eq(productsTable.isComingSoon, false),
-      eq(productsTable.isStaffOnly, false),
-    ))
+    .where(and(...whereConditions))
     .orderBy((productsTable as any).name);
 
-  // Post-filter: apply time-window and available-days checks (mirrors isProductOrderableNow)
+  // Post-filter: apply time-window and available-days checks (mirrors isProductOrderableNow).
+  // Sold-out products bypass this check in manage view — they should always be listed.
   const now = getSydneyNowSD();
-  const orderable = products.filter((p) => isPosOrderableNow(p, now));
+  const orderable = isManageView
+    ? products
+    : products.filter((p) => isPosOrderableNow(p, now));
 
   // getPublicBaseUrl(req) checks env vars first then request host — never returns a domain-less path
   const base = getPublicBaseUrl(req) ?? '';
@@ -648,6 +659,44 @@ router.get('/products', async (req, res) => {
     return { ...p, imageUrl: images[0] ?? null, images };
   });
   return res.json({ data });
+});
+
+// ── PATCH /shop-display/products/:id/stock — toggle isSoldOut ─────────────
+router.patch('/products/:id/stock', async (req, res) => {
+  await ensureShopDisplaySchemaReady();
+
+  // Require products permission — same gate as GET /products
+  const permissions = await getDisplayPermissions(req.user!.id);
+  if (!permissions.includes('products')) {
+    return res.status(403).json({ error: 'Products access not enabled for this display.' });
+  }
+
+  const { id } = req.params;
+  const { isSoldOut } = req.body ?? {};
+
+  if (typeof isSoldOut !== 'boolean') {
+    return res.status(400).json({ error: 'isSoldOut must be a boolean.' });
+  }
+
+  const [existing] = await db.select({ id: productsTable.id, isActive: productsTable.isActive, isSoldOut: productsTable.isSoldOut })
+    .from(productsTable).where(eq(productsTable.id, id));
+  if (!existing) return res.status(404).json({ error: 'Product not found.' });
+
+  const [updated] = await db.update(productsTable)
+    .set({ isSoldOut, updatedAt: new Date() })
+    .where(eq(productsTable.id, id))
+    .returning();
+
+  await recordAuditLog({
+    actor: req.user,
+    entityType: 'product',
+    entityId: id,
+    action: 'shop_display_stock_toggled',
+    before: { isSoldOut: existing.isSoldOut },
+    after: { isSoldOut },
+  });
+
+  return res.json({ data: updated });
 });
 
 // ── GET /shop-display/products/:id — full detail (variants + option groups) for POS add-to-cart

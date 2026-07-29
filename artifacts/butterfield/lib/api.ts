@@ -279,8 +279,10 @@ export const api = {
     },
     store:         () => request<{ data: ShopDisplayStore[] }>('/shop-display/store'),
     categories:    () => request<{ data: ProductCategory[] }>('/shop-display/categories'),
-    products:      () => request<{ data: ApiProduct[] }>('/shop-display/products'),
+    products:      (params?: { manage?: boolean }) => request<{ data: ApiProduct[] }>(`/shop-display/products${params?.manage ? '?manage=true' : ''}`),
     getProduct:    (id: string) => request<{ data: ApiProduct & { variants: any[]; hasVariants: boolean; optionGroups: any[] } }>(`/shop-display/products/${id}`),
+    toggleStock:   (productId: string, isSoldOut: boolean) =>
+      request<{ data: ApiProduct }>(`/shop-display/products/${productId}/stock`, { method: 'PATCH', body: JSON.stringify({ isSoldOut }) }),
     idleProducts:  () => request<{ data: ApiProduct[] }>('/shop-display/idle-products'),
     customers:     (search: string) =>
       request<{ data: ShopDisplayCustomer[] }>(`/shop-display/customers?search=${encodeURIComponent(search)}`),

@@ -2,9 +2,10 @@ import { Feather } from '@expo/vector-icons';
 import React, { useMemo, useState } from 'react';
 import {
   ActivityIndicator, FlatList, Pressable, RefreshControl,
-  StyleSheet, Text, TextInput, useWindowDimensions, View,
+  StyleSheet, Switch, Text, TextInput, useWindowDimensions, View,
 } from 'react-native';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import Toast from 'react-native-toast-message';
 import { api } from '@/lib/api';
 
 const BG     = '#EFF6FF';
@@ -20,16 +21,22 @@ type Product = {
   id: string;
   name?: string | null;
   active?: boolean | null;
+  isActive?: boolean | null;
+  isSoldOut?: boolean | null;
   description?: string | null;
   metadata?: Record<string, string> | null;
   images?: string[] | null;
+  category?: string | null;
+  categoryId?: string | null;
+  priceCents?: number | null;
 };
 
 function getCategoryLabel(product: Product): string {
-  return product.metadata?.category ?? product.metadata?.type ?? 'General';
+  return product.category ?? product.metadata?.category ?? product.metadata?.type ?? 'General';
 }
 
 function getPriceCents(product: Product): number | null {
+  if (product.priceCents != null) return product.priceCents;
   const raw = product.metadata?.price_cents ?? product.metadata?.priceCents;
   if (raw) return Number(raw);
   return null;
@@ -57,10 +64,45 @@ export default function ShopDisplayProductsScreen() {
   const [search, setSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
 
+  const queryClient = useQueryClient();
+
   const { data, isLoading, isRefetching, refetch, error } = useQuery({
     queryKey: ['shop-display-products'],
-    queryFn: () => api.shopDisplay.products(),
+    queryFn: () => api.shopDisplay.products({ manage: true }),
     staleTime: 30000,
+  });
+
+  const toggleMutation = useMutation({
+    mutationFn: ({ productId, isSoldOut }: { productId: string; isSoldOut: boolean }) =>
+      api.shopDisplay.toggleStock(productId, isSoldOut),
+    onMutate: async ({ productId, isSoldOut }) => {
+      await queryClient.cancelQueries({ queryKey: ['shop-display-products'] });
+      const snapshot = queryClient.getQueryData<{ data: Product[] }>(['shop-display-products']);
+      queryClient.setQueryData<{ data: Product[] }>(['shop-display-products'], (old) => {
+        if (!old) return old;
+        return {
+          ...old,
+          data: old.data.map((p) =>
+            p.id === productId ? { ...p, isSoldOut } : p,
+          ),
+        };
+      });
+      return { snapshot };
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.snapshot) {
+        queryClient.setQueryData(['shop-display-products'], context.snapshot);
+      }
+      Toast.show({
+        type: 'error',
+        text1: 'Update failed',
+        text2: 'Could not save stock status. Please try again.',
+        position: 'bottom',
+      });
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['shop-display-products'] });
+    },
   });
 
   const products: Product[] = (data?.data ?? []) as Product[];
@@ -104,7 +146,10 @@ export default function ShopDisplayProductsScreen() {
     const cat = getCategoryLabel(product).toLowerCase();
     const catColors = CATEGORY_COLORS[cat] ?? CATEGORY_COLORS.general;
     const price = getPriceCents(product);
-    const isActive = product.active !== false;
+    const isActive = product.isActive !== false && product.active !== false;
+    const isSoldOut = product.isSoldOut === true;
+    const isMutating = toggleMutation.isPending &&
+      (toggleMutation.variables as any)?.productId === product.id;
 
     return (
       <View style={[s.card, !isActive && s.cardInactive]}>
@@ -128,6 +173,26 @@ export default function ShopDisplayProductsScreen() {
         {product.description ? (
           <Text style={s.productDesc} numberOfLines={2}>{product.description}</Text>
         ) : null}
+
+        {/* Stock toggle */}
+        <View style={[s.stockRow, { backgroundColor: isSoldOut ? '#FEF2F2' : '#F0FDF4', borderColor: isSoldOut ? '#FECACA' : '#BBF7D0' }]}>
+          <View style={s.stockLabelWrap}>
+            <View style={[s.stockDot, { backgroundColor: isSoldOut ? RED : GREEN }]} />
+            <Text style={[s.stockLabel, { color: isSoldOut ? '#B91C1C' : '#166534' }]}>
+              {isSoldOut ? 'Sold Out' : 'In Stock'}
+            </Text>
+          </View>
+          <Switch
+            value={!isSoldOut}
+            onValueChange={(inStock) => {
+              toggleMutation.mutate({ productId: product.id, isSoldOut: !inStock });
+            }}
+            disabled={isMutating}
+            trackColor={{ false: '#FECACA', true: '#86EFAC' }}
+            thumbColor={isSoldOut ? RED : GREEN}
+            ios_backgroundColor="#FECACA"
+          />
+        </View>
       </View>
     );
   };
@@ -218,4 +283,8 @@ const s = StyleSheet.create({
   emptyWrap:       { alignItems: 'center', marginTop: 80, gap: 12, paddingHorizontal: 32 },
   emptyTitle:      { fontSize: 18, fontWeight: '700', color: TEXT, textAlign: 'center' },
   emptyText:       { fontSize: 14, color: MUTED, textAlign: 'center', lineHeight: 20 },
+  stockRow:        { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8, borderWidth: 1, marginTop: 4 },
+  stockLabelWrap:  { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  stockDot:        { width: 7, height: 7, borderRadius: 4 },
+  stockLabel:      { fontSize: 13, fontWeight: '700' },
 });
