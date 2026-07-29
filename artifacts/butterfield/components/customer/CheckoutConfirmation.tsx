@@ -38,6 +38,8 @@ export interface Confirmation {
   rewardSavingsCents?: number;
   freeCoffeeDiscountCents?: number;
   rewardName?: string;
+  tableNumber?: string;
+  storeName?: string;
 }
 
 type ConfettiPiece = {
@@ -172,16 +174,28 @@ export function CheckoutConfirmation({ confirmation, clearCart, insets }: Props)
               <View style={s.hero}>
                 <Text style={s.title}>Thank you!</Text>
                 <Text style={s.orderLine}>Order Number: <Text style={s.orderStrong}>{orderShortId}</Text></Text>
+                {confirmation.type === 'table' && confirmation.tableNumber && (
+                  <View style={s.tableBadgeRow}>
+                    <View style={s.tableBadge}>
+                      <Text style={s.tableBadgeText}>Table {confirmation.tableNumber}</Text>
+                    </View>
+                    {confirmation.storeName && (
+                      <Text style={s.tableStoreName}>{confirmation.storeName}</Text>
+                    )}
+                  </View>
+                )}
                 <Text style={s.description}>
-                  {confirmation.isScheduled
-                    ? (() => {
-                        const slotKind = confirmation.type === 'pickup' ? 'pickup slot' : 'delivery';
-                        const dateStr = confirmation.scheduledDateLabel ? ` on ${confirmation.scheduledDateLabel}` : '';
-                        return `Your order has been placed and is awaiting confirmation for your ${slotKind}${dateStr}. You'll receive a push notification once confirmed.`;
-                      })()
-                    : confirmation.paymentMethodType === 'pay_at_pickup'
-                      ? 'Your order is locked in. Please pay at the counter — check My Orders for live status updates.'
-                      : 'Your order is being prepared. Tap Track My Order below to follow its live status.'}
+                  {confirmation.type === 'table'
+                    ? 'Your order is being prepared and will be brought to your table.'
+                    : confirmation.isScheduled
+                      ? (() => {
+                          const slotKind = confirmation.type === 'pickup' ? 'pickup slot' : 'delivery';
+                          const dateStr = confirmation.scheduledDateLabel ? ` on ${confirmation.scheduledDateLabel}` : '';
+                          return `Your order has been placed and is awaiting confirmation for your ${slotKind}${dateStr}. You'll receive a push notification once confirmed.`;
+                        })()
+                      : confirmation.paymentMethodType === 'pay_at_pickup'
+                        ? 'Your order is locked in. Please pay at the counter — check My Orders for live status updates.'
+                        : 'Your order is being prepared. Tap Track My Order below to follow its live status.'}
                 </Text>
               </View>
               <View style={s.summaryCard}>
@@ -283,4 +297,8 @@ const s = StyleSheet.create({
   rewardSavingsStrong:{ fontWeight: '800', color: '#166534' },
   returnHomeBtn:      { alignSelf: 'stretch', backgroundColor: '#F61D22', borderRadius: 999, minHeight: 58, alignItems: 'center', justifyContent: 'center', marginTop: 24 },
   returnHomeBtnText:  { color: '#FFFFFF', fontSize: 16, fontWeight: '700' },
+  tableBadgeRow:      { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 4 },
+  tableBadge:         { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20, backgroundColor: '#EFF9FF', borderWidth: 1.5, borderColor: '#40C0F2' },
+  tableBadgeText:     { fontSize: 15, fontWeight: '700', color: '#1493FF' },
+  tableStoreName:     { fontSize: 14, color: '#555555', fontWeight: '500' },
 });

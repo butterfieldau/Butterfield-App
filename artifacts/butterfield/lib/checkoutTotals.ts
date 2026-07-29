@@ -13,7 +13,7 @@ export interface CheckoutTotalsInput {
   discountAppliedCents: number;
   claimedRewardDiscountCents: number;
   cheapestCoffeePriceCents: number;
-  orderType: 'pickup' | 'delivery';
+  orderType: 'pickup' | 'delivery' | 'table';
   deliveryFeeCents: number;
   method: 'credit_card' | 'apple_pay' | 'google_pay' | 'pay_at_pickup';
   availableLoyaltyPoints: number;

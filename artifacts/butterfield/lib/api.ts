@@ -170,6 +170,7 @@ export const api = {
       discountCode?: string; discountCodeId?: string; paymentMethodType?: string;
       claimedRewardId?: string;
       storeId?: string;
+      tableNumber?: string;
       useFreeCoffeeReward?: boolean;
     }) => request<{ data: ApiOrder; rewardSavingsCents?: number; freeCoffeeDiscountCents?: number; rewardName?: string }>('/orders', { method: 'POST', body: JSON.stringify(data) }),
     updateStatus: (id: string, status: string) =>
@@ -489,7 +490,7 @@ export const api = {
         quantity: number;
         selectedOptions?: Array<{ optionId?: string; groupId?: string; priceAdjustmentCents?: number }>;
       }>;
-      orderType: 'pickup' | 'delivery';
+      orderType: 'pickup' | 'delivery' | 'table';
       discountCode?: string;
       paymentMethod?: 'card' | 'pay_at_pickup';
       claimedRewardId?: string;
@@ -514,7 +515,7 @@ export const api = {
         quantity: number;
         selectedOptions?: Array<{ optionId?: string; groupId?: string; priceAdjustmentCents?: number }>;
       }>;
-      orderType: 'pickup' | 'delivery';
+      orderType: 'pickup' | 'delivery' | 'table';
       discountCode?: string;
       claimedRewardId?: string;
       loyaltyPointsUsed?: number;

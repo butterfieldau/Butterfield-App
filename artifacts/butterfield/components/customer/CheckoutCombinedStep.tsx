@@ -80,8 +80,11 @@ export interface CheckoutCombinedStepProps {
     quantity: number;
     selectedOptions?: Array<{ optionId?: string; groupId?: string; priceAdjustmentCents?: number }>;
   }>;
-  orderType: 'pickup' | 'delivery';
-  setOrderType: (v: 'pickup' | 'delivery') => void;
+  orderType: 'pickup' | 'delivery' | 'table';
+  setOrderType: (v: 'pickup' | 'delivery' | 'table') => void;
+  tableNumber: string;
+  setTableNumber: (v: string) => void;
+  nearbyStore: { id: string; name: string } | null;
   pickupMode: 'asap' | 'scheduled';
   setPickupMode: (v: 'asap' | 'scheduled') => void;
   selectedDate: Date | null;
@@ -128,7 +131,8 @@ export interface CheckoutCombinedStepProps {
 
 export function CheckoutCombinedStep(props: CheckoutCombinedStepProps) {
   const {
-    items, orderType, setOrderType, pickupMode, setPickupMode,
+    items, orderType, setOrderType, tableNumber, setTableNumber, nearbyStore,
+    pickupMode, setPickupMode,
     selectedDate, setSelectedDate, selectedTimeMins, setSelectedTimeMins,
     street, setStreet, suburb, setSuburb, postcode, setPostcode, addrState,
     apt, setApt, selectedAddressId, setSelectedAddressId,
@@ -235,6 +239,13 @@ export function CheckoutCombinedStep(props: CheckoutCombinedStepProps) {
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Table orders cannot use pay_at_pickup — reset to card if needed.
+  useEffect(() => {
+    if (orderType === 'table' && method === 'pay_at_pickup') {
+      setMethod('credit_card');
+    }
+  }, [orderType, method]);
 
   useEffect(() => {
     if (effectiveApplePaySupported === false && method === 'google_pay') setMethod('credit_card');
@@ -452,7 +463,13 @@ export function CheckoutCombinedStep(props: CheckoutCombinedStepProps) {
 
   const handlePlaceOrder = async () => {
     if (busy) return;
-    // Validate delivery/pickup selections before attempting payment
+    // Validate delivery/pickup/table selections before attempting payment
+    if (orderType === 'table') {
+      if (!tableNumber) {
+        Alert.alert('Select table number', 'Please choose your table number.');
+        return;
+      }
+    }
     if (orderType === 'pickup' && pickupMode === 'scheduled') {
       if (!selectedDate || selectedTimeMins === null) {
         Alert.alert('Select pickup time', 'Please choose a date and pickup time.');
@@ -474,6 +491,12 @@ export function CheckoutCombinedStep(props: CheckoutCombinedStepProps) {
         await onSuccess({ paymentMethodType: 'free_reward', discountCode: discountApplied?.code, discountCodeId: discountApplied?.id, discountAmountCents: discountApplied?.discountAmountCents, claimedRewardId: selectedClaimedRewardId ?? undefined, loyaltyPointsUsed: loyaltyPointsUsed || undefined, useFreeCoffeeReward: useFreeCoffeeReward || undefined }); return;
       }
       if (method === 'pay_at_pickup') {
+        // Defensive guard — table orders must be paid by card.
+        if (orderType === 'table') {
+          Alert.alert('Card payment required', 'Table orders must be paid by card.');
+          setBusy(false);
+          return;
+        }
         await onSuccess({ paymentMethodType: 'pay_at_pickup', discountCode: discountApplied?.code, discountCodeId: discountApplied?.id, discountAmountCents: discountApplied?.discountAmountCents, claimedRewardId: selectedClaimedRewardId ?? undefined, loyaltyPointsUsed: loyaltyPointsUsed || undefined, useFreeCoffeeReward: useFreeCoffeeReward || undefined }); return;
       }
       if (!stripeReady) { Alert.alert('Payment unavailable', 'Card payments are not available right now. Choose another method.'); return; }
@@ -526,26 +549,38 @@ export function CheckoutCombinedStep(props: CheckoutCombinedStepProps) {
       {/* Segmented toggle */}
       <View style={s.segWrap}>
         <View style={s.segTrack}>
-          {([
-            { id: 'pickup',   icon: 'shopping-bag', label: 'Pickup · Free' },
-            { id: 'delivery', icon: 'map-pin',      label: `Delivery · $${(deliveryFeeCents / 100).toFixed(2)}` },
-          ] as const).map((t) => {
-            const active   = orderType === t.id;
-            const disabled = t.id === 'delivery' && !deliveryEnabled;
-            return (
-              <Pressable key={t.id} disabled={disabled}
-                onPress={() => { if (disabled) return; setOrderType(t.id); setSelectedDate(null); setSelectedTimeMins(null); if (t.id === 'pickup') setPickupMode(storeOpen ? 'asap' : 'scheduled'); Haptics.selectionAsync(); }}
-                style={[s.segBtn, active && s.segBtnActive, disabled && { opacity: 0.45 }]}
-              >
-                <Feather name={t.icon} size={13} color={active ? TEXT : MUTED} />
-                <Text style={[s.segLabel, { color: active ? TEXT : MUTED }]}>{t.label}</Text>
-              </Pressable>
-            );
-          })}
+          <Pressable
+            onPress={() => { setOrderType('pickup'); setSelectedDate(null); setSelectedTimeMins(null); setPickupMode(storeOpen ? 'asap' : 'scheduled'); Haptics.selectionAsync(); }}
+            style={[s.segBtn, orderType === 'pickup' && s.segBtnActive]}
+          >
+            <Feather name="shopping-bag" size={13} color={orderType === 'pickup' ? TEXT : MUTED} />
+            <Text style={[s.segLabel, { color: orderType === 'pickup' ? TEXT : MUTED }]}>Pickup · Free</Text>
+          </Pressable>
+          <Pressable
+            disabled={!deliveryEnabled}
+            onPress={() => { if (!deliveryEnabled) return; setOrderType('delivery'); setSelectedDate(null); setSelectedTimeMins(null); Haptics.selectionAsync(); }}
+            style={[s.segBtn, orderType === 'delivery' && s.segBtnActive, !deliveryEnabled && { opacity: 0.45 }]}
+          >
+            <Feather name="map-pin" size={13} color={orderType === 'delivery' ? TEXT : MUTED} />
+            <Text style={[s.segLabel, { color: orderType === 'delivery' ? TEXT : MUTED }]}>{`Delivery · $${(deliveryFeeCents / 100).toFixed(2)}`}</Text>
+          </Pressable>
+          {nearbyStore != null && (
+            <Pressable
+              onPress={() => { setOrderType('table'); Haptics.selectionAsync(); }}
+              style={[s.segBtn, orderType === 'table' && s.segBtnActive]}
+            >
+              <Feather name="coffee" size={13} color={orderType === 'table' ? TEXT : MUTED} />
+              <Text style={[s.segLabel, { color: orderType === 'table' ? TEXT : MUTED }]}>Table</Text>
+            </Pressable>
+          )}
         </View>
       </View>
 
-      {!deliveryEnabled && (
+      {orderType === 'table' && nearbyStore != null && (
+        <Text style={s.deliveryNote}>Dine in at {nearbyStore.name}</Text>
+      )}
+
+      {!deliveryEnabled && orderType !== 'table' && (
         <Text style={s.deliveryNote}>
           {showMixedDeliveryMessage ? 'Some items in your cart aren\'t available for delivery.' : 'Delivery is only available for cookies, boxes & merch.'}
         </Text>
@@ -553,6 +588,41 @@ export function CheckoutCombinedStep(props: CheckoutCombinedStepProps) {
 
       {/* Main delivery card */}
       <View style={s.card}>
+
+        {/* TABLE SERVICE */}
+        {orderType === 'table' && (
+          <View style={{ padding: 14 }}>
+            <Text style={{ fontSize: 13, fontWeight: '700', color: MUTED, letterSpacing: 0.8, textTransform: 'uppercase', marginBottom: 12 }}>
+              Table Number
+            </Text>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={{ gap: 8, paddingBottom: 4 }}
+            >
+              {Array.from({ length: 50 }, (_, i) => String(i + 1)).map((num) => {
+                const active = tableNumber === num;
+                return (
+                  <Pressable
+                    key={num}
+                    onPress={() => { setTableNumber(num); Haptics.selectionAsync(); }}
+                    style={[s.tableNumChip, active && s.tableNumChipActive]}
+                  >
+                    <Text style={[s.tableNumChipText, { color: active ? '#fff' : TEXT }]}>{num}</Text>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+            {tableNumber ? (
+              <View style={[s.tableBadgeInline, { marginTop: 12 }]}>
+                <Feather name="coffee" size={14} color={BLUE} />
+                <Text style={s.tableBadgeInlineText}>Table {tableNumber} at {nearbyStore?.name}</Text>
+              </View>
+            ) : (
+              <Text style={[s.asapNote, { marginTop: 8, textAlign: 'left' }]}>Select your table number above</Text>
+            )}
+          </View>
+        )}
 
         {/* PICKUP */}
         {orderType === 'pickup' && (
@@ -997,7 +1067,7 @@ export function CheckoutCombinedStep(props: CheckoutCombinedStepProps) {
           </>
         )}
 
-        {/* Pay at pickup */}
+        {/* Pay at pickup — not available for table orders */}
         {canPayAtPickup && orderType === 'pickup' && (
           <>
             <RowDivider />
@@ -1151,4 +1221,10 @@ const s = StyleSheet.create({
   // CTA
   ctaBtn:   { height: 56, borderRadius: 16, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 10 },
   ctaLabel: { color: '#fff', fontSize: 17, fontWeight: '700' },
+  // Table number chips
+  tableNumChip:       { width: 44, height: 44, borderRadius: 22, backgroundColor: BG, borderWidth: 1, borderColor: BORDER, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+  tableNumChipActive: { backgroundColor: BLUE, borderColor: BLUE, shadowColor: BLUE, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.3, shadowRadius: 6, elevation: 3 },
+  tableNumChipText:   { fontSize: 14, fontWeight: '700' },
+  tableBadgeInline:   { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, paddingVertical: 8, backgroundColor: '#EFF9FF', borderRadius: 10 },
+  tableBadgeInlineText: { fontSize: 14, fontWeight: '600', color: BLUE },
 });

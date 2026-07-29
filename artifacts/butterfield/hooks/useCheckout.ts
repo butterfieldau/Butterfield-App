@@ -25,7 +25,7 @@ function estimateStripeFeeCents(amountCents: number) {
 function calcTotals(
   subtotalCents: number,
   step: number,
-  orderType: 'pickup' | 'delivery',
+  orderType: 'pickup' | 'delivery' | 'table',
   deliveryFeeCents: number,
 ) {
   const deliv = step >= 1 && orderType === 'delivery' ? deliveryFeeCents : 0;
@@ -52,6 +52,7 @@ export interface UseCheckoutParams {
   pickupOnlyIds: Set<string>;
   meData: any;
   user: any;
+  nearbyStore?: { id: string; name: string } | null;
 }
 
 export function useCheckout({
@@ -65,9 +66,11 @@ export function useCheckout({
   pickupOnlyIds,
   meData,
   user,
+  nearbyStore,
 }: UseCheckoutParams) {
   const [step, setStep]                           = useState(0);
-  const [orderType, setOrderType]                 = useState<'pickup' | 'delivery'>('pickup');
+  const [orderType, setOrderType]                 = useState<'pickup' | 'delivery' | 'table'>('pickup');
+  const [tableNumber, setTableNumber]             = useState('');
   const [selectedDate, setSelectedDate]           = useState<Date | null>(null);
   const [selectedTimeMins, setSelectedTimeMins]   = useState<number | null>(null);
   const [pickupMode, setPickupMode]               = useState<'asap' | 'scheduled'>('scheduled');
@@ -116,6 +119,21 @@ export function useCheckout({
       setPickupMode('scheduled');
     }
   }, [deliveryEnabled, orderType]);
+
+  // If the nearby store goes away while table service is selected, revert to pickup.
+  useEffect(() => {
+    if (orderType === 'table' && !nearbyStore) {
+      setOrderType('pickup');
+      setTableNumber('');
+    }
+  }, [nearbyStore, orderType]);
+
+  // Clear table number when switching away from table service.
+  useEffect(() => {
+    if (orderType !== 'table') {
+      setTableNumber('');
+    }
+  }, [orderType]);
 
   useEffect(() => {
     if (orderType !== 'pickup') return;
@@ -218,6 +236,7 @@ export function useCheckout({
   return {
     step, setStep,
     orderType, setOrderType,
+    tableNumber, setTableNumber,
     selectedDate, setSelectedDate,
     selectedTimeMins, setSelectedTimeMins,
     pickupMode, setPickupMode,

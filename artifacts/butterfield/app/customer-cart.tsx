@@ -22,6 +22,7 @@ import { StripeProvider } from '@stripe/stripe-react-native';
 import { useAuth } from '@/context/AuthContext';
 import { useCart } from '@/context/CartContext';
 import { useStores } from '@/hooks/useStores';
+import { useNearbyStore } from '@/hooks/useNearbyStore';
 import { LoggedOutAccountPrompt } from '@/components/LoggedOutAccountPrompt';
 import SuggestionTile from '@/components/SuggestionTile';
 import { api, type AuthProfile } from '@/lib/api';
@@ -63,6 +64,8 @@ interface Confirmation {
   rewardSavingsCents?: number;
   freeCoffeeDiscountCents?: number;
   rewardName?: string;
+  tableNumber?: string;
+  storeName?: string;
 }
 
 export default function CartScreen() {
@@ -133,11 +136,14 @@ function CartContent({ onConfirm }: { onConfirm: (c: Confirmation) => void }) {
   const stores               = storesData?.data ?? [];
   const selectedStore        = (preferredStoreId ? stores.find((s) => s.id === preferredStoreId) : null) ?? stores[0] ?? null;
 
+  const { nearbyStore } = useNearbyStore();
+
   const checkout = useCheckout({
     totalPriceCents, items, deliveryConfig, selectedStore,
     deliveryFeeCents, globalDeliveryEnabled, eligibleCategories, pickupOnlyIds, meData, user,
+    nearbyStore,
   });
-  const { step, setStep, orderType, selectedDate, selectedTimeMins, pickupMode, street, suburb, addrState, postcode, loading, setLoading, subtotalCents, stripeFeeCents, totalCents, deliveryEnabled, sydNow, fillFromAddress, handleContinue } = checkout;
+  const { step, setStep, orderType, tableNumber, selectedDate, selectedTimeMins, pickupMode, street, suburb, addrState, postcode, loading, setLoading, subtotalCents, stripeFeeCents, totalCents, deliveryEnabled, sydNow, fillFromAddress, handleContinue } = checkout;
 
   // Disable native swipe-back on step 1
   useEffect(() => { navigation.setOptions({ gestureEnabled: step === 0 }); }, [navigation, step]);
@@ -197,14 +203,14 @@ function CartContent({ onConfirm }: { onConfirm: (c: Confirmation) => void }) {
           totalCents:      i.unitPriceCents * i.quantity,
           category:        i.category,
         })),
-        type:                  orderType,
-        scheduledFor:          scheduledForDate?.toISOString(),
+        type:                  orderType === 'table' ? 'table' : orderType,
+        scheduledFor:          orderType === 'table' ? undefined : scheduledForDate?.toISOString(),
         notes:                 checkout.notes.trim() || undefined,
         contactName:           checkout.contactName.trim() || undefined,
         contactPhone:          checkout.contactPhone.trim() || undefined,
         contactEmail:          checkout.contactEmail.trim() || undefined,
         totalCents,
-        deliveryAddress,
+        deliveryAddress:       orderType === 'delivery' ? deliveryAddress : undefined,
         deliveryPostcode:      orderType === 'delivery' ? postcode.trim() : undefined,
         deliveryState:         orderType === 'delivery' ? (addrState || 'NSW') : undefined,
         paymentMethod:         opts.paymentMethodType === 'pay_at_pickup' ? 'pay_at_pickup' : 'card',
@@ -214,8 +220,13 @@ function CartContent({ onConfirm }: { onConfirm: (c: Confirmation) => void }) {
         discountCodeId:        opts.discountCodeId,
         paymentMethodType:     opts.paymentMethodType,
         claimedRewardId:       opts.claimedRewardId,
-        storeId:               orderType === 'pickup' ? selectedStore?.id : undefined,
+        storeId:               orderType === 'pickup'
+          ? selectedStore?.id
+          : orderType === 'table'
+            ? nearbyStore?.id
+            : undefined,
         useFreeCoffeeReward:   opts.useFreeCoffeeReward || undefined,
+        ...(orderType === 'table' ? { tableNumber } : {}),
       });
       clearCart();
       qc.invalidateQueries({ queryKey: ['orders'] });
@@ -234,6 +245,8 @@ function CartContent({ onConfirm }: { onConfirm: (c: Confirmation) => void }) {
         rewardSavingsCents:      order.rewardSavingsCents,
         freeCoffeeDiscountCents: order.freeCoffeeDiscountCents,
         rewardName:              order.rewardName,
+        tableNumber:             orderType === 'table' ? tableNumber : undefined,
+        storeName:               orderType === 'table' ? nearbyStore?.name : undefined,
       });
     } catch (e: any) {
       Alert.alert('Order failed', e.message ?? 'Please try again.');
@@ -343,6 +356,8 @@ function CartContent({ onConfirm }: { onConfirm: (c: Confirmation) => void }) {
   const checkoutStepProps = {
     items:              items.map((i) => ({ productId: i.productId, variantId: i.variantId ?? null, quantity: i.quantity, selectedOptions: i.selectedOptions })),
     orderType:          checkout.orderType,          setOrderType: checkout.setOrderType,
+    tableNumber:        checkout.tableNumber,        setTableNumber: checkout.setTableNumber,
+    nearbyStore:        nearbyStore ?? null,
     pickupMode:         checkout.pickupMode,         setPickupMode: checkout.setPickupMode,
     selectedDate:       checkout.selectedDate,       setSelectedDate: checkout.setSelectedDate,
     selectedTimeMins:   checkout.selectedTimeMins,   setSelectedTimeMins: checkout.setSelectedTimeMins,
