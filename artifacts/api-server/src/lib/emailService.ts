@@ -1390,6 +1390,81 @@ export function buildLoginAlertEmail(opts: {
 </html>`;
 }
 
+/**
+ * Sent to brand-new customers created via table ordering.
+ * Combines the welcome message with a 7-day OTP so they can set a password
+ * when they download the app and go through Forgot Password → Enter code.
+ */
+export function buildTableAccountSetupEmail(opts: {
+  name: string;
+  otp: string;
+  logoUrl: string;
+}): string {
+  const { name, otp } = opts;
+  return `<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">${accountEmailMobileStyle()}</head>
+<body style="margin:0;padding:0;background:#F5F6FA;font-family:Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#F5F6FA;">
+    <tr><td align="center" class="outer-pad" style="padding:40px 16px;">
+      <table width="520" cellpadding="0" cellspacing="0" style="width:520px;max-width:520px;background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.08);" class="card">
+
+        <!-- Header -->
+        <tr><td style="background:#1A1A1A;padding:32px 40px;">
+          <div style="color:#ffffff;font-size:26px;font-weight:900;letter-spacing:-0.5px;font-family:Arial,sans-serif;">Butterfield</div>
+          <div style="color:rgba(255,255,255,0.5);font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;margin-top:6px;font-family:Arial,sans-serif;">Cookies · Coffee · Soft Serve</div>
+        </td></tr>
+
+        <!-- Body -->
+        <tr><td style="padding:36px 40px 28px;" class="body-pad">
+          <p style="margin:0 0 6px;font-size:22px;font-weight:700;color:#1C1C1E;" class="headline">Welcome, ${name}!</p>
+          <p style="margin:0 0 24px;font-size:15px;color:#6B7280;line-height:1.6;">
+            Thanks for dining with us. We've created a Butterfield account for you so your stamps and rewards are saved.
+            Set up your password to sign in whenever you download the app.
+          </p>
+
+          <!-- OTP block -->
+          <div style="background:#F5F6FA;border-radius:14px;padding:28px;text-align:center;margin-bottom:28px;">
+            <div style="font-size:11px;color:#8E8E93;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:12px;font-family:Arial,sans-serif;">Your setup code</div>
+            <div style="font-size:46px;font-weight:900;color:#D20001;letter-spacing:14px;font-family:Arial,sans-serif;">${otp}</div>
+            <div style="font-size:12px;color:#8E8E93;margin-top:10px;font-family:Arial,sans-serif;">Valid for 7 days</div>
+          </div>
+
+          <!-- Steps -->
+          <p style="margin:0 0 14px;font-size:14px;font-weight:700;color:#1C1C1E;font-family:Arial,sans-serif;">How to set up your account:</p>
+          <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:24px;">
+            ${[
+              ['1', 'Download the Butterfield app', 'Available on the App Store and Google Play'],
+              ['2', 'Tap <strong>Sign in</strong>', 'Then tap <strong>Forgot password?</strong> on the sign-in screen'],
+              ['3', 'Enter your email', `Use this address: <strong style="color:#1C1C1E;">${opts.logoUrl ? '' : ''}</strong>`],
+              ['4', 'Enter the setup code above', 'Then choose your new password — you\'re all set'],
+            ].map(([num, title, body]) => `
+            <tr><td style="padding:10px 0;border-bottom:1px solid #F0F1F5;">
+              <table cellpadding="0" cellspacing="0"><tr>
+                <td width="32" valign="top" style="padding-right:12px;">
+                  <div style="width:24px;height:24px;border-radius:50%;background:#1A1A1A;color:#fff;font-size:12px;font-weight:800;text-align:center;line-height:24px;font-family:Arial,sans-serif;">${num}</div>
+                </td>
+                <td valign="top">
+                  <div style="font-size:14px;font-weight:700;color:#1C1C1E;margin-bottom:2px;font-family:Arial,sans-serif;">${title}</div>
+                  <div style="font-size:13px;color:#6B7280;line-height:1.5;font-family:Arial,sans-serif;">${body}</div>
+                </td>
+              </tr></table>
+            </td></tr>`).join('')}
+          </table>
+
+          <p style="margin:0;font-size:12px;color:#9CA3AF;line-height:1.6;">
+            If you didn't place an order at a Butterfield table today, please ignore this email — no account action is needed.
+          </p>
+        </td></tr>
+
+        ${accountEmailFooter()}
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`;
+}
+
 export function buildPasswordResetEmail(otp: string, name: string): string {
   return `<!DOCTYPE html>
 <html>

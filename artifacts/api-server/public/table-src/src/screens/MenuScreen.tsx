@@ -23,9 +23,7 @@ function AppBanner() {
   if (!isMobile || dismissed) return null;
 
   const deepLink = `butterfield://table/${encodeURIComponent(config.storeId)}/${encodeURIComponent(config.tableNumber)}`;
-  const storeLink = isIOS
-    ? "https://apps.apple.com/app/butterfield-cookies/id6744892949"
-    : "https://play.google.com/store/apps/details?id=au.com.butterfieldcookies.app";
+  const storeLink = "https://butterfieldcookies.com.au/pages/app";
 
   return (
     <div

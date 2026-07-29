@@ -11,7 +11,7 @@ import { Router } from 'express';
 import { randomUUID } from 'crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { db, ordersTable, usersTable, staffProfilesTable, storeTablesTable, storeSettingsTable, customerProfilesTable } from '@workspace/db';
+import { db, ordersTable, usersTable, staffProfilesTable, storeTablesTable, storeSettingsTable, customerProfilesTable, passwordResetTokensTable } from '@workspace/db';
 import { eq, inArray, sql, and } from 'drizzle-orm';
 import { prepareRetailCheckout } from '../lib/retailCheckout.js';
 import { generateOrderNumber } from '../lib/orderNumber.js';
@@ -19,7 +19,8 @@ import { sendNotification } from '../lib/notificationService.js';
 import { applyCoffeeStamps, ensureLoyaltySchemaReady } from '../lib/loyaltyIdentity.js';
 import { countCoffeeItemsFromOrderItems } from '../lib/orderLoyaltyUtils.js';
 import { sydneyDateParts } from '../lib/sydneyTime.js';
-import { sendEmail, buildCustomerWelcomeEmail, getLogoUrl } from '../lib/emailService.js';
+import { sendEmail, buildTableAccountSetupEmail, getLogoUrl } from '../lib/emailService.js';
+import bcrypt from 'bcryptjs';
 
 const router = Router();
 
@@ -493,12 +494,28 @@ router.post('/orders', tableRateLimit, async (req, res) => {
           coffeeStampGoal: stampGoal,
         });
 
-        // Welcome email — fire-and-forget
+        // Generate a 6-digit setup OTP (7-day expiry — customer needs time to download the app)
+        const otp = String(Math.floor(100000 + Math.random() * 900000));
+        const otpHash = await bcrypt.hash(otp, 10);
+        const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+
+        // Delete any stale tokens first (belt-and-suspenders)
+        await db.delete(passwordResetTokensTable)
+          .where(eq(passwordResetTokensTable.userId, loyaltyUserId));
+
+        await db.insert(passwordResetTokensTable).values({
+          id: randomUUID(),
+          userId: loyaltyUserId,
+          otpHash,
+          expiresAt,
+        });
+
+        // Setup email — fire-and-forget
         sendEmail({
           to: email,
-          subject: 'Welcome to Butterfield Cookies!',
-          html: buildCustomerWelcomeEmail({ name: customerName, logoUrl: getLogoUrl(req) }),
-        }).catch((err: any) => req.log?.warn({ err }, 'Table order welcome email failed'));
+          subject: 'Set up your Butterfield Cookies password',
+          html: buildTableAccountSetupEmail({ name: customerName, otp, logoUrl: getLogoUrl(req) }),
+        }).catch((err: any) => req.log?.warn({ err }, 'Table order setup email failed'));
       }
 
       // Count coffee items now so the order user_id and stamp count are consistent

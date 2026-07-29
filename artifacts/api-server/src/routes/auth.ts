@@ -1031,8 +1031,17 @@ router.post('/reset-password', resetPasswordRateLimit, async (req, res) => {
   }
 
   const passwordHash = await bcrypt.hash(newPassword, 12);
+
+  // Also activate the account if it was created as 'pending' (e.g. via table ordering)
+  const [userRow] = await db.select({ status: usersTable.status })
+    .from(usersTable).where(eq(usersTable.id, payload.sub));
+
   await db.update(usersTable)
-    .set({ passwordHash, updatedAt: new Date() })
+    .set({
+      passwordHash,
+      ...(userRow?.status === 'pending' ? { status: 'active' } : {}),
+      updatedAt: new Date(),
+    })
     .where(eq(usersTable.id, payload.sub));
 
   return res.json({ success: true, message: 'Password updated successfully.' });
