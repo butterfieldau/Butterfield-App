@@ -92,6 +92,7 @@
     "react-native-google-places-autocomplete": "^2.6.4",
     "react-native-maps": "1.27.2",
     "react-native-qrcode-svg": "^6.3.21",
-    "react-native-star-io10": "1.12.1"
+    "react-native-star-io10": "1.12.1",
+    "react-native-toast-message": "^2.4.0"
   }
 }

@@ -412,6 +412,9 @@ importers:
       react-native-star-io10:
         specifier: 1.12.1
         version: 1.12.1(react-native@0.83.6(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.2.0))(react@19.2.0)
+      react-native-toast-message:
+        specifier: ^2.4.0
+        version: 2.4.0(react-native@0.83.6(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.2.0))(react@19.2.0)
     devDependencies:
       '@babel/core':
         specifier: ^7.25.2
@@ -6528,6 +6531,12 @@ packages:
     resolution: {integrity: sha512-2+zya9ielB8nWfMYVULB64ZqLzQD32qIzTnDef7NM1BChaJiA1btkJTBL+8WnyBrujjlCBVxBC3gAkXtG5hmvQ==}
     peerDependencies:
       react-native: '>=0.60.0'
+
+  react-native-toast-message@2.4.0:
+    resolution: {integrity: sha512-Ip4sPpf9707Qmn06Jp1aGJrYLx2mwTYBRjXzP7ebPvmjABA6OCT9bEh62E0L6s5zc/KPZ3rix+OnBKW/pOJZ4g==}
+    peerDependencies:
+      react: '*'
+      react-native: '*'
 
   react-native-uuid@2.0.4:
     resolution: {integrity: sha512-LSJNeh559qC17fgVPBsWuTSW/OygFp2dwTcf94IQBLYft5FzIQS9pCsuT36OPvyvDOMb6yiGr6TafaJDnz9PPQ==}
@@ -14993,6 +15002,11 @@ snapshots:
     dependencies:
       buffer: 5.7.1
       eventemitter3: 4.0.7
+      react-native: 0.83.6(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.2.0)
+
+  react-native-toast-message@2.4.0(react-native@0.83.6(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.2.0))(react@19.2.0):
+    dependencies:
+      react: 19.2.0
       react-native: 0.83.6(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.2.0)
 
   react-native-uuid@2.0.4: {}

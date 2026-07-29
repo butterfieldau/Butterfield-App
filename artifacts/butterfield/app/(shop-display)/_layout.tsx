@@ -22,6 +22,7 @@ import {
 } from '@/lib/posCache';
 import { PosIdleScreen } from '@/components/PosIdleScreen';
 import PosPinModal from '@/components/PosPinModal';
+import Toast from 'react-native-toast-message';
 
 
 const BLUE  = '#1493FF';
@@ -1048,6 +1049,8 @@ export default function ShopDisplayLayout() {
           }}
         />
       )}
+      {/* ── Toast notifications ────────────────────────────────────── */}
+      <Toast />
     </View>
     </PosModalContext.Provider>
   );

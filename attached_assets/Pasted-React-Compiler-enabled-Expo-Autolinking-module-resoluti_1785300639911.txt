@@ -1,0 +1,42 @@
+React Compiler enabled
+Expo Autolinking module resolution enabled
+Starting Metro Bundler
+iOS node_modules/.pnpm/expo-router@55.0.16_caba8681460e379802bf1ac8b7fda11a/node_modules/expo-router/entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+iOS node_modules/.pnpm/expo-router@55.0.16_caba8681460e379802bf1ac8b7fda11a/node_modules/expo-router/entry.js ▓▓▓▓▓▓▓░░░░░░░░░ 48.0% (602/916)
+iOS node_modules/.pnpm/expo-router@55.0.16_caba8681460e379802bf1ac8b7fda11a/node_modules/expo-router/entry.js ▓▓▓▓▓▓▓░░░░░░░░░ 48.0% (644/965)
+iOS node_modules/.pnpm/expo-router@55.0.16_caba8681460e379802bf1ac8b7fda11a/node_modules/expo-router/entry.js ▓▓▓▓▓▓▓▓▓░░░░░░░ 60.8% ( 953/1281)
+iOS node_modules/.pnpm/expo-router@55.0.16_caba8681460e379802bf1ac8b7fda11a/node_modules/expo-router/entry.js ▓▓▓▓▓▓▓▓▓▓▓░░░░░ 71.7% (1486/1755)
+iOS Bundling failed 16812ms node_modules/.pnpm/expo-router@55.0.16_caba8681460e379802bf1ac8b7fda11a/node_modules/expo-router/entry.js (2583 modules)
+Unable to resolve module react-native-toast-message from /Users/expo/workingdir/build/artifacts/butterfield/app/(shop-display)/products.tsx: react-native-toast-message could not be found within the project or in these directories:
+  node_modules
+  ../../node_modules
+  node_modules
+  ../../node_modules
+   6 | } from 'react-native';
+   7 | import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+>  8 | import Toast from 'react-native-toast-message';
+     |                    ^
+   9 | import { api } from '@/lib/api';
+  10 |
+  11 | const BG     = '#EFF6FF';
+Import stack:
+ artifacts/butterfield/app/(shop-display)/products.tsx
+ | import "react-native-toast-message"
+ artifacts/butterfield/app (require.context)
+Error: Unable to resolve module react-native-toast-message from /Users/expo/workingdir/build/artifacts/butterfield/app/(shop-display)/products.tsx: react-native-toast-message could not be found within the project or in these directories:
+  node_modules
+  ../../node_modules
+  node_modules
+  ../../node_modules
+   6 | } from 'react-native';
+   7 | import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+>  8 | import Toast from 'react-native-toast-message';
+     |                    ^
+   9 | import { api } from '@/lib/api';
+  10 |
+  11 | const BG     = '#EFF6FF';
+Import stack:
+ artifacts/butterfield/app/(shop-display)/products.tsx
+ | import "react-native-toast-message"
+ artifacts/butterfield/app (require.context)
+pnpm expo export:embed --eager --platform ios --dev false exited with non-zero code: 1
