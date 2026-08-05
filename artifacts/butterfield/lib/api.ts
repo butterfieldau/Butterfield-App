@@ -1173,7 +1173,7 @@ export const api = {
       idempotencyKey?: string;
       supervisorPin?: string;
       hasPriceOverride?: boolean;
-    }) => request<{ data: { id: string; orderNumber: string; invoiceNumber: string; totalCents: number; paymentMethod: string; status: string }; loyaltyResult: PosLoyaltyResult | null }>(
+    }) => request<{ data: { id: string; orderNumber: string; invoiceNumber: string; totalCents: number; surchargeCents?: number; paymentMethod: string; status: string }; loyaltyResult: PosLoyaltyResult | null }>(
       '/pos/orders', { method: 'POST', body: JSON.stringify(data) }
     ),
     syncOrder: (data: {
@@ -1196,7 +1196,7 @@ export const api = {
       idempotencyKey?: string;
       supervisorPin?: string;
       hasPriceOverride?: boolean;
-    }) => request<{ data: { id: string; orderNumber: string; invoiceNumber: string; totalCents: number; paymentMethod: string; status: string }; loyaltyResult: PosLoyaltyResult | null }>(
+    }) => request<{ data: { id: string; orderNumber: string; invoiceNumber: string; totalCents: number; surchargeCents?: number; paymentMethod: string; status: string }; loyaltyResult: PosLoyaltyResult | null }>(
       '/pos/orders/sync', { method: 'POST', body: JSON.stringify(data) }
     ),
     addStamp: (customerId: string, items: { category: string; productId?: string }[], coffeeItemCount: number, ticketId: string) =>

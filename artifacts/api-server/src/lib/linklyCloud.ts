@@ -735,7 +735,7 @@ async function upsertTransaction(
       source = EXCLUDED.source,
       txn_ref = EXCLUDED.txn_ref,
       amount_cents = EXCLUDED.amount_cents,
-      amount_surcharge_cents = CASE WHEN linkly_transactions.complete THEN linkly_transactions.amount_surcharge_cents ELSE EXCLUDED.amount_surcharge_cents END,
+      amount_surcharge_cents = GREATEST(linkly_transactions.amount_surcharge_cents, EXCLUDED.amount_surcharge_cents),
       status = CASE WHEN linkly_transactions.complete THEN linkly_transactions.status ELSE EXCLUDED.status END,
       success = CASE WHEN linkly_transactions.complete THEN linkly_transactions.success ELSE EXCLUDED.success END,
       complete = CASE WHEN linkly_transactions.complete THEN linkly_transactions.complete ELSE EXCLUDED.complete END,

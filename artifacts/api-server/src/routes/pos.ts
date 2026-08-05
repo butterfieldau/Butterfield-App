@@ -1322,6 +1322,41 @@ const handleCreatePosOrder: import('express').RequestHandler = async (req, res) 
     );
   }
 
+  // ── Server-side surcharge reconciliation against Linkly ───────────────────
+  // The client sends surchargeCents computed from the SSE stream result.  If the
+  // webhook wrote a higher surcharge AFTER the stream resolved, the client value
+  // may be stale.  Query linkly_transactions for the authoritative sum and, if it
+  // exceeds the client value, patch the order row and return the corrected values.
+  let effectiveSurchargeCents = surchargeCents;
+  let effectiveTotalCents = totalCents;
+  if (linklySessionIds.length > 0) {
+    try {
+      const sessionArray = sql.join(linklySessionIds.map(s => sql`${s}`), sql`, `);
+      const linklyResult = await db.execute(sql`
+        SELECT COALESCE(SUM(amount_surcharge_cents), 0)::int AS total_surcharge
+        FROM linkly_transactions
+        WHERE session_id = ANY(ARRAY[${sessionArray}])
+      `);
+      const linklySurchargeCents = Number(
+        ((linklyResult as any).rows?.[0] ?? (linklyResult as any)[0])?.total_surcharge ?? 0
+      );
+      if (linklySurchargeCents > surchargeCents) {
+        effectiveSurchargeCents = linklySurchargeCents;
+        effectiveTotalCents = baseTotalCents + linklySurchargeCents;
+        await db.execute(sql`
+          UPDATE orders
+          SET surcharge_cents = ${effectiveSurchargeCents},
+              total_cents     = ${effectiveTotalCents},
+              updated_at      = now()
+          WHERE id = ${orderId}
+        `);
+        req.log.info({ orderId, clientSurchargeCents: surchargeCents, linklySurchargeCents, effectiveTotalCents }, 'POS order surcharge reconciled from Linkly');
+      }
+    } catch (err: any) {
+      req.log.warn({ err, orderId }, 'POS surcharge reconciliation from Linkly failed — original value kept');
+    }
+  }
+
   // ── Record discount code usage (if a validated code was applied) ────────────
   if (resolvedDiscountCodeId) {
     try {
@@ -1464,7 +1499,7 @@ const handleCreatePosOrder: import('express').RequestHandler = async (req, res) 
   }
 
   return res.status(201).json({
-    data: { id: orderId, orderNumber, invoiceNumber, totalCents, paymentMethod, status: 'completed' },
+    data: { id: orderId, orderNumber, invoiceNumber, totalCents: effectiveTotalCents, surchargeCents: effectiveSurchargeCents, paymentMethod, status: 'completed' },
     loyaltyResult,
   });
 };
@@ -1572,13 +1607,22 @@ router.get('/orders', async (req, res) => {
         o.order_number,
         o.created_at,
         TO_CHAR(o.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS created_at_iso,
-        o.total_cents,
+        -- Use the greater of the stored surcharge and the Linkly-reported sum.
+        -- This heals orders that were stored with 0 surcharge because the webhook
+        -- arrived after the POS client already submitted the order.
+        GREATEST(
+          COALESCE(o.surcharge_cents, 0),
+          COALESCE(lt_sum.linkly_surcharge, 0)
+        ) AS surcharge_cents,
+        o.total_cents
+          - COALESCE(o.surcharge_cents, 0)
+          + GREATEST(COALESCE(o.surcharge_cents, 0), COALESCE(lt_sum.linkly_surcharge, 0))
+          AS total_cents,
         o.status,
         o.payment_method,
         o.items,
         o.notes,
-        COALESCE(o.tip_cents, 0)     AS tip_cents,
-        COALESCE(o.surcharge_cents, 0) AS surcharge_cents,
+        COALESCE(o.tip_cents, 0) AS tip_cents,
         o.split_payments,
         o.discount_cents,
         o.source,
@@ -1588,6 +1632,12 @@ router.get('/orders', async (req, res) => {
       FROM orders o
       LEFT JOIN users u  ON u.id  = o.user_id       AND o.user_id != o.staff_user_id
       LEFT JOIN users su ON su.id = o.staff_user_id
+      LEFT JOIN (
+        SELECT order_id, SUM(amount_surcharge_cents)::int AS linkly_surcharge
+        FROM linkly_transactions
+        WHERE order_id IS NOT NULL
+        GROUP BY order_id
+      ) lt_sum ON lt_sum.order_id = o.id
       WHERE o.source = 'pos'
         AND o.created_at >= DATE_TRUNC('day', NOW() AT TIME ZONE 'Australia/Sydney') AT TIME ZONE 'Australia/Sydney' AT TIME ZONE 'UTC'
         AND (
@@ -2386,16 +2436,46 @@ router.post('/orders/:id/email-invoice', async (req, res) => {
     variantName: i.variantName ?? i.variant_name,
   }));
 
-  const totalCents    = Number(row.total_cents ?? 0);
-  const surchargeCents = Number(row.surcharge_cents ?? 0);
+  let totalCents    = Number(row.total_cents ?? 0);
+  let surchargeCents = Number(row.surcharge_cents ?? 0);
   const discountCents  = Number(row.discount_cents ?? 0);
-  const subtotalCents  = totalCents - surchargeCents + discountCents;
   const loyaltyPointsEarned = row.loyalty_points_earned ? Number(row.loyalty_points_earned) : null;
   const customerName = row.customer_name ?? 'Customer';
   // Prefer the sequential invoice number (INV-XXXX); fall back to order number for legacy rows
   const invoiceLabel = row.invoice_number ?? row.order_number ?? id.slice(0, 8).toUpperCase();
   const paymentMethod = row.payment_method ?? 'eftpos';
   const date = new Date().toLocaleDateString('en-AU', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'Australia/Sydney' });
+
+  // ── Reconcile surcharge against Linkly ────────────────────────────────────
+  // If the Linkly terminal reported a higher surcharge than what was stored
+  // (e.g. the webhook fired after the order was created), heal the order row
+  // so the emailed invoice is always accurate and future reads see the correct value.
+  try {
+    const linklyResult = await db.execute(sql`
+      SELECT COALESCE(SUM(amount_surcharge_cents), 0)::int AS total_surcharge
+      FROM linkly_transactions
+      WHERE order_id = ${id}
+    `);
+    const linklySurcharge = Number(
+      ((linklyResult as any).rows?.[0] ?? (linklyResult as any)[0])?.total_surcharge ?? 0
+    );
+    if (linklySurcharge > surchargeCents) {
+      const correctedTotal = totalCents - surchargeCents + linklySurcharge;
+      await db.execute(sql`
+        UPDATE orders
+        SET surcharge_cents = ${linklySurcharge},
+            total_cents     = ${correctedTotal},
+            updated_at      = now()
+        WHERE id = ${id}
+      `);
+      surchargeCents = linklySurcharge;
+      totalCents     = correctedTotal;
+    }
+  } catch (err: any) {
+    req.log.warn({ err, orderId: id }, 'email-invoice: Linkly surcharge reconciliation failed — using stored value');
+  }
+
+  const subtotalCents  = totalCents - surchargeCents + discountCents;
 
   const { sendEmail, buildPosReceiptEmail } = await import('../lib/emailService.js');
   const html = buildPosReceiptEmail({ orderNumber: invoiceLabel, customerName, items, subtotalCents, surchargeCents, discountCents, totalCents, paymentMethod, loyaltyPointsEarned, date });

@@ -515,7 +515,10 @@ function PosScreenInner() {
       if (activeTicket.customer?.userId && res.loyaltyResult) {
         recentBalancesRef.current[activeTicket.customer.userId] = { loyaltyPoints: res.loyaltyResult.newBalance, stampCount: res.loyaltyResult.newStampCount, freeCoffeeRewards: activeTicket.customer.freeCoffeeRewards };
       }
-      setCompletedOrder({ id: res.data.id, orderNumber: res.data.orderNumber, invoiceNumber: res.data.invoiceNumber ?? `INV-${res.data.id.slice(0, 8).toUpperCase()}`, totalCents: res.data.totalCents, paymentMethod: vars.paymentMethod, amountTenderedCents: vars.amountTenderedCents, surchargeCents: vars.surchargeCents ?? 0, splitPayments: vars.splitPayments, loyaltyResult: res.loyaltyResult, customerName: snapshotCustomerName, customerEmail: activeTicket.customer?.email, ticketItems: snapshotItems, discountAmountCents, discountLabel });
+      // Prefer the server-reconciled surchargeCents (may be higher than the
+      // client value if the Linkly webhook arrived after the SSE stream resolved).
+      const reconciledSurchargeCents = res.data.surchargeCents ?? vars.surchargeCents ?? 0;
+      setCompletedOrder({ id: res.data.id, orderNumber: res.data.orderNumber, invoiceNumber: res.data.invoiceNumber ?? `INV-${res.data.id.slice(0, 8).toUpperCase()}`, totalCents: res.data.totalCents, paymentMethod: vars.paymentMethod, amountTenderedCents: vars.amountTenderedCents, surchargeCents: reconciledSurchargeCents, splitPayments: vars.splitPayments, loyaltyResult: res.loyaltyResult, customerName: snapshotCustomerName, customerEmail: activeTicket.customer?.email, ticketItems: snapshotItems, discountAmountCents, discountLabel });
       setShowPayment(false);
       clearActiveTicket();
       refetchSummary();
@@ -533,7 +536,7 @@ function PosScreenInner() {
         // Star: never embed DLE DC4 drawer bytes in the print stream — the StarXpand SDK buffers
         // data and real-time commands are not processed correctly via printRawData. Drawer is
         // opened explicitly via openDrawerWithTracking() (StarXpand CommandBuilder) below.
-        _sendReceiptPrint({ orderId: printOrderId, customerName: snapshotCustomerName, type: 'pickup', items: snapshotItems, totalCents: res.data.totalCents, discountCents: discountAmountCents, surchargeCents: vars.surchargeCents ?? 0, loyaltyPointsEarned: res.loyaltyResult?.pointsEarned, notes: activeTicket.notes?.trim() || undefined, printerBrand: store.printerBrand ?? 'epson', autoDrawer: !isStar && !!(store as any).autoDrawer, drawerPin: ((store as any).drawerPin ?? 0) as 0 | 1 }, store.printerIp, store.printerPort ?? 9100, fetchBytes)
+        _sendReceiptPrint({ orderId: printOrderId, customerName: snapshotCustomerName, type: 'pickup', items: snapshotItems, totalCents: res.data.totalCents, discountCents: discountAmountCents, surchargeCents: reconciledSurchargeCents, loyaltyPointsEarned: res.loyaltyResult?.pointsEarned, notes: activeTicket.notes?.trim() || undefined, printerBrand: store.printerBrand ?? 'epson', autoDrawer: !isStar && !!(store as any).autoDrawer, drawerPin: ((store as any).drawerPin ?? 0) as 0 | 1 }, store.printerIp, store.printerPort ?? 9100, fetchBytes)
           .then(() => updatePrintStatus(printOrderId, 'printed'))
           .catch(() => updatePrintStatus(printOrderId, 'failed'));
       } else if (alreadyPrinted && vars.linklySessionId) {
