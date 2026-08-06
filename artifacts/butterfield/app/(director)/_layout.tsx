@@ -287,6 +287,7 @@ export default function DirectorLayout() {
         <Tabs.Screen name="_moreCategories"               options={{ href: null }} />
         <Tabs.Screen name="pos-orders"                    options={{ href: null }} />
         <Tabs.Screen name="feedback"                      options={{ href: null }} />
+        <Tabs.Screen name="table-qr"                     options={{ href: null }} />
       </Tabs>
     </View>
   );
