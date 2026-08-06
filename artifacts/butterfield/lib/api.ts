@@ -160,6 +160,8 @@ export const api = {
   orders: {
     list: () => request<{ data: ApiOrder[] }>('/orders'),
     get: (id: string) => request<{ data: ApiOrder }>(`/orders/${id}`),
+    approveModification: (id: string) => request<{ data: ApiOrder }>(`/orders/${id}/approve-modification`, { method: 'POST' }),
+    declineModification: (id: string) => request<{ data: ApiOrder }>(`/orders/${id}/decline-modification`, { method: 'POST' }),
     create: (data: {
       items: ApiOrderItem[]; type: string; scheduledFor?: string; notes?: string;
       contactName?: string; contactPhone?: string; contactEmail?: string;
@@ -631,6 +633,8 @@ export const api = {
       request<{ data: { id: string; status: string; orderNumber: string | null; refundType: 'stripe' | 'cash' } }>(`/director/pos/transactions/${id}/refund`, { method: 'POST', body: JSON.stringify(reason ? { reason } : {}) }),
     acceptOrder:         (id: string) => request<{ data: ApiOrder }>(`/director/orders/${id}/accept`, { method: 'POST' }),
     updateOrderStatus:   (id: string, status: string, cancelReason?: string) => request<{ data: ApiOrder }>(`/director/orders/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status, ...(cancelReason ? { cancelReason } : {}) }) }),
+    modifyOrderItems:    (id: string, modifiedItems: any[], reason: string) => request<{ data: ApiOrder }>(`/director/orders/${id}/modify-items`, { method: 'PATCH', body: JSON.stringify({ modifiedItems, reason }) }),
+    availableProductsForOrder: (id: string) => request<{ data: Array<{ id: string; name: string; priceCents: number; salePriceCents?: number | null; category?: string | null; variants: Array<{ id: string; name: string; priceCents: number }> }> }>(`/director/orders/${id}/available-products`),
     users:               (opts?: { includeTerminated?: boolean }) => request<{ data: DirectorUserSummary[] }>(`/director/users${opts?.includeTerminated ? '?includeTerminated=true' : ''}`),
     staffMember:         (userId: string) => request<{ data: DirectorStaffMember }>(`/director/staff/${userId}`),
     updateStaff:         (userId: string, data: { name?: string; email?: string; phone?: string; address?: string; taxFileNumber?: string; position?: string; department?: string; hourlyRateCents?: number; employmentStatus?: string }) =>
@@ -1623,6 +1627,12 @@ export interface ApiOrder {
   receiptEmailSentAt?: string | null;
   source?: string | null;
   tableNumber?: string | null;
+  // Order modification fields
+  originalItems?: any[] | null;
+  modifiedItems?: any[] | null;
+  modificationReason?: string | null;
+  modificationExpiresAt?: string | null;
+  modificationTotalDeltaCents?: number | null;
 }
 
 export interface PosTransaction {

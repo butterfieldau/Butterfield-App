@@ -37,14 +37,15 @@ import {
 import { normalizeOrderItems } from '@/lib/orderItems';
 
 const APP_FILTER_TABS = [
-  { key: 'all',              label: 'All' },
-  { key: 'active',           label: 'Active' },
-  { key: 'scheduled_all',    label: 'Scheduled' },
-  { key: 'received',         label: 'Pending' },
-  { key: 'being_prepared',   label: 'Preparing' },
-  { key: 'ready_for_pickup', label: 'Ready' },
-  { key: 'completed',        label: 'Done' },
-  { key: 'cancelled',        label: 'Cancelled' },
+  { key: 'all',                       label: 'All' },
+  { key: 'active',                    label: 'Active' },
+  { key: 'scheduled_all',             label: 'Scheduled' },
+  { key: 'received',                  label: 'Pending' },
+  { key: 'pending_customer_approval', label: 'Awaiting' },
+  { key: 'being_prepared',            label: 'Preparing' },
+  { key: 'ready_for_pickup',          label: 'Ready' },
+  { key: 'completed',                 label: 'Done' },
+  { key: 'cancelled',                 label: 'Cancelled' },
 ];
 
 // Local filter for the In-Flight Queue strip only (independent of the main history filter)
@@ -57,7 +58,7 @@ const LIVE_FILTER_TABS = [
 type LiveFilterKey = (typeof LIVE_FILTER_TABS)[number]['key'];
 
 // Statuses that appear in the live pinned strip (in-flight orders only)
-const LIVE_STRIP_STATUSES  = ['received', 'being_prepared', 'ready_for_pickup'];
+const LIVE_STRIP_STATUSES  = ['received', 'being_prepared', 'ready_for_pickup', 'pending_customer_approval'];
 // Terminal statuses shown in the day-grouped history when no specific filter is active
 const TERMINAL_STATUSES    = ['completed', 'cancelled', 'refunded'];
 
@@ -388,7 +389,7 @@ export default function DirectorOrdersScreen() {
   const statusFiltered = useMemo(() => {
     if (filter === 'all') return appOrders;
     if (filter === 'active') return appOrders.filter((o) =>
-      ['received','being_prepared','ready_for_pickup','scheduled','accepted'].includes(o.status));
+      ['received','being_prepared','ready_for_pickup','scheduled','accepted','pending_customer_approval'].includes(o.status));
     if (filter === 'scheduled_all') return appOrders.filter((o) => ['scheduled','accepted'].includes(o.status));
     return appOrders.filter((o) => o.status === filter);
   }, [appOrders, filter]);

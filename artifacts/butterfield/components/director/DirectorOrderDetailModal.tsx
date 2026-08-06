@@ -14,6 +14,7 @@ import {
   getCustomerNextStatuses, isWholesaleOrderPaid,
 } from '@/lib/orderStatus';
 import type { ApiOrder } from '@/lib/api';
+import { api } from '@/lib/api';
 import { fmtTime, openMap, openMapWithChoice } from './ordersHelpers';
 import {
   BG, SURFACE, SURFACE_RAISED, BORDER, TEXT, TEXT_MUTED, TEXT_FAINT, BRAND, BRAND_TEXT_ON,
@@ -122,6 +123,14 @@ export default function DirectorOrderDetailModal({
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [cancelReasonText, setCancelReasonText] = useState('');
   const [pendingStatus, setPendingStatus] = useState('');
+  // Modify Order state
+  const [showModifySheet, setShowModifySheet] = useState(false);
+  const [modifyItems, setModifyItems]         = useState<any[]>([]);
+  const [modifyReason, setModifyReason]       = useState('');
+  const [modifyLoading, setModifyLoading]     = useState(false);
+  const [availProds, setAvailProds]           = useState<any[]>([]);
+  const [loadingProds, setLoadingProds]       = useState(false);
+  const [prodPickerQ, setProdPickerQ]         = useState('');
 
   if (!order) return null;
 
@@ -348,6 +357,24 @@ export default function DirectorOrderDetailModal({
             </View>
           )}
 
+          {/* ── Pending customer approval banner ────────────────────── */}
+          {order.status === 'pending_customer_approval' && (
+            <View style={{ backgroundColor: AMBER_DIM, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: AMBER + '50', gap: 10, marginBottom: 16 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: AMBER }} />
+                <Text style={{ fontSize: 14, fontWeight: '700', color: AMBER, flex: 1 }}>Awaiting Customer Approval</Text>
+              </View>
+              {(order as any).modificationReason && (
+                <Text style={{ fontSize: 13, color: AMBER, fontStyle: 'italic' }}>Reason: "{(order as any).modificationReason}"</Text>
+              )}
+              {(order as any).modificationExpiresAt && (
+                <Text style={{ fontSize: 13, color: AMBER }}>
+                  Customer must respond by {new Date((order as any).modificationExpiresAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true })} — auto-cancels if unanswered
+                </Text>
+              )}
+            </View>
+          )}
+
           {/* ── Status Timeline ────────────────────────────────────── */}
           {!isCancelledOrRefunded && (
             <View style={[d.card, { marginBottom: 20 }]}>
@@ -429,6 +456,35 @@ export default function DirectorOrderDetailModal({
                 }
               </Pressable>
             )
+          )}
+
+          {/* ── Modify Order button — non-wholesale, modifiable statuses only ── */}
+          {!isWholesale && ['received', 'scheduled', 'accepted', 'being_prepared'].includes(order.status) && (
+            <Pressable
+              onPress={async () => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                setModifyItems(normalizeOrderItems(order.items).map(li => ({
+                  productId: (li as any).productId ?? null,
+                  variantId: (li as any).variantId ?? null,
+                  name: li.name,
+                  variantName: li.variantName,
+                  quantity: li.quantity,
+                  unitCents: (li as any).unitCents ?? Math.round(li.lineTotalCents / Math.max(li.quantity, 1)),
+                })));
+                setModifyReason('');
+                setProdPickerQ('');
+                setShowModifySheet(true);
+                setLoadingProds(true);
+                try {
+                  const res = await api.director.availableProductsForOrder(order.id);
+                  setAvailProds(res.data ?? []);
+                } catch { setAvailProds([]); } finally { setLoadingProds(false); }
+              }}
+              style={({ pressed }) => [{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, height: 48, borderRadius: 14, backgroundColor: AMBER_DIM, borderWidth: 1, borderColor: AMBER + '40', marginBottom: 16, opacity: pressed ? 0.8 : 1 }]}
+            >
+              <Feather name="edit-2" size={15} color={AMBER} />
+              <Text style={{ color: AMBER, fontWeight: '600', fontSize: 15 }}>Modify Order</Text>
+            </Pressable>
           )}
 
           {/* ── Items card ─────────────────────────────────────────── */}
@@ -688,6 +744,162 @@ export default function DirectorOrderDetailModal({
             </View>
           )}
         </ScrollView>
+
+        {/* ── Modify Order sheet ───────────────────────────────────── */}
+        <Modal
+          visible={showModifySheet}
+          transparent
+          animationType="slide"
+          onRequestClose={() => { Keyboard.dismiss(); setShowModifySheet(false); }}
+        >
+          <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+            <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.55)' }}>
+              <Pressable style={{ flex: 1 }} onPress={() => { Keyboard.dismiss(); setShowModifySheet(false); }} />
+              <View style={{ backgroundColor: SURFACE_RAISED, borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: '90%', borderWidth: 1, borderBottomWidth: 0, borderColor: BORDER }}>
+                {/* Header */}
+                <View style={{ flexDirection: 'row', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderBottomColor: BORDER }}>
+                  <Pressable onPress={() => { Keyboard.dismiss(); setShowModifySheet(false); }} style={{ padding: 6 }}>
+                    <Feather name="x" size={20} color={TEXT} />
+                  </Pressable>
+                  <Text style={{ flex: 1, textAlign: 'center', fontWeight: '700', fontSize: 16, color: TEXT }}>Modify Order</Text>
+                  <View style={{ width: 32 }} />
+                </View>
+                <ScrollView contentContainerStyle={{ padding: 16, gap: 14, paddingBottom: 20 }} showsVerticalScrollIndicator={false}>
+                  {/* A: Current items */}
+                  <Text style={{ fontSize: 11, fontWeight: '700', color: TEXT_MUTED, textTransform: 'uppercase', letterSpacing: 0.5 }}>Current Items</Text>
+                  {modifyItems.map((item, idx) => (
+                    <View key={idx} style={{ flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: item.quantity === 0 ? RED_DIM : SURFACE, borderRadius: 12, padding: 12, borderWidth: 1, borderColor: item.quantity === 0 ? RED + '40' : BORDER }}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ fontSize: 14, fontWeight: '600', color: item.quantity === 0 ? RED : TEXT, textDecorationLine: item.quantity === 0 ? 'line-through' : 'none' }}>
+                          {item.name}{item.variantName ? ` · ${item.variantName}` : ''}
+                        </Text>
+                        <Text style={{ fontSize: 12, color: TEXT_MUTED }}>${((item.unitCents ?? 0) / 100).toFixed(2)} each</Text>
+                      </View>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                        <Pressable
+                          onPress={() => setModifyItems(prev => prev.map((it, i) => i === idx ? { ...it, quantity: Math.max(0, (it.quantity ?? 1) - 1) } : it))}
+                          style={{ width: 30, height: 30, borderRadius: 15, backgroundColor: BORDER, alignItems: 'center', justifyContent: 'center' }}
+                        >
+                          <Feather name="minus" size={14} color={item.quantity === 0 ? RED : TEXT} />
+                        </Pressable>
+                        <Text style={{ fontSize: 15, fontWeight: '700', color: item.quantity === 0 ? RED : TEXT, minWidth: 22, textAlign: 'center' }}>{item.quantity ?? 1}</Text>
+                        <Pressable
+                          onPress={() => setModifyItems(prev => prev.map((it, i) => i === idx ? { ...it, quantity: (it.quantity ?? 1) + 1 } : it))}
+                          style={{ width: 30, height: 30, borderRadius: 15, backgroundColor: BORDER, alignItems: 'center', justifyContent: 'center' }}
+                        >
+                          <Feather name="plus" size={14} color={TEXT} />
+                        </Pressable>
+                      </View>
+                    </View>
+                  ))}
+
+                  {/* B: Add items picker */}
+                  <Text style={{ fontSize: 11, fontWeight: '700', color: TEXT_MUTED, textTransform: 'uppercase', letterSpacing: 0.5 }}>Add Items</Text>
+                  <TextInput
+                    style={{ backgroundColor: SURFACE, borderWidth: 1, borderColor: BORDER, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: TEXT }}
+                    placeholder="Search products…"
+                    placeholderTextColor={TEXT_MUTED}
+                    value={prodPickerQ}
+                    onChangeText={setProdPickerQ}
+                  />
+                  {loadingProds ? <ActivityIndicator size="small" color={BRAND} /> : (
+                    <View style={{ gap: 6 }}>
+                      {(prodPickerQ.trim()
+                        ? availProds.filter(p => p.name.toLowerCase().includes(prodPickerQ.toLowerCase()) || p.variants?.some((v: any) => v.name.toLowerCase().includes(prodPickerQ.toLowerCase())))
+                        : availProds.slice(0, 20)
+                      ).map((p: any) => (
+                        <View key={p.id}>
+                          {p.variants.length === 0 && (
+                            <Pressable
+                              onPress={() => setModifyItems(prev => {
+                                const ex = prev.findIndex(it => it.productId === p.id && !it.variantId);
+                                if (ex >= 0) return prev.map((it, i) => i === ex ? { ...it, quantity: it.quantity + 1 } : it);
+                                return [...prev, { productId: p.id, variantId: null, name: p.name, variantName: null, quantity: 1, unitCents: p.salePriceCents ?? p.priceCents }];
+                              })}
+                              style={({ pressed }) => [{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: SURFACE, borderRadius: 10, padding: 10, borderWidth: 1, borderColor: BORDER, opacity: pressed ? 0.7 : 1 }]}
+                            >
+                              <Text style={{ fontSize: 13, fontWeight: '500', color: TEXT }}>{p.name}</Text>
+                              <Text style={{ fontSize: 13, color: BRAND, fontWeight: '700' }}>+ ${((p.salePriceCents ?? p.priceCents) / 100).toFixed(2)}</Text>
+                            </Pressable>
+                          )}
+                          {p.variants.map((v: any) => (
+                            <Pressable
+                              key={v.id}
+                              onPress={() => setModifyItems(prev => {
+                                const ex = prev.findIndex(it => it.productId === p.id && it.variantId === v.id);
+                                if (ex >= 0) return prev.map((it, i) => i === ex ? { ...it, quantity: it.quantity + 1 } : it);
+                                return [...prev, { productId: p.id, variantId: v.id, name: p.name, variantName: v.name, quantity: 1, unitCents: v.priceCents }];
+                              })}
+                              style={({ pressed }) => [{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: SURFACE, borderRadius: 10, padding: 10, marginBottom: 4, borderWidth: 1, borderColor: BORDER, opacity: pressed ? 0.7 : 1 }]}
+                            >
+                              <Text style={{ fontSize: 13, color: TEXT }}>{p.name} · <Text style={{ fontWeight: '600' }}>{v.name}</Text></Text>
+                              <Text style={{ fontSize: 13, color: BRAND, fontWeight: '700' }}>+ ${(v.priceCents / 100).toFixed(2)}</Text>
+                            </Pressable>
+                          ))}
+                        </View>
+                      ))}
+                    </View>
+                  )}
+
+                  {/* C: Reason */}
+                  <Text style={{ fontSize: 11, fontWeight: '700', color: TEXT_MUTED, textTransform: 'uppercase', letterSpacing: 0.5 }}>Reason for Change *</Text>
+                  <TextInput
+                    style={{ backgroundColor: SURFACE, borderWidth: 1, borderColor: modifyReason.trim() ? BORDER : RED + '60', borderRadius: 12, padding: 14, fontSize: 15, color: TEXT, minHeight: 80, textAlignVertical: 'top' }}
+                    placeholder="e.g. Item out of stock — replaced with similar product"
+                    placeholderTextColor={TEXT_MUTED}
+                    value={modifyReason}
+                    onChangeText={setModifyReason}
+                    multiline
+                  />
+
+                  {/* Live total */}
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: SURFACE, borderRadius: 12, padding: 12, borderWidth: 1, borderColor: BORDER }}>
+                    <Text style={{ fontSize: 14, fontWeight: '600', color: TEXT }}>New Total</Text>
+                    <Text style={{ fontSize: 16, fontWeight: '700', color: BRAND }}>
+                      ${(modifyItems.reduce((s, it) => s + (it.unitCents ?? 0) * Math.max(it.quantity ?? 0, 0), 0) / 100).toFixed(2)}
+                    </Text>
+                  </View>
+
+                  {/* Send for Approval */}
+                  {(() => {
+                    const canSend = modifyReason.trim().length > 0 && modifyItems.some(it => (it.quantity ?? 0) > 0);
+                    return (
+                      <>
+                        <Pressable
+                          disabled={!canSend || modifyLoading}
+                          onPress={async () => {
+                            const itemsToSend = modifyItems.filter(it => (it.quantity ?? 0) > 0);
+                            if (!canSend) return;
+                            setModifyLoading(true);
+                            try {
+                              await api.director.modifyOrderItems(order.id, itemsToSend, modifyReason.trim());
+                              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                              setShowModifySheet(false);
+                              onClose();
+                            } catch (err: any) {
+                              Alert.alert('Error', err?.message ?? 'Failed to send modification.');
+                            } finally {
+                              setModifyLoading(false);
+                            }
+                          }}
+                          style={({ pressed }) => [{ backgroundColor: canSend && !modifyLoading ? BRAND : TEXT_FAINT, borderRadius: 14, height: 50, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, opacity: pressed ? 0.8 : 1 }]}
+                        >
+                          {modifyLoading
+                            ? <ActivityIndicator color="#fff" size="small" />
+                            : <><Feather name="send" size={16} color="#fff" /><Text style={{ color: '#fff', fontWeight: '700', fontSize: 15 }}>Send for Approval</Text></>
+                          }
+                        </Pressable>
+                        <Pressable onPress={() => { Keyboard.dismiss(); setShowModifySheet(false); }} style={{ height: 44, alignItems: 'center', justifyContent: 'center' }}>
+                          <Text style={{ color: TEXT_MUTED, fontWeight: '600', fontSize: 14 }}>Discard Changes</Text>
+                        </Pressable>
+                      </>
+                    );
+                  })()}
+                </ScrollView>
+              </View>
+            </View>
+          </KeyboardAvoidingView>
+        </Modal>
 
         {/* ── Cancel / refund reason modal ─────────────────────────── */}
         <Modal

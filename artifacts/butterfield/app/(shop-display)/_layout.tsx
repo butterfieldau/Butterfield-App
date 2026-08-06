@@ -33,7 +33,7 @@ const TEXT  = '#1C1C1E';
 const SOFT_BLUE = '#EFF6FF';
 
 type NewOrderBannerOrder = { customerName: string; orderNumber: string };
-const NEW_ORDER_STATUSES = new Set(['received', 'scheduled']);
+const NEW_ORDER_STATUSES = new Set(['received', 'scheduled', 'pending_customer_approval']);
 
 // ── Web AudioContext — created once, shared across renders ────────────────────
 // Kept at module level so the unlocked state persists across component re-renders.

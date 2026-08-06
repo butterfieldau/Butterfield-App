@@ -14,6 +14,8 @@ export const orderStatusEnum = pgEnum("order_status", [
   "voided",
   "scheduled",
   "accepted",
+  // Added via ensureOrderModificationSchemaReady() runtime ALTER TYPE
+  "pending_customer_approval",
 ]);
 
 export const orderTypeEnum = pgEnum("order_type", ["pickup", "delivery"]);
@@ -56,6 +58,12 @@ export const ordersTable = pgTable("orders", {
   invoiceNumber: text("invoice_number"),
   // Table ordering — added via ensureTableSchemaReady() runtime migration
   tableNumber: text("table_number"),
+  // Order modification — added via ensureOrderModificationSchemaReady() runtime migration
+  originalItems: jsonb("original_items"),
+  modifiedItems: jsonb("modified_items"),
+  modificationReason: text("modification_reason"),
+  modificationExpiresAt: timestamp("modification_expires_at"),
+  modificationTotalDeltaCents: integer("modification_total_delta_cents"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 }, (table) => [

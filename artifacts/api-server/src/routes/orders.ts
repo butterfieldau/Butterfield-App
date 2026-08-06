@@ -10,7 +10,8 @@ import { countCoffeeItemsFromOrderItems, getOutstandingCoffeeStampsForOrder, has
 import { computeLoyaltyTierFromSpend } from '../lib/loyaltyTierSettings.js';
 import { prepareRetailCheckout } from '../lib/retailCheckout.js';
 import { ensureStoreConfigSchemaReady } from '../lib/ensureStoreConfigSchemaReady.js';
-import { refundOrderStripePayment } from '../lib/stripeRefunds.js';
+import { refundOrderStripePayment, refundStripePaymentIntentAmount } from '../lib/stripeRefunds.js';
+import { notifyRole } from '../lib/notificationService.js';
 import { generateOrderNumber } from '../lib/orderNumber.js';
 import { getAllowedNextStatuses, getStatusMessage } from '../lib/orderStatusTransitions.js';
 import { buildConfirmationSavings } from '../lib/orderConfirmationSavings.js';
@@ -743,6 +744,129 @@ router.patch(
     }
 
     return res.json({ data: order });
+  },
+);
+
+// ── Order modification approval / decline (customer-facing) ─────────────────
+
+// POST /:id/approve-modification — customer accepts proposed changes
+router.post(
+  '/:id/approve-modification',
+  requireAuth,
+  async (req, res) => {
+    const { id } = req.params;
+    const userId = (req as any).user?.id as string;
+
+    const [order] = await db.select().from(ordersTable).where(eq(ordersTable.id, id));
+    if (!order) return res.status(404).json({ error: 'Order not found.' });
+    if (order.userId !== userId) return res.status(403).json({ error: 'Forbidden.' });
+    if (order.status !== ('pending_customer_approval' as any)) {
+      return res.status(400).json({ error: 'Order is not awaiting customer approval.' });
+    }
+
+    const expiresAt: Date | null = order.modificationExpiresAt ?? null;
+    if (expiresAt && new Date() > expiresAt) {
+      return res.status(400).json({ error: 'Modification approval window has expired.' });
+    }
+
+    const modifiedItems = order.modifiedItems;
+    if (!modifiedItems) return res.status(400).json({ error: 'No modified items found.' });
+
+    // Calculate new total from the server-stored re-priced items
+    const newTotalCents = Array.isArray(modifiedItems)
+      ? (modifiedItems as any[]).reduce((sum: number, i: any) => sum + (Number(i.lineCents ?? i.totalPriceCents ?? 0)), 0)
+      : order.totalCents;
+
+    const deltaCents: number = order.modificationTotalDeltaCents ?? 0;
+
+    // Issue partial Stripe refund if the new total is lower
+    if (deltaCents < 0 && order.stripePaymentStatus === 'succeeded' && order.stripePaymentIntentId) {
+      try {
+        await refundStripePaymentIntentAmount({
+          stripePaymentIntentId: order.stripePaymentIntentId,
+          amountCents: Math.abs(deltaCents),
+        });
+      } catch (err: any) {
+        req.log.warn({ err, orderId: id }, 'Partial Stripe refund failed on modification approval');
+      }
+    }
+
+    // Determine what status to revert to
+    const revertStatus = (order.type === 'pickup' && !order.scheduledFor) ? 'received' : 'scheduled';
+
+    const [updated] = await db.update(ordersTable).set({
+      items: modifiedItems as any,
+      totalCents: newTotalCents,
+      status: revertStatus as any,
+      originalItems: null,
+      modifiedItems: null,
+      modificationReason: null,
+      modificationExpiresAt: null,
+      modificationTotalDeltaCents: null,
+      updatedAt: new Date(),
+    }).where(eq(ordersTable.id, id)).returning();
+
+    // Notify staff
+    notifyRole(
+      'director',
+      'order_modification_accepted',
+      'Customer Accepted Order Changes',
+      `Order ${id.slice(0, 8)} — customer accepted the changes, back in queue`,
+      { orderId: id, screen: '/(director)/orders' },
+    ).catch(() => {});
+
+    return res.json({ data: updated });
+  },
+);
+
+// POST /:id/decline-modification — customer cancels after seeing proposed changes
+router.post(
+  '/:id/decline-modification',
+  requireAuth,
+  async (req, res) => {
+    const { id } = req.params;
+    const userId = (req as any).user?.id as string;
+
+    const [order] = await db.select().from(ordersTable).where(eq(ordersTable.id, id));
+    if (!order) return res.status(404).json({ error: 'Order not found.' });
+    if (order.userId !== userId) return res.status(403).json({ error: 'Forbidden.' });
+    if (order.status !== ('pending_customer_approval' as any)) {
+      return res.status(400).json({ error: 'Order is not awaiting customer approval.' });
+    }
+
+    const [updated] = await db.update(ordersTable).set({
+      status: 'cancelled' as any,
+      cancelReason: 'Customer declined order modification',
+      originalItems: null,
+      modifiedItems: null,
+      modificationReason: null,
+      modificationExpiresAt: null,
+      modificationTotalDeltaCents: null,
+      updatedAt: new Date(),
+    }).where(eq(ordersTable.id, id)).returning();
+
+    // Issue full Stripe refund
+    try {
+      await refundOrderStripePayment({
+        orderId: id,
+        stripePaymentIntentId: order.stripePaymentIntentId ?? null,
+        stripePaymentStatus: order.stripePaymentStatus ?? null,
+        log: req.log,
+      });
+    } catch (err: any) {
+      req.log.warn({ err, orderId: id }, 'Stripe refund failed on modification decline');
+    }
+
+    // Notify staff
+    notifyRole(
+      'director',
+      'order_modification_declined',
+      'Customer Declined Order Changes',
+      `Order ${id.slice(0, 8)} was cancelled — customer declined the modification`,
+      { orderId: id, screen: '/(director)/orders' },
+    ).catch(() => {});
+
+    return res.json({ data: updated });
   },
 );
 

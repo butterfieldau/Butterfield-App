@@ -1,5 +1,6 @@
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
+import { Linking } from 'react-native';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ComponentProps } from 'react';
 import {
@@ -36,6 +37,7 @@ const BLUE  = '#1493FF';
 const NAVY  = '#1A2B4A';
 const GREEN = '#16A34A';
 const RED   = '#EF4444';
+const AMBER = '#D97706';
 
 type OrderFilterMode = 'today' | 'week' | 'date';
 type QueueMode = 'active' | 'completed' | 'cancelled';
@@ -56,18 +58,19 @@ const STATUS_ACTIONS = [
 }>;
 
 const STATUS_META: Record<string, { label: string; bg: string; fg: string }> = {
-  received:         { label: 'Received',        bg: '#DBEAFE', fg: '#1D4ED8' },
-  scheduled:        { label: 'Scheduled',        bg: '#FFF7ED', fg: '#C2410C' },
-  accepted:         { label: 'Confirmed',         bg: '#EFF6FF', fg: '#2563EB' },
-  being_prepared:   { label: 'Preparing',         bg: '#FEF3C7', fg: '#92400E' },
-  ready_for_pickup: { label: 'Ready',             bg: '#DCFCE7', fg: '#166534' },
-  out_for_delivery: { label: 'Out for Delivery',  bg: '#F5F3FF', fg: '#7C3AED' },
-  completed:        { label: 'Completed',         bg: '#E5E7EB', fg: '#374151' },
-  cancelled:        { label: 'Cancelled',         bg: '#FEE2E2', fg: '#B91C1C' },
-  refunded:         { label: 'Refunded',          bg: '#F3E8FF', fg: '#7C3AED' },
+  received:                   { label: 'Received',          bg: '#DBEAFE', fg: '#1D4ED8' },
+  scheduled:                  { label: 'Scheduled',          bg: '#FFF7ED', fg: '#C2410C' },
+  accepted:                   { label: 'Confirmed',           bg: '#EFF6FF', fg: '#2563EB' },
+  being_prepared:             { label: 'Preparing',           bg: '#FEF3C7', fg: '#92400E' },
+  ready_for_pickup:           { label: 'Ready',               bg: '#DCFCE7', fg: '#166534' },
+  out_for_delivery:           { label: 'Out for Delivery',    bg: '#F5F3FF', fg: '#7C3AED' },
+  completed:                  { label: 'Completed',           bg: '#E5E7EB', fg: '#374151' },
+  cancelled:                  { label: 'Cancelled',           bg: '#FEE2E2', fg: '#B91C1C' },
+  refunded:                   { label: 'Refunded',            bg: '#F3E8FF', fg: '#7C3AED' },
+  pending_customer_approval:  { label: 'Awaiting Approval',  bg: '#FEF3C7', fg: '#92400E' },
 };
 
-const ACTIVE_STATUSES = ['received', 'scheduled', 'accepted', 'being_prepared', 'ready_for_pickup', 'out_for_delivery'] as const;
+const ACTIVE_STATUSES = ['received', 'scheduled', 'accepted', 'being_prepared', 'ready_for_pickup', 'out_for_delivery', 'pending_customer_approval'] as const;
 const COMPLETED_STATUSES = ['completed'] as const;
 const CANCELLED_STATUSES = ['cancelled', 'refunded'] as const;
 
@@ -195,6 +198,15 @@ export default function ShopDisplayOrdersScreen() {
   const [eftposStarting, setEftposStarting] = useState(false);
   const [eftposStatus, setEftposStatus] = useState<LinklyTransactionStatus | null>(null);
   const eftposIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // ── Modify Order state ───────────────────────────────────────────────────
+  const [modifyOrderId, setModifyOrderId] = useState<string | null>(null);
+  const [modifyItems, setModifyItems] = useState<any[]>([]);
+  const [modifyReason, setModifyReason] = useState('');
+  const [modifyLoading, setModifyLoading] = useState(false);
+  const [availableProducts, setAvailableProducts] = useState<any[]>([]);
+  const [loadingProducts, setLoadingProducts] = useState(false);
+  const [productPickerQuery, setProductPickerQuery] = useState('');
 
   const { data: productsData } = useQuery({
     queryKey: ['shop-display-products'],
@@ -1047,10 +1059,22 @@ export default function ShopDisplayOrdersScreen() {
                       </View>
                     ) : null}
                     {d.customerPhone ? (
-                      <View style={s.detailInfoRow}>
-                        <Feather name="phone" size={13} color={NAVY} />
-                        <Text style={s.detailInfoText}>{d.customerPhone}</Text>
-                      </View>
+                      <Pressable
+                        style={s.detailInfoRow}
+                        onPress={() => Linking.openURL(`tel:${d.customerPhone}`).catch(() => {})}
+                      >
+                        <Feather name="phone" size={13} color={BLUE} />
+                        <Text style={[s.detailInfoText, { color: BLUE, textDecorationLine: 'underline' }]}>{d.customerPhone}</Text>
+                      </Pressable>
+                    ) : null}
+                    {(d as any).contactPhone && (d as any).contactPhone !== d.customerPhone ? (
+                      <Pressable
+                        style={s.detailInfoRow}
+                        onPress={() => Linking.openURL(`tel:${(d as any).contactPhone}`).catch(() => {})}
+                      >
+                        <Feather name="phone" size={13} color={BLUE} />
+                        <Text style={[s.detailInfoText, { color: BLUE, textDecorationLine: 'underline' }]}>{(d as any).contactPhone}</Text>
+                      </Pressable>
                     ) : null}
                   </View>
 
@@ -1131,6 +1155,24 @@ export default function ShopDisplayOrdersScreen() {
                     </View>
                   ) : null}
 
+                  {/* Awaiting Approval banner */}
+                  {d.status === 'pending_customer_approval' ? (
+                    <View style={{ marginTop: 14, backgroundColor: '#FEF3C7', borderRadius: 12, padding: 12, borderWidth: 1, borderColor: '#FDE68A', gap: 6 }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                        <Feather name="clock" size={14} color={AMBER} />
+                        <Text style={{ fontSize: 13, fontWeight: '700', color: '#92400E', flex: 1 }}>Awaiting Customer Approval</Text>
+                      </View>
+                      {(d as any).modificationExpiresAt ? (
+                        <Text style={{ fontSize: 12, color: '#78350F' }}>
+                          Expires {new Date((d as any).modificationExpiresAt).toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit', timeZone: 'Australia/Sydney' })} — auto-cancels if unanswered
+                        </Text>
+                      ) : null}
+                      {(d as any).modificationReason ? (
+                        <Text style={{ fontSize: 12, color: '#92400E', fontStyle: 'italic' }}>Reason: "{(d as any).modificationReason}"</Text>
+                      ) : null}
+                    </View>
+                  ) : null}
+
                   {/* Total */}
                   <View style={s.detailTotalRow}>
                     <Text style={s.detailTotalLabel}>Order total</Text>
@@ -1147,7 +1189,34 @@ export default function ShopDisplayOrdersScreen() {
                     <Feather name="printer" size={15} color={NAVY} />
                     <Text style={s.detailPrintText}>Print</Text>
                   </Pressable>
-                  {secondaryAction ? (
+                  {/* Modify Order — only for modifiable statuses, not already awaiting approval */}
+                  {['received', 'scheduled', 'accepted', 'being_prepared'].includes(d.status) && d.status !== 'pending_customer_approval' ? (
+                    <Pressable
+                      onPress={async () => {
+                        setModifyItems(normalizeOrderItems(d.items).map(li => ({
+                          productId: (li as any).productId ?? null,
+                          variantId: (li as any).variantId ?? null,
+                          name: li.name,
+                          variantName: li.variantName,
+                          quantity: li.quantity,
+                          unitCents: li.unitCents ?? Math.round(li.lineTotalCents / li.quantity),
+                        })));
+                        setModifyReason('');
+                        setProductPickerQuery('');
+                        setModifyOrderId(d.id);
+                        setLoadingProducts(true);
+                        try {
+                          const res = await api.director.availableProductsForOrder(d.id);
+                          setAvailableProducts(res.data ?? []);
+                        } catch { setAvailableProducts([]); } finally { setLoadingProducts(false); }
+                      }}
+                      style={[s.detailCancelBtn, { borderColor: AMBER }]}
+                    >
+                      <Feather name="edit-2" size={15} color={AMBER} />
+                      <Text style={[s.detailCancelText, { color: AMBER }]}>Modify</Text>
+                    </Pressable>
+                  ) : null}
+                  {secondaryAction && d.status !== 'pending_customer_approval' ? (
                     <Pressable
                       disabled={isUpdating}
                       onPress={() => { setDetailOrder(null); openCancelModal(d); }}
@@ -1157,7 +1226,18 @@ export default function ShopDisplayOrdersScreen() {
                       <Text style={s.detailCancelText}>Cancel</Text>
                     </Pressable>
                   ) : null}
-                  {primaryAction ? (
+                  {/* For pending_customer_approval, show a Cancel button that cancels the order */}
+                  {d.status === 'pending_customer_approval' ? (
+                    <Pressable
+                      disabled={isUpdating}
+                      onPress={() => { setDetailOrder(null); openCancelModal(d); }}
+                      style={[s.detailCancelBtn, isUpdating && s.actionBtnDisabled]}
+                    >
+                      <Feather name="x-circle" size={15} color={RED} />
+                      <Text style={s.detailCancelText}>Cancel</Text>
+                    </Pressable>
+                  ) : null}
+                  {primaryAction && d.status !== 'pending_customer_approval' ? (
                     <Pressable
                       disabled={isUpdating}
                       onPress={() => { void updateStatus(d.id, primaryAction.id); setDetailOrder(null); }}
@@ -1170,6 +1250,169 @@ export default function ShopDisplayOrdersScreen() {
                 </View>
               </View>
             </View>
+          </Modal>
+        );
+      })() : null}
+
+      {/* ── Modify Order Sheet ───────────────────────────────────────── */}
+      {modifyOrderId ? (() => {
+        const modifiedTotalCents = modifyItems.reduce((sum, it) => sum + ((it.unitCents ?? 0) * (it.quantity ?? 1)), 0);
+        const canSubmit = modifyReason.trim().length > 0 && modifyItems.some(it => (it.quantity ?? 0) > 0);
+        const filteredProducts = productPickerQuery.trim()
+          ? availableProducts.filter(p =>
+              p.name.toLowerCase().includes(productPickerQuery.toLowerCase()) ||
+              p.variants?.some((v: any) => v.name.toLowerCase().includes(productPickerQuery.toLowerCase()))
+            )
+          : availableProducts.slice(0, 20);
+        return (
+          <Modal visible transparent animationType="slide" onRequestClose={() => setModifyOrderId(null)}>
+            <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+              <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.55)' }}>
+                <Pressable style={StyleSheet.absoluteFill} onPress={() => setModifyOrderId(null)} />
+                <View style={{ backgroundColor: CARD, borderTopLeftRadius: 24, borderTopRightRadius: 24, marginTop: 'auto', maxHeight: '90%', flex: 1 }}>
+                  {/* Header */}
+                  <View style={{ flexDirection: 'row', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderBottomColor: BORDER }}>
+                    <Pressable onPress={() => setModifyOrderId(null)} style={{ padding: 6 }}>
+                      <Feather name="x" size={20} color={TEXT} />
+                    </Pressable>
+                    <Text style={{ flex: 1, textAlign: 'center', fontWeight: '800', fontSize: 16, color: TEXT }}>Modify Order</Text>
+                    <View style={{ width: 32 }} />
+                  </View>
+                  <ScrollView contentContainerStyle={{ padding: 16, gap: 16, paddingBottom: 120 }} showsVerticalScrollIndicator={false}>
+                    {/* A: Current items */}
+                    <Text style={{ fontSize: 11, fontWeight: '800', color: NAVY, textTransform: 'uppercase', letterSpacing: 0.5 }}>Current Items</Text>
+                    {modifyItems.map((item, idx) => (
+                      <View key={idx} style={{ flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: item.quantity === 0 ? '#FEE2E2' : BG, borderRadius: 10, padding: 10 }}>
+                        <View style={{ flex: 1 }}>
+                          <Text style={{ fontSize: 14, fontWeight: '700', color: item.quantity === 0 ? RED : TEXT, textDecorationLine: item.quantity === 0 ? 'line-through' : 'none' }}>
+                            {item.name}{item.variantName ? ` · ${item.variantName}` : ''}
+                          </Text>
+                          <Text style={{ fontSize: 12, color: MUTED }}>${((item.unitCents ?? 0) / 100).toFixed(2)} each</Text>
+                        </View>
+                        {/* Quantity stepper */}
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                          <Pressable
+                            onPress={() => setModifyItems(prev => prev.map((it, i) => i === idx ? { ...it, quantity: Math.max(0, (it.quantity ?? 1) - 1) } : it))}
+                            style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: BORDER, alignItems: 'center', justifyContent: 'center' }}
+                          >
+                            <Feather name="minus" size={14} color={item.quantity === 0 ? RED : TEXT} />
+                          </Pressable>
+                          <Text style={{ fontSize: 15, fontWeight: '700', color: item.quantity === 0 ? RED : TEXT, minWidth: 20, textAlign: 'center' }}>{item.quantity ?? 1}</Text>
+                          <Pressable
+                            onPress={() => setModifyItems(prev => prev.map((it, i) => i === idx ? { ...it, quantity: (it.quantity ?? 1) + 1 } : it))}
+                            style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: BORDER, alignItems: 'center', justifyContent: 'center' }}
+                          >
+                            <Feather name="plus" size={14} color={TEXT} />
+                          </Pressable>
+                        </View>
+                      </View>
+                    ))}
+
+                    {/* B: Add items */}
+                    <Text style={{ fontSize: 11, fontWeight: '800', color: NAVY, textTransform: 'uppercase', letterSpacing: 0.5 }}>Add Items</Text>
+                    <TextInput
+                      style={{ backgroundColor: BG, borderRadius: 10, borderWidth: 1, borderColor: BORDER, paddingHorizontal: 12, paddingVertical: 9, fontSize: 14, color: TEXT }}
+                      placeholder="Search products…"
+                      placeholderTextColor={MUTED}
+                      value={productPickerQuery}
+                      onChangeText={setProductPickerQuery}
+                    />
+                    {loadingProducts ? <ActivityIndicator size="small" color={BLUE} /> : (
+                      <View style={{ gap: 6 }}>
+                        {filteredProducts.map((p: any) => (
+                          <View key={p.id}>
+                            {/* Product with no variants */}
+                            {p.variants.length === 0 && (
+                              <Pressable
+                                onPress={() => setModifyItems(prev => {
+                                  const existing = prev.findIndex(it => it.productId === p.id && !it.variantId);
+                                  if (existing >= 0) return prev.map((it, i) => i === existing ? { ...it, quantity: it.quantity + 1 } : it);
+                                  return [...prev, { productId: p.id, variantId: null, name: p.name, variantName: null, quantity: 1, unitCents: p.salePriceCents ?? p.priceCents }];
+                                })}
+                                style={{ backgroundColor: BG, borderRadius: 10, padding: 10, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}
+                              >
+                                <Text style={{ fontSize: 13, fontWeight: '600', color: TEXT }}>{p.name}</Text>
+                                <Text style={{ fontSize: 13, color: BLUE, fontWeight: '700' }}>+ ${((p.salePriceCents ?? p.priceCents) / 100).toFixed(2)}</Text>
+                              </Pressable>
+                            )}
+                            {/* Product with variants */}
+                            {p.variants.map((v: any) => (
+                              <Pressable
+                                key={v.id}
+                                onPress={() => setModifyItems(prev => {
+                                  const existing = prev.findIndex(it => it.productId === p.id && it.variantId === v.id);
+                                  if (existing >= 0) return prev.map((it, i) => i === existing ? { ...it, quantity: it.quantity + 1 } : it);
+                                  return [...prev, { productId: p.id, variantId: v.id, name: p.name, variantName: v.name, quantity: 1, unitCents: v.priceCents }];
+                                })}
+                                style={{ backgroundColor: BG, borderRadius: 10, padding: 10, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}
+                              >
+                                <Text style={{ fontSize: 13, color: TEXT }}>{p.name} · <Text style={{ fontWeight: '600' }}>{v.name}</Text></Text>
+                                <Text style={{ fontSize: 13, color: BLUE, fontWeight: '700' }}>+ ${(v.priceCents / 100).toFixed(2)}</Text>
+                              </Pressable>
+                            ))}
+                          </View>
+                        ))}
+                      </View>
+                    )}
+
+                    {/* C: Reason */}
+                    <Text style={{ fontSize: 11, fontWeight: '800', color: NAVY, textTransform: 'uppercase', letterSpacing: 0.5 }}>Reason for Change *</Text>
+                    <TextInput
+                      style={{ backgroundColor: BG, borderRadius: 10, borderWidth: 1, borderColor: modifyReason.trim() ? BORDER : '#FECACA', padding: 12, fontSize: 14, color: TEXT, minHeight: 72, textAlignVertical: 'top' }}
+                      placeholder="e.g. Item out of stock — replaced with similar product"
+                      placeholderTextColor={MUTED}
+                      value={modifyReason}
+                      onChangeText={setModifyReason}
+                      multiline
+                    />
+
+                    {/* Live total */}
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: BG, borderRadius: 10, padding: 12 }}>
+                      <Text style={{ fontSize: 14, fontWeight: '700', color: NAVY }}>New Total</Text>
+                      <Text style={{ fontSize: 16, fontWeight: '800', color: BLUE }}>${(modifiedTotalCents / 100).toFixed(2)}</Text>
+                    </View>
+                  </ScrollView>
+
+                  {/* Footer CTA */}
+                  <View style={{ padding: 16, gap: 10, borderTopWidth: 1, borderTopColor: BORDER }}>
+                    <Pressable
+                      disabled={!canSubmit || modifyLoading}
+                      onPress={async () => {
+                        if (!modifyOrderId || !canSubmit) return;
+                        const itemsToSend = modifyItems.filter(it => (it.quantity ?? 0) > 0);
+                        if (itemsToSend.length === 0) {
+                          Alert.alert('No Items', 'All items removed — use Cancel Order instead.');
+                          return;
+                        }
+                        setModifyLoading(true);
+                        try {
+                          await api.director.modifyOrderItems(modifyOrderId, itemsToSend, modifyReason.trim());
+                          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                          setModifyOrderId(null);
+                          qc.invalidateQueries({ queryKey: ['shop-display-orders'] }).catch(() => {});
+                        } catch (err: any) {
+                          Alert.alert('Error', err?.message ?? 'Failed to send modification.');
+                        } finally {
+                          setModifyLoading(false);
+                        }
+                      }}
+                      style={{ backgroundColor: canSubmit && !modifyLoading ? BLUE : BORDER, borderRadius: 14, height: 50, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }}
+                    >
+                      {modifyLoading
+                        ? <ActivityIndicator color="#fff" size="small" />
+                        : <><Feather name="send" size={16} color="#fff" /><Text style={{ color: '#fff', fontWeight: '800', fontSize: 15 }}>Send for Approval</Text></>
+                      }
+                    </Pressable>
+                    <Pressable
+                      onPress={() => setModifyOrderId(null)}
+                      style={{ height: 44, alignItems: 'center', justifyContent: 'center' }}
+                    >
+                      <Text style={{ color: MUTED, fontWeight: '600', fontSize: 14 }}>Discard Changes</Text>
+                    </Pressable>
+                  </View>
+                </View>
+              </View>
+            </KeyboardAvoidingView>
           </Modal>
         );
       })() : null}

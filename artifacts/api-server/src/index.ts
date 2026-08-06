@@ -15,6 +15,7 @@ import { ensureLinklySchemaReady, recoverOrPollTransaction } from "./lib/linklyC
 import { ensureLoginHistorySchemaReady } from "./lib/ensureLoginHistorySchemaReady.js";
 import { ensureRosterSchemaReady } from "./lib/ensureRosterSchemaReady.js";
 import { ensureProductsSchemaReady, repairProductCategoryLinks } from "./lib/ensureProductsSchemaReady.js";
+import { ensureOrderModificationSchemaReady } from "./lib/ensureOrderModificationSchemaReady.js";
 
 // Catch any unhandled rejections so they never crash the process
 process.on('unhandledRejection', (reason: any) => {
@@ -148,6 +149,7 @@ Promise.resolve()
   .then(() => startScheduledNotificationsService())
   .then(() => startShiftReminderService())
   .then(() => ensureScheduledOrderSchemaReady())
+  .then(() => ensureOrderModificationSchemaReady())
   .then(() => startScheduledDeliveryAlertService())
   .then(() => startupLinklyRecovery())
   .then(() => repairProductCategoryLinks())

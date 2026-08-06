@@ -8,7 +8,7 @@ import {
   feedbackTable, loyaltyRewardsTable, announcementsTable, managerProfilesTable,
   wholesaleCardsTable, deletedAccountsTable, discountCodesTable, discountCodeUsagesTable,
   staffInviteTokensTable, storesTable, wholesaleDeliverySettingsTable,
-  auditLogsTable, loginHistoryTable,
+  auditLogsTable, loginHistoryTable, productVariantsTable,
 } from '@workspace/db';
 import {
   getOrCreateWholesaleDeliverySettings,
@@ -19,13 +19,13 @@ import { eq, ne, desc, count, sum, gte, lte, lt, isNull, isNotNull, and, sql, in
 import { requireRole } from '../middlewares/auth.js';
 import { requireManagerRoutePermission } from '../middlewares/managerPermission.js';
 import type { ManagerPermission } from '@workspace/db';
-import { notifyUser } from '../lib/notificationService.js';
+import { notifyUser, notifyRole } from '../lib/notificationService.js';
 import { recordAuditLog } from '../lib/auditLog.js';
 import { ensureShopDisplaySchemaReady } from '../lib/ensureShopDisplaySchemaReady.js';
 import { normalizeTaskListCompletion } from '../lib/taskReset.js';
 import { recordLoyaltyPoints, reverseCoffeeStamps } from '../lib/loyaltyIdentity.js';
 import { getOutstandingCoffeeStampsForOrder } from '../lib/orderLoyaltyUtils.js';
-import { refundOrderStripePayment, refundWholesaleOrderStripePayment } from '../lib/stripeRefunds.js';
+import { refundOrderStripePayment, refundStripePaymentIntentAmount, refundWholesaleOrderStripePayment } from '../lib/stripeRefunds.js';
 import { getAllowedNextStatuses, getStatusMessage, TERMINAL_STATUSES } from '../lib/orderStatusTransitions.js';
 import { sydneyStartOfDay, sydneyStartOfMonth, getSydneyNow, sydneyHour, sydneyDateParts } from '../lib/sydneyTime.js';
 import { syncWholesaleInvoiceStatuses, markStripeInvoicePaidOutOfBand } from '../lib/stripeWholesaleInvoices.js';
@@ -5403,6 +5403,166 @@ router.get('/login-history', async (req, res) => {
     page: PAGE,
     pageSize: PAGE_SIZE,
   });
+});
+
+// ── Order modification flow ───────────────────────────────────────────────────
+
+const MODIFIABLE_STATUSES = new Set(['received', 'scheduled', 'accepted', 'being_prepared']);
+const MODIFICATION_EXPIRY_MS = 15 * 60 * 1000; // 15 minutes
+
+// GET /orders/:id/available-products — lightweight product picker data for modify sheet
+router.get('/orders/:id/available-products', async (req, res) => {
+  const { id } = req.params;
+
+  const [order] = await db.select({ storeId: ordersTable.storeId }).from(ordersTable).where(eq(ordersTable.id, id));
+  if (!order) return res.status(404).json({ error: 'Order not found.' });
+
+  const products = await db.select().from(productsTable)
+    .where(and(eq(productsTable.isActive, true), sql`${productsTable.isSoldOut} = false`))
+    .orderBy(productsTable.sortOrder, productsTable.name);
+
+  const variants = await db.select().from(productVariantsTable)
+    .where(inArray(productVariantsTable.productId, products.map((p) => p.id)));
+
+  const variantsByProduct = variants.reduce<Record<string, typeof variants>>((acc, v) => {
+    if (!acc[v.productId]) acc[v.productId] = [];
+    acc[v.productId].push(v);
+    return acc;
+  }, {});
+
+  const data = products.map((p) => ({
+    id: p.id,
+    name: p.name,
+    priceCents: p.priceCents,
+    salePriceCents: p.salePriceCents,
+    category: p.category,
+    variants: (variantsByProduct[p.id] ?? []).map((v) => ({
+      id: v.id,
+      name: v.name,
+      priceCents: v.priceCents,
+    })),
+  }));
+
+  return res.json({ data });
+});
+
+// PATCH /orders/:id/modify-items — staff proposes a modification for customer approval
+router.patch('/orders/:id/modify-items', async (req, res) => {
+  const { id } = req.params;
+  const { modifiedItems, reason } = req.body;
+
+  if (!Array.isArray(modifiedItems) || modifiedItems.length === 0) {
+    return res.status(400).json({ error: 'modifiedItems must be a non-empty array.' });
+  }
+  if (!reason || typeof reason !== 'string' || !reason.trim()) {
+    return res.status(400).json({ error: 'reason is required.' });
+  }
+
+  const [order] = await db.select().from(ordersTable).where(eq(ordersTable.id, id));
+  if (!order) return res.status(404).json({ error: 'Order not found.' });
+
+  if (!MODIFIABLE_STATUSES.has(order.status)) {
+    return res.status(400).json({ error: `Orders in '${order.status}' status cannot be modified. Allowed: ${[...MODIFIABLE_STATUSES].join(', ')}.` });
+  }
+
+  // Fetch all products + variants to re-price server-side
+  const productIds = [...new Set(modifiedItems.map((i: any) => String(i.productId ?? '')).filter(Boolean))];
+  const variantIds = [...new Set(modifiedItems.map((i: any) => String(i.variantId ?? '')).filter(Boolean))];
+
+  const [catalogProducts, catalogVariants] = await Promise.all([
+    productIds.length > 0
+      ? db.select({ id: productsTable.id, priceCents: productsTable.priceCents, salePriceCents: productsTable.salePriceCents, isActive: productsTable.isActive }).from(productsTable).where(inArray(productsTable.id, productIds))
+      : Promise.resolve([]),
+    variantIds.length > 0
+      ? db.select({ id: productVariantsTable.id, productId: productVariantsTable.productId, priceCents: productVariantsTable.priceCents }).from(productVariantsTable).where(inArray(productVariantsTable.id, variantIds))
+      : Promise.resolve([]),
+  ]);
+
+  const productMap = Object.fromEntries(catalogProducts.map((p) => [p.id, p]));
+  const variantMap = Object.fromEntries(catalogVariants.map((v) => [v.id, v]));
+
+  // Re-price every item from the server-side catalog
+  let newTotalCents = 0;
+  const pricedItems = modifiedItems.map((item: any) => {
+    const qty = Math.max(1, parseInt(String(item.quantity ?? 1), 10));
+    const variant = item.variantId ? variantMap[String(item.variantId)] : null;
+    const product = item.productId ? productMap[String(item.productId)] : null;
+    const unitCents = variant ? variant.priceCents : (product?.salePriceCents ?? product?.priceCents ?? 0);
+    const lineCents = unitCents * qty;
+    newTotalCents += lineCents;
+    return {
+      ...item,
+      quantity: qty,
+      unitCents,
+      lineCents,
+      unitPriceCents: unitCents,
+      totalPriceCents: lineCents,
+    };
+  });
+
+  const originalTotalCents = order.totalCents ?? 0;
+  const deltacents = newTotalCents - originalTotalCents;
+  const expiresAt = new Date(Date.now() + MODIFICATION_EXPIRY_MS);
+
+  const [updated] = await db.update(ordersTable).set({
+    status: 'pending_customer_approval' as any,
+    originalItems: (order as any).originalItems ?? order.items,
+    modifiedItems: pricedItems,
+    modificationReason: reason.trim(),
+    modificationExpiresAt: expiresAt,
+    modificationTotalDeltaCents: deltacents,
+    updatedAt: new Date(),
+  }).where(eq(ordersTable.id, id)).returning();
+
+  // Notify customer
+  notifyUser(
+    order.userId,
+    'order_modification_requested',
+    'Order Update Required',
+    "We've made some changes to your order — tap to review",
+    { orderId: id, screen: `/(customer)/track/${id}` },
+  ).catch(() => {});
+
+  // Schedule auto-cancel after 15 minutes
+  const delayMs = MODIFICATION_EXPIRY_MS + 5000; // small buffer
+  setTimeout(async () => {
+    try {
+      const [current] = await db.select({
+        status: ordersTable.status,
+        userId: ordersTable.userId,
+        stripePaymentIntentId: ordersTable.stripePaymentIntentId,
+        stripePaymentStatus: ordersTable.stripePaymentStatus,
+      }).from(ordersTable).where(eq(ordersTable.id, id));
+
+      if (!current || current.status !== ('pending_customer_approval' as any)) return;
+
+      await db.update(ordersTable).set({
+        status: 'cancelled' as any,
+        cancelReason: 'Order modification expired — no customer response within 15 minutes',
+        originalItems: null,
+        modifiedItems: null,
+        modificationReason: null,
+        modificationExpiresAt: null,
+        modificationTotalDeltaCents: null,
+        updatedAt: new Date(),
+      }).where(eq(ordersTable.id, id));
+
+      // Refund if paid
+      try {
+        await refundOrderStripePayment({
+          orderId: id,
+          stripePaymentIntentId: current.stripePaymentIntentId ?? null,
+          stripePaymentStatus: current.stripePaymentStatus ?? null,
+        });
+      } catch { /* soft-fail */ }
+
+      // Notify both parties
+      notifyUser(current.userId, 'order_modification_expired', 'Order Cancelled', 'Your order was cancelled because the modification request expired.', { orderId: id, screen: `/(customer)/track/${id}` }).catch(() => {});
+      notifyRole('director', 'order_modification_expired', 'Order Auto-Cancelled', `Order ${id.slice(0, 8)} was auto-cancelled after modification approval timed out.`, { orderId: id, screen: '/(director)/orders' }).catch(() => {});
+    } catch { /* ignore */ }
+  }, delayMs).unref?.();
+
+  return res.json({ data: updated });
 });
 
 export default router;

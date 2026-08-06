@@ -50,6 +50,7 @@ function getStages(orderType: string, scheduledFor: string | null | undefined): 
 // Statuses where we should still poll for updates
 const POLLING_STATUSES = new Set([
   'received', 'scheduled', 'accepted', 'being_prepared', 'ready_for_pickup', 'out_for_delivery',
+  'pending_customer_approval',
 ]);
 
 // Statuses where the rating prompt should appear
@@ -282,8 +283,10 @@ export default function TrackOrderScreen() {
 
   const [ratingDismissed, setRatingDismissed] = useState(true);
   const [toastVisible, setToastVisible] = useState(false);
+  const [approvingMod, setApprovingMod] = useState(false);
+  const [decliningMod, setDecliningMod] = useState(false);
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, refetch } = useQuery({
     queryKey: ['order', id],
     queryFn: () => api.orders.get(id),
     refetchInterval: (query) => {
@@ -324,9 +327,61 @@ export default function TrackOrderScreen() {
 
   const liveMessage = currentStage?.desc ?? null;
 
-  const showPipeline = !isCancelled;
+  const isPendingApproval = status === 'pending_customer_approval';
+  const showPipeline = !isCancelled && !isPendingApproval;
 
   const showRatingCard = !ratingDismissed && !!order && RATABLE_STATUSES.has(status) && !isCancelled;
+
+  // ── Modification diff helpers ──────────────────────────────────────────────
+  const originalItems: any[] = Array.isArray(order?.originalItems)
+    ? (order.originalItems as any[])
+    : [];
+  const modifiedItems: any[] = Array.isArray(order?.modifiedItems)
+    ? (order.modifiedItems as any[])
+    : [];
+  const modReason: string = order?.modificationReason ?? '';
+  const modExpiresAt: Date | null = order?.modificationExpiresAt
+    ? new Date(order.modificationExpiresAt)
+    : null;
+  const deltaCents: number = order?.modificationTotalDeltaCents ?? 0;
+  const originalTotalCents = order?.totalCents ?? 0;
+  const newTotalCents = originalTotalCents + deltaCents;
+
+  const handleApproveModification = async () => {
+    if (!id) return;
+    setApprovingMod(true);
+    try {
+      await api.orders.approveModification(id);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      await refetch();
+    } catch {
+      Alert.alert('Error', 'Could not accept changes. Please try again.');
+    } finally {
+      setApprovingMod(false);
+    }
+  };
+
+  const handleDeclineModification = async () => {
+    if (!id) return;
+    Alert.alert('Cancel Order', 'Are you sure you want to cancel this order?', [
+      { text: 'Keep', style: 'cancel' },
+      {
+        text: 'Cancel Order', style: 'destructive',
+        onPress: async () => {
+          setDecliningMod(true);
+          try {
+            await api.orders.declineModification(id);
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            await refetch();
+          } catch {
+            Alert.alert('Error', 'Could not cancel the order. Please try again.');
+          } finally {
+            setDecliningMod(false);
+          }
+        },
+      },
+    ]);
+  };
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
@@ -392,6 +447,120 @@ export default function TrackOrderScreen() {
               onDismiss={() => setRatingDismissed(true)}
               onSubmitted={() => setToastVisible(true)}
             />
+          )}
+
+          {/* ── Review Changes card (pending_customer_approval) ────── */}
+          {isPendingApproval && (
+            <View style={[styles.pipelineCard, { backgroundColor: '#FFF7ED', borderColor: '#FDE68A' }]}>
+              {/* Header */}
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                <Feather name="alert-triangle" size={18} color="#D97706" />
+                <Text style={[styles.sectionTitle, { color: '#92400E', flex: 1 }]}>We've updated your order</Text>
+              </View>
+
+              {/* Reason */}
+              {!!modReason && (
+                <View style={{ backgroundColor: '#FEF3C7', borderRadius: 8, padding: 10, marginBottom: 12 }}>
+                  <Text style={{ fontSize: 13, color: '#78350F', fontStyle: 'italic' }}>"{modReason}"</Text>
+                </View>
+              )}
+
+              {/* Item diff */}
+              {(originalItems.length > 0 || modifiedItems.length > 0) && (
+                <View style={{ gap: 6, marginBottom: 12 }}>
+                  <Text style={{ fontSize: 12, fontWeight: '700', color: '#92400E', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>
+                    Changes
+                  </Text>
+                  {/* Removed items: in original but qty=0 in modified or not present */}
+                  {originalItems.map((origItem: any, i: number) => {
+                    const modItem = modifiedItems.find(
+                      (m: any) => (m.productId === origItem.productId && m.variantId === origItem.variantId) ||
+                                  m.name === origItem.name
+                    );
+                    const isRemoved = !modItem || (modItem.quantity ?? 0) === 0;
+                    const origQty = origItem.quantity ?? 1;
+                    const newQty = modItem?.quantity ?? 0;
+                    const qtyChanged = !isRemoved && newQty !== origQty;
+                    if (!isRemoved && !qtyChanged) return null;
+                    return (
+                      <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                        <View style={{ width: 16, height: 16, borderRadius: 8, backgroundColor: '#EF4444', alignItems: 'center', justifyContent: 'center' }}>
+                          <Feather name={isRemoved ? 'minus' : 'edit-2'} size={9} color="#fff" />
+                        </View>
+                        <Text style={{ flex: 1, fontSize: 13, color: '#B91C1C', textDecorationLine: isRemoved ? 'line-through' : 'none' }}>
+                          {origQty}× {origItem.name ?? origItem.productName ?? 'Item'}
+                          {qtyChanged ? ` → ${newQty}×` : ''}
+                        </Text>
+                      </View>
+                    );
+                  })}
+                  {/* Added items: in modified but not in original */}
+                  {modifiedItems.map((modItem: any, i: number) => {
+                    const exists = originalItems.some(
+                      (o: any) => (o.productId === modItem.productId && o.variantId === modItem.variantId) ||
+                                  o.name === modItem.name
+                    );
+                    if (exists) return null;
+                    return (
+                      <View key={`new-${i}`} style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                        <View style={{ width: 16, height: 16, borderRadius: 8, backgroundColor: '#16A34A', alignItems: 'center', justifyContent: 'center' }}>
+                          <Feather name="plus" size={9} color="#fff" />
+                        </View>
+                        <Text style={{ flex: 1, fontSize: 13, color: '#166534' }}>
+                          {modItem.quantity ?? 1}× {modItem.name ?? modItem.productName ?? 'Item'}
+                          <Text style={{ fontSize: 11, fontWeight: '700' }}> NEW</Text>
+                        </Text>
+                      </View>
+                    );
+                  })}
+                </View>
+              )}
+
+              {/* Total comparison */}
+              <View style={{ backgroundColor: '#FFFBEB', borderRadius: 8, padding: 10, marginBottom: 12, gap: 4 }}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                  <Text style={{ fontSize: 13, color: '#92400E' }}>Original total</Text>
+                  <Text style={{ fontSize: 13, color: '#92400E', textDecorationLine: 'line-through' }}>${(originalTotalCents / 100).toFixed(2)}</Text>
+                </View>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                  <Text style={{ fontSize: 14, fontWeight: '700', color: '#78350F' }}>New total</Text>
+                  <Text style={{ fontSize: 14, fontWeight: '700', color: deltaCents < 0 ? '#16A34A' : deltaCents > 0 ? '#DC2626' : '#78350F' }}>
+                    ${(newTotalCents / 100).toFixed(2)}
+                    {deltaCents < 0 ? ` (−$${(Math.abs(deltaCents) / 100).toFixed(2)} refund)` : deltaCents > 0 ? ` (+$${(deltaCents / 100).toFixed(2)})` : ''}
+                  </Text>
+                </View>
+              </View>
+
+              {/* Expiry countdown */}
+              {modExpiresAt && (
+                <Text style={{ fontSize: 12, color: '#92400E', textAlign: 'center', marginBottom: 12 }}>
+                  Expires {modExpiresAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  {' · '}auto-cancelled if unanswered
+                </Text>
+              )}
+
+              {/* CTAs */}
+              <Pressable
+                onPress={handleApproveModification}
+                disabled={approvingMod || decliningMod}
+                style={{ backgroundColor: '#16A34A', borderRadius: 12, height: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 10, opacity: (approvingMod || decliningMod) ? 0.6 : 1 }}
+              >
+                {approvingMod
+                  ? <ActivityIndicator color="#fff" size="small" />
+                  : <><Feather name="check" size={16} color="#fff" /><Text style={{ color: '#fff', fontSize: 15, fontWeight: '700' }}>Accept Changes</Text></>
+                }
+              </Pressable>
+              <Pressable
+                onPress={handleDeclineModification}
+                disabled={approvingMod || decliningMod}
+                style={{ borderWidth: 1.5, borderColor: '#EF4444', borderRadius: 12, height: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, opacity: (approvingMod || decliningMod) ? 0.6 : 1 }}
+              >
+                {decliningMod
+                  ? <ActivityIndicator color="#EF4444" size="small" />
+                  : <><Feather name="x" size={16} color="#EF4444" /><Text style={{ color: '#EF4444', fontSize: 15, fontWeight: '700' }}>Cancel Order</Text></>
+                }
+              </Pressable>
+            </View>
           )}
 
           {/* Pipeline */}
