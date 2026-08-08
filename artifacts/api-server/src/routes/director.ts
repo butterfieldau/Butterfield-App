@@ -2284,10 +2284,17 @@ router.delete('/users/:id', async (req, res) => {
   }).onConflictDoNothing();
 
   await db.execute(sql`DELETE FROM loyalty_transactions WHERE user_id = ${id}`);
+  await db.execute(sql`DELETE FROM loyalty_redemptions WHERE user_id = ${id}`);
+  await db.execute(sql`DELETE FROM claimed_rewards WHERE user_id = ${id}`);
   await db.execute(sql`DELETE FROM orders WHERE user_id = ${id}`);
   await db.execute(sql`DELETE FROM customer_profiles WHERE user_id = ${id}`);
+  await db.execute(sql`DELETE FROM customer_notes WHERE user_id = ${id}`);
+  await db.execute(sql`DELETE FROM customer_badges WHERE user_id = ${id}`);
   await db.execute(sql`DELETE FROM staff_profiles WHERE user_id = ${id}`);
+  await db.execute(sql`DELETE FROM staff_roster WHERE user_id = ${id}`);
   await db.execute(sql`DELETE FROM wholesale_accounts WHERE user_id = ${id}`);
+  await db.execute(sql`DELETE FROM wholesale_terms_acceptances WHERE user_id = ${id}`);
+  await db.execute(sql`DELETE FROM wholesale_security_events WHERE user_id = ${id}`);
   await db.execute(sql`DELETE FROM manager_profiles WHERE user_id = ${id}`);
   await db.execute(sql`DELETE FROM staff_shifts WHERE user_id = ${id}`);
   await db.execute(sql`DELETE FROM staff_wastage WHERE user_id = ${id}`);
@@ -2297,6 +2304,15 @@ router.delete('/users/:id', async (req, res) => {
   await db.execute(sql`DELETE FROM favourites WHERE user_id = ${id}`);
   await db.execute(sql`DELETE FROM feedback WHERE user_id = ${id}`);
   await db.execute(sql`DELETE FROM waitlists WHERE user_id = ${id}`);
+  await db.execute(sql`DELETE FROM password_reset_tokens WHERE user_id = ${id}`);
+  await db.execute(sql`DELETE FROM push_tokens WHERE user_id = ${id}`);
+  await db.execute(sql`DELETE FROM user_addresses WHERE user_id = ${id}`);
+  await db.execute(sql`DELETE FROM login_history WHERE user_id = ${id}`);
+  await db.execute(sql`DELETE FROM pin_lockouts WHERE user_id = ${id}`);
+  await db.execute(sql`DELETE FROM discount_code_usages WHERE user_id = ${id}`);
+  await db.execute(sql`DELETE FROM shop_display_profiles WHERE user_id = ${id}`);
+  await db.execute(sql`DELETE FROM vault_access_log WHERE user_id = ${id}`);
+  await db.execute(sql`DELETE FROM linkly_transactions WHERE user_id = ${id}`);
   await db.delete(usersTable).where(eq(usersTable.id, id));
 
   return res.json({ success: true });
@@ -2461,7 +2477,7 @@ router.patch('/staff/:userId/approve', async (req, res) => {
   return res.json({ data: updated });
 });
 
-router.patch('/staff/:userId/terminate', requireRole('director', 'manager'), async (req, res) => {
+router.patch('/staff/:userId/terminate', requireRole('director', 'manager', 'master'), async (req, res) => {
   const userId = req.params.userId as string;
   const [target] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
   if (!target) return res.status(404).json({ error: 'User not found.' });
@@ -2477,7 +2493,7 @@ router.patch('/staff/:userId/terminate', requireRole('director', 'manager'), asy
   return res.json({ data: { status: 'inactive' } });
 });
 
-router.patch('/staff/:userId/reinstate', requireRole('director'), async (req, res) => {
+router.patch('/staff/:userId/reinstate', requireRole('director', 'master'), async (req, res) => {
   const userId = req.params.userId as string;
   const [target] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
   if (!target) return res.status(404).json({ error: 'User not found.' });
