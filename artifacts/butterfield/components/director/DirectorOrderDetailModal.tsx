@@ -319,13 +319,17 @@ export default function DirectorOrderDetailModal({
                 <Feather name="clock" size={16} color={AMBER} />
                 <Text style={{ fontSize: 14, fontWeight: '700', color: AMBER, flex: 1 }}>Awaiting Acceptance</Text>
               </View>
-              {order.scheduledFor && (
-                <Text style={{ fontSize: 13, color: AMBER }}>
-                  {order.type === 'delivery' ? 'Delivery' : 'Pickup'} scheduled for{' '}
-                  {new Date(order.scheduledFor).toLocaleDateString([], { weekday: 'long', day: 'numeric', month: 'long' })}
-                  {order.type !== 'delivery' ? ` at ${new Date(order.scheduledFor).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true })}` : ''}
-                </Text>
-              )}
+              {(order.scheduledFor ?? (order as any).scheduledDate) && (() => {
+                const scheduledTs = order.scheduledFor ?? (order as any).scheduledDate;
+                const isDelivery = order.type === 'delivery' || (order as any).deliveryType === 'delivery';
+                return (
+                  <Text style={{ fontSize: 13, color: AMBER }}>
+                    {isDelivery ? 'Delivery' : 'Pickup'} scheduled for{' '}
+                    {new Date(scheduledTs).toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Australia/Sydney' })}
+                    {!isDelivery ? ` at ${new Date(scheduledTs).toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'Australia/Sydney' })}` : ''}
+                  </Text>
+                );
+              })()}
               <Pressable
                 onPress={() => {
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -347,15 +351,36 @@ export default function DirectorOrderDetailModal({
             </View>
           )}
 
-          {order.status === 'accepted' && order.scheduledFor && (
-            <View style={{ backgroundColor: GREEN_DIM, borderRadius: 14, padding: 14, borderWidth: 1, borderColor: GREEN + '50', flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 16 }}>
-              <Feather name="check-circle" size={16} color={GREEN} />
-              <Text style={{ fontSize: 13, fontWeight: '600', color: GREEN, flex: 1 }}>
-                Confirmed for {new Date(order.scheduledFor).toLocaleDateString([], { weekday: 'long', day: 'numeric', month: 'long' })}
-                {order.type !== 'delivery' ? ` at ${new Date(order.scheduledFor).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true })}` : ''}
-              </Text>
-            </View>
-          )}
+          {order.status === 'accepted' && (order.scheduledFor ?? (order as any).scheduledDate) && (() => {
+            const scheduledTs = order.scheduledFor ?? (order as any).scheduledDate;
+            const isDelivery = order.type === 'delivery' || (order as any).deliveryType === 'delivery';
+            return (
+              <View style={{ backgroundColor: GREEN_DIM, borderRadius: 14, padding: 14, borderWidth: 1, borderColor: GREEN + '50', flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+                <Feather name="check-circle" size={16} color={GREEN} />
+                <Text style={{ fontSize: 13, fontWeight: '600', color: GREEN, flex: 1 }}>
+                  Confirmed for {new Date(scheduledTs).toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Australia/Sydney' })}
+                  {!isDelivery ? ` at ${new Date(scheduledTs).toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'Australia/Sydney' })}` : ''}
+                </Text>
+              </View>
+            );
+          })()}
+
+          {(order.scheduledFor ?? (order as any).scheduledDate) && (() => {
+            const scheduledTs = order.scheduledFor ?? (order as any).scheduledDate;
+            const isDelivery = order.type === 'delivery' || (order as any).deliveryType === 'delivery';
+            if (isDelivery) return null;
+            return (
+              <View style={{ backgroundColor: '#EFF6FF', borderRadius: 12, padding: 12, borderWidth: 1, borderColor: '#BFDBFE', flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+                <Feather name="calendar" size={14} color="#1D4ED8" />
+                <Text style={{ fontSize: 13, fontWeight: '600', color: '#1D4ED8', flex: 1 }}>
+                  {'Scheduled Pickup · '}
+                  {new Date(scheduledTs).toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Australia/Sydney' })}
+                  {' at '}
+                  {new Date(scheduledTs).toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'Australia/Sydney' })}
+                </Text>
+              </View>
+            );
+          })()}
 
           {/* ── Pending customer approval banner ────────────────────── */}
           {order.status === 'pending_customer_approval' && (
@@ -673,10 +698,10 @@ export default function DirectorOrderDetailModal({
           )}
 
           {/* ── Delivery / pickup details ───────────────────────────── */}
-          {!isDineIn && (order.deliveryAddress || order.street || order.scheduledDate || order.contactName) && (
+          {!isDineIn && (order.deliveryAddress || order.street || order.scheduledFor || (order as any).scheduledDate || order.contactName) && (
             <View style={[d.card, { marginBottom: 20 }]}>
               <Text style={d.cardTitle}>
-                {order.type === 'delivery' || order.deliveryType === 'delivery' ? 'Delivery Details' : order.scheduledFor ? 'Pickup Details' : 'ASAP Pickup'}
+                {order.type === 'delivery' || order.deliveryType === 'delivery' ? 'Delivery Details' : (order.scheduledFor ?? (order as any).scheduledDate) ? 'Pickup Details' : 'ASAP Pickup'}
               </Text>
               <View style={{ gap: 8, marginTop: 10 }}>
                 {(order.deliveryAddress || order.street) && (() => {
@@ -692,14 +717,19 @@ export default function DirectorOrderDetailModal({
                     </Pressable>
                   );
                 })()}
-                {order.scheduledDate && (
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                    <Feather name="calendar" size={15} color={TEXT_MUTED} />
-                    <Text style={{ fontSize: 14, color: TEXT }}>
-                      {new Date(order.scheduledDate).toLocaleDateString([], { weekday: 'long', day: 'numeric', month: 'long' })}
-                    </Text>
-                  </View>
-                )}
+                {(order.scheduledFor ?? (order as any).scheduledDate) && (() => {
+                  const scheduledTs = order.scheduledFor ?? (order as any).scheduledDate;
+                  const isDelivery = order.type === 'delivery' || (order as any).deliveryType === 'delivery';
+                  return (
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                      <Feather name="calendar" size={15} color={TEXT_MUTED} />
+                      <Text style={{ fontSize: 14, color: TEXT }}>
+                        {new Date(scheduledTs).toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Australia/Sydney' })}
+                        {!isDelivery ? ` at ${new Date(scheduledTs).toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'Australia/Sydney' })}` : ''}
+                      </Text>
+                    </View>
+                  );
+                })()}
                 {order.contactName && (
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
                     <Feather name="user" size={15} color={TEXT_MUTED} />

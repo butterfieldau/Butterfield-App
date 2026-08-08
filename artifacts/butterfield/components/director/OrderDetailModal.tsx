@@ -129,13 +129,17 @@ export default function OrderDetailModal({ order, visible, onClose, onStatusChan
                 <Feather name="clock" size={16} color="#92400E" />
                 <Text style={{ fontSize: 14, fontWeight: '700', color: '#92400E', flex: 1 }}>Awaiting Acceptance</Text>
               </View>
-              {order.scheduledFor && (
-                <Text style={{ fontSize: 13, color: '#92400E', fontWeight: '400' }}>
-                  {order.type === 'delivery' ? 'Delivery' : 'Pickup'} scheduled for{' '}
-                  {new Date(order.scheduledFor).toLocaleDateString([], { weekday: 'long', day: 'numeric', month: 'long' })}
-                  {order.type !== 'delivery' ? ` at ${new Date(order.scheduledFor).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true })}` : ''}
-                </Text>
-              )}
+              {(order.scheduledFor ?? (order as any).scheduledDate) && (() => {
+                const scheduledTs = order.scheduledFor ?? (order as any).scheduledDate;
+                const isDelivery = order.type === 'delivery' || (order as any).deliveryType === 'delivery';
+                return (
+                  <Text style={{ fontSize: 13, color: '#92400E', fontWeight: '400' }}>
+                    {isDelivery ? 'Delivery' : 'Pickup'} scheduled for{' '}
+                    {new Date(scheduledTs).toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Australia/Sydney' })}
+                    {!isDelivery ? ` at ${new Date(scheduledTs).toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'Australia/Sydney' })}` : ''}
+                  </Text>
+                );
+              })()}
               <Pressable
                 onPress={() => {
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -156,15 +160,35 @@ export default function OrderDetailModal({ order, visible, onClose, onStatusChan
               </Pressable>
             </View>
           )}
-          {order.status === 'accepted' && order.scheduledFor && (
-            <View style={{ backgroundColor: '#DCFCE7', borderRadius: 14, padding: 14, borderWidth: 1, borderColor: '#86EFAC', flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-              <Feather name="check-circle" size={16} color="#166534" />
-              <Text style={{ fontSize: 13, fontWeight: '600', color: '#166534', flex: 1 }}>
-                Confirmed for {new Date(order.scheduledFor).toLocaleDateString([], { weekday: 'long', day: 'numeric', month: 'long' })}
-                {order.type !== 'delivery' ? ` at ${new Date(order.scheduledFor).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true })}` : ''}
-              </Text>
-            </View>
-          )}
+          {order.status === 'accepted' && (order.scheduledFor ?? (order as any).scheduledDate) && (() => {
+            const scheduledTs = order.scheduledFor ?? (order as any).scheduledDate;
+            const isDelivery = order.type === 'delivery' || (order as any).deliveryType === 'delivery';
+            return (
+              <View style={{ backgroundColor: '#DCFCE7', borderRadius: 14, padding: 14, borderWidth: 1, borderColor: '#86EFAC', flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <Feather name="check-circle" size={16} color="#166534" />
+                <Text style={{ fontSize: 13, fontWeight: '600', color: '#166534', flex: 1 }}>
+                  Confirmed for {new Date(scheduledTs).toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Australia/Sydney' })}
+                  {!isDelivery ? ` at ${new Date(scheduledTs).toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'Australia/Sydney' })}` : ''}
+                </Text>
+              </View>
+            );
+          })()}
+          {(order.scheduledFor ?? (order as any).scheduledDate) && (() => {
+            const scheduledTs = order.scheduledFor ?? (order as any).scheduledDate;
+            const isDelivery = order.type === 'delivery' || (order as any).deliveryType === 'delivery';
+            if (isDelivery) return null;
+            return (
+              <View style={{ backgroundColor: '#EFF6FF', borderRadius: 12, padding: 12, borderWidth: 1, borderColor: '#BFDBFE', flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <Feather name="calendar" size={14} color="#1D4ED8" />
+                <Text style={{ fontSize: 13, fontWeight: '600', color: '#1D4ED8', flex: 1 }}>
+                  {'Scheduled Pickup · '}
+                  {new Date(scheduledTs).toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Australia/Sydney' })}
+                  {' at '}
+                  {new Date(scheduledTs).toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'Australia/Sydney' })}
+                </Text>
+              </View>
+            );
+          })()}
           <View style={[styles.section, { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }]}>
             <View>
               <Text style={styles.sectionLabel}>Status</Text>
@@ -250,13 +274,13 @@ export default function OrderDetailModal({ order, visible, onClose, onStatusChan
           </View>
           <View style={styles.section}>
             <Text style={styles.sectionLabel}>
-              {(order.type === 'delivery' || order.deliveryType === 'delivery') ? 'Delivery Details' : order.scheduledFor ? 'Pickup Details' : 'ASAP Pickup Details'}
+              {(order.type === 'delivery' || order.deliveryType === 'delivery') ? 'Delivery Details' : (order.scheduledFor ?? (order as any).scheduledDate) ? 'Pickup Details' : 'ASAP Pickup Details'}
             </Text>
             <View style={{ gap: 4, marginTop: 6 }}>
               <View style={styles.detailRow}>
                 <Feather name={order.type === 'delivery' || order.deliveryType === 'delivery' ? 'truck' : 'map-pin'} size={14} color={MUTED} />
                 <Text style={styles.detailText}>
-                  {(order.type === 'delivery' || order.deliveryType === 'delivery') ? 'Delivery' : order.scheduledFor ? 'Pickup' : 'ASAP Pickup'}
+                  {(order.type === 'delivery' || order.deliveryType === 'delivery') ? 'Delivery' : (order.scheduledFor ?? (order as any).scheduledDate) ? 'Pickup' : 'ASAP Pickup'}
                 </Text>
               </View>
               {(order.deliveryAddress || order.street) && (() => {
@@ -270,14 +294,19 @@ export default function OrderDetailModal({ order, visible, onClose, onStatusChan
                   </Pressable>
                 );
               })()}
-              {order.scheduledDate && (
-                <View style={styles.detailRow}>
-                  <Feather name="calendar" size={14} color={MUTED} />
-                  <Text style={styles.detailText}>
-                    {new Date(order.scheduledDate).toLocaleDateString([], { weekday: 'long', day: 'numeric', month: 'long' })}
-                  </Text>
-                </View>
-              )}
+              {(order.scheduledFor ?? (order as any).scheduledDate) && (() => {
+                const scheduledTs = order.scheduledFor ?? (order as any).scheduledDate;
+                const isDelivery = order.type === 'delivery' || (order as any).deliveryType === 'delivery';
+                return (
+                  <View style={styles.detailRow}>
+                    <Feather name="calendar" size={14} color={MUTED} />
+                    <Text style={styles.detailText}>
+                      {new Date(scheduledTs).toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Australia/Sydney' })}
+                      {!isDelivery ? ` at ${new Date(scheduledTs).toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'Australia/Sydney' })}` : ''}
+                    </Text>
+                  </View>
+                );
+              })()}
               {order.contactName && (<View style={styles.detailRow}><Feather name="user" size={14} color={MUTED} /><Text style={styles.detailText}>{order.contactName}</Text></View>)}
               {order.contactPhone && (<View style={styles.detailRow}><Feather name="phone" size={14} color={MUTED} /><Text style={styles.detailText}>{order.contactPhone}</Text></View>)}
             </View>

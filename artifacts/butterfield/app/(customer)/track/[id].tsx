@@ -425,7 +425,10 @@ export default function TrackOrderScreen() {
               <View style={[styles.pickupRow, { borderTopColor: colors.border }]}>
                 <Feather name="clock" size={13} color={colors.primary} />
                 <Text style={[styles.pickupText, { color: colors.foreground }]}>
-                  {orderType === 'delivery' ? 'Delivery' : 'Pickup'}: {new Date(order.scheduledFor).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  {orderType === 'delivery' ? 'Delivery' : 'Pickup'}:{' '}
+                  {new Date(order.scheduledFor).toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Australia/Sydney' })}
+                  {' at '}
+                  {new Date(order.scheduledFor).toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'Australia/Sydney' })}
                 </Text>
               </View>
             )}
