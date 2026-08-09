@@ -440,7 +440,7 @@ router.post('/wholesale-apply', async (req, res) => {
       type: 'wholesale_application',
       title: 'New Stockist Registration',
       body: `${normalizedCompany} has applied for a wholesale account.`,
-      data: { accountId, companyName: normalizedCompany },
+      data: { accountId, companyName: normalizedCompany, screen: '/director-wholesale-accounts' },
     }).catch(() => {});
   }).catch(() => {});
 

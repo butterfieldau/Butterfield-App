@@ -178,7 +178,7 @@ router.patch('/items/:id', async (req, res) => {
         type: 'stock_out',
         title: '🚨 Out of Stock',
         body: `${itemName} is now out of stock. Reorder immediately.`,
-        data: { stockItemId: id, name: itemName, quantity: newQty },
+        data: { stockItemId: id, name: itemName, quantity: newQty, screen: '/(director)/stock' },
       }).catch(() => {});
     } else if (newQty > 0 && newQty <= threshold && oldQty > threshold) {
       sendNotification({
@@ -186,7 +186,7 @@ router.patch('/items/:id', async (req, res) => {
         type: 'stock_low',
         title: '⚠️ Low Stock Alert',
         body: `${itemName} is running low — only ${newQty} ${updated.unit} remaining.`,
-        data: { stockItemId: id, name: itemName, quantity: newQty, threshold },
+        data: { stockItemId: id, name: itemName, quantity: newQty, threshold, screen: '/(director)/stock' },
       }).catch(() => {});
     }
   }

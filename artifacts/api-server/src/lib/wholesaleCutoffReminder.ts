@@ -109,7 +109,7 @@ export async function checkWholesaleCutoffReminders(): Promise<void> {
         type: 'wholesale_cutoff_reminder',
         title: '🍪 Order cutoff reminder',
         body: `Last call for ${slot.deliveryLabel} delivery — cutoff is ${slot.cutoffDayLabel} at ${formatHour(slot.cutoffHour)} AEST.`,
-        data: { screen: 'catalog' },
+        data: { screen: '/(wholesale)/catalog' },
       });
 
       logger.info(

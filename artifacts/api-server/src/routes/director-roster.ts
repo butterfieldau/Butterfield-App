@@ -111,6 +111,7 @@ router.post('/roster', requireTimesheets, async (req, res) => {
     'roster_assigned',
     'New Shift Rostered',
     `You've been rostered on ${formatShiftDate(shift.date)}, from ${formatTime12h(shift.startTime)} to ${formatTime12h(shift.endTime)}`,
+    { screen: '/(director)/schedule' },
   ).catch(() => {});
 
   return res.status(201).json({ data: { ...shift, userName: user?.name ?? null } });
@@ -144,6 +145,7 @@ router.patch('/roster/:id', requireTimesheets, async (req, res) => {
     'roster_updated',
     'Shift Updated',
     `You've been rostered on ${formatShiftDate(shift.date)}, from ${formatTime12h(shift.startTime)} to ${formatTime12h(shift.endTime)}`,
+    { screen: '/(director)/schedule' },
   ).catch(() => {});
 
   return res.json({ data: { ...shift, userName: user?.name ?? null } });

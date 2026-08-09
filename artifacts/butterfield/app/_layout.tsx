@@ -7,7 +7,7 @@ import { router, Stack } from "expo-router";
 import * as Notifications from "expo-notifications";
 import * as SplashScreen from "expo-splash-screen";
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { AppState, StatusBar } from "react-native";
+import { AppState, Linking, StatusBar } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
@@ -149,6 +149,20 @@ function NotificationTapHandler() {
       const screen = typeof data.screen === 'string' ? data.screen : null;
       const orderId = typeof data.orderId === 'string' ? data.orderId : null;
 
+      // Scheduled announcement: interpret actionType/actionValue regardless of role
+      const actionType  = typeof data.actionType  === 'string' ? data.actionType  : null;
+      const actionValue = typeof data.actionValue === 'string' ? data.actionValue : null;
+      if (actionType && actionValue) {
+        if (actionType === 'screen') {
+          router.push(actionValue as any);
+          return;
+        }
+        if (actionType === 'url') {
+          Linking.openURL(actionValue).catch(() => {});
+          return;
+        }
+      }
+
       if (role === 'customer') {
         // Any order notification with an ID → land directly on the tracking screen
         if (orderId) {
@@ -159,7 +173,17 @@ function NotificationTapHandler() {
           router.push(screen as any);
           return;
         }
+      } else if (role === 'wholesale') {
+        if (screen?.startsWith('/(wholesale)/')) {
+          router.push(screen as any);
+          return;
+        }
       } else if (role === 'staff') {
+        // Staff use the director portal (/(director)/* routes are accessible to staff)
+        if (screen?.startsWith('/(director)/')) {
+          router.push(screen as any);
+          return;
+        }
         if (screen?.startsWith('/(staff)/')) {
           router.push(screen as any);
           return;
@@ -170,7 +194,17 @@ function NotificationTapHandler() {
           router.push(`/director-wholesale-invoices?orderId=${encodeURIComponent(orderId)}` as any);
           return;
         }
+        // Orders screen with a filter param (e.g. scheduled_delivery_reminder)
+        if (screen === '/(director)/orders' && typeof data.filter === 'string') {
+          router.push({ pathname: '/(director)/orders', params: { filter: data.filter } } as any);
+          return;
+        }
         if (screen?.startsWith('/(director)/')) {
+          router.push(screen as any);
+          return;
+        }
+        // Standalone director screens registered at root level (e.g. /director-wholesale-accounts)
+        if (screen?.startsWith('/director-')) {
           router.push(screen as any);
           return;
         }
