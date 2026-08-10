@@ -176,12 +176,11 @@ export default function OrderDetailModal({ order, visible, onClose, onStatusChan
           {(order.scheduledFor ?? (order as any).scheduledDate) && (() => {
             const scheduledTs = order.scheduledFor ?? (order as any).scheduledDate;
             const isDelivery = order.type === 'delivery' || (order as any).deliveryType === 'delivery';
-            if (isDelivery) return null;
             return (
               <View style={{ backgroundColor: '#EFF6FF', borderRadius: 12, padding: 12, borderWidth: 1, borderColor: '#BFDBFE', flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                 <Feather name="calendar" size={14} color="#1D4ED8" />
                 <Text style={{ fontSize: 13, fontWeight: '600', color: '#1D4ED8', flex: 1 }}>
-                  {'Scheduled Pickup · '}
+                  {isDelivery ? 'Scheduled Delivery · ' : 'Scheduled Pickup · '}
                   {new Date(scheduledTs).toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Australia/Sydney' })}
                   {' at '}
                   {new Date(scheduledTs).toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'Australia/Sydney' })}
@@ -296,13 +295,12 @@ export default function OrderDetailModal({ order, visible, onClose, onStatusChan
               })()}
               {(order.scheduledFor ?? (order as any).scheduledDate) && (() => {
                 const scheduledTs = order.scheduledFor ?? (order as any).scheduledDate;
-                const isDelivery = order.type === 'delivery' || (order as any).deliveryType === 'delivery';
                 return (
                   <View style={styles.detailRow}>
                     <Feather name="calendar" size={14} color={MUTED} />
                     <Text style={styles.detailText}>
                       {new Date(scheduledTs).toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Australia/Sydney' })}
-                      {!isDelivery ? ` at ${new Date(scheduledTs).toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'Australia/Sydney' })}` : ''}
+                      {` at ${new Date(scheduledTs).toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'Australia/Sydney' })}`}
                     </Text>
                   </View>
                 );
