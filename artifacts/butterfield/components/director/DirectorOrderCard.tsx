@@ -6,7 +6,7 @@ import { normalizeOrderItems } from '@/lib/orderItems';
 import { STATUS_COLORS, STATUS_LABEL } from '@/lib/orderStatus';
 import type { ApiOrder } from '@/lib/api';
 import { styles } from './directorOrdersStyles';
-import { fmtTime, openMap } from './ordersHelpers';
+import { fmtTime, fmtScheduledFor, openMap } from './ordersHelpers';
 import { BRAND, BRAND_TEXT_ON, TEXT_MUTED, BRAND_DIM, GREEN_DIM, GREEN, AMBER, RED_DIM, RED } from './commandCenterColors';
 
 export default function DirectorOrderCard({ order, onPress, onPrint, printing }: { order: ApiOrder; onPress: () => void; onPrint: () => Promise<void> | void; printing: boolean }) {
@@ -83,9 +83,17 @@ export default function DirectorOrderCard({ order, onPress, onPrint, printing }:
             </View>
           );
         })()}
-        {order.status === 'scheduled' && (
+        {order.scheduledFor && !isWholesale && (
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 }}>
-            <Feather name="clock" size={11} color={AMBER} />
+            <Feather name="clock" size={11} color={BRAND} />
+            <Text style={{ fontSize: 11, fontWeight: '600', color: BRAND }}>
+              Scheduled: {fmtScheduledFor(order.scheduledFor)}
+            </Text>
+          </View>
+        )}
+        {order.status === 'scheduled' && (
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 }}>
+            <Feather name="alert-circle" size={11} color={AMBER} />
             <Text style={{ fontSize: 11, fontWeight: '700', color: AMBER }}>Needs Acceptance</Text>
           </View>
         )}

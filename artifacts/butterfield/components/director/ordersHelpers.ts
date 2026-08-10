@@ -134,3 +134,20 @@ export function getWholesaleInvoiceUrl(orderId: string): string {
 export function getErrorMessage(error: unknown, fallback = 'Something went wrong.'): string {
   return error instanceof Error ? error.message : fallback;
 }
+
+/**
+ * Format a scheduledFor ISO string into a human-readable label using Sydney time.
+ * Returns e.g. "Today at 1:00 pm", "Sat 9 Aug at 1:00 pm"
+ */
+export function fmtScheduledFor(iso: string): string {
+  const d = new Date(iso);
+  const TZ = 'Australia/Sydney';
+  const today = new Date().toLocaleDateString('en-CA', { timeZone: TZ });
+  const scheduledDate = d.toLocaleDateString('en-CA', { timeZone: TZ });
+  const time = d.toLocaleTimeString('en-AU', { timeZone: TZ, hour: 'numeric', minute: '2-digit', hour12: true });
+  if (scheduledDate === today) {
+    return `Today at ${time}`;
+  }
+  const dateStr = d.toLocaleDateString('en-AU', { timeZone: TZ, weekday: 'short', day: 'numeric', month: 'short' });
+  return `${dateStr} at ${time}`;
+}

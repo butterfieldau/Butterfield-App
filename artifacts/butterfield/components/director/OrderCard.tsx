@@ -6,7 +6,7 @@ import { normalizeOrderItems, summarizeOrderItems } from '@/lib/orderItems';
 import { STATUS_COLORS, STATUS_LABEL } from '@/lib/orderStatus';
 import type { ApiOrder } from '@/lib/api';
 import { styles } from './ordersStyles';
-import { fmtTime, openMap } from './ordersHelpers';
+import { fmtTime, fmtScheduledFor, openMap } from './ordersHelpers';
 
 const BLUE   = '#1493FF';
 const TEXT   = '#1C1C1E';
@@ -76,9 +76,17 @@ export default function OrderCard({ order, onPress, onPrint, printing }: { order
             </View>
           );
         })()}
-        {order.status === 'scheduled' && (
+        {order.scheduledFor && !isWholesale && (
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 }}>
-            <Feather name="clock" size={11} color="#92400E" />
+            <Feather name="clock" size={11} color="#1493FF" />
+            <Text style={{ fontSize: 11, fontWeight: '600', color: '#1493FF' }}>
+              Scheduled: {fmtScheduledFor(order.scheduledFor)}
+            </Text>
+          </View>
+        )}
+        {order.status === 'scheduled' && (
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 }}>
+            <Feather name="alert-circle" size={11} color="#92400E" />
             <Text style={{ fontSize: 11, fontWeight: '700', color: '#92400E' }}>Needs Acceptance</Text>
           </View>
         )}
