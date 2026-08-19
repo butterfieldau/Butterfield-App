@@ -17,3 +17,4 @@
 - [POS TestFlight empty-data dead end](pos-testflight-empty-data.md) — repeated deep dives found no code bug; add error-vs-empty UI distinction and move on rather than re-investigating the same ruled-out causes.
 - [Wholesale catalog N+1 pricing query](wholesale-catalog-n-plus-1.md) — never loop calculateWholesalePrice() per-product for a listing endpoint; use calculateWholesalePricesBulk() instead.
 - [Expo SecureStore web shim](expo-securestore-web-shim.md) — the module may import on web but still fail at runtime; platform-guard every credential operation.
+- [Access token versioning](access-token-versioning.md) — mutable claims cannot revoke JWTs safely; use a monotonic per-account session version.

@@ -16,6 +16,7 @@ import {
   saveSessionCredentials,
   setSessionInvalidHandler,
   type AuthSessionResponse,
+  type ProfileUpdateResponse,
 } from '@/lib/api';
 import { registerPushToken, deregisterPushToken } from '@/lib/pushNotifications';
 import { attemptBiometricAuthentication, hasUsableBiometrics } from '@/lib/biometricAuth';
@@ -51,6 +52,7 @@ interface AuthContextValue {
   register: (data: { email: string; password: string; name: string; phone?: string; birthday?: string }) => Promise<{ success: boolean; error?: string }>;
   wholesaleApply: (data: { email: string; password: string; name: string; phone: string; companyName: string; abn?: string; deliveryAddress: string; howDidYouHear?: string }) => Promise<{ success: boolean; message?: string; error?: string }>;
   socialLogin: (data: { provider: 'google'; idToken: string } | { provider: 'apple'; idToken: string }) => Promise<{ success: boolean; error?: string }>;
+  updateAuthenticatedUser: (response: ProfileUpdateResponse) => Promise<void>;
   biometricSignInAvailable: boolean;
   canUseBiometricSignIn: () => Promise<boolean>;
   enableBiometricSignIn: () => Promise<{ success: boolean; error?: string }>;
@@ -78,6 +80,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await AsyncStorage.setItem(USER_KEY, JSON.stringify(authenticatedUser));
     registerPushToken(res.token).catch(() => {});
     return authenticatedUser;
+  }, []);
+
+  const updateAuthenticatedUser = useCallback(async (response: ProfileUpdateResponse): Promise<void> => {
+    // Persist replacement credentials before exposing the new identity. If
+    // storage fails, the old in-memory user and token remain untouched.
+    if (response.token && response.refreshToken) {
+      await saveSessionCredentials(response.token, response.refreshToken, response.user.id);
+    }
+    const authenticatedUser: AuthContextUser = {
+      id: response.user.id,
+      name: response.user.name,
+      email: response.user.email,
+      role: response.user.role as UserRole,
+      phone: response.user.phone,
+    };
+    setUser(authenticatedUser);
+    await AsyncStorage.setItem(USER_KEY, JSON.stringify(authenticatedUser));
+    if (response.token) registerPushToken(response.token).catch(() => {});
   }, []);
 
   useEffect(() => setSessionInvalidHandler(async () => {
@@ -327,6 +347,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       register,
       wholesaleApply,
       socialLogin,
+      updateAuthenticatedUser,
       biometricSignInAvailable,
       canUseBiometricSignIn,
       enableBiometricSignIn,
@@ -341,6 +362,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       register,
       wholesaleApply,
       socialLogin,
+      updateAuthenticatedUser,
       biometricSignInAvailable,
       canUseBiometricSignIn,
       enableBiometricSignIn,

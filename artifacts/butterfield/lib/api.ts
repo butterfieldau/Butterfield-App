@@ -58,6 +58,13 @@ export interface AuthSessionResponse {
   user: ApiUser;
 }
 
+export interface ProfileUpdateResponse {
+  user: ApiUser;
+  profile: AuthProfile | null;
+  token?: string;
+  refreshToken?: string;
+}
+
 type SessionInvalidHandler = (() => void | Promise<void>) | null;
 let sessionInvalidHandler: SessionInvalidHandler = null;
 let refreshInFlight: Promise<AuthSessionResponse> | null = null;
@@ -355,8 +362,8 @@ export const api = {
       taxFileNumber?: string;
       emergencyContact?: { name: string; phone: string; relationship: string };
     }) => request<{ success: boolean; message: string; employeeId: string }>('/auth/staff-register', { method: 'POST', body: JSON.stringify(data) }),
-    updateMe: (data: { name?: string; phone?: string; deliveryAddress?: string; notificationPreferences?: Record<string, boolean>; profileImage?: string | null; preferredStoreId?: string | null }) =>
-      request<{ user: ApiUser; profile: AuthProfile | null }>('/auth/me', { method: 'PATCH', body: JSON.stringify(data) }),
+    updateMe: (data: { name?: string; email?: string; phone?: string; deliveryAddress?: string; notificationPreferences?: Record<string, boolean>; profileImage?: string | null; preferredStoreId?: string | null }) =>
+      request<ProfileUpdateResponse>('/auth/me', { method: 'PATCH', body: JSON.stringify(data) }),
     deleteAccount: () =>
       request<{ success: boolean; message: string }>('/auth/account', { method: 'DELETE' }),
   },

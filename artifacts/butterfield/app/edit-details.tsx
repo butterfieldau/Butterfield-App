@@ -45,17 +45,18 @@ function birthdayToISO(birthday: string): string | null {
 }
 
 export default function EditDetailsScreen() {
-  const { user } = useAuth();
+  const { user, updateAuthenticatedUser } = useAuth();
   if (!user) return <LoggedOutAccountPrompt redirectTo="/edit-details" compact />;
   return <EditDetailsContent />;
 }
 
 function EditDetailsContent() {
   const insets = useSafeAreaInsets();
-  const { user } = useAuth();
+  const { user, updateAuthenticatedUser } = useAuth();
   const qc = useQueryClient();
 
   const [name,     setName]     = useState('');
+  const [email,    setEmail]    = useState('');
   const [phone,    setPhone]    = useState('');
   const [birthday, setBirthday] = useState('');
   const [saving,   setSaving]   = useState(false);
@@ -75,8 +76,6 @@ function EditDetailsContent() {
   });
 
   const isLoading = meLoading || loyaltyLoading;
-  const email     = meData?.user?.email ?? user?.email ?? '';
-
   // Track whether the birthday was already saved when this screen opened.
   // Once locked the field becomes read-only and the API will also reject changes.
   const loyaltyProfile: LoyaltyProfile | undefined = loyaltyData?.data;
@@ -87,9 +86,10 @@ function EditDetailsContent() {
     const apiUser: ApiUser | undefined = meData?.user;
     if (apiUser) {
       setName(apiUser.name ?? '');
+      setEmail(apiUser.email ?? '');
       setPhone(apiUser.phone ?? '');
     }
-  }, [meData?.user?.name, meData?.user?.phone]);
+  }, [meData?.user?.name, meData?.user?.email, meData?.user?.phone]);
 
   useEffect(() => {
     const bd = loyaltyProfile?.birthday;
@@ -104,37 +104,48 @@ function EditDetailsContent() {
       Alert.alert('Name required', 'Please enter your full name.');
       return;
     }
-    if (!birthdayLocked && birthday.trim() && birthday.length < 10) {
+    const normalizedEmail = email.trim().toLowerCase();
+    if (!normalizedEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
+      Alert.alert('Invalid email', 'Please enter a valid email address.');
+      return;
+    }
+    const birthdayISO = !birthdayLocked && birthday.trim() ? birthdayToISO(birthday) : null;
+    if (!birthdayLocked && birthday.trim() && !birthdayISO) {
       Alert.alert('Invalid birthday', 'Please enter your birthday as DD/MM/YYYY (e.g. 15/06/1995).');
       return;
     }
-
     setSaving(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
     try {
-      // Save name + phone
-      await api.auth.updateMe({
+      // Save name, email + phone. The response may also contain replacement
+      // session credentials when the login email changed.
+      const updated = await api.auth.updateMe({
         name:  name.trim(),
+        email: normalizedEmail,
         phone: phone.trim() || undefined,
       });
+      await updateAuthenticatedUser(updated);
+      await qc.invalidateQueries({ queryKey: ['me'] });
 
       // Only attempt to save birthday if it hasn't been locked yet
-      if (!birthdayLocked && birthday.trim()) {
-        const iso = birthdayToISO(birthday);
-        if (!iso) {
-          Alert.alert('Invalid birthday', 'Please enter your birthday as DD/MM/YYYY (e.g. 15/06/1995).');
-          setSaving(false);
+      if (birthdayISO) {
+        try {
+          await api.loyalty.updateBirthday(birthdayISO);
+        } catch {
+          await qc.invalidateQueries({ queryKey: ['loyalty-profile'] });
+          Alert.alert(
+            'Profile updated',
+            'Your email and contact details were saved, but we could not update your birthday. Please try again.',
+          );
           return;
         }
-        await api.loyalty.updateBirthday(iso);
       }
 
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
       // Invalidate all caches so every screen shows updated data
       await Promise.all([
-        qc.invalidateQueries({ queryKey: ['me'] }),
         qc.invalidateQueries({ queryKey: ['loyalty-profile'] }),
       ]);
 
@@ -190,11 +201,12 @@ function EditDetailsContent() {
                 icon="mail"
                 label="Email"
                 value={email}
-                onChangeText={() => {}}
+                onChangeText={setEmail}
                 placeholder="Email"
-                editable={false}
-                dimmed
-                hint="Email address cannot be changed. Contact support if needed."
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoCorrect={false}
+                returnKeyType="next"
               />
               <View style={styles.divider} />
               <FieldRow
@@ -288,11 +300,12 @@ function EditDetailsContent() {
 
 function FieldRow({
   icon, label, value, onChangeText, placeholder, editable = true,
-  dimmed = false, autoCapitalize, keyboardType, hint, returnKeyType,
+  dimmed = false, autoCapitalize, autoCorrect, keyboardType, hint, returnKeyType,
 }: {
   icon: FeatherIcon; label: string; value: string; onChangeText: (v: string) => void;
   placeholder?: string; editable?: boolean; dimmed?: boolean;
   autoCapitalize?: TextInputProps['autoCapitalize'];
+  autoCorrect?: TextInputProps['autoCorrect'];
   keyboardType?: TextInputProps['keyboardType'];
   hint?: string;
   returnKeyType?: TextInputProps['returnKeyType'];
@@ -313,6 +326,7 @@ function FieldRow({
           placeholderTextColor={MUTED}
           editable={editable}
           autoCapitalize={autoCapitalize}
+          autoCorrect={autoCorrect}
           keyboardType={keyboardType}
           returnKeyType={returnKeyType}
         />

@@ -30,7 +30,7 @@ function getCoffeeStampGoalForNewUser(): number {
 
 const router = Router();
 
-type SessionUser = Pick<typeof usersTable.$inferSelect, 'id' | 'email' | 'role' | 'name'>;
+type SessionUser = Pick<typeof usersTable.$inferSelect, 'id' | 'email' | 'role' | 'name' | 'authVersion'>;
 
 function digestRefreshToken(token: string): string {
   return createHash('sha256').update(token).digest('hex');
@@ -52,13 +52,25 @@ async function issueSessionCredentials(user: SessionUser): Promise<{ token: stri
     expiresAt: new Date(Date.now() + REFRESH_SESSION_TTL_MS),
   });
   return {
-    token: signToken({ id: user.id, email: user.email, role: user.role, name: user.name }),
+    token: signToken({
+      id: user.id,
+      email: user.email,
+      role: user.role,
+      name: user.name,
+      authVersion: user.authVersion,
+    }),
     refreshToken,
   };
 }
 
 function sessionUser(user: typeof usersTable.$inferSelect): SessionUser {
-  return { id: user.id, email: user.email, role: user.role, name: user.name };
+  return {
+    id: user.id,
+    email: user.email,
+    role: user.role,
+    name: user.name,
+    authVersion: user.authVersion,
+  };
 }
 
 function accountSessionError(user: typeof usersTable.$inferSelect): { error: string; code: string } | null {
@@ -300,7 +312,13 @@ router.post('/register', async (req, res) => {
     coffeeStampGoal: getCoffeeStampGoalForNewUser(),
   });
   await getOrCreateCustomerLoyaltyProfile(userId, name);
-  const credentials = await issueSessionCredentials({ id: userId, email: email.toLowerCase(), role: 'customer', name });
+  const credentials = await issueSessionCredentials({
+    id: userId,
+    email: email.toLowerCase(),
+    role: 'customer',
+    name,
+    authVersion: 0,
+  });
 
   // Fire-and-forget welcome confirmation email — never blocks registration.
   sendEmail({
@@ -553,7 +571,13 @@ router.post('/refresh', refreshRateLimit, async (req, res) => {
     return res.status(401).json({ error: 'Session has expired or been revoked.', code: 'SESSION_INVALID' });
   }
 
-  const token = signToken({ id: user.id, email: user.email, role: user.role, name: user.name });
+  const token = signToken({
+    id: user.id,
+    email: user.email,
+    role: user.role,
+    name: user.name,
+    authVersion: user.authVersion,
+  });
   return res.json({
     token,
     refreshToken: nextRefreshToken,
@@ -833,15 +857,48 @@ router.get('/me', requireAuth, async (req, res) => {
   });
 });
 
-// ── PATCH /me — update name, phone, profileImage, notification prefs ──────────
+// ── PATCH /me — update profile details and, for customers, login email ────────
 router.patch('/me', requireAuth, async (req, res) => {
   await ensureStoreConfigSchemaReady();
   const user = req.user!;
-  const { name, phone, notificationPreferences, profileImage, preferredStoreId } = req.body;
+  const { name, phone, email, notificationPreferences, profileImage, preferredStoreId } = req.body;
+
+  // Email is a login identifier, so only customer self-service may change it.
+  // Read the canonical row rather than relying on claims in the bearer token.
+  const [currentUser] = await db.select().from(usersTable).where(eq(usersTable.id, user.id));
+  if (!currentUser) return res.status(404).json({ error: 'User not found' });
+
+  let normalizedEmail: string | undefined;
+  const emailWasProvided = email !== undefined;
+  if (emailWasProvided) {
+    if (currentUser.role !== 'customer') {
+      return res.status(403).json({ error: 'Only customer accounts can change their login email.' });
+    }
+    if (typeof email !== 'string' || !email.trim()) {
+      return res.status(400).json({ error: 'Please enter a valid email address.' });
+    }
+    normalizedEmail = email.trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
+      return res.status(400).json({ error: 'Please enter a valid email address.' });
+    }
+    if (normalizedEmail !== currentUser.email) {
+      const [emailOwner] = await db
+        .select({ id: usersTable.id })
+        .from(usersTable)
+        .where(eq(usersTable.email, normalizedEmail));
+      if (emailOwner && emailOwner.id !== currentUser.id) {
+        return res.status(409).json({
+          error: 'That email address is already registered. Please use a different email address.',
+          code: 'EMAIL_ALREADY_REGISTERED',
+        });
+      }
+    }
+  }
 
   const updates: Record<string, any> = { updatedAt: new Date() };
   if (name !== undefined && name.trim()) updates.name = name.trim();
   if (phone !== undefined) updates.phone = phone?.trim() || null;
+  if (normalizedEmail !== undefined) updates.email = normalizedEmail;
   if (profileImage !== undefined) updates.profileImage = profileImage ?? null;
   if (notificationPreferences !== undefined) {
     updates.notificationPreferences = typeof notificationPreferences === 'string'
@@ -849,7 +906,53 @@ router.patch('/me', requireAuth, async (req, res) => {
       : JSON.stringify(notificationPreferences);
   }
 
-  const [updated] = await db.update(usersTable).set(updates).where(eq(usersTable.id, user.id)).returning();
+  const emailChanged = normalizedEmail !== undefined && normalizedEmail !== currentUser.email;
+  if (emailChanged) updates.authVersion = sql`${usersTable.authVersion} + 1`;
+  let updated: typeof currentUser | undefined;
+  let replacementCredentials: { token: string; refreshToken: string } | undefined;
+  try {
+    if (emailChanged) await ensureMobileSessionSchemaReady();
+    await db.transaction(async (tx) => {
+      [updated] = await tx.update(usersTable).set(updates).where(eq(usersTable.id, user.id)).returning();
+      if (!updated || !emailChanged) return;
+
+      // Email is the login identifier. Retire every pre-change refresh session
+      // and create exactly one replacement credential pair atomically.
+      await tx.update(mobileSessionsTable)
+        .set({ revokedAt: new Date() })
+        .where(and(eq(mobileSessionsTable.userId, user.id), isNull(mobileSessionsTable.revokedAt)));
+      const refreshToken = newRefreshToken();
+      const sessionId = randomUUID();
+      await tx.insert(mobileSessionsTable).values({
+        id: sessionId,
+        familyId: sessionId,
+        userId: updated.id,
+        tokenDigest: digestRefreshToken(refreshToken),
+        expiresAt: new Date(Date.now() + REFRESH_SESSION_TTL_MS),
+      });
+      replacementCredentials = {
+        token: signToken({
+          id: updated.id,
+          email: updated.email,
+          role: updated.role,
+          name: updated.name,
+          authVersion: updated.authVersion,
+        }),
+        refreshToken,
+      };
+    });
+  } catch (error: any) {
+    // The preflight collision check handles normal requests. Keep the unique
+    // constraint as the final guard for two simultaneous email changes.
+    if (emailWasProvided && error?.code === '23505') {
+      return res.status(409).json({
+        error: 'That email address is already registered. Please use a different email address.',
+        code: 'EMAIL_ALREADY_REGISTERED',
+      });
+    }
+    throw error;
+  }
+  if (!updated) return res.status(404).json({ error: 'User not found' });
 
   let profile = null;
   if (updated.role === 'customer') {
@@ -888,6 +991,7 @@ router.patch('/me', requireAuth, async (req, res) => {
   return res.json({
     user: { id: updated.id, email: updated.email, role: updated.role, name: updated.name, phone: updated.phone, profileImage: updated.profileImage, notificationPreferences: notifPrefs },
     profile,
+    ...replacementCredentials,
   });
 });
 

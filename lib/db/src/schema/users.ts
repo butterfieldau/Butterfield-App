@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, pgEnum } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, pgEnum, integer } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -23,6 +23,9 @@ export const usersTable = pgTable("users", {
   lastLogin: timestamp("last_login"),
   socialProvider: text("social_provider"),
   socialId:       text("social_id"),
+  // Incremented when credentials need immediate invalidation (for example,
+  // when a customer changes their login email).
+  authVersion: integer("auth_version").notNull().default(0),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
