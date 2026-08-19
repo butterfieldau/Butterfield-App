@@ -1,8 +1,8 @@
 import { Router } from 'express';
 import bcrypt from 'bcryptjs';
-import { randomBytes, randomInt, randomUUID } from 'crypto';
+import { createHash, randomBytes, randomInt, randomUUID } from 'crypto';
 import jwt from 'jsonwebtoken';
-import { db, usersTable, customerProfilesTable, staffProfilesTable, wholesaleAccountsTable, managerProfilesTable, passwordResetTokensTable, storesTable, storeOpeningHoursTable, loyaltyTransactionsTable, favouritesTable, staffStoreAssignmentsTable, staffInviteTokensTable, storeSettingsTable, loginHistoryTable } from '@workspace/db';
+import { db, usersTable, customerProfilesTable, staffProfilesTable, wholesaleAccountsTable, managerProfilesTable, passwordResetTokensTable, storesTable, storeOpeningHoursTable, loyaltyTransactionsTable, favouritesTable, staffStoreAssignmentsTable, staffInviteTokensTable, storeSettingsTable, loginHistoryTable, mobileSessionsTable } from '@workspace/db';
 import { eq, and, lt, isNull, sql } from 'drizzle-orm';
 import { signToken, requireAuth, getSessionSecret } from '../middlewares/auth.js';
 import {
@@ -18,6 +18,8 @@ import { recordAuditLog } from '../lib/auditLog.js';
 import { sydneyDateParts } from '../lib/sydneyTime.js';
 
 const DEMO_EMAILS = ['customer@demo.com', 'staff@demo.com', 'wholesale@demo.com', 'director@demo.com', 'manager@demo.com', 'loyalty9@demo.com'];
+const REFRESH_SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+let mobileSessionSchemaReady: Promise<void> | null = null;
 
 function getCoffeeStampGoalForNewUser(): number {
   const { year, monthNum } = sydneyDateParts();
@@ -27,6 +29,83 @@ function getCoffeeStampGoalForNewUser(): number {
 }
 
 const router = Router();
+
+type SessionUser = Pick<typeof usersTable.$inferSelect, 'id' | 'email' | 'role' | 'name'>;
+
+function digestRefreshToken(token: string): string {
+  return createHash('sha256').update(token).digest('hex');
+}
+
+function newRefreshToken(): string {
+  return randomBytes(48).toString('base64url');
+}
+
+async function issueSessionCredentials(user: SessionUser): Promise<{ token: string; refreshToken: string }> {
+  await ensureMobileSessionSchemaReady();
+  const refreshToken = newRefreshToken();
+  const sessionId = randomUUID();
+  await db.insert(mobileSessionsTable).values({
+    id: sessionId,
+    familyId: sessionId,
+    userId: user.id,
+    tokenDigest: digestRefreshToken(refreshToken),
+    expiresAt: new Date(Date.now() + REFRESH_SESSION_TTL_MS),
+  });
+  return {
+    token: signToken({ id: user.id, email: user.email, role: user.role, name: user.name }),
+    refreshToken,
+  };
+}
+
+function sessionUser(user: typeof usersTable.$inferSelect): SessionUser {
+  return { id: user.id, email: user.email, role: user.role, name: user.name };
+}
+
+function accountSessionError(user: typeof usersTable.$inferSelect): { error: string; code: string } | null {
+  if (user.status === 'suspended') {
+    return { error: 'This account has been suspended. Please contact us for help.', code: 'ACCOUNT_SUSPENDED' };
+  }
+  if (user.status === 'inactive' || user.isActive === 'false') {
+    return { error: 'This account has been deactivated. Please contact us for help.', code: 'ACCOUNT_INACTIVE' };
+  }
+  if (user.status === 'pending') {
+    return {
+      error: 'Check your email for a setup code, or reset your password to finish signing in.',
+      code: 'PENDING_SETUP',
+    };
+  }
+  return null;
+}
+
+async function ensureMobileSessionSchemaReady(): Promise<void> {
+  if (!mobileSessionSchemaReady) {
+    mobileSessionSchemaReady = (async () => {
+      await db.execute(sql`
+        CREATE TABLE IF NOT EXISTS mobile_sessions (
+          id text PRIMARY KEY,
+          family_id text NOT NULL,
+          user_id text NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          token_digest text NOT NULL UNIQUE,
+          expires_at timestamptz NOT NULL,
+          revoked_at timestamptz,
+          created_at timestamptz NOT NULL DEFAULT now(),
+          last_used_at timestamptz
+        )
+      `);
+      await db.execute(sql`ALTER TABLE mobile_sessions ADD COLUMN IF NOT EXISTS family_id text`);
+      await db.execute(sql`UPDATE mobile_sessions SET family_id = id WHERE family_id IS NULL`);
+      await db.execute(sql`ALTER TABLE mobile_sessions ALTER COLUMN family_id SET NOT NULL`);
+      await db.execute(sql`CREATE UNIQUE INDEX IF NOT EXISTS mobile_sessions_token_digest_idx ON mobile_sessions(token_digest)`);
+      await db.execute(sql`CREATE INDEX IF NOT EXISTS mobile_sessions_user_id_idx ON mobile_sessions(user_id)`);
+      await db.execute(sql`CREATE INDEX IF NOT EXISTS mobile_sessions_family_id_idx ON mobile_sessions(family_id)`);
+      await db.execute(sql`CREATE INDEX IF NOT EXISTS mobile_sessions_expires_at_idx ON mobile_sessions(expires_at)`);
+    })().catch((error) => {
+      mobileSessionSchemaReady = null;
+      throw error;
+    });
+  }
+  await mobileSessionSchemaReady;
+}
 
 function extractRequestIp(req: any): string | null {
   const fwd = req.headers?.['x-forwarded-for'];
@@ -130,6 +209,7 @@ function createRateLimiter(name: string, maxAttempts: number, windowMs: number) 
 }
 
 const loginRateLimit = createRateLimiter('login', 10, 10 * 60 * 1000);
+const refreshRateLimit = createRateLimiter('refresh', 60, 10 * 60 * 1000);
 const resetRequestRateLimit = createRateLimiter('forgot-password', 5, 15 * 60 * 1000);
 const resetVerifyRateLimit = createRateLimiter('verify-reset-otp', 8, 15 * 60 * 1000);
 const resetPasswordRateLimit = createRateLimiter('reset-password', 5, 15 * 60 * 1000);
@@ -220,7 +300,7 @@ router.post('/register', async (req, res) => {
     coffeeStampGoal: getCoffeeStampGoalForNewUser(),
   });
   await getOrCreateCustomerLoyaltyProfile(userId, name);
-  const token = signToken({ id: userId, email: email.toLowerCase(), role: 'customer', name });
+  const credentials = await issueSessionCredentials({ id: userId, email: email.toLowerCase(), role: 'customer', name });
 
   // Fire-and-forget welcome confirmation email — never blocks registration.
   sendEmail({
@@ -229,7 +309,7 @@ router.post('/register', async (req, res) => {
     html: buildCustomerWelcomeEmail({ name, logoUrl: getLogoUrl(req) }),
   }).catch((err) => { req.log?.warn({ err }, 'Failed to send welcome email'); });
 
-  return res.status(201).json({ token, user: { id: userId, email, role: 'customer', name } });
+  return res.status(201).json({ token: credentials.token, refreshToken: credentials.refreshToken, user: { id: userId, email, role: 'customer', name } });
 });
 
 router.post('/login', loginRateLimit, async (req, res) => {
@@ -304,8 +384,8 @@ router.post('/login', loginRateLimit, async (req, res) => {
   recordLoginHistory({ userId: user.id, email: user.email, role: user.role, success: true, req });
   recordAuditLog({ actor: { id: user.id, email: user.email, role: user.role, name: user.name ?? '' }, action: 'auth.login', entityType: 'user', entityId: user.id }).catch(() => {});
   sendLoginAlertEmail({ email: user.email, name: user.name, role: user.role, req });
-  const token = signToken({ id: user.id, email: user.email, role: user.role, name: user.name });
-  return res.json({ token, user: { id: user.id, email: user.email, role: user.role, name: user.name } });
+  const credentials = await issueSessionCredentials(sessionUser(user));
+  return res.json({ token: credentials.token, refreshToken: credentials.refreshToken, user: { id: user.id, email: user.email, role: user.role, name: user.name } });
 });
 
 router.post('/staff-login', loginRateLimit, async (req, res) => {
@@ -386,11 +466,122 @@ router.post('/staff-login', loginRateLimit, async (req, res) => {
   if (user.role !== 'shop_display') {
     sendLoginAlertEmail({ email: user.email, name: user.name, role: user.role, req });
   }
-  const token = signToken(
-    { id: user.id, email: user.email, role: user.role, name: user.name },
-    user.role === 'shop_display' ? '30d' : '7d',
-  );
-  return res.json({ token, user: { id: user.id, email: user.email, role: user.role, name: user.name } });
+  const credentials = await issueSessionCredentials(sessionUser(user));
+  return res.json({ token: credentials.token, refreshToken: credentials.refreshToken, user: { id: user.id, email: user.email, role: user.role, name: user.name } });
+});
+
+router.post('/refresh', refreshRateLimit, async (req, res) => {
+  await ensureMobileSessionSchemaReady();
+  const refreshToken = typeof req.body?.refreshToken === 'string' ? req.body.refreshToken.trim() : '';
+  if (!refreshToken) {
+    return res.status(400).json({ error: 'Refresh credential is required.', code: 'REFRESH_REQUIRED' });
+  }
+
+  const now = new Date();
+  const digest = digestRefreshToken(refreshToken);
+  const [existingSession] = await db.select().from(mobileSessionsTable)
+    .where(and(
+      eq(mobileSessionsTable.tokenDigest, digest),
+      isNull(mobileSessionsTable.revokedAt),
+    ));
+
+  if (!existingSession || existingSession.expiresAt <= now) {
+    if (existingSession) {
+      await db.update(mobileSessionsTable)
+        .set({ revokedAt: now, lastUsedAt: now })
+        .where(and(eq(mobileSessionsTable.id, existingSession.id), isNull(mobileSessionsTable.revokedAt)));
+    }
+    return res.status(401).json({ error: 'Session has expired or been revoked.', code: 'SESSION_INVALID' });
+  }
+
+  const [user] = await db.select().from(usersTable).where(eq(usersTable.id, existingSession.userId));
+  if (!user) {
+    await db.update(mobileSessionsTable)
+      .set({ revokedAt: now, lastUsedAt: now })
+      .where(and(eq(mobileSessionsTable.id, existingSession.id), isNull(mobileSessionsTable.revokedAt)));
+    return res.status(401).json({ error: 'Session has expired or been revoked.', code: 'SESSION_INVALID' });
+  }
+
+  const accountError = accountSessionError(user);
+  if (accountError) {
+    await db.update(mobileSessionsTable)
+      .set({ revokedAt: now, lastUsedAt: now })
+      .where(and(eq(mobileSessionsTable.id, existingSession.id), isNull(mobileSessionsTable.revokedAt)));
+    return res.status(403).json(accountError);
+  }
+
+  if (user.role === 'wholesale') {
+    const [wholesaleAccount] = await db.select().from(wholesaleAccountsTable)
+      .where(eq(wholesaleAccountsTable.userId, user.id));
+    if (!wholesaleAccount || wholesaleAccount.isSuspended) {
+      await db.update(mobileSessionsTable)
+        .set({ revokedAt: now, lastUsedAt: now })
+        .where(and(eq(mobileSessionsTable.id, existingSession.id), isNull(mobileSessionsTable.revokedAt)));
+      return res.status(403).json({
+        error: wholesaleAccount
+          ? 'Your wholesale account has been suspended. Please contact your account manager.'
+          : 'Your wholesale account profile is missing. Please contact us to resolve this.',
+        code: wholesaleAccount ? 'ACCOUNT_SUSPENDED' : 'PROFILE_MISSING',
+      });
+    }
+  }
+
+  const nextRefreshToken = newRefreshToken();
+  const rotated = await db.transaction(async (tx) => {
+    // The conditional update makes a refresh credential single-use even when
+    // two requests race. Only the winner is allowed to create its successor.
+    const [claimed] = await tx.update(mobileSessionsTable)
+      .set({ revokedAt: now, lastUsedAt: now })
+      .where(and(
+        eq(mobileSessionsTable.id, existingSession.id),
+        isNull(mobileSessionsTable.revokedAt),
+      ))
+      .returning({ id: mobileSessionsTable.id });
+    if (!claimed) return false;
+
+    await tx.insert(mobileSessionsTable).values({
+      id: randomUUID(),
+      familyId: existingSession.familyId,
+      userId: user.id,
+      tokenDigest: digestRefreshToken(nextRefreshToken),
+      expiresAt: new Date(now.getTime() + REFRESH_SESSION_TTL_MS),
+    });
+    return true;
+  });
+
+  if (!rotated) {
+    return res.status(401).json({ error: 'Session has expired or been revoked.', code: 'SESSION_INVALID' });
+  }
+
+  const token = signToken({ id: user.id, email: user.email, role: user.role, name: user.name });
+  return res.json({
+    token,
+    refreshToken: nextRefreshToken,
+    user: { id: user.id, email: user.email, role: user.role, name: user.name },
+  });
+});
+
+router.post('/logout', async (req, res) => {
+  await ensureMobileSessionSchemaReady();
+  const refreshToken = typeof req.body?.refreshToken === 'string' ? req.body.refreshToken.trim() : '';
+  if (refreshToken) {
+    const now = new Date();
+    const digest = digestRefreshToken(refreshToken);
+    await db.transaction(async (tx) => {
+      const locked = await tx.execute<{ family_id: string }>(
+        sql`SELECT family_id FROM mobile_sessions WHERE token_digest = ${digest} FOR UPDATE`,
+      );
+      const familyId = locked.rows[0]?.family_id;
+      if (!familyId) return;
+      await tx.update(mobileSessionsTable)
+        .set({ revokedAt: now, lastUsedAt: now })
+        .where(and(
+          eq(mobileSessionsTable.familyId, familyId),
+          isNull(mobileSessionsTable.revokedAt),
+        ));
+    });
+  }
+  return res.json({ success: true });
 });
 
 router.post('/wholesale-apply', async (req, res) => {
@@ -606,6 +797,8 @@ router.get('/me', requireAuth, async (req, res) => {
   const user = req.user!;
   const [dbUser] = await db.select().from(usersTable).where(eq(usersTable.id, user.id));
   if (!dbUser) return res.status(404).json({ error: 'User not found' });
+  const accountError = accountSessionError(dbUser);
+  if (accountError) return res.status(403).json(accountError);
   let profile = null;
   if (dbUser.role === 'customer') {
     const loyaltyProfile = await getOrCreateCustomerLoyaltyProfile(user.id, dbUser.name);
@@ -816,6 +1009,12 @@ router.post('/social', async (req, res) => {
   const [byProvider] = await db.select().from(usersTable)
     .where(and(eq(usersTable.socialProvider, provider), eq(usersTable.socialId, verifiedId)));
   user = byProvider ?? null;
+  if (user && user.role !== 'customer') {
+    return res.status(403).json({
+      error: 'This account uses internal sign-in. Please use the appropriate account sign-in option.',
+      code: 'WRONG_PORTAL',
+    });
+  }
 
   // If no match by provider ID, look up by verified email
   if (!user && verifiedEmail) {
@@ -823,6 +1022,12 @@ router.post('/social', async (req, res) => {
       .where(eq(usersTable.email, verifiedEmail));
     user = byEmail ?? null;
     if (user) {
+      if (user.role !== 'customer') {
+        return res.status(403).json({
+          error: 'This account uses internal sign-in. Please use the appropriate account sign-in option.',
+          code: 'WRONG_PORTAL',
+        });
+      }
       // Bind the verified provider ID to the existing account
       await db.update(usersTable)
         .set({ socialProvider: provider, socialId: verifiedId })
@@ -859,8 +1064,14 @@ router.post('/social', async (req, res) => {
 
   if (!user) return res.status(500).json({ error: 'Failed to resolve user.' });
 
-  const token = signToken({ id: user.id, email: user.email, role: user.role, name: user.name });
-  return res.json({ token, user: { id: user.id, email: user.email, role: user.role, name: user.name } });
+  const accountError = accountSessionError(user);
+  if (accountError) {
+    res.status(403).json(accountError);
+    return;
+  }
+  await getOrCreateCustomerLoyaltyProfile(user.id, user.name);
+  const credentials = await issueSessionCredentials(sessionUser(user));
+  return res.json({ token: credentials.token, refreshToken: credentials.refreshToken, user: { id: user.id, email: user.email, role: user.role, name: user.name } });
 });
 
 // ── Password reset ────────────────────────────────────────────────────────────

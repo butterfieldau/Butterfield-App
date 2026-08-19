@@ -6,7 +6,7 @@ import React, { useRef } from 'react';
 import { useScrollToTopCompat as useScrollToTop } from '@/hooks/useScrollToTopCompat';
 import { useScrollStatusBar } from '@/hooks/useScrollStatusBar';
 import {
-  Alert, Pressable, ScrollView, StatusBar, StyleSheet, Text, View,
+  Alert, Platform, Pressable, ScrollView, StatusBar, StyleSheet, Text, View,
 } from 'react-native';
 import Reanimated from 'react-native-reanimated';
 import { useNavScrollHandlerWithJS } from '@/hooks/useNavScroll';
@@ -67,15 +67,23 @@ export default function AccountScreen() {
   const tierLabel    = getTierConfig(profile?.loyaltyTier ?? 'blue', profile?.loyaltyTierSettings).label;
   const initial      = displayName.charAt(0).toUpperCase();
 
+  const completeLogout = async () => {
+    await logout();
+    qc.clear();
+    router.replace('/(tabs)');
+  };
+
   const handleLogout = () => {
+    if (Platform.OS === 'web') {
+      if (typeof window !== 'undefined' && window.confirm('Are you sure you want to sign out?')) {
+        void completeLogout();
+      }
+      return;
+    }
     Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
       { text: 'Cancel', style: 'cancel' },
       {
-        text: 'Sign Out', style: 'destructive', onPress: async () => {
-          await logout();
-          qc.clear();
-          router.replace('/(tabs)');
-        },
+        text: 'Sign Out', style: 'destructive', onPress: completeLogout,
       },
     ]);
   };

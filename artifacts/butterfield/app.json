@@ -23,6 +23,7 @@
       },
       "infoPlist": {
         "NSCameraUsageDescription": "Butterfield uses the camera to scan loyalty QR codes and earn coffee stamps at the counter.",
+        "NSFaceIDUsageDescription": "Butterfield uses Face ID to unlock your protected sign-in session when you choose biometric sign-in.",
         "NSBluetoothAlwaysUsageDescription": "Butterfield uses Bluetooth to connect to supported in-store hardware such as receipt printers and cash drawer devices for Shop Display and POS operations.",
         "NSLocalNetworkUsageDescription": "Butterfield connects to receipt printers and cash drawer devices on your shop network for Shop Display and POS operations.",
         "NSLocationWhenInUseUsageDescription": "Butterfield uses your location to verify you are at a Butterfield store when signing in as a staff member.",
@@ -64,6 +65,12 @@
       "expo-font",
       "expo-web-browser",
       "expo-apple-authentication",
+      [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "Allow Butterfield to use Face ID to securely sign you in."
+        }
+      ],
       [
         "@react-native-google-signin/google-signin",
         {

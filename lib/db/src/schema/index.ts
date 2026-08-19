@@ -32,3 +32,4 @@ export * from "./registers";
 export * from "./pos_daily_summaries";
 export * from "./vault";
 export * from "./wholesale_terms";
+export * from "./mobile_sessions";

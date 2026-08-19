@@ -5,7 +5,7 @@ import { router, useLocalSearchParams, type Href } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import React, { useState, type ComponentProps } from 'react';
 import {
-  ActivityIndicator, Image, Platform,
+  ActivityIndicator, Alert, Image, Platform,
   Pressable, StyleSheet, Text, TextInput, View,
 } from 'react-native';
 import { KeyboardAwareScrollViewCompat } from '@/components/KeyboardAwareScrollViewCompat';
@@ -58,7 +58,17 @@ function getErrorMessage(error: unknown, fallback = 'Something went wrong.'): st
 
 export default function LoginScreen() {
   const insets = useSafeAreaInsets();
-  const { login, internalLogin, register, wholesaleApply, socialLogin } = useAuth();
+  const {
+    login,
+    internalLogin,
+    register,
+    wholesaleApply,
+    socialLogin,
+    biometricSignInAvailable,
+    canUseBiometricSignIn,
+    enableBiometricSignIn,
+    biometricLogin,
+  } = useAuth();
   const params = useLocalSearchParams<{ mode?: string; redirectTo?: string }>();
 
   const [selectedRole, setSelectedRole] = useState<UserRole>('customer');
@@ -81,6 +91,7 @@ export default function LoginScreen() {
   const [pendingSetup, setPendingSetup] = useState(false);
   const [socialLoading, setSocialLoading] = useState<'apple' | 'google' | null>(null);
   const [appleAvailable, setAppleAvailable] = useState(false);
+  const [biometricLoading, setBiometricLoading] = useState(false);
 
   const routeAfterAuth = (role?: UserRole) => {
     const redirectTo = Array.isArray(params.redirectTo) ? params.redirectTo[0] : params.redirectTo;
@@ -103,6 +114,48 @@ export default function LoginScreen() {
       AppleAuthentication.isAvailableAsync().then(setAppleAvailable).catch(() => {});
     }
   }, []);
+
+  const offerBiometricOptIn = async () => {
+    if (Platform.OS !== 'ios' || biometricSignInAvailable || !(await canUseBiometricSignIn())) return;
+    await new Promise<void>((resolve) => {
+      Alert.alert(
+        'Use Face ID or Touch ID?',
+        'Enable biometric sign-in so you can securely return without entering your password.',
+        [
+          { text: 'Not now', style: 'cancel', onPress: () => resolve() },
+          {
+            text: 'Enable',
+            onPress: async () => {
+              const result = await enableBiometricSignIn();
+              if (!result.success && result.error) {
+                Alert.alert('Biometric sign-in not enabled', result.error);
+              }
+              resolve();
+            },
+          },
+        ],
+        { cancelable: false },
+      );
+    });
+  };
+
+  const handleBiometricSignIn = async () => {
+    setError('');
+    setIError('');
+    setBiometricLoading(true);
+    try {
+      const result = await biometricLogin();
+      if (result.success) {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        routeAfterAuth(result.role);
+      } else if (!result.cancelled && result.error) {
+        if (showInternal) setIError(result.error);
+        else setError(result.error);
+      }
+    } finally {
+      setBiometricLoading(false);
+    }
+  };
 
   const [showInternal, setShowInternal]   = useState(false);
   const [iEmail, setIEmail]               = useState('');
@@ -143,6 +196,7 @@ export default function LoginScreen() {
         setError(result.error ?? 'Google sign-in failed.');
       } else {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        await offerBiometricOptIn();
         routeAfterAuth('customer');
       }
     } catch (e: unknown) {
@@ -173,6 +227,7 @@ export default function LoginScreen() {
       });
       if (!result.success) { setError(result.error ?? 'Apple sign-in failed.'); return; }
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      await offerBiometricOptIn();
       routeAfterAuth('customer');
     } catch (e: unknown) {
       if (!(typeof e === 'object' && e && 'code' in e && (e as { code?: string }).code === 'ERR_REQUEST_CANCELED')) {
@@ -196,6 +251,7 @@ export default function LoginScreen() {
         if (!phone.trim()) { setError('Phone number is required.'); setLoading(false); return; }
         const res = await register({ email: email.trim(), password, name: name.trim(), phone: phone.trim() });
         if (!res.success) { setError(res.error ?? 'Registration failed.'); return; }
+        await offerBiometricOptIn();
         routeAfterAuth('customer');
       } else if (isWholesaleApply) {
         if (!name.trim()) { setError('Full name is required.'); setLoading(false); return; }
@@ -224,6 +280,7 @@ export default function LoginScreen() {
         }
         setPendingSetup(false);
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        await offerBiometricOptIn();
         routeAfterAuth(res.role);
       }
     } catch (e: unknown) {
@@ -243,6 +300,7 @@ export default function LoginScreen() {
       const res = await internalLogin(iEmail.trim(), iPassword);
       if (!res.success) { setIError(res.error ?? 'Sign in failed.'); return; }
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      await offerBiometricOptIn();
       routeAfterAuth(res.role);
     } catch (e: unknown) {
       setIError(getErrorMessage(e));
@@ -267,6 +325,23 @@ export default function LoginScreen() {
           showsVerticalScrollIndicator={false}
         >
           <View style={s.body}>
+          {biometricSignInAvailable && mode === 'login' && !isWholesaleApply && (
+            <Pressable
+              testID="biometric-sign-in"
+              accessibilityRole="button"
+              accessibilityLabel="Sign in with Face ID or Touch ID"
+              onPress={handleBiometricSignIn}
+              disabled={biometricLoading}
+              style={[s.biometricBtn, { opacity: biometricLoading ? 0.75 : 1 }]}
+            >
+              {biometricLoading
+                ? <ActivityIndicator color={NAVY} size="small" />
+                : <Feather name="shield" size={19} color={NAVY} />}
+              <Text style={s.biometricBtnText}>
+                {biometricLoading ? 'Checking…' : 'Sign in with Face ID / Touch ID'}
+              </Text>
+            </Pressable>
+          )}
 
           {!showInternal ? (
             <>
@@ -590,6 +665,8 @@ const s = StyleSheet.create({
   scrollContent:   { paddingBottom: 48 },
   tagline:         { color: 'rgba(255,255,255,0.8)', fontSize: 13, letterSpacing: 0.5 },
   body:            { flexGrow: 1, paddingHorizontal: 20, paddingTop: 28, paddingBottom: 48, gap: 14 },
+  biometricBtn:    { minHeight: 52, paddingHorizontal: 16, flexDirection: 'row', gap: 10, alignItems: 'center', justifyContent: 'center', backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#1A2B4A', borderRadius: 14 },
+  biometricBtnText:{ color: NAVY, fontSize: 14, fontWeight: '700' },
   signInAs:        { fontSize: 15, color: TEXT },
   roleRow:         { flexDirection: 'row', gap: 12 },
   roleCard:        { flex: 1, padding: 16, gap: 8, alignItems: 'center', borderRadius: 16 },

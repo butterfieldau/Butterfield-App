@@ -34,7 +34,9 @@ export function getSessionSecret(): string {
   return generatedDevSecret;
 }
 
-export function signToken(payload: AuthUser, expiresIn: SignOptions['expiresIn'] = '7d'): string {
+export const ACCESS_TOKEN_TTL: SignOptions['expiresIn'] = '15m';
+
+export function signToken(payload: AuthUser, expiresIn: SignOptions['expiresIn'] = ACCESS_TOKEN_TTL): string {
   return jwt.sign(payload, getSessionSecret(), { expiresIn });
 }
 
@@ -49,8 +51,9 @@ export function requireAuth(req: Request, res: Response, next: NextFunction): vo
     const payload = jwt.verify(token, getSessionSecret()) as AuthUser;
     req.user = payload;
     next();
-  } catch {
-    res.status(401).json({ error: 'Invalid or expired token', code: 'TOKEN_INVALID' });
+  } catch (error) {
+    const code = error instanceof jwt.TokenExpiredError ? 'TOKEN_EXPIRED' : 'TOKEN_INVALID';
+    res.status(401).json({ error: 'Invalid or expired token', code });
   }
 }
 

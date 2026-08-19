@@ -1,6 +1,11 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as SecureStore from 'expo-secure-store';
+import { Platform } from 'react-native';
 
 const TOKEN_KEY = '@butterfield_token';
+const REFRESH_TOKEN_KEY = 'butterfield_refresh_token';
+const BIOMETRIC_REFRESH_TOKEN_KEY = 'butterfield_biometric_refresh_token';
+const BIOMETRIC_ACCOUNT_KEY = '@butterfield_biometric_account';
 
 const BASE = process.env.EXPO_PUBLIC_DOMAIN
   ? `https://${process.env.EXPO_PUBLIC_DOMAIN}/api`
@@ -47,33 +52,239 @@ export class ApiError extends Error {
   }
 }
 
+export interface AuthSessionResponse {
+  token: string;
+  refreshToken: string;
+  user: ApiUser;
+}
+
+type SessionInvalidHandler = (() => void | Promise<void>) | null;
+let sessionInvalidHandler: SessionInvalidHandler = null;
+let refreshInFlight: Promise<AuthSessionResponse> | null = null;
+let logoutInFlight: Promise<void> | null = null;
+
+async function getDeviceCredential(
+  key: string,
+  options?: SecureStore.SecureStoreOptions,
+): Promise<string | null> {
+  if (Platform.OS === 'web') return AsyncStorage.getItem(key);
+  return SecureStore.getItemAsync(key, options);
+}
+
+async function setDeviceCredential(
+  key: string,
+  value: string,
+  options?: SecureStore.SecureStoreOptions,
+): Promise<void> {
+  if (Platform.OS === 'web') {
+    await AsyncStorage.setItem(key, value);
+    return;
+  }
+  await SecureStore.setItemAsync(key, value, options);
+}
+
+async function deleteDeviceCredential(key: string): Promise<void> {
+  if (Platform.OS === 'web') {
+    await AsyncStorage.removeItem(key);
+    return;
+  }
+  await SecureStore.deleteItemAsync(key);
+}
+
+export function setSessionInvalidHandler(handler: SessionInvalidHandler): () => void {
+  sessionInvalidHandler = handler;
+  return () => {
+    if (sessionInvalidHandler === handler) sessionInvalidHandler = null;
+  };
+}
+
 export async function getToken(): Promise<string | null> {
   return AsyncStorage.getItem(TOKEN_KEY);
 }
-export async function saveToken(token: string): Promise<void> {
-  return AsyncStorage.setItem(TOKEN_KEY, token);
-}
-export async function clearToken(): Promise<void> {
+export async function clearAccessToken(): Promise<void> {
   return AsyncStorage.removeItem(TOKEN_KEY);
+}
+export async function getRefreshToken(): Promise<string | null> {
+  try {
+    return await getDeviceCredential(REFRESH_TOKEN_KEY);
+  } catch {
+    return null;
+  }
+}
+
+async function getBiometricAccountId(): Promise<string | null> {
+  try {
+    const raw = await AsyncStorage.getItem(BIOMETRIC_ACCOUNT_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as { userId?: unknown };
+    return typeof parsed.userId === 'string' ? parsed.userId : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function isBiometricSignInEnabled(): Promise<boolean> {
+  return (await getBiometricAccountId()) !== null;
+}
+
+export async function disableBiometricSignIn(): Promise<void> {
+  await Promise.all([
+    AsyncStorage.removeItem(BIOMETRIC_ACCOUNT_KEY),
+    deleteDeviceCredential(BIOMETRIC_REFRESH_TOKEN_KEY).catch(() => {}),
+  ]);
+}
+
+export async function enableBiometricSignIn(refreshToken: string, userId: string): Promise<void> {
+  await setDeviceCredential(BIOMETRIC_REFRESH_TOKEN_KEY, refreshToken, {
+    requireAuthentication: true,
+    authenticationPrompt: 'Enable biometric sign-in for Butterfield',
+    keychainAccessible: SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY,
+  });
+  await AsyncStorage.setItem(BIOMETRIC_ACCOUNT_KEY, JSON.stringify({ userId }));
+}
+
+export async function getBiometricRefreshToken(): Promise<string | null> {
+  try {
+    return await getDeviceCredential(BIOMETRIC_REFRESH_TOKEN_KEY, {
+      requireAuthentication: true,
+      authenticationPrompt: 'Sign in to Butterfield',
+    });
+  } catch {
+    return null;
+  }
+}
+
+export async function saveSessionCredentials(
+  token: string,
+  refreshToken: string,
+  userId?: string,
+): Promise<void> {
+  await Promise.all([
+    AsyncStorage.setItem(TOKEN_KEY, token),
+    setDeviceCredential(REFRESH_TOKEN_KEY, refreshToken, {
+      keychainAccessible: SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY,
+    }),
+  ]);
+
+  const biometricAccountId = await getBiometricAccountId();
+  if (!biometricAccountId) return;
+  if (userId && biometricAccountId !== userId) {
+    await disableBiometricSignIn();
+    return;
+  }
+  try {
+    await setDeviceCredential(BIOMETRIC_REFRESH_TOKEN_KEY, refreshToken, {
+      requireAuthentication: true,
+      authenticationPrompt: 'Update biometric sign-in for Butterfield',
+      keychainAccessible: SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY,
+    });
+  } catch {
+    // Never leave a visible biometric action backed by a stale rotated token.
+    await disableBiometricSignIn();
+  }
+}
+
+export async function clearToken(): Promise<void> {
+  await Promise.all([
+    AsyncStorage.removeItem(TOKEN_KEY),
+    deleteDeviceCredential(REFRESH_TOKEN_KEY).catch(() => {}),
+    disableBiometricSignIn(),
+  ]);
 }
 
 async function _vaultReq<T>(path: string, vaultToken: string, options: RequestInit = {}): Promise<T> {
-  const token = await getToken();
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-    ...(options.headers as Record<string, string>),
-  };
-  if (token) headers['Authorization'] = `Bearer ${token}`;
-  headers['X-Vault-Token'] = vaultToken;
-  const res = await fetch(`${BASE}${path}`, { ...options, headers });
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({}));
-    throw new ApiError(body.error ?? `HTTP ${res.status}`, res.status, body);
-  }
-  return res.json();
+  return request<T>(path, {
+    ...options,
+    headers: {
+      ...(options.headers as Record<string, string>),
+      'X-Vault-Token': vaultToken,
+    },
+  });
 }
 
-async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
+async function parseResponseBody(res: Response): Promise<any> {
+  const text = await res.text();
+  if (!text) return {};
+  try {
+    return JSON.parse(text);
+  } catch {
+    return {};
+  }
+}
+
+function isTerminalSessionRejection(status: number, body: any): boolean {
+  const code = body?.code;
+  return (
+    (status === 401 && code === 'SESSION_INVALID') ||
+    (status === 403 && ['ACCOUNT_INACTIVE', 'ACCOUNT_SUSPENDED', 'PENDING_SETUP', 'PROFILE_MISSING'].includes(code))
+  );
+}
+
+async function invalidateLocalSession(): Promise<void> {
+  await clearToken();
+  await sessionInvalidHandler?.();
+}
+
+async function performRefresh(refreshToken: string): Promise<AuthSessionResponse> {
+  const res = await fetch(`${BASE}/auth/refresh`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ refreshToken }),
+  });
+  const body = await parseResponseBody(res);
+  if (!res.ok) {
+    if (isTerminalSessionRejection(res.status, body)) await invalidateLocalSession();
+    throw new ApiError(body.error ?? `HTTP ${res.status}`, res.status, body);
+  }
+  const session = body as AuthSessionResponse;
+  await saveSessionCredentials(session.token, session.refreshToken, session.user.id);
+  return session;
+}
+
+export async function refreshAccessToken(refreshTokenOverride?: string): Promise<AuthSessionResponse> {
+  if (refreshInFlight) return refreshInFlight;
+  if (logoutInFlight) {
+    await logoutInFlight;
+    throw new ApiError('Your session has ended. Please sign in again.', 401, { code: 'SESSION_INVALID' });
+  }
+
+  refreshInFlight = (async () => {
+    const refreshToken = refreshTokenOverride ?? await getRefreshToken();
+    if (!refreshToken) {
+      await invalidateLocalSession();
+      throw new ApiError('Your session has expired. Please sign in again.', 401, { code: 'SESSION_INVALID' });
+    }
+    return performRefresh(refreshToken);
+  })();
+
+  try {
+    return await refreshInFlight;
+  } finally {
+    refreshInFlight = null;
+  }
+}
+
+export function logoutCurrentSession(): Promise<void> {
+  if (logoutInFlight) return logoutInFlight;
+  logoutInFlight = (async () => {
+    if (refreshInFlight) {
+      try {
+        await refreshInFlight;
+      } catch {
+        // A failed refresh cannot produce a successor credential to revoke.
+      }
+    }
+    const refreshToken = await getRefreshToken();
+    try {
+      await api.auth.logout(refreshToken);
+    } finally {
+      logoutInFlight = null;
+    }
+  })();
+  return logoutInFlight;
+}
+
+async function request<T>(path: string, options: RequestInit = {}, mayRefresh = true): Promise<T> {
   const token = await getToken();
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -82,26 +293,45 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   if (token) headers['Authorization'] = `Bearer ${token}`;
   const res = await fetch(`${BASE}${path}`, { ...options, headers });
   if (!res.ok) {
-    const body = await res.json().catch(() => ({}));
+    const body = await parseResponseBody(res);
+    const tokenRejected =
+      res.status === 401 &&
+      ['TOKEN_EXPIRED', 'TOKEN_INVALID'].includes(body?.code);
+    if (mayRefresh && token && tokenRejected) {
+      await refreshAccessToken();
+      return request<T>(path, options, false);
+    }
+    if (isTerminalSessionRejection(res.status, body)) await invalidateLocalSession();
     throw new ApiError(body.error ?? `HTTP ${res.status}`, res.status, body);
   }
-  return res.json();
+  return parseResponseBody(res) as Promise<T>;
 }
 
 export const api = {
   auth: {
     register: (data: { email: string; password: string; name: string; phone?: string; birthday?: string }) =>
-      request<{ token: string; user: ApiUser }>('/auth/register', { method: 'POST', body: JSON.stringify(data) }),
+      request<AuthSessionResponse>('/auth/register', { method: 'POST', body: JSON.stringify(data) }),
     login: (data: { email: string; password: string }) =>
-      request<{ token: string; user: ApiUser }>('/auth/login', { method: 'POST', body: JSON.stringify(data) }),
+      request<AuthSessionResponse>('/auth/login', { method: 'POST', body: JSON.stringify(data) }),
     staffLogin: (data: { email: string; password: string; latitude?: number; longitude?: number; accuracyMeters?: number }) =>
-      request<{ token: string; user: ApiUser }>('/auth/staff-login', { method: 'POST', body: JSON.stringify(data) }),
+      request<AuthSessionResponse>('/auth/staff-login', { method: 'POST', body: JSON.stringify(data) }),
     wholesaleApply: (data: {
       email: string; password: string; name: string; phone: string;
       companyName: string; abn?: string; deliveryAddress: string; howDidYouHear?: string;
     }) => request<{ message: string }>('/auth/wholesale-apply', { method: 'POST', body: JSON.stringify(data) }),
     socialLogin: (data: { provider: 'google'; idToken: string } | { provider: 'apple'; idToken: string }) =>
-      request<{ token: string; user: ApiUser }>('/auth/social', { method: 'POST', body: JSON.stringify(data) }),
+      request<AuthSessionResponse>('/auth/social', { method: 'POST', body: JSON.stringify(data) }),
+    refresh: (refreshToken?: string) => refreshAccessToken(refreshToken),
+    logout: async (refreshToken: string | null) => {
+      const res = await fetch(`${BASE}/auth/logout`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refreshToken }),
+      });
+      const body = await parseResponseBody(res);
+      if (!res.ok) throw new ApiError(body.error ?? `HTTP ${res.status}`, res.status, body);
+      return body as { success: boolean };
+    },
     forgotPassword: (data: { email?: string; phone?: string; method: 'email' | 'sms' }) =>
       request<{ success: boolean; message: string; destination?: string; method?: string; devOtp?: string }>('/auth/forgot-password', { method: 'POST', body: JSON.stringify(data) }),
     verifyResetOtp: (data: { email?: string; phone?: string; otp: string }) =>

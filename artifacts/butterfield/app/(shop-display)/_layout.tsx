@@ -611,7 +611,10 @@ export default function ShopDisplayLayout() {
     setForgotPinLoading(true);
     setForgotPinError('');
     try {
-      await api.auth.staffLogin({ email: user.email, password: forgotPinPassword });
+      const verificationSession = await api.auth.staffLogin({ email: user.email, password: forgotPinPassword });
+      // This call verifies a password rather than replacing the display's active
+      // session, so immediately revoke the temporary renewable credential.
+      await api.auth.logout(verificationSession.refreshToken).catch(() => {});
       // Password correct — clear the PIN and unlock
       await clearDisplayLockPin();
       setLockPin(null);
