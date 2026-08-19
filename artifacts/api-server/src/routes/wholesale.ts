@@ -357,62 +357,96 @@ router.post('/orders', async (req, res) => {
       isPaid = true;
     }
 
-    let order;
     const wsOrderNumber = await generateWholesaleOrderNumber();
-    try {
-      [order] = await db.insert(wholesaleOrdersTable).values({
-        id: randomUUID(),
-        orderNumber: wsOrderNumber,
-        accountId: account.id,
-        userId: req.user!.id,
-        status: 'pending',
-        poReference: poReference ?? null,
-        items: itemsWithNames as any,
-        notes: notes ?? null,
-        totalCents: finalTotalCents,
-        originalTotalCents,
-        deliveryFeeCents,
-        deliveryType: deliveryType ?? 'pickup',
-        scheduledDate: scheduledDate ?? null,
-        isPaid,
-        paidAt: isPaid ? new Date() : null,
-        stripePaymentIntentId: stripePaymentIntentId ?? null,
-        stripePaymentStatus,
-        paymentMethodType: paymentMethodType ?? (isNetAccount ? 'net_terms' : 'credit_card'),
-      }).returning();
-    } catch (insertError: any) {
-      if (!isNetAccount && isPaid && stripePaymentIntentId) {
-        try {
-          const { getUncachableStripeClient } = await import('../stripeClient.js');
-          const stripe = await getUncachableStripeClient();
-          await stripe.refunds.create({
-            payment_intent: String(stripePaymentIntentId),
-            reason: 'requested_by_customer',
-            metadata: {
-              orderSource: 'wholesale',
-              rollback: 'order_insert_failed',
-              accountId: account.id,
-              userId: req.user!.id,
-            },
-          });
-          req.log.error(
-            { err: insertError, stripePaymentIntentId, accountId: account.id, userId: req.user!.id },
-            'Wholesale order insert failed after payment success; payment was automatically refunded',
-          );
-          return res.status(500).json({
-            error: 'The payment was received but the order could not be saved. We automatically refunded it, so please try again.',
-          });
-        } catch (refundError) {
-          req.log.error(
-            { err: insertError, refundError, stripePaymentIntentId, accountId: account.id, userId: req.user!.id },
-            'Wholesale order insert failed after payment success; automatic refund also failed',
-          );
-          return res.status(500).json({
-            error: 'The payment was received but the order could not be saved. Please contact Butterfield support before retrying.',
-          });
+    const orderValues = {
+      id: randomUUID(),
+      orderNumber: wsOrderNumber,
+      accountId: account.id,
+      userId: req.user!.id,
+      status: 'pending' as const,
+      poReference: poReference ?? null,
+      items: itemsWithNames as any,
+      notes: notes ?? null,
+      totalCents: finalTotalCents,
+      originalTotalCents,
+      deliveryFeeCents,
+      deliveryType: (deliveryType ?? 'pickup') as 'pickup' | 'delivery',
+      scheduledDate: scheduledDate ?? null,
+      isPaid,
+      paidAt: isPaid ? new Date() : null,
+      stripePaymentIntentId: stripePaymentIntentId ?? null,
+      stripePaymentStatus,
+      paymentMethodType: paymentMethodType ?? (isNetAccount ? 'net_terms' : 'credit_card'),
+    };
+
+    let order;
+    if (isNetAccount) {
+      // Atomic: lock the account row, check credit limit, then insert — all serialised in one transaction
+      // so two concurrent requests for the same account cannot both slip past the limit check.
+      [order] = await db.transaction(async (tx) => {
+        // Row-level lock prevents concurrent Net orders for this account from reading stale balances
+        await tx.execute(sql`SELECT id FROM wholesale_accounts WHERE id = ${account.id} FOR UPDATE`);
+
+        const creditLimitCents = account.creditLimitCents ?? 0;
+        if (creditLimitCents > 0) {
+          const [balanceRow] = await tx
+            .select({ total: sql<number>`COALESCE(SUM(${wholesaleOrdersTable.totalCents} - COALESCE(${wholesaleOrdersTable.refundedCents}, 0)), 0)` })
+            .from(wholesaleOrdersTable)
+            .where(and(
+              eq(wholesaleOrdersTable.accountId, account.id),
+              eq(wholesaleOrdersTable.isPaid, false),
+              ne(wholesaleOrdersTable.status, 'cancelled'),
+            ));
+          const currentBalanceCents = Number(balanceRow?.total ?? 0);
+          if (currentBalanceCents + finalTotalCents > creditLimitCents) {
+            const availableCredit = Math.max(0, creditLimitCents - currentBalanceCents);
+            throw Object.assign(new Error('credit_limit_exceeded'), {
+              creditLimitExceeded: true,
+              availableCredit,
+              outstandingBalance: currentBalanceCents,
+            });
+          }
         }
+
+        return tx.insert(wholesaleOrdersTable).values(orderValues).returning();
+      });
+    } else {
+      try {
+        [order] = await db.insert(wholesaleOrdersTable).values(orderValues).returning();
+      } catch (insertError: any) {
+        if (isPaid && stripePaymentIntentId) {
+          try {
+            const { getUncachableStripeClient } = await import('../stripeClient.js');
+            const stripe = await getUncachableStripeClient();
+            await stripe.refunds.create({
+              payment_intent: String(stripePaymentIntentId),
+              reason: 'requested_by_customer',
+              metadata: {
+                orderSource: 'wholesale',
+                rollback: 'order_insert_failed',
+                accountId: account.id,
+                userId: req.user!.id,
+              },
+            });
+            req.log.error(
+              { err: insertError, stripePaymentIntentId, accountId: account.id, userId: req.user!.id },
+              'Wholesale order insert failed after payment success; payment was automatically refunded',
+            );
+            return res.status(500).json({
+              error: 'The payment was received but the order could not be saved. We automatically refunded it, so please try again.',
+            });
+          } catch (refundError) {
+            req.log.error(
+              { err: insertError, refundError, stripePaymentIntentId, accountId: account.id, userId: req.user!.id },
+              'Wholesale order insert failed after payment success; automatic refund also failed',
+            );
+            return res.status(500).json({
+              error: 'The payment was received but the order could not be saved. Please contact Butterfield support before retrying.',
+            });
+          }
+        }
+        throw insertError;
       }
-      throw insertError;
     }
 
     const itemCount = Array.isArray(itemsWithNames) ? itemsWithNames.reduce((sum, item) => sum + Math.max(1, Number(item.qty ?? 1) || 1), 0) : 1;
@@ -430,6 +464,14 @@ router.post('/orders', async (req, res) => {
 
     return res.status(201).json({ data: { ...order, pricing: { ...priced, deliveryFeeCents, stripeFeeCents, finalTotalCents } } });
   } catch (err: any) {
+    if (err.creditLimitExceeded) {
+      return res.status(402).json({
+        error: 'credit_limit_exceeded',
+        message: 'Your credit limit has been reached. Please pay your outstanding balance before placing a new order.',
+        availableCredit: err.availableCredit,
+        outstandingBalance: err.outstandingBalance,
+      });
+    }
     return res.status(400).json({ error: err.message ?? 'Order validation failed' });
   }
 });

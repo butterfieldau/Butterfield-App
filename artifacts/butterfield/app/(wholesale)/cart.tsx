@@ -216,9 +216,13 @@ function WholesaleCartScreenInner({ stripeReady }: { stripeReady: boolean }) {
   const totalQty   = cart.reduce((s, e) => s + e.quantity, 0);
   const belowMin   = minOrderCents > 0 && subtotalCents < minOrderCents;
   const isNetAccount = Boolean(account?.creditEnabled) && (account?.paymentTerms ?? 'pay_on_order') !== 'pay_on_order';
+  const creditLimitCents = account?.creditLimitCents ?? 0;
+  const currentBalanceCents = account?.currentBalanceCents ?? 0;
   const baseTotalCents = subtotalCents + (orderType === 'delivery' ? deliveryFeeCents : 0);
   const stripeFeeCents = isNetAccount ? 0 : estimateStripeFeeCents(baseTotalCents);
   const totalCents = baseTotalCents + stripeFeeCents;
+  // Block Net-terms accounts whose outstanding balance + this order would exceed their credit limit
+  const creditLimitExceeded = isNetAccount && creditLimitCents > 0 && (currentBalanceCents + totalCents) > creditLimitCents;
 
   const sydNow        = getSydneyNow();
   const deliveryDates = getDeliveryDates();
@@ -375,7 +379,18 @@ function WholesaleCartScreenInner({ stripeReady }: { stripeReady: boolean }) {
           ? 'Your order has been placed on account and will appear on your monthly statement.'
           : 'Your wholesale order has been paid and submitted successfully.',
       );
-    } catch (e: any) { Alert.alert('Error', e.message); }
+    } catch (e: any) {
+      // Handle credit limit rejection from server (e.g. race where balance changed between client-check and submission)
+      if (e.message === 'credit_limit_exceeded') {
+        const body = e.body as any;
+        Alert.alert(
+          'Credit Limit Reached',
+          body?.message ?? 'Your credit limit has been reached. Please pay your outstanding balance before placing a new order.',
+        );
+      } else {
+        Alert.alert('Error', e.message);
+      }
+    }
     finally { setSubmitting(false); }
   };
 
@@ -521,10 +536,24 @@ function WholesaleCartScreenInner({ stripeReady }: { stripeReady: boolean }) {
                   </Text>
                 )}
               </View>
+              {creditLimitExceeded && (
+                <View style={{ backgroundColor: '#FEF2F2', borderRadius: 12, padding: 14, borderWidth: 1, borderColor: '#FCA5A5', gap: 4 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <Feather name="alert-circle" size={14} color="#DC2626" />
+                    <Text style={{ color: '#DC2626', fontSize: 13, fontWeight: '700' }}>Credit limit reached</Text>
+                  </View>
+                  <Text style={{ color: '#B91C1C', fontSize: 12, fontWeight: '400', lineHeight: 17 }}>
+                    Your outstanding balance (AUD {(currentBalanceCents / 100).toFixed(2)}) has reached your credit limit of AUD {(creditLimitCents / 100).toFixed(2)}. Please pay your outstanding invoices before placing a new order.
+                  </Text>
+                  <Pressable onPress={() => router.navigate('/(wholesale)/profile')} style={{ marginTop: 4 }}>
+                    <Text style={{ color: '#DC2626', fontSize: 12, fontWeight: '600', textDecorationLine: 'underline' }}>View invoices & account →</Text>
+                  </Pressable>
+                </View>
+              )}
               <Pressable
                 onPress={handleProceedToCheckout}
-                disabled={belowMin}
-                style={[s.checkoutBtn, { backgroundColor: belowMin ? '#C7C7CC' : BLUE }]}
+                disabled={belowMin || creditLimitExceeded}
+                style={[s.checkoutBtn, { backgroundColor: (belowMin || creditLimitExceeded) ? '#C7C7CC' : BLUE }]}
               >
                 <Feather name="shopping-bag" size={16} color="#fff" />
                 <Text style={s.checkoutBtnText}>Proceed to Checkout</Text>
@@ -940,9 +969,9 @@ function WholesaleCartScreenInner({ stripeReady }: { stripeReady: boolean }) {
               </View>
               <Pressable
                 onPress={handleContinue}
-                disabled={submitting || (checkoutStep === 0 && belowMin)}
+                disabled={submitting || (checkoutStep === 0 && belowMin) || (checkoutStep === 2 && creditLimitExceeded)}
                 style={[cs.continueBtn, {
-                  backgroundColor: (checkoutStep === 0 && belowMin) ? '#C7C7CC' : BLUE,
+                  backgroundColor: ((checkoutStep === 0 && belowMin) || (checkoutStep === 2 && creditLimitExceeded)) ? '#C7C7CC' : BLUE,
                   opacity: submitting ? 0.8 : 1,
                 }]}
               >
