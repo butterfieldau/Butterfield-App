@@ -59,12 +59,14 @@ import { eq, and, desc, gte, sql, or, count, sum, inArray } from 'drizzle-orm';
 import { requireAuth, requireRole } from '../middlewares/auth.js';
 import {
   applyCoffeeStamps,
+  calculateLoyaltyPointsForEligibleSpend,
   getOrCreateCustomerLoyaltyProfile,
   parseLoyaltyQrPayload,
   recordLoyaltyPoints,
   reverseCoffeeStamps,
   ensureLoyaltySchemaReady,
 } from '../lib/loyaltyIdentity.js';
+import { refreshCustomerAnnualLoyaltyTier } from '../lib/loyaltyTierSettings.js';
 import { ensureShopDisplaySchemaReady } from '../lib/ensureShopDisplaySchemaReady.js';
 import { validateDiscountCode } from '../lib/discountUtils.js';
 import { countCoffeeItemsFromOrderItems, getOutstandingCoffeeStampsForOrder } from '../lib/orderLoyaltyUtils.js';
@@ -471,9 +473,10 @@ router.get('/customer-search', async (req, res) => {
     const [user] = await db.select().from(usersTable).where(eq(usersTable.id, resolvedUserId));
     if (!user) return res.status(404).json({ error: 'Customer not found' });
 
-    const [profile, availableClaimedRewards] = await Promise.all([
+    const [profile, availableClaimedRewards, annualTier] = await Promise.all([
       getOrCreateCustomerLoyaltyProfile(resolvedUserId, user.name),
       fetchAvailableClaimedRewards(resolvedUserId),
+      refreshCustomerAnnualLoyaltyTier(resolvedUserId),
     ]);
     return res.json({
       data: [{
@@ -483,7 +486,8 @@ router.get('/customer-search', async (req, res) => {
         loyaltyPoints: profile.loyaltyPoints ?? 0,
         stampCount: profile.coffeeStampCount ?? profile.stampCount ?? 0,
         stampGoal: Number(profile.coffeeStampGoal ?? 6),
-        loyaltyTier: profile.loyaltyTier ?? 'blue',
+        loyaltyTier: annualTier.loyaltyTier,
+        annualTierSpendCents: annualTier.annualTierSpendCents,
         freeCoffeeRewards: Number(profile.freeCoffeeRewards ?? profile.freeCoffeesEarned ?? 0),
         birthday: (profile as any).birthday ?? null,
         availableClaimedRewards,
@@ -496,9 +500,10 @@ router.get('/customer-search', async (req, res) => {
     const uid = String(userId);
     const [user] = await db.select().from(usersTable).where(eq(usersTable.id, uid));
     if (!user) return res.status(404).json({ error: 'Customer not found' });
-    const [profile, availableClaimedRewards] = await Promise.all([
+    const [profile, availableClaimedRewards, annualTier] = await Promise.all([
       getOrCreateCustomerLoyaltyProfile(uid, user.name),
       fetchAvailableClaimedRewards(uid),
+      refreshCustomerAnnualLoyaltyTier(uid),
     ]);
     return res.json({
       data: [{
@@ -508,7 +513,8 @@ router.get('/customer-search', async (req, res) => {
         loyaltyPoints: profile.loyaltyPoints ?? 0,
         stampCount: profile.coffeeStampCount ?? profile.stampCount ?? 0,
         stampGoal: Number(profile.coffeeStampGoal ?? 6),
-        loyaltyTier: profile.loyaltyTier ?? 'blue',
+        loyaltyTier: annualTier.loyaltyTier,
+        annualTierSpendCents: annualTier.annualTierSpendCents,
         freeCoffeeRewards: Number(profile.freeCoffeeRewards ?? profile.freeCoffeesEarned ?? 0),
         birthday: (profile as any).birthday ?? null,
         availableClaimedRewards,
@@ -549,9 +555,12 @@ router.get('/customer-search', async (req, res) => {
   }>;
 
   // Fetch claimed rewards for each result in parallel
-  const claimedRewardsMap = await Promise.all(
-    users.map(u => fetchAvailableClaimedRewards(u.id).then(cr => [u.id, cr] as const))
-  ).then(entries => Object.fromEntries(entries));
+  const [claimedRewardsMap, annualTierMap] = await Promise.all([
+    Promise.all(users.map(u => fetchAvailableClaimedRewards(u.id).then(cr => [u.id, cr] as const)))
+      .then(entries => Object.fromEntries(entries)),
+    Promise.all(users.map(u => refreshCustomerAnnualLoyaltyTier(u.id).then(tier => [u.id, tier] as const)))
+      .then(entries => Object.fromEntries(entries)),
+  ]);
 
   return res.json({
     data: users.map(u => ({
@@ -561,7 +570,8 @@ router.get('/customer-search', async (req, res) => {
       loyaltyPoints: Number(u.loyalty_points),
       stampCount: Number(u.stamp_count),
       stampGoal: Number(u.stamp_goal ?? 6),
-      loyaltyTier: u.loyalty_tier,
+      loyaltyTier: annualTierMap[u.id]?.loyaltyTier ?? 'blue',
+      annualTierSpendCents: annualTierMap[u.id]?.annualTierSpendCents ?? 0,
       freeCoffeeRewards: Number(u.free_coffee_rewards),
       birthday: u.birthday ?? null,
       availableClaimedRewards: claimedRewardsMap[u.id] ?? [],
@@ -995,17 +1005,6 @@ const handleCreatePosOrder: import('express').RequestHandler = async (req, res) 
     }
   }
 
-  // Tier multiplier map — applied to points earned (not tip or surcharge)
-  function getTierMultiplier(tier: string): number {
-    switch ((tier ?? '').toLowerCase()) {
-      case 'black':
-      case 'platinum': return 2.0;
-      case 'gold':     return 1.5;
-      case 'silver':   return 1.25;
-      default:         return 1.0; // blue / bronze / unknown
-    }
-  }
-
   if (!Array.isArray(rawItems) || rawItems.length === 0) {
     return res.status(400).json({ error: 'Order must have at least one item' });
   }
@@ -1221,32 +1220,9 @@ const handleCreatePosOrder: import('express').RequestHandler = async (req, res) 
   const orderNumber = await generateOrderNumber();
   const invoiceNumber = await getNextInvoiceNumber();
 
-  // ── Points earned: server-side tier + birthday verification ─────────────
-  let tierMultiplierVal = 1.0;
-  let earlyLoyaltyTier = 'blue';
-  let birthdayBonusVerified = false;
-  if (customerId) {
-    try {
-      const earlyProfile = await getOrCreateCustomerLoyaltyProfile(customerId);
-      earlyLoyaltyTier = earlyProfile.loyaltyTier ?? 'blue';
-      tierMultiplierVal = getTierMultiplier(earlyLoyaltyTier);
-      // Server-side birthday check — ignore any client-supplied flag
-      const profileBirthday = (earlyProfile as any).birthday as string | null | undefined;
-      if (profileBirthday) {
-        const bMonth = parseInt((profileBirthday.split('-')[1] ?? '0'), 10) - 1;
-        birthdayBonusVerified = bMonth === new Date().getMonth();
-      }
-    } catch { /* fall back to 1× */ }
-  }
-  const basePoints = Math.floor(baseTotalCents / 125 * tierMultiplierVal);
-  let birthdayBonusPoints = 0;
-  let birthdayBonusMultiplier = DEFAULT_BIRTHDAY_BONUS_MULTIPLIER;
-  if (birthdayBonusVerified) {
-    const posSettings = await getLoyaltyPosSettings();
-    birthdayBonusMultiplier = posSettings.birthdayBonusMultiplier;
-    birthdayBonusPoints = Math.floor(basePoints * (birthdayBonusMultiplier - 1));
-  }
-  const pointsEarned = basePoints + birthdayBonusPoints;
+  // Points are deliberately independent from membership tiers and checkout channel.
+  // Surcharges and reward-funded discounts are not reductions to eligible spend.
+  const pointsEarned = calculateLoyaltyPointsForEligibleSpend(subtotalCents);
 
   // Store a human-readable discount label as discount_code
   // For manual % discounts and free coffee we use a descriptive label
@@ -1259,7 +1235,7 @@ const handleCreatePosOrder: import('express').RequestHandler = async (req, res) 
       await tx.execute(sql`
         INSERT INTO orders (
           id, order_number, user_id, status, type, notes, total_cents,
-          items, loyalty_points_earned, loyalty_points_used, discount_cents, discount_code,
+          items, loyalty_points_earned, loyalty_points_used, discount_cents, tier_eligible_spend_cents, discount_code,
           stripe_payment_status, source, staff_user_id, payment_method,
           tip_cents, surcharge_cents, split_payments, register_session_id,
           client_idempotency_key, invoice_number,
@@ -1276,6 +1252,7 @@ const handleCreatePosOrder: import('express').RequestHandler = async (req, res) 
           ${pointsEarned},
           0,
           ${discountAmountCents},
+          ${subtotalCents},
           ${storedDiscountCode},
           'paid',
           'pos',
@@ -1408,32 +1385,13 @@ const handleCreatePosOrder: import('express').RequestHandler = async (req, res) 
     try {
       const profile = await getOrCreateCustomerLoyaltyProfile(customerId);
 
-      // Base points (includes tier multiplier)
-      const tierNote = tierMultiplierVal !== 1.0 ? ` (${earlyLoyaltyTier} tier ${tierMultiplierVal}×)` : '';
       await recordLoyaltyPoints({
         userId: customerId,
-        pointsDelta: basePoints,
+        pointsDelta: pointsEarned,
         orderId,
-        description: `POS order #${orderNumber ?? orderId.slice(0, 8)}${tierNote}`,
+        description: `POS order #${orderNumber ?? orderId.slice(0, 8)} — fixed rewards earning`,
       });
-
-      // Birthday bonus — explicit type:'birthday_bonus' transaction (separate from earn)
-      if (birthdayBonusVerified && birthdayBonusPoints > 0) {
-        await db.update(customerProfilesTable)
-          .set({
-            loyaltyPoints: sql`${customerProfilesTable.loyaltyPoints} + ${birthdayBonusPoints}`,
-            updatedAt: new Date(),
-          })
-          .where(eq(customerProfilesTable.userId, customerId));
-        await db.insert(loyaltyTransactionsTable).values({
-          id: randomUUID(),
-          userId: customerId,
-          points: birthdayBonusPoints,
-          type: 'birthday_bonus',
-          description: `🎂 Birthday bonus for order #${orderNumber ?? orderId.slice(0, 8)} (${birthdayBonusMultiplier}×)`,
-          referenceId: orderId,
-        });
-      }
+      await refreshCustomerAnnualLoyaltyTier(customerId);
 
       const newBalance = (profile.loyaltyPoints ?? 0) + pointsEarned;
       const detectedCoffeeStampCount = items.reduce((sum: number, item: any) => {
@@ -1918,6 +1876,11 @@ router.post('/orders/:id/refund', async (req, res) => {
     } catch (err: any) {
       req.log.error({ err, orderId: id }, 'POS refund: coffee stamp reversal failed');
     }
+    try {
+      await refreshCustomerAnnualLoyaltyTier(String(order.user_id));
+    } catch (err: any) {
+      req.log.error({ err, orderId: id }, 'POS refund: annual tier refresh failed');
+    }
   }
 
   const refundSession = await getOrCreateCurrentRegisterSession(req.user!.id);
@@ -2373,6 +2336,11 @@ router.patch('/orders/:id/void', async (req, res) => {
       }
     } catch (err: any) {
       req.log.error({ err, orderId: id }, 'POS void: coffee stamp reversal failed');
+    }
+    try {
+      await refreshCustomerAnnualLoyaltyTier(String(row.user_id));
+    } catch (err: any) {
+      req.log.error({ err, orderId: id }, 'POS void: annual tier refresh failed');
     }
   }
 

@@ -9,6 +9,16 @@ import {
 } from '@workspace/db';
 
 export const LOYALTY_POINT_VALUE_CENTS = 5;
+export const LOYALTY_POINTS_PER_100_DOLLARS = 80;
+export const LOYALTY_ELIGIBLE_SPEND_BLOCK_CENTS = 10_000;
+
+/** Every eligible $100 earns 80 points, worth $4 at five cents per point. */
+export function calculateLoyaltyPointsForEligibleSpend(spendCents: number): number {
+  return Math.floor(
+    Math.max(0, Math.floor(Number(spendCents) || 0)) /
+    LOYALTY_ELIGIBLE_SPEND_BLOCK_CENTS,
+  ) * LOYALTY_POINTS_PER_100_DOLLARS;
+}
 
 export type LoyaltyTierKey = 'blue' | 'silver' | 'gold' | 'black';
 
@@ -80,6 +90,8 @@ export async function ensureLoyaltySchemaReady() {
           // Extended profile columns that may be absent in older production DBs
           `ALTER TABLE customer_profiles ADD COLUMN IF NOT EXISTS total_visits integer NOT NULL DEFAULT 0`,
           `ALTER TABLE customer_profiles ADD COLUMN IF NOT EXISTS total_spent_cents integer NOT NULL DEFAULT 0`,
+           `ALTER TABLE customer_profiles ADD COLUMN IF NOT EXISTS annual_tier_spend_cents integer NOT NULL DEFAULT 0`,
+           `ALTER TABLE orders ADD COLUMN IF NOT EXISTS tier_eligible_spend_cents integer`,
           `ALTER TABLE customer_profiles ADD COLUMN IF NOT EXISTS delivery_address text`,
           `ALTER TABLE customer_profiles ADD COLUMN IF NOT EXISTS email_marketing_opt_in boolean NOT NULL DEFAULT false`,
           `ALTER TABLE customer_profiles ADD COLUMN IF NOT EXISTS pay_at_pickup_enabled boolean NOT NULL DEFAULT false`,

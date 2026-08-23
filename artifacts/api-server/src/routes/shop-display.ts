@@ -24,6 +24,7 @@ import { and, asc, count, desc, eq, gte, ilike, inArray, isNull, lte, or, sql, s
 import { requireRole } from '../middlewares/auth.js';
 import { notifyUser } from '../lib/notificationService.js';
 import { applyCoffeeStamps, recordLoyaltyPoints, reverseCoffeeStamps } from '../lib/loyaltyIdentity.js';
+import { refreshCustomerAnnualLoyaltyTier } from '../lib/loyaltyTierSettings.js';
 import { recordAuditLog } from '../lib/auditLog.js';
 import { ensureShopDisplaySchemaReady } from '../lib/ensureShopDisplaySchemaReady.js';
 import { countCoffeeItemsFromOrderItems, getOutstandingCoffeeStampsForOrder, hasAwardedCoffeeStampsForOrder } from '../lib/orderLoyaltyUtils.js';
@@ -270,6 +271,7 @@ router.patch('/orders/:id/status', async (req, res) => {
     .returning();
 
   if (!updated) return res.status(404).json({ error: 'Order not found.' });
+  await refreshCustomerAnnualLoyaltyTier(updated.userId);
 
   const msg = getShopDisplayStatusAlert(status, existing.type, existing.scheduledFor);
   if (msg) {

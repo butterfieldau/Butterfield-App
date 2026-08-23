@@ -208,6 +208,7 @@ export function CheckoutCombinedStep(props: CheckoutCombinedStepProps) {
   const claimedRewards         = claimedRewardsData?.data ?? [];
   const savedPaymentMethods    = savedMethodsData?.data ?? [];
   const availableLoyaltyPoints = loyaltyProfileData?.data?.loyaltyPoints ?? 0;
+  const annualTierSpendCents   = loyaltyProfileData?.data?.annualTierSpendCents ?? 0;
 
   const freeCoffeeRewards = (loyaltyProfileData?.data?.freeCoffeeRewards ?? 0) || (loyaltyProfileData?.data?.freeCoffeesEarned ?? 0);
   const { items: cartItemsWithPrices } = useCart();
@@ -823,13 +824,19 @@ export function CheckoutCombinedStep(props: CheckoutCombinedStepProps) {
 
         {/* Points row */}
         <View style={{ padding: 14 }}>
+          <View style={{ flexDirection: 'row', gap: 8, marginBottom: 10 }}>
+            <Feather name="award" size={15} color={BLUE} />
+            <Text style={{ flex: 1, fontSize: 11, lineHeight: 16, color: MUTED }}>
+              Membership tier progress: AUD {(annualTierSpendCents / 100).toFixed(2)} from qualifying orders in the past 12 months. Using points does not reduce this.
+            </Text>
+          </View>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
             <View style={[s.rewardIcon, usePoints && { backgroundColor: '#EFF9FF', borderColor: BLUE }]}>
               <Feather name="star" size={17} color={usePoints ? BLUE : MUTED} />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={s.rewardTitle}>{availableLoyaltyPoints} points available</Text>
-              <Text style={s.rewardSub}>Worth AUD {(availableLoyaltyPoints * LOYALTY_POINT_VALUE_CENTS / 100).toFixed(2)} · 1 pt = AUD 0.01</Text>
+              <Text style={s.rewardSub}>Worth AUD {(availableLoyaltyPoints * LOYALTY_POINT_VALUE_CENTS / 100).toFixed(2)} · 1 pt = AUD {(LOYALTY_POINT_VALUE_CENTS / 100).toFixed(2)}</Text>
             </View>
             {!usePoints ? (
               <Pressable onPress={() => { setUsePoints(true); Haptics.selectionAsync(); }} style={s.useBtn}>

@@ -1963,6 +1963,9 @@ export interface LoyaltyProfile {
   freeCoffeeRewards?: number;
   totalVisits: number;
   totalSpentCents: number;
+  /** Eligible spend in the rolling previous 12 months, used only for membership tiering. */
+  annualTierSpendCents?: number;
+  annualTierWindowStart?: string;
   referralCode: string;
   loyaltyQrToken?: string | null;
   qrPayload?: string | null;

@@ -31,7 +31,6 @@ import { CustomerQrModal } from '@/components/CustomerQrModal';
 import { CoffeeStampToken } from '@/components/CoffeeStampIcon';
 import { useAuth } from '@/context/AuthContext';
 import { LoggedOutAccountPrompt } from '@/components/LoggedOutAccountPrompt';
-import { getTierBySpendCents } from '@/constants/tierConfig';
 import {
   type DisplayTier, type DisplayTierKey,
   DISPLAY_TIERS, REWARD_PRESETS,
@@ -115,7 +114,7 @@ function LoyaltyContent() {
 
   const profile      = profileData?.data;
   const points       = profile?.loyaltyPoints ?? 0;
-  const spendCents   = profile?.totalSpentCents ?? 0;
+  const annualTierSpendCents = profile?.annualTierSpendCents ?? 0;
   const stampCount   = profile?.stampCount ?? 0;
   const stampGoal    = (profile as any)?.stampGoal ?? 6;
   // Extend stampScaleAnims to match stampGoal. Existing Animated.Value instances
@@ -125,10 +124,10 @@ function LoyaltyContent() {
   }
   const freeCoffeeRewards = profile?.freeCoffeeRewards ?? 0;
   const tierSettings = profileData?.data?.loyaltyTierSettings ?? null;
-  const displayTier  = getDisplayTierByServerTier(getTierBySpendCents(spendCents, tierSettings)?.key);
-  const nextTier     = getNextDisplayTier(spendCents, tierSettings);
-  const nextServerTier = nextTier ? getNextTierBySpend(spendCents, tierSettings) : null;
-  const spendRemaining  = nextServerTier ? Math.max(0, nextServerTier.spendThreshold - spendCents) : 0;
+  const displayTier  = getDisplayTierByServerTier(profile?.loyaltyTier);
+  const nextTier     = getNextDisplayTier(annualTierSpendCents, tierSettings);
+  const nextServerTier = nextTier ? getNextTierBySpend(annualTierSpendCents, tierSettings) : null;
+  const spendRemaining  = nextServerTier ? Math.max(0, nextServerTier.spendThreshold - annualTierSpendCents) : 0;
   const autoGrantedRewards: string[] = (profile as any)?.autoGrantedRewards ?? [];
 
   const claimedRewards: ClaimedReward[] = useMemo(() => {
@@ -156,9 +155,9 @@ function LoyaltyContent() {
 
   useEffect(() => {
     if (!profile) return;
-    const target = nextServerTier ? Math.min(spendCents / nextServerTier.spendThreshold, 1) : 1;
+    const target = nextServerTier ? Math.min(annualTierSpendCents / nextServerTier.spendThreshold, 1) : 1;
     Animated.timing(progressAnim, { toValue: target, duration: 1200, easing: Easing.out(Easing.cubic), useNativeDriver: false }).start();
-  }, [spendCents, nextServerTier, progressAnim, profile]);
+  }, [annualTierSpendCents, nextServerTier, progressAnim, profile]);
 
   useEffect(() => {
     if (prevFreeCoffeeRef.current !== null && freeCoffeeRewards > prevFreeCoffeeRef.current) {
@@ -342,11 +341,12 @@ function LoyaltyContent() {
               <View style={styles.cardProgressWrap}>
                 <View style={styles.cardSpendMetaRow}>
                   <Text style={styles.cardSpendMetaText}>{nextTier ? `${formatCurrency(spendRemaining)} until ${nextTier.label}` : 'Top tier unlocked'}</Text>
-                  <Text style={styles.cardSpendMetaText}>{nextTier ? `${formatCurrency(spendCents)} / ${formatCurrency(nextTier.spendThreshold)} spent` : `${formatCurrency(spendCents)} spent`}</Text>
+                  <Text style={styles.cardSpendMetaText}>{nextTier ? `${formatCurrency(annualTierSpendCents)} / ${formatCurrency(nextTier.spendThreshold)}` : formatCurrency(annualTierSpendCents)}</Text>
                 </View>
                 <View style={styles.cardProgressTrack}>
                   <Animated.View style={[styles.cardProgressFill, { width: animatedWidth }]} />
                 </View>
+                <Text style={styles.cardAnnualSpendHint}>Annual tier spend · qualifying orders from the past 12 months</Text>
               </View>
             </LinearGradient>
           </View>
@@ -480,7 +480,7 @@ function LoyaltyContent() {
               <View style={styles.emptyCard}>
                 <View style={styles.emptyIconWrap}><Feather name="coffee" size={20} color={BRAND} /></View>
                 <Text style={styles.emptyTitle}>Your next reward is brewing.</Text>
-                <Text style={styles.emptyBody}>{nextTier ? `You're ${formatCurrency(spendRemaining)} away from ${nextTier.label}.` : 'Keep ordering to unlock Butterfield perks.'}</Text>
+                <Text style={styles.emptyBody}>{nextTier ? `You're ${formatCurrency(spendRemaining)} away from ${nextTier.label}, based on qualifying orders from the last 12 months.` : 'Your annual qualifying spend has unlocked every Butterfield tier.'}</Text>
               </View>
             )}
           </View>
@@ -610,6 +610,7 @@ const styles = StyleSheet.create({
   cardSpendMetaText:{ color: 'rgba(255,255,255,0.7)', fontSize: 11, fontWeight: '500' },
   cardProgressTrack:{ height: 5, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.2)', overflow: 'hidden' },
   cardProgressFill: { height: 5, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.9)' },
+  cardAnnualSpendHint: { marginTop: 8, color: 'rgba(255,255,255,0.76)', fontSize: 10, fontWeight: '500' },
   // Coffee club
   coffeeClubCard:   { borderRadius: 20, overflow: 'hidden', padding: 16, gap: 12 },
   coffeeClubHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },

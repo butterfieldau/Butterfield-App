@@ -12,7 +12,7 @@ import {
   parseLoyaltyQrPayload,
   recordLoyaltyPoints,
 } from '../lib/loyaltyIdentity.js';
-import { computeLoyaltyTierFromSpend, getLoyaltyTierSettings } from '../lib/loyaltyTierSettings.js';
+import { getLoyaltyTierSettings, refreshCustomerAnnualLoyaltyTier } from '../lib/loyaltyTierSettings.js';
 import { sydneyDateParts } from '../lib/sydneyTime.js';
 import { BIRTHDAY_COOKIE_REWARD_ID } from '../lib/birthdayRewardSeeder.js';
 
@@ -28,8 +28,9 @@ router.get('/profile', requireAuth, async (req, res) => {
   await ensureLoyaltySchemaReady();
   const profile = await getOrCreateCustomerLoyaltyProfile(req.user!.id, req.user!.name);
 
-  // Always recompute tier from totalSpentCents so it is the single source of truth.
-  const correctTier = await computeLoyaltyTierFromSpend(profile.totalSpentCents);
+  // Tiers are based on qualifying spend in the rolling previous 12 months,
+  // never on the points wallet or lifetime analytics total.
+  const annualTier = await refreshCustomerAnnualLoyaltyTier(req.user!.id);
   const loyaltyTierSettings = await getLoyaltyTierSettings();
 
   // ── Birthday cookie auto-grant ─────────────────────────────────────────────
@@ -139,10 +140,10 @@ router.get('/profile', requireAuth, async (req, res) => {
   }
   // ─────────────────────────────────────────────────────────────────────────
 
-  if (correctTier !== profile.loyaltyTier) {
-    await db.update(customerProfilesTable)
-      .set({ loyaltyTier: correctTier })
-      .where(eq(customerProfilesTable.userId, req.user!.id));
+  if (
+    annualTier.loyaltyTier !== profile.loyaltyTier ||
+    annualTier.annualTierSpendCents !== profile.annualTierSpendCents
+  ) {
     const recentActivity = await db.select().from(loyaltyActivityLogTable)
       .where(eq(loyaltyActivityLogTable.customerId, req.user!.id))
       .orderBy(desc(loyaltyActivityLogTable.createdAt))
@@ -153,7 +154,9 @@ router.get('/profile', requireAuth, async (req, res) => {
         userId: req.user!.id,
         customerName: req.user!.name ?? 'Customer',
         customerEmail: req.user!.email ?? '',
-        loyaltyTier: correctTier,
+        loyaltyTier: annualTier.loyaltyTier,
+        annualTierSpendCents: annualTier.annualTierSpendCents,
+        annualTierWindowStart: annualTier.windowStart,
         coffeeStampCount: profile.coffeeStampCount ?? profile.stampCount ?? 0,
         freeCoffeeRewards: profile.freeCoffeeRewards ?? profile.freeCoffeesEarned ?? 0,
         stampGoal: Number(profile.coffeeStampGoal ?? 6),
@@ -177,6 +180,9 @@ router.get('/profile', requireAuth, async (req, res) => {
   return res.json({
     data: {
       ...profile,
+      loyaltyTier: annualTier.loyaltyTier,
+      annualTierSpendCents: annualTier.annualTierSpendCents,
+      annualTierWindowStart: annualTier.windowStart,
       userId: req.user!.id,
       customerName: req.user!.name ?? 'Customer',
       customerEmail: req.user!.email ?? '',
@@ -418,6 +424,7 @@ router.post('/redeem', requireAuth, async (req, res) => {
   }
 
   const profile = await getOrCreateCustomerLoyaltyProfile(req.user!.id, req.user!.name);
+  const annualTier = await refreshCustomerAnnualLoyaltyTier(req.user!.id);
   if (profile.loyaltyPoints < reward.pointsCost) {
     return res.status(400).json({ error: 'Not enough points' });
   }
@@ -432,7 +439,7 @@ router.post('/redeem', requireAuth, async (req, res) => {
   if (reward.tierRestriction) {
     try {
       const allowedTiers: string[] = JSON.parse(reward.tierRestriction);
-      const customerTier = profile.loyaltyTier ?? 'blue';
+      const customerTier = annualTier.loyaltyTier;
       if (allowedTiers.length > 0 && !allowedTiers.includes(customerTier)) {
         const tierLabels: Record<string, string> = { blue: 'Blue', silver: 'Silver', gold: 'Gold', black: 'Black' };
         return res.status(403).json({

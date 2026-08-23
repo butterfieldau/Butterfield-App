@@ -3,6 +3,7 @@ import { and, eq, inArray, sql } from 'drizzle-orm';
 import { computeOrderTotal, type OrderItemInput, type PaymentMethod } from './orderPricing.js';
 import { validateDiscountCode } from './discountUtils.js';
 import { LOYALTY_POINT_VALUE_CENTS } from './loyaltyIdentity.js';
+import { refreshCustomerAnnualLoyaltyTier } from './loyaltyTierSettings.js';
 import { getRetailDeliverySettings } from './retailDelivery.js';
 
 export type RetailCheckoutItem = OrderItemInput & {
@@ -125,11 +126,7 @@ export async function prepareRetailCheckout(input: RetailCheckoutPreparationInpu
       try {
         const allowedTiers: string[] = JSON.parse(rewardRow.tierRestriction);
         if (allowedTiers.length > 0) {
-          const [customerProfile] = await db
-            .select({ loyaltyTier: customerProfilesTable.loyaltyTier })
-            .from(customerProfilesTable)
-            .where(eq(customerProfilesTable.userId, input.userId));
-          const customerTier = customerProfile?.loyaltyTier ?? 'blue';
+          const { loyaltyTier: customerTier } = await refreshCustomerAnnualLoyaltyTier(input.userId);
           if (!allowedTiers.includes(customerTier)) {
             throw new Error(`This reward is only available for ${allowedTiers.join(' / ')} tier members`);
           }

@@ -17,6 +17,7 @@ export const customerProfilesTable = pgTable("customer_profiles", {
   freeCoffeeRewards: integer("free_coffee_rewards").notNull().default(0),
   totalVisits: integer("total_visits").notNull().default(0),
   totalSpentCents: integer("total_spent_cents").notNull().default(0),
+  annualTierSpendCents: integer("annual_tier_spend_cents").notNull().default(0),
   deliveryAddress: text("delivery_address"),
   preferredStoreId: text("preferred_store_id"),
   emailMarketingOptIn: boolean("email_marketing_opt_in").notNull().default(false),

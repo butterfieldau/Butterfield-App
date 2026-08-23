@@ -24,6 +24,7 @@ import { recordAuditLog } from '../lib/auditLog.js';
 import { ensureShopDisplaySchemaReady } from '../lib/ensureShopDisplaySchemaReady.js';
 import { normalizeTaskListCompletion } from '../lib/taskReset.js';
 import { recordLoyaltyPoints, reverseCoffeeStamps } from '../lib/loyaltyIdentity.js';
+import { refreshCustomerAnnualLoyaltyTier } from '../lib/loyaltyTierSettings.js';
 import { getOutstandingCoffeeStampsForOrder } from '../lib/orderLoyaltyUtils.js';
 import { refundOrderStripePayment, refundStripePaymentIntentAmount, refundWholesaleOrderStripePayment } from '../lib/stripeRefunds.js';
 import { getAllowedNextStatuses, getStatusMessage, TERMINAL_STATUSES } from '../lib/orderStatusTransitions.js';
@@ -941,6 +942,7 @@ router.post('/pos/transactions/:id/void', async (req, res) => {
     .set({ status: 'voided' as any, updatedAt: new Date() })
     .where(eq(ordersTable.id, id))
     .returning();
+  await refreshCustomerAnnualLoyaltyTier(order.userId);
 
   await recordAuditLog({
     actor: req.user,
@@ -1003,6 +1005,7 @@ router.post('/pos/transactions/:id/unvoid', async (req, res) => {
     .set({ status: priorStatus as any, updatedAt: new Date() })
     .where(eq(ordersTable.id, id))
     .returning();
+  await refreshCustomerAnnualLoyaltyTier(order.userId);
 
   await recordAuditLog({
     actor: req.user,
@@ -1081,6 +1084,7 @@ router.post('/pos/transactions/:id/refund', async (req, res) => {
     .set({ status: 'refunded' as any, notes: combinedNotes, updatedAt: new Date() })
     .where(eq(ordersTable.id, id))
     .returning();
+  await refreshCustomerAnnualLoyaltyTier(order.userId);
 
   await recordAuditLog({
     actor: req.user,
@@ -1214,6 +1218,7 @@ router.patch('/orders/:id/status', async (req, res) => {
       setFields.cancelReason = String(cancelReason).trim();
     }
     const [updated] = await db.update(ordersTable).set(setFields).where(eq(ordersTable.id, id)).returning();
+    if (updated) await refreshCustomerAnnualLoyaltyTier(customerOrder.userId);
     const msg = getStatusMessage(status, customerOrder.type, customerOrder.scheduledFor ?? null);
     if (msg) {
       notifyUser(customerOrder.userId, 'order_status', 'Butterfield Cookies', msg,
@@ -5562,6 +5567,7 @@ router.patch('/orders/:id/modify-items', async (req, res) => {
         modificationTotalDeltaCents: null,
         updatedAt: new Date(),
       }).where(eq(ordersTable.id, id));
+      await refreshCustomerAnnualLoyaltyTier(current.userId);
 
       // Refund if paid
       try {

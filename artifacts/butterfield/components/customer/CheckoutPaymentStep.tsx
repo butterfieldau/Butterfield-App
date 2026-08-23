@@ -218,6 +218,7 @@ export function PaymentStepWithStripe({
   const claimedRewards: ClaimedReward[] = claimedRewardsData?.data ?? [];
   const savedPaymentMethods = savedMethodsData?.data ?? [];
   const availableLoyaltyPoints = loyaltyProfileData?.data?.loyaltyPoints ?? 0;
+  const annualTierSpendCents = loyaltyProfileData?.data?.annualTierSpendCents ?? 0;
   const [pointsToUseInput, setPointsToUseInput] = useState('');
 
   // Keep ref in sync for cleanup on unmount
@@ -932,6 +933,12 @@ export function PaymentStepWithStripe({
 
       <Text style={[psStyles.sectionTitle, { marginTop: 8 }]}>Use Rewards</Text>
       <View style={psStyles.pointsCard}>
+        <View style={{ flexDirection: 'row', gap: 8, marginBottom: 10 }}>
+          <Feather name="award" size={15} color={BLUE} />
+          <Text style={{ flex: 1, fontSize: 11, lineHeight: 16, color: MUTED }}>
+            Membership tier progress: AUD {(annualTierSpendCents / 100).toFixed(2)} from qualifying orders in the past 12 months. Using points does not reduce this.
+          </Text>
+        </View>
         {availableLoyaltyPoints === 0 && freeCoffeeRewards === 0 ? (
           <View style={psStyles.pointsEmptyPrompt}>
             <Feather name="star" size={18} color={BLUE} />

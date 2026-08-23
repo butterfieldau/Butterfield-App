@@ -5,9 +5,9 @@ import { eq, desc, sql, and, inArray, isNull } from 'drizzle-orm';
 import { requireAuth, requireRole } from '../middlewares/auth.js';
 import { sendNotification, notifyUser } from '../lib/notificationService.js';
 import { sendEmail, buildOrderConfirmationEmail, buildOrderReceiptEmail } from '../lib/emailService.js';
-import { applyCoffeeStamps, getOrCreateCustomerLoyaltyProfile, LOYALTY_POINT_VALUE_CENTS, recordLoyaltyPoints, reverseCoffeeStamps } from '../lib/loyaltyIdentity.js';
+import { applyCoffeeStamps, calculateLoyaltyPointsForEligibleSpend, ensureLoyaltySchemaReady, getOrCreateCustomerLoyaltyProfile, recordLoyaltyPoints, reverseCoffeeStamps } from '../lib/loyaltyIdentity.js';
 import { countCoffeeItemsFromOrderItems, getOutstandingCoffeeStampsForOrder, hasAwardedCoffeeStampsForOrder } from '../lib/orderLoyaltyUtils.js';
-import { computeLoyaltyTierFromSpend } from '../lib/loyaltyTierSettings.js';
+import { refreshCustomerAnnualLoyaltyTier } from '../lib/loyaltyTierSettings.js';
 import { prepareRetailCheckout } from '../lib/retailCheckout.js';
 import { ensureStoreConfigSchemaReady } from '../lib/ensureStoreConfigSchemaReady.js';
 import { refundOrderStripePayment, refundStripePaymentIntentAmount } from '../lib/stripeRefunds.js';
@@ -77,6 +77,7 @@ router.get('/:id', async (req, res) => {
 
 router.post('/', async (req, res) => {
   await ensureStoreConfigSchemaReady();
+  await ensureLoyaltySchemaReady();
   const {
     items: rawItems, type, scheduledFor, notes, stripePaymentIntentId, loyaltyPointsUsed,
     deliveryAddress, deliveryPostcode, deliveryState, paymentMethod,
@@ -116,6 +117,7 @@ router.post('/', async (req, res) => {
   let claimedRewardData: { id: string; rewardType: string; rewardName: string; linkedProductId: string | null; voucherValueCents: number | null } | null = null;
   let authorativeTotalCents = 0;
   let authorativeDiscountCents = 0;
+  let tierEligibleSpendCents = 0;
   let computed: any;
   let resolvedOrderType: 'pickup' | 'delivery' | 'table' = type === 'delivery' ? 'delivery' : type === 'table' ? 'table' : 'pickup';
   let resolvedPaymentMethod: 'card' | 'pay_at_pickup' = paymentMethod === 'pay_at_pickup' ? 'pay_at_pickup' : 'card';
@@ -155,6 +157,12 @@ router.post('/', async (req, res) => {
       markClaimAppliedToCart: false,
       useFreeCoffeeReward: useFreeCoffeeReward === true,
     }));
+    // Qualifying spend is the gross catalog subtotal, excluding delivery and
+    // payment fees. Reward-funded free items remain qualifying purchases.
+    tierEligibleSpendCents = Math.max(
+      0,
+      computed.subtotalCents + freeCoffeeDiscountCents + birthdayCookieDiscountCents,
+    );
   } catch (err: any) {
     return res.status(400).json({ error: err.message ?? 'Could not compute order total' });
   }
@@ -308,7 +316,7 @@ router.post('/', async (req, res) => {
   // Both must succeed together: if the claim is already consumed, the order is rolled back.
   const orderId = randomUUID();
   const orderNumber = await generateOrderNumber();
-  const pointsEarned = Math.floor(authorativeTotalCents / 125);
+  const pointsEarned = calculateLoyaltyPointsForEligibleSpend(tierEligibleSpendCents);
   let order!: typeof ordersTable.$inferSelect;
   const isPaid = stripePaymentStatus === 'paid' || stripePaymentStatus === 'free' || stripePaymentStatus === 'pay_at_pickup';
 
@@ -341,6 +349,7 @@ router.post('/', async (req, res) => {
         loyaltyPointsEarned: isPaid ? pointsEarned : 0,
         loyaltyPointsUsed: isPaid ? claimedLoyaltyPoints : 0,
         discountCents: authorativeDiscountCents,
+        tierEligibleSpendCents,
         discountCode: validatedDiscountCode,
         discountCodeId: validatedDiscountCodeId,
         paymentMethodType: paymentMethodType as string ?? null,
@@ -422,22 +431,29 @@ router.post('/', async (req, res) => {
     try {
       const profile = await getOrCreateCustomerLoyaltyProfile(req.user!.id, req.user!.name);
       if (profile) {
-        const newSpent = profile.totalSpentCents + authorativeTotalCents;
-        const newTier = await computeLoyaltyTierFromSpend(newSpent);
         await db.update(customerProfilesTable).set({
-          totalSpentCents: newSpent,
-          loyaltyTier: newTier,
+          totalSpentCents: profile.totalSpentCents + authorativeTotalCents,
           totalVisits: profile.totalVisits + 1,
           updatedAt: new Date(),
         }).where(eq(customerProfilesTable.userId, req.user!.id));
 
+        // Earning and spending are distinct wallet transactions. Neither changes
+        // annual tier qualification, which is rebuilt from eligible orders below.
         await recordLoyaltyPoints({
           userId: req.user!.id,
-          pointsDelta: pointsEarned - claimedLoyaltyPoints,
+          pointsDelta: pointsEarned,
           orderId,
-          description: `Order #${orderId.slice(0, 8)}`,
+          description: `Order #${orderId.slice(0, 8)} — fixed rewards earning`,
         });
-
+        if (claimedLoyaltyPoints > 0) {
+          await recordLoyaltyPoints({
+            userId: req.user!.id,
+            pointsDelta: -claimedLoyaltyPoints,
+            orderId,
+            description: `Order #${orderId.slice(0, 8)} — points redeemed`,
+          });
+        }
+        await refreshCustomerAnnualLoyaltyTier(req.user!.id);
       }
     } catch (err: any) {
       req.log.error({ err, orderId }, 'Post-order loyalty update failed');
@@ -706,6 +722,18 @@ router.patch(
           req.log.error({ err, orderId: order.id }, 'Failed to reverse loyalty points on order cancellation');
         }
       }
+      if (order.loyaltyPointsUsed > 0) {
+        try {
+          await recordLoyaltyPoints({
+            userId: order.userId,
+            pointsDelta: order.loyaltyPointsUsed,
+            orderId: order.id,
+            description: `Order ${status} — redeemed points restored`,
+          });
+        } catch (err: any) {
+          req.log.error({ err, orderId: order.id }, 'Failed to restore redeemed points on order cancellation');
+        }
+      }
 
       try {
         // Only reverse stamps if the order was previously completed — stamps are
@@ -740,6 +768,11 @@ router.patch(
         });
       } catch (err: any) {
         req.log.warn({ err, orderId: order.id }, 'Stripe refund failed or skipped on order cancellation');
+      }
+      try {
+        await refreshCustomerAnnualLoyaltyTier(order.userId);
+      } catch (err: any) {
+        req.log.error({ err, orderId: order.id }, 'Failed to refresh annual tier after order cancellation');
       }
     }
 
@@ -776,6 +809,15 @@ router.post(
     const newTotalCents = Array.isArray(modifiedItems)
       ? (modifiedItems as any[]).reduce((sum: number, i: any) => sum + (Number(i.lineCents ?? i.totalPriceCents ?? 0)), 0)
       : order.totalCents;
+    // Approved changes replace the basket used for annual tier qualification.
+    // These stored item totals are server-repriced product values and exclude
+    // delivery/payment fees just like initial checkout qualification.
+    const finalTierEligibleSpendCents = Array.isArray(modifiedItems)
+      ? Math.max(0, (modifiedItems as any[]).reduce(
+        (sum: number, item: any) => sum + Number(item.lineCents ?? item.totalPriceCents ?? 0),
+        0,
+      ))
+      : (order.tierEligibleSpendCents ?? order.totalCents);
 
     const deltaCents: number = order.modificationTotalDeltaCents ?? 0;
 
@@ -797,6 +839,7 @@ router.post(
     const [updated] = await db.update(ordersTable).set({
       items: modifiedItems as any,
       totalCents: newTotalCents,
+      tierEligibleSpendCents: finalTierEligibleSpendCents,
       status: revertStatus as any,
       originalItems: null,
       modifiedItems: null,
@@ -805,6 +848,7 @@ router.post(
       modificationTotalDeltaCents: null,
       updatedAt: new Date(),
     }).where(eq(ordersTable.id, id)).returning();
+    await refreshCustomerAnnualLoyaltyTier(order.userId);
 
     // Notify staff
     notifyRole(
@@ -844,6 +888,7 @@ router.post(
       modificationTotalDeltaCents: null,
       updatedAt: new Date(),
     }).where(eq(ordersTable.id, id)).returning();
+    await refreshCustomerAnnualLoyaltyTier(order.userId);
 
     // Issue full Stripe refund
     try {

@@ -36,6 +36,9 @@ export const ordersTable = pgTable("orders", {
   loyaltyPointsEarned: integer("loyalty_points_earned").notNull().default(0),
   loyaltyPointsUsed: integer("loyalty_points_used").notNull().default(0),
   discountCents: integer("discount_cents").notNull().default(0),
+  // Gross eligible product value captured at checkout. This is intentionally
+  // independent of redeemed rewards, payment fees, and the final tendered total.
+  tierEligibleSpendCents: integer("tier_eligible_spend_cents"),
   discountCode: text("discount_code"),
   discountCodeId: text("discount_code_id"),
   processedByUserId: text("processed_by_user_id"),

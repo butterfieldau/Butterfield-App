@@ -1,5 +1,5 @@
-import { db, storeSettingsTable } from '@workspace/db';
-import { eq } from 'drizzle-orm';
+import { db, customerProfilesTable, storeSettingsTable } from '@workspace/db';
+import { eq, sql } from 'drizzle-orm';
 
 export type LoyaltyTierKey = 'blue' | 'silver' | 'gold' | 'black';
 
@@ -191,4 +191,67 @@ export async function computeLoyaltyTierFromSpend(totalSpentCents: number): Prom
 
 export function normalizeStoredLoyaltyTier(input: string | null | undefined): LoyaltyTierKey {
   return normalizeTierKey(input);
+}
+
+export const ANNUAL_TIER_EXCLUDED_ORDER_STATUSES = ['cancelled', 'refunded', 'voided'] as const;
+
+export function getAnnualTierWindowStart(asOf = new Date()): Date {
+  const start = new Date(asOf);
+  start.setUTCFullYear(start.getUTCFullYear() - 1);
+  return start;
+}
+
+export function isOrderEligibleForAnnualTier(status: string | null | undefined): boolean {
+  return !ANNUAL_TIER_EXCLUDED_ORDER_STATUSES.includes(
+    String(status ?? '').toLowerCase() as typeof ANNUAL_TIER_EXCLUDED_ORDER_STATUSES[number],
+  );
+}
+
+export function getTierEligibleSpendForOrder(input: {
+  tierEligibleSpendCents?: number | null;
+  totalCents: number;
+  surchargeCents?: number | null;
+  loyaltyPointsUsed?: number | null;
+}): number {
+  // New orders persist their gross eligible product value. The fallback lets
+  // existing annual history retain point redemptions while excluding POS fees.
+  if (input.tierEligibleSpendCents != null) {
+    return Math.max(0, Number(input.tierEligibleSpendCents));
+  }
+  return Math.max(
+    0,
+    Number(input.totalCents ?? 0) -
+      Number(input.surchargeCents ?? 0) +
+      Number(input.loyaltyPointsUsed ?? 0) * 5,
+  );
+}
+
+/**
+ * Rebuild a member's current tier from qualifying app and attached POS orders.
+ * Lifetime profile spend remains intentionally untouched for reporting.
+ */
+export async function refreshCustomerAnnualLoyaltyTier(userId: string, asOf = new Date()) {
+  const windowStart = getAnnualTierWindowStart(asOf);
+  type SpendResult = { rows?: Array<{ annual_tier_spend_cents?: number | string }> };
+  const result = await db.execute(
+    sql`SELECT COALESCE(SUM(
+          COALESCE(
+            tier_eligible_spend_cents,
+            GREATEST(0, total_cents - COALESCE(surcharge_cents, 0) + COALESCE(loyalty_points_used, 0) * 5)
+          )
+        ), 0)::int AS annual_tier_spend_cents
+        FROM orders
+        WHERE user_id = ${userId}
+          AND created_at >= ${windowStart}
+          AND created_at <= ${asOf}
+          AND status NOT IN ('cancelled', 'refunded', 'voided')`,
+  ) as unknown as SpendResult;
+  const annualTierSpendCents = Math.max(0, Number(result.rows?.[0]?.annual_tier_spend_cents ?? 0));
+  const loyaltyTier = await computeLoyaltyTierFromSpend(annualTierSpendCents);
+
+  await db.update(customerProfilesTable)
+    .set({ annualTierSpendCents, loyaltyTier, updatedAt: asOf })
+    .where(eq(customerProfilesTable.userId, userId));
+
+  return { annualTierSpendCents, loyaltyTier, windowStart, asOf };
 }
