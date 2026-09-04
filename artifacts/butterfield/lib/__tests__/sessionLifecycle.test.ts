@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const stores = vi.hoisted(() => ({
   async: new Map<string, string>(),
@@ -178,6 +179,52 @@ describe('renewable session lifecycle', () => {
 
     await expect(getToken()).resolves.toBe('expired-access');
     await expect(getRefreshToken()).resolves.toBe('refresh-1');
+  });
+
+  it('retries with the retained credential after a refresh response is lost', async () => {
+    await saveSessionCredentials('expired-access', 'refresh-1', USER.id);
+    const fetchMock = vi.spyOn(globalThis, 'fetch')
+      .mockRejectedValueOnce(new TypeError('Network request failed'))
+      .mockResolvedValueOnce(json({ token: 'access-2', refreshToken: 'refresh-2', user: USER }));
+
+    await expect(api.auth.refresh()).rejects.toThrow('Network request failed');
+    await expect(getToken()).resolves.toBe('expired-access');
+    await expect(getRefreshToken()).resolves.toBe('refresh-1');
+
+    await expect(api.auth.refresh()).resolves.toMatchObject({
+      token: 'access-2',
+      refreshToken: 'refresh-2',
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    await expect(getRefreshToken()).resolves.toBe('refresh-2');
+  });
+
+  it('does not expose a new access token when successor refresh storage fails', async () => {
+    await saveSessionCredentials('expired-access', 'refresh-1', USER.id);
+    vi.mocked(AsyncStorage.setItem).mockImplementation(async (key: string, value: string) => {
+      if (value === 'refresh-2') throw new Error('secure storage unavailable');
+      stores.async.set(key, value);
+    });
+    vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(json({ token: 'access-2', refreshToken: 'refresh-2', user: USER }));
+
+    await expect(api.auth.refresh()).rejects.toThrow('secure storage unavailable');
+    await expect(getToken()).resolves.toBe('expired-access');
+    await expect(getRefreshToken()).resolves.toBe('refresh-1');
+  });
+
+  it('keeps the stored successor refresh when access-token storage fails', async () => {
+    await saveSessionCredentials('expired-access', 'refresh-1', USER.id);
+    vi.mocked(AsyncStorage.setItem).mockImplementation(async (key: string, value: string) => {
+      if (value === 'access-2') throw new Error('access storage unavailable');
+      stores.async.set(key, value);
+    });
+    vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(json({ token: 'access-2', refreshToken: 'refresh-2', user: USER }));
+
+    await expect(api.auth.refresh()).rejects.toThrow('access storage unavailable');
+    await expect(getToken()).resolves.toBe('expired-access');
+    await expect(getRefreshToken()).resolves.toBe('refresh-2');
   });
 
   it('sends the current refresh credential when logging out', async () => {

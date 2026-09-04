@@ -19,3 +19,4 @@
 - [Expo SecureStore web shim](expo-securestore-web-shim.md) — the module may import on web but still fail at runtime; platform-guard every credential operation.
 - [Access token versioning](access-token-versioning.md) — mutable claims cannot revoke JWTs safely; use a monotonic per-account session version.
 - [Development auth schema drift](development-auth-schema-drift.md) — verify auth schema readiness before debugging protected routes or claiming end-to-end results.
+- [Refresh-family serialization](refresh-family-serialization.md) — rotation and every family revocation must share one family-level transaction lock.

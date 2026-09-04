@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import bcrypt from 'bcryptjs';
-import { createHash, randomBytes, randomInt, randomUUID } from 'crypto';
+import { createHash, createHmac, randomBytes, randomInt, randomUUID } from 'crypto';
 import jwt from 'jsonwebtoken';
 import { db, usersTable, customerProfilesTable, staffProfilesTable, wholesaleAccountsTable, managerProfilesTable, passwordResetTokensTable, storesTable, storeOpeningHoursTable, loyaltyTransactionsTable, favouritesTable, staffStoreAssignmentsTable, staffInviteTokensTable, storeSettingsTable, loginHistoryTable, mobileSessionsTable } from '@workspace/db';
 import { eq, and, lt, isNull, sql } from 'drizzle-orm';
@@ -19,6 +19,7 @@ import { sydneyDateParts } from '../lib/sydneyTime.js';
 
 const DEMO_EMAILS = ['customer@demo.com', 'staff@demo.com', 'wholesale@demo.com', 'director@demo.com', 'manager@demo.com', 'loyalty9@demo.com'];
 const REFRESH_SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+const REFRESH_RECOVERY_WINDOW_MS = 5 * 60 * 1000;
 let mobileSessionSchemaReady: Promise<void> | null = null;
 
 function getCoffeeStampGoalForNewUser(): number {
@@ -38,6 +39,15 @@ function digestRefreshToken(token: string): string {
 
 function newRefreshToken(): string {
   return randomBytes(48).toString('base64url');
+}
+
+function successorRefreshToken(predecessorToken: string, successorSessionId: string): string {
+  return createHmac('sha384', getSessionSecret())
+    .update('mobile-refresh-successor-v1\0')
+    .update(successorSessionId)
+    .update('\0')
+    .update(predecessorToken)
+    .digest('base64url');
 }
 
 async function issueSessionCredentials(user: SessionUser): Promise<{ token: string; refreshToken: string }> {
@@ -100,11 +110,17 @@ async function ensureMobileSessionSchemaReady(): Promise<void> {
           token_digest text NOT NULL UNIQUE,
           expires_at timestamptz NOT NULL,
           revoked_at timestamptz,
+          revocation_reason text,
+          successor_session_id text,
+          recovery_expires_at timestamptz,
           created_at timestamptz NOT NULL DEFAULT now(),
           last_used_at timestamptz
         )
       `);
       await db.execute(sql`ALTER TABLE mobile_sessions ADD COLUMN IF NOT EXISTS family_id text`);
+      await db.execute(sql`ALTER TABLE mobile_sessions ADD COLUMN IF NOT EXISTS revocation_reason text`);
+      await db.execute(sql`ALTER TABLE mobile_sessions ADD COLUMN IF NOT EXISTS successor_session_id text`);
+      await db.execute(sql`ALTER TABLE mobile_sessions ADD COLUMN IF NOT EXISTS recovery_expires_at timestamptz`);
       await db.execute(sql`UPDATE mobile_sessions SET family_id = id WHERE family_id IS NULL`);
       await db.execute(sql`ALTER TABLE mobile_sessions ALTER COLUMN family_id SET NOT NULL`);
       await db.execute(sql`CREATE UNIQUE INDEX IF NOT EXISTS mobile_sessions_token_digest_idx ON mobile_sessions(token_digest)`);
@@ -495,81 +511,124 @@ router.post('/refresh', refreshRateLimit, async (req, res) => {
     return res.status(400).json({ error: 'Refresh credential is required.', code: 'REFRESH_REQUIRED' });
   }
 
-  const now = new Date();
   const digest = digestRefreshToken(refreshToken);
-  const [existingSession] = await db.select().from(mobileSessionsTable)
-    .where(and(
-      eq(mobileSessionsTable.tokenDigest, digest),
-      isNull(mobileSessionsTable.revokedAt),
-    ));
-
-  if (!existingSession || existingSession.expiresAt <= now) {
-    if (existingSession) {
-      await db.update(mobileSessionsTable)
-        .set({ revokedAt: now, lastUsedAt: now })
-        .where(and(eq(mobileSessionsTable.id, existingSession.id), isNull(mobileSessionsTable.revokedAt)));
+  const result = await db.transaction(async (tx) => {
+    const familyLookup = await tx.execute<{ family_id: string }>(
+      sql`SELECT family_id FROM mobile_sessions WHERE token_digest = ${digest}`,
+    );
+    const familyId = familyLookup.rows[0]?.family_id;
+    if (!familyId) {
+      return { kind: 'rejected' as const, status: 401, code: 'SESSION_INVALID', reason: 'not_found' };
     }
-    return res.status(401).json({ error: 'Session has expired or been revoked.', code: 'SESSION_INVALID' });
-  }
+    // Every rotation and family revocation takes this lock before any session
+    // row lock. This prevents a concurrent successor rotation from escaping a
+    // logout, account rejection, or out-of-window replay revocation.
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${familyId}, 743921))`);
+    const locked = await tx.execute<{
+      id: string; family_id: string; user_id: string; expires_at: Date;
+      revoked_at: Date | null; revocation_reason: string | null;
+      successor_session_id: string | null; recovery_expires_at: Date | null;
+    }>(sql`SELECT id, family_id, user_id, expires_at, revoked_at, revocation_reason,
+                 successor_session_id, recovery_expires_at
+          FROM mobile_sessions WHERE token_digest = ${digest} FOR UPDATE`);
+    const session = locked.rows[0];
+    const now = new Date();
+    if (!session) return { kind: 'rejected' as const, status: 401, code: 'SESSION_INVALID', reason: 'not_found' };
 
-  const [user] = await db.select().from(usersTable).where(eq(usersTable.id, existingSession.userId));
-  if (!user) {
-    await db.update(mobileSessionsTable)
-      .set({ revokedAt: now, lastUsedAt: now })
-      .where(and(eq(mobileSessionsTable.id, existingSession.id), isNull(mobileSessionsTable.revokedAt)));
-    return res.status(401).json({ error: 'Session has expired or been revoked.', code: 'SESSION_INVALID' });
-  }
+    const [user] = await tx.select().from(usersTable).where(eq(usersTable.id, session.user_id));
+    if (!user) {
+      await tx.update(mobileSessionsTable).set({ revokedAt: now, lastUsedAt: now, revocationReason: 'user_missing' })
+        .where(eq(mobileSessionsTable.familyId, session.family_id));
+      return { kind: 'rejected' as const, status: 401, code: 'SESSION_INVALID', reason: 'user_missing' };
+    }
+    const accountError = accountSessionError(user);
+    if (accountError) {
+      await tx.update(mobileSessionsTable).set({ revokedAt: now, lastUsedAt: now, revocationReason: 'account_rejected' })
+        .where(eq(mobileSessionsTable.familyId, session.family_id));
+      return { kind: 'rejected' as const, status: 403, ...accountError, reason: accountError.code.toLowerCase() };
+    }
+    if (user.role === 'wholesale') {
+      const [wholesaleAccount] = await tx.select().from(wholesaleAccountsTable)
+        .where(eq(wholesaleAccountsTable.userId, user.id));
+      if (!wholesaleAccount || wholesaleAccount.isSuspended) {
+        const code = wholesaleAccount ? 'ACCOUNT_SUSPENDED' : 'PROFILE_MISSING';
+        await tx.update(mobileSessionsTable).set({ revokedAt: now, lastUsedAt: now, revocationReason: 'account_rejected' })
+          .where(eq(mobileSessionsTable.familyId, session.family_id));
+        return { kind: 'rejected' as const, status: 403, code, reason: code.toLowerCase() };
+      }
+    }
 
-  const accountError = accountSessionError(user);
-  if (accountError) {
-    await db.update(mobileSessionsTable)
-      .set({ revokedAt: now, lastUsedAt: now })
-      .where(and(eq(mobileSessionsTable.id, existingSession.id), isNull(mobileSessionsTable.revokedAt)));
-    return res.status(403).json(accountError);
-  }
-
-  if (user.role === 'wholesale') {
-    const [wholesaleAccount] = await db.select().from(wholesaleAccountsTable)
-      .where(eq(wholesaleAccountsTable.userId, user.id));
-    if (!wholesaleAccount || wholesaleAccount.isSuspended) {
-      await db.update(mobileSessionsTable)
-        .set({ revokedAt: now, lastUsedAt: now })
-        .where(and(eq(mobileSessionsTable.id, existingSession.id), isNull(mobileSessionsTable.revokedAt)));
-      return res.status(403).json({
-        error: wholesaleAccount
-          ? 'Your wholesale account has been suspended. Please contact your account manager.'
-          : 'Your wholesale account profile is missing. Please contact us to resolve this.',
-        code: wholesaleAccount ? 'ACCOUNT_SUSPENDED' : 'PROFILE_MISSING',
+    if (!session.revoked_at && new Date(session.expires_at) > now) {
+      const successorId = randomUUID();
+      const nextRefreshToken = successorRefreshToken(refreshToken, successorId);
+      const recoveryExpiresAt = new Date(now.getTime() + REFRESH_RECOVERY_WINDOW_MS);
+      await tx.update(mobileSessionsTable).set({
+        revokedAt: now, lastUsedAt: now, revocationReason: 'rotated',
+        successorSessionId: successorId, recoveryExpiresAt,
+      }).where(eq(mobileSessionsTable.id, session.id));
+      await tx.insert(mobileSessionsTable).values({
+        id: successorId, familyId: session.family_id, userId: user.id,
+        tokenDigest: digestRefreshToken(nextRefreshToken),
+        expiresAt: new Date(now.getTime() + REFRESH_SESSION_TTL_MS),
       });
+      return {
+        kind: 'success' as const,
+        recovery: false,
+        user,
+        refreshToken: nextRefreshToken,
+        accessIssuedAt: Math.floor(now.getTime() / 1000),
+      };
     }
-  }
 
-  const nextRefreshToken = newRefreshToken();
-  const rotated = await db.transaction(async (tx) => {
-    // The conditional update makes a refresh credential single-use even when
-    // two requests race. Only the winner is allowed to create its successor.
-    const [claimed] = await tx.update(mobileSessionsTable)
-      .set({ revokedAt: now, lastUsedAt: now })
-      .where(and(
-        eq(mobileSessionsTable.id, existingSession.id),
+    if (
+      session.revocation_reason === 'rotated' &&
+      session.successor_session_id &&
+      session.recovery_expires_at &&
+      new Date(session.recovery_expires_at) > now
+    ) {
+      const [successor] = await tx.select().from(mobileSessionsTable).where(and(
+        eq(mobileSessionsTable.id, session.successor_session_id),
+        eq(mobileSessionsTable.familyId, session.family_id),
         isNull(mobileSessionsTable.revokedAt),
-      ))
-      .returning({ id: mobileSessionsTable.id });
-    if (!claimed) return false;
+      ));
+      if (successor && successor.expiresAt > now) {
+        return {
+          kind: 'success' as const, recovery: true, user,
+          refreshToken: successorRefreshToken(refreshToken, session.successor_session_id),
+          accessIssuedAt: Math.floor(new Date(session.revoked_at!).getTime() / 1000),
+        };
+      }
+    }
 
-    await tx.insert(mobileSessionsTable).values({
-      id: randomUUID(),
-      familyId: existingSession.familyId,
-      userId: user.id,
-      tokenDigest: digestRefreshToken(nextRefreshToken),
-      expiresAt: new Date(now.getTime() + REFRESH_SESSION_TTL_MS),
-    });
-    return true;
+    if (!session.revoked_at && new Date(session.expires_at) <= now) {
+      await tx.update(mobileSessionsTable).set({ revokedAt: now, lastUsedAt: now, revocationReason: 'expired' })
+        .where(eq(mobileSessionsTable.id, session.id));
+    }
+    if (session.revocation_reason === 'rotated') {
+      await tx.update(mobileSessionsTable).set({
+        revokedAt: now,
+        lastUsedAt: now,
+        revocationReason: 'replay_detected',
+      }).where(eq(mobileSessionsTable.familyId, session.family_id));
+    }
+    return {
+      kind: 'rejected' as const, status: 401, code: 'SESSION_INVALID',
+      reason: session.revocation_reason === 'rotated' ? 'recovery_window_elapsed' : (session.revocation_reason ?? 'expired'),
+    };
   });
 
-  if (!rotated) {
-    return res.status(401).json({ error: 'Session has expired or been revoked.', code: 'SESSION_INVALID' });
+  if (result.kind === 'rejected') {
+    req.log?.warn({ event: 'auth.refresh.rejected', reason: result.reason }, 'Refresh rejected');
+    return res.status(result.status).json({
+      error: result.status === 403 ? 'This account is not available.' : 'Session has expired or been revoked.',
+      code: result.code,
+    });
   }
+  const { user } = result;
+  req.log?.info({
+    event: result.recovery ? 'auth.refresh.recovered' : 'auth.refresh.rotated',
+    reason: result.recovery ? 'eligible_retry' : 'normal_rotation',
+  }, result.recovery ? 'Refresh response recovered' : 'Refresh rotated');
 
   const token = signToken({
     id: user.id,
@@ -577,10 +636,11 @@ router.post('/refresh', refreshRateLimit, async (req, res) => {
     role: user.role,
     name: user.name,
     authVersion: user.authVersion,
+    iat: result.accessIssuedAt,
   });
   return res.json({
     token,
-    refreshToken: nextRefreshToken,
+    refreshToken: result.refreshToken,
     user: { id: user.id, email: user.email, role: user.role, name: user.name },
   });
 });
@@ -592,17 +652,15 @@ router.post('/logout', async (req, res) => {
     const now = new Date();
     const digest = digestRefreshToken(refreshToken);
     await db.transaction(async (tx) => {
-      const locked = await tx.execute<{ family_id: string }>(
-        sql`SELECT family_id FROM mobile_sessions WHERE token_digest = ${digest} FOR UPDATE`,
+      const lookup = await tx.execute<{ family_id: string }>(
+        sql`SELECT family_id FROM mobile_sessions WHERE token_digest = ${digest}`,
       );
-      const familyId = locked.rows[0]?.family_id;
+      const familyId = lookup.rows[0]?.family_id;
       if (!familyId) return;
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${familyId}, 743921))`);
       await tx.update(mobileSessionsTable)
-        .set({ revokedAt: now, lastUsedAt: now })
-        .where(and(
-          eq(mobileSessionsTable.familyId, familyId),
-          isNull(mobileSessionsTable.revokedAt),
-        ));
+        .set({ revokedAt: now, lastUsedAt: now, revocationReason: 'explicit_logout' })
+        .where(eq(mobileSessionsTable.familyId, familyId));
     });
   }
   return res.json({ success: true });

@@ -166,12 +166,13 @@ export async function saveSessionCredentials(
   refreshToken: string,
   userId?: string,
 ): Promise<void> {
-  await Promise.all([
-    AsyncStorage.setItem(TOKEN_KEY, token),
-    setDeviceCredential(REFRESH_TOKEN_KEY, refreshToken, {
-      keychainAccessible: SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY,
-    }),
-  ]);
+  // Persist the renewable credential first. If its write fails, the old access
+  // and refresh pair remains retryable. If the later access-token write fails,
+  // the successor refresh credential is already safe for the next retry.
+  await setDeviceCredential(REFRESH_TOKEN_KEY, refreshToken, {
+    keychainAccessible: SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY,
+  });
+  await AsyncStorage.setItem(TOKEN_KEY, token);
 
   const biometricAccountId = await getBiometricAccountId();
   if (!biometricAccountId) return;

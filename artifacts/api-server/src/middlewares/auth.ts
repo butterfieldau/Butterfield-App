@@ -13,6 +13,7 @@ export interface AuthUser {
 
 export interface AuthTokenPayload extends AuthUser {
   authVersion: number;
+  iat?: number;
 }
 
 declare global {
