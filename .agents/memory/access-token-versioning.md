@@ -25,3 +25,14 @@ out repeatedly because they could not use the new refresh credential.
 **How to apply:** Capability-aware login responses give legacy builds a
 long-lived, version-revocable token while renewal-aware builds use short access
 tokens backed by sliding refresh sessions.
+
+For this app, normal sign-in must survive a fully terminated native process
+without Face ID, Touch ID, or keychain availability being part of restoration.
+
+**Why:** Tying the renewable credential or cold-start flow to biometric storage
+made a successful password session appear signed out after the app was killed.
+
+**How to apply:** Persist both normal session credentials in the app's durable
+storage, migrate older keychain-held refresh credentials once, delay route
+mounting until hydration completes, and reserve credential deletion for explicit
+logout or a conclusive server-side revocation.

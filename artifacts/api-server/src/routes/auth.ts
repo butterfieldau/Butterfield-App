@@ -18,7 +18,7 @@ import { recordAuditLog } from '../lib/auditLog.js';
 import { sydneyDateParts } from '../lib/sydneyTime.js';
 
 const DEMO_EMAILS = ['customer@demo.com', 'staff@demo.com', 'wholesale@demo.com', 'director@demo.com', 'manager@demo.com', 'loyalty9@demo.com'];
-const REFRESH_SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+const REFRESH_SESSION_TTL_MS = 10 * 365 * 24 * 60 * 60 * 1000;
 const REFRESH_RECOVERY_WINDOW_MS = 5 * 60 * 1000;
 const LEGACY_ACCESS_TOKEN_TTL = '3650d';
 let mobileSessionSchemaReady: Promise<void> | null = null;

@@ -1,15 +1,10 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import { Platform } from 'react-native';
 import {
   api,
   clearToken,
-  disableBiometricSignIn,
-  enableBiometricSignIn as storeBiometricSignIn,
-  getBiometricRefreshToken,
   getRefreshToken,
   getToken,
-  isBiometricSignInEnabled,
   logoutCurrentSession,
   refreshAccessToken,
   saveSessionCredentials,
@@ -18,13 +13,7 @@ import {
   type ProfileUpdateResponse,
 } from '@/lib/api';
 import { registerPushToken, deregisterPushToken } from '@/lib/pushNotifications';
-import { attemptBiometricAuthentication, hasUsableBiometrics } from '@/lib/biometricAuth';
 import type { UserRole } from '@/types';
-
-let LocalAuthentication: typeof import('expo-local-authentication') | null = null;
-if (Platform.OS !== 'web') {
-  try { LocalAuthentication = require('expo-local-authentication'); } catch {}
-}
 
 export interface AuthContextUser {
   id: string;
@@ -52,10 +41,6 @@ interface AuthContextValue {
   wholesaleApply: (data: { email: string; password: string; name: string; phone: string; companyName: string; abn?: string; deliveryAddress: string; howDidYouHear?: string }) => Promise<{ success: boolean; message?: string; error?: string }>;
   socialLogin: (data: { provider: 'google'; idToken: string } | { provider: 'apple'; idToken: string }) => Promise<{ success: boolean; error?: string }>;
   updateAuthenticatedUser: (response: ProfileUpdateResponse) => Promise<void>;
-  biometricSignInAvailable: boolean;
-  canUseBiometricSignIn: () => Promise<boolean>;
-  enableBiometricSignIn: () => Promise<{ success: boolean; error?: string }>;
-  biometricLogin: () => Promise<{ success: boolean; error?: string; cancelled?: boolean; role?: UserRole }>;
   logout: () => Promise<void>;
 }
 
@@ -65,7 +50,6 @@ const USER_KEY = '@butterfield_user';
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthContextUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [biometricSignInAvailable, setBiometricSignInAvailable] = useState(false);
 
   const cacheAuthenticatedUser = useCallback(async (res: AuthSessionResponse): Promise<AuthContextUser> => {
     await saveSessionCredentials(res.token, res.refreshToken, res.user.id);
@@ -102,29 +86,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => setSessionInvalidHandler(async () => {
     await AsyncStorage.removeItem(USER_KEY);
     setUser(null);
-    setBiometricSignInAvailable(false);
   }), []);
-
-  const canUseBiometricSignIn = useCallback(async (): Promise<boolean> => {
-    return hasUsableBiometrics(Platform.OS, LocalAuthentication);
-  }, []);
-
-  useEffect(() => {
-    isBiometricSignInEnabled()
-      .then(setBiometricSignInAvailable)
-      .catch(() => setBiometricSignInAvailable(false));
-  }, []);
 
   // Restore session on app launch
   useEffect(() => {
     (async () => {
       try {
-        const biometricConfigured = await isBiometricSignInEnabled();
-        const biometricEnabled = biometricConfigured && await canUseBiometricSignIn();
-        if (biometricConfigured && !biometricEnabled) {
-          await disableBiometricSignIn();
-        }
-        setBiometricSignInAvailable(biometricEnabled);
         let token = await getToken();
         const refreshToken = await getRefreshToken();
         if (!token && refreshToken) {
@@ -259,71 +226,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [cacheAuthenticatedUser]);
 
-  const enableBiometricSignIn = useCallback(async () => {
-    let authenticatedUser = user;
-    if (!authenticatedUser) {
-      try {
-        const cached = await AsyncStorage.getItem(USER_KEY);
-        authenticatedUser = cached ? JSON.parse(cached) as AuthContextUser : null;
-      } catch {
-        authenticatedUser = null;
-      }
-    }
-    if (!authenticatedUser) return { success: false, error: 'Sign in before enabling biometric access.' };
-    if (!(await canUseBiometricSignIn()) || !LocalAuthentication) {
-      return { success: false, error: 'Face ID or Touch ID is not available on this device.' };
-    }
-    const refreshToken = await getRefreshToken();
-    if (!refreshToken) return { success: false, error: 'No renewable session is available.' };
-
-    try {
-      const authentication = await attemptBiometricAuthentication(LocalAuthentication, 'Enable biometric sign-in');
-      if (authentication !== 'success') return { success: false };
-      await storeBiometricSignIn(refreshToken, authenticatedUser.id);
-      setBiometricSignInAvailable(true);
-      return { success: true };
-    } catch {
-      return { success: false, error: 'Biometric sign-in could not be enabled.' };
-    }
-  }, [canUseBiometricSignIn, user]);
-
-  const biometricLogin = useCallback(async () => {
-    if (!(await canUseBiometricSignIn()) || !LocalAuthentication) {
-      return { success: false, error: 'Face ID or Touch ID is not available. Use your password instead.' };
-    }
-    try {
-      const authentication = await attemptBiometricAuthentication(LocalAuthentication, 'Sign in to Butterfield');
-      if (authentication === 'cancelled') return { success: false, cancelled: true };
-      if (authentication !== 'success') {
-        return { success: false, error: 'Biometric sign-in failed. Use your password instead.' };
-      }
-
-      const biometricRefreshToken = await getBiometricRefreshToken();
-      if (!biometricRefreshToken) {
-        await disableBiometricSignIn();
-        setBiometricSignInAvailable(false);
-        return { success: false, error: 'Biometric sign-in is unavailable. Use your password instead.' };
-      }
-
-      const res = await api.auth.refresh(biometricRefreshToken);
-      const authenticatedUser = await cacheAuthenticatedUser(res);
-      setBiometricSignInAvailable(true);
-      return { success: true, role: authenticatedUser.role };
-    } catch (error: any) {
-      return { success: false, error: error?.message ?? 'Biometric sign-in failed. Use your password instead.' };
-    }
-  }, [cacheAuthenticatedUser, canUseBiometricSignIn]);
-
   const logout = useCallback(async () => {
     // Best-effort: deregister push token before clearing session
     const token = await getToken();
     if (token) deregisterPushToken(token).catch(() => {});
     await logoutCurrentSession().catch(() => {});
     await clearToken();
-    await disableBiometricSignIn();
     await AsyncStorage.removeItem(USER_KEY);
     setUser(null);
-    setBiometricSignInAvailable(false);
     // Vault session is in-memory only — cleared implicitly when user state resets.
     // VaultContext will lock on next auth check since vaultToken is not persisted.
   }, []);
@@ -338,10 +248,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       wholesaleApply,
       socialLogin,
       updateAuthenticatedUser,
-      biometricSignInAvailable,
-      canUseBiometricSignIn,
-      enableBiometricSignIn,
-      biometricLogin,
       logout,
     }),
     [
@@ -353,15 +259,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       wholesaleApply,
       socialLogin,
       updateAuthenticatedUser,
-      biometricSignInAvailable,
-      canUseBiometricSignIn,
-      enableBiometricSignIn,
-      biometricLogin,
       logout,
     ],
   );
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  return (
+    <AuthContext.Provider value={value}>
+      {isLoading ? null : children}
+    </AuthContext.Provider>
+  );
 }
 
 export function useAuth() {

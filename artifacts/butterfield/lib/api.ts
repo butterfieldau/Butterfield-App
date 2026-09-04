@@ -112,8 +112,16 @@ export async function clearAccessToken(): Promise<void> {
   return AsyncStorage.removeItem(TOKEN_KEY);
 }
 export async function getRefreshToken(): Promise<string | null> {
+  const persistedToken = await AsyncStorage.getItem(REFRESH_TOKEN_KEY);
+  if (persistedToken) return persistedToken;
+
+  // One-time migration for sessions created by builds that stored the normal
+  // refresh credential in SecureStore. New sessions use AsyncStorage so a
+  // standard sign-in survives a fully terminated app without keychain gating.
   try {
-    return await getDeviceCredential(REFRESH_TOKEN_KEY);
+    const legacyToken = await getDeviceCredential(REFRESH_TOKEN_KEY);
+    if (legacyToken) await AsyncStorage.setItem(REFRESH_TOKEN_KEY, legacyToken);
+    return legacyToken;
   } catch {
     return null;
   }
@@ -169,9 +177,7 @@ export async function saveSessionCredentials(
   // Persist the renewable credential first. If its write fails, the old access
   // and refresh pair remains retryable. If the later access-token write fails,
   // the successor refresh credential is already safe for the next retry.
-  await setDeviceCredential(REFRESH_TOKEN_KEY, refreshToken, {
-    keychainAccessible: SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY,
-  });
+  await AsyncStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
   await AsyncStorage.setItem(TOKEN_KEY, token);
 
   const biometricAccountId = await getBiometricAccountId();
@@ -195,7 +201,7 @@ export async function saveSessionCredentials(
 export async function clearToken(): Promise<void> {
   await Promise.all([
     AsyncStorage.removeItem(TOKEN_KEY),
-    deleteDeviceCredential(REFRESH_TOKEN_KEY).catch(() => {}),
+    AsyncStorage.removeItem(REFRESH_TOKEN_KEY),
     disableBiometricSignIn(),
   ]);
 }
