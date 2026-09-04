@@ -4,7 +4,7 @@ import { createHash, createHmac, randomBytes, randomInt, randomUUID } from 'cryp
 import jwt from 'jsonwebtoken';
 import { db, usersTable, customerProfilesTable, staffProfilesTable, wholesaleAccountsTable, managerProfilesTable, passwordResetTokensTable, storesTable, storeOpeningHoursTable, loyaltyTransactionsTable, favouritesTable, staffStoreAssignmentsTable, staffInviteTokensTable, storeSettingsTable, loginHistoryTable, mobileSessionsTable } from '@workspace/db';
 import { eq, and, lt, isNull, sql } from 'drizzle-orm';
-import { signToken, requireAuth, getSessionSecret } from '../middlewares/auth.js';
+import { signToken, requireAuth, getSessionSecret, ACCESS_TOKEN_TTL } from '../middlewares/auth.js';
 import {
   sendEmail, buildPasswordResetEmail, buildCustomerWelcomeEmail,
   buildWholesaleApplicationReceivedEmail, buildLoginAlertEmail, getLogoUrl,
@@ -20,6 +20,7 @@ import { sydneyDateParts } from '../lib/sydneyTime.js';
 const DEMO_EMAILS = ['customer@demo.com', 'staff@demo.com', 'wholesale@demo.com', 'director@demo.com', 'manager@demo.com', 'loyalty9@demo.com'];
 const REFRESH_SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const REFRESH_RECOVERY_WINDOW_MS = 5 * 60 * 1000;
+const LEGACY_ACCESS_TOKEN_TTL = '3650d';
 let mobileSessionSchemaReady: Promise<void> | null = null;
 
 function getCoffeeStampGoalForNewUser(): number {
@@ -50,7 +51,14 @@ function successorRefreshToken(predecessorToken: string, successorSessionId: str
     .digest('base64url');
 }
 
-async function issueSessionCredentials(user: SessionUser): Promise<{ token: string; refreshToken: string }> {
+function accessTokenTtlForRequest(req: { get(name: string): string | undefined }) {
+  return req.get('X-Session-Renewal') === '1' ? ACCESS_TOKEN_TTL : LEGACY_ACCESS_TOKEN_TTL;
+}
+
+async function issueSessionCredentials(
+  user: SessionUser,
+  accessTokenTtl: Parameters<typeof signToken>[1] = ACCESS_TOKEN_TTL,
+): Promise<{ token: string; refreshToken: string }> {
   await ensureMobileSessionSchemaReady();
   const refreshToken = newRefreshToken();
   const sessionId = randomUUID();
@@ -68,7 +76,7 @@ async function issueSessionCredentials(user: SessionUser): Promise<{ token: stri
       role: user.role,
       name: user.name,
       authVersion: user.authVersion,
-    }),
+    }, accessTokenTtl),
     refreshToken,
   };
 }
@@ -334,7 +342,7 @@ router.post('/register', async (req, res) => {
     role: 'customer',
     name,
     authVersion: 0,
-  });
+  }, accessTokenTtlForRequest(req));
 
   // Fire-and-forget welcome confirmation email — never blocks registration.
   sendEmail({
@@ -418,7 +426,7 @@ router.post('/login', loginRateLimit, async (req, res) => {
   recordLoginHistory({ userId: user.id, email: user.email, role: user.role, success: true, req });
   recordAuditLog({ actor: { id: user.id, email: user.email, role: user.role, name: user.name ?? '' }, action: 'auth.login', entityType: 'user', entityId: user.id }).catch(() => {});
   sendLoginAlertEmail({ email: user.email, name: user.name, role: user.role, req });
-  const credentials = await issueSessionCredentials(sessionUser(user));
+  const credentials = await issueSessionCredentials(sessionUser(user), accessTokenTtlForRequest(req));
   return res.json({ token: credentials.token, refreshToken: credentials.refreshToken, user: { id: user.id, email: user.email, role: user.role, name: user.name } });
 });
 
@@ -500,7 +508,7 @@ router.post('/staff-login', loginRateLimit, async (req, res) => {
   if (user.role !== 'shop_display') {
     sendLoginAlertEmail({ email: user.email, name: user.name, role: user.role, req });
   }
-  const credentials = await issueSessionCredentials(sessionUser(user));
+  const credentials = await issueSessionCredentials(sessionUser(user), accessTokenTtlForRequest(req));
   return res.json({ token: credentials.token, refreshToken: credentials.refreshToken, user: { id: user.id, email: user.email, role: user.role, name: user.name } });
 });
 
@@ -1232,7 +1240,7 @@ router.post('/social', async (req, res) => {
     return;
   }
   await getOrCreateCustomerLoyaltyProfile(user.id, user.name);
-  const credentials = await issueSessionCredentials(sessionUser(user));
+  const credentials = await issueSessionCredentials(sessionUser(user), accessTokenTtlForRequest(req));
   return res.json({ token: credentials.token, refreshToken: credentials.refreshToken, user: { id: user.id, email: user.email, role: user.role, name: user.name } });
 });
 

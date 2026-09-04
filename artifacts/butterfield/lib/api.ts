@@ -296,6 +296,7 @@ async function request<T>(path: string, options: RequestInit = {}, mayRefresh = 
   const token = await getToken();
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
+    'X-Session-Renewal': '1',
     ...(options.headers as Record<string, string>),
   };
   if (token) headers['Authorization'] = `Bearer ${token}`;
