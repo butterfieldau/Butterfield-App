@@ -3,7 +3,6 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useS
 import { Platform } from 'react-native';
 import {
   api,
-  clearAccessToken,
   clearToken,
   disableBiometricSignIn,
   enableBiometricSignIn as storeBiometricSignIn,
@@ -126,15 +125,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           await disableBiometricSignIn();
         }
         setBiometricSignInAvailable(biometricEnabled);
-        if (biometricEnabled) {
-          // Biometric opt-in deliberately returns to the login screen after a
-          // cold start. Keep the renewable credential, but do not expose an
-          // authenticated bearer token until Face ID / Touch ID succeeds.
-          await clearAccessToken();
-          setUser(null);
-          return;
-        }
-
         let token = await getToken();
         const refreshToken = await getRefreshToken();
         if (!token && refreshToken) {
