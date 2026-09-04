@@ -144,6 +144,12 @@ export interface OfflineOrderPayload {
   surchargeCents?: number;
   splitPayments?: { method: string; amountCents: number }[];
   customerId?: string;
+  customerDetails?: {
+    firstName: string;
+    lastName: string;
+    email?: string;
+    inviteConsent: boolean;
+  };
   discountCode?: string;
   discountCodeId?: string;
   manualDiscountPct?: number;

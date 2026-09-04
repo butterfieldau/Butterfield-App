@@ -1,13 +1,13 @@
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import React, { useRef } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, Switch, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import POSCartScannerLayer, { type POSCartScannerLayerRef } from './POSCartScannerLayer';
 import { Swipeable } from 'react-native-gesture-handler';
 import { api } from '@/lib/api';
 import TicketItemRow from './TicketItemRow';
 import styles from './posStyles';
-import { BLUE, CHERRY, MUTED, MID, WHITE, STAMP_GOAL, fmtCents, ticketSubtotal, ticketTotal, isBirthdayMonth } from './types';
+import { BLUE, CHERRY, MUTED, MID, WHITE, STAMP_GOAL, fmtCents, ticketSubtotal, ticketTotal, isBirthdayMonth, customerDetailsName } from './types';
 import type { AppliedDiscount, OrderType, Ticket, TicketItem } from './types';
 
 export default function TicketPanel({
@@ -37,11 +37,15 @@ export default function TicketPanel({
 
   const openSwipeableRef = useRef<Swipeable | null>(null);
   const scannerRef       = useRef<POSCartScannerLayerRef>(null);
+  const lastNameRef      = useRef<TextInput>(null);
+  const emailRef         = useRef<TextInput>(null);
 
   const [codeInput, setCodeInput] = React.useState('');
   const [validating, setValidating] = React.useState(false);
   const [codeError, setCodeError] = React.useState<string | null>(null);
   const [showCodeInput, setShowCodeInput] = React.useState(false);
+  const [showCustomerDetails, setShowCustomerDetails] = React.useState(!!ticket.customerDetails);
+  const [showOrderNotes, setShowOrderNotes] = React.useState(!!ticket.notes);
 
 
   const hasCoffeeItems = ticket.items.some(i => (i.category ?? '').toLowerCase() === 'coffee');
@@ -112,6 +116,24 @@ export default function TicketPanel({
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
   };
 
+  const details = ticket.customerDetails;
+  const updateCustomerDetails = (patch: Partial<NonNullable<Ticket['customerDetails']>>) => {
+    onUpdateTicket({
+      customerDetails: {
+        firstName: details?.firstName ?? '',
+        lastName: details?.lastName ?? '',
+        email: details?.email ?? '',
+        inviteConsent: details?.inviteConsent ?? false,
+        ...patch,
+      },
+    });
+  };
+  const clearCustomerDetails = () => {
+    onUpdateTicket({ customerDetails: undefined });
+    setShowCustomerDetails(false);
+  };
+  const hasCustomerDetails = !!customerDetailsName(details) || !!details?.email;
+
   return (
     <View style={styles.ticketContainer}>
       {/* Customer section */}
@@ -159,6 +181,74 @@ export default function TicketPanel({
         anyModalOpen={anyModalOpen}
       />
 
+      {/* Walk-in details are progressive so quick counter sales remain uncluttered. */}
+      <View style={styles.ticketDetailActions}>
+        <View style={{ flex: 1, flexDirection: 'row', gap: 5 }}>
+          <Pressable
+            testID="pos-customer-details-action"
+            accessibilityRole="button"
+            accessibilityLabel={showCustomerDetails ? 'Collapse customer details' : hasCustomerDetails ? `Edit customer details for ${customerDetailsName(details)}` : 'Add customer details'}
+            onPress={() => setShowCustomerDetails(v => !v)}
+            style={[styles.ticketDetailAction, showCustomerDetails && styles.ticketDetailActionActive]}
+          >
+            <Feather name="user-plus" size={13} color={showCustomerDetails ? BLUE : MID} />
+            <Text style={[styles.ticketDetailActionText, showCustomerDetails && { color: BLUE }]} numberOfLines={1}>
+              {hasCustomerDetails ? customerDetailsName(details) || 'Customer details' : 'Customer details'}
+            </Text>
+            <Feather name={showCustomerDetails ? 'chevron-up' : 'chevron-down'} size={13} color={MUTED} />
+          </Pressable>
+          {hasCustomerDetails && (
+            <Pressable testID="pos-customer-details-clear" accessibilityRole="button" accessibilityLabel="Clear customer details" onPress={clearCustomerDetails} hitSlop={8} style={styles.ticketDetailClearAction}>
+              <Feather name="x" size={14} color={CHERRY} />
+            </Pressable>
+          )}
+        </View>
+        <Pressable
+          testID="pos-order-notes-action"
+          accessibilityRole="button"
+          accessibilityLabel={showOrderNotes ? 'Collapse order notes' : ticket.notes.trim() ? 'Edit order notes' : 'Add order notes'}
+          onPress={() => setShowOrderNotes(v => !v)}
+          style={[styles.ticketDetailAction, showOrderNotes && styles.ticketDetailActionActive]}
+        >
+          <Feather name="file-text" size={13} color={showOrderNotes ? BLUE : MID} />
+          <Text style={[styles.ticketDetailActionText, showOrderNotes && { color: BLUE }]}>
+            {ticket.notes.trim() ? 'Order notes added' : 'Order notes'}
+          </Text>
+          <Feather name={showOrderNotes ? 'chevron-up' : 'chevron-down'} size={13} color={MUTED} />
+        </Pressable>
+      </View>
+
+      {showCustomerDetails && (
+        <View style={styles.customerDetailsSection}>
+          <View style={styles.customerDetailsHeading}>
+            <Text style={styles.customerDetailsTitle}>Customer details</Text>
+            {hasCustomerDetails && (
+              <Pressable accessibilityRole="button" accessibilityLabel="Clear customer details" onPress={clearCustomerDetails} hitSlop={8}>
+                <Text style={styles.customerDetailsClear}>Clear</Text>
+              </Pressable>
+            )}
+          </View>
+          <TextInput testID="pos-customer-first-name" accessibilityLabel="Customer first name" style={styles.customerDetailsInput} placeholder="First name" placeholderTextColor={MUTED} value={details?.firstName ?? ''} onChangeText={firstName => updateCustomerDetails({ firstName })} onSubmitEditing={() => lastNameRef.current?.focus()} autoCapitalize="words" returnKeyType="next" blurOnSubmit={false} />
+          {!!details?.firstName.trim() || !!details?.lastName.trim() ? (
+            <TextInput ref={lastNameRef} testID="pos-customer-last-name" accessibilityLabel="Customer last name" style={styles.customerDetailsInput} placeholder="Last name" placeholderTextColor={MUTED} value={details?.lastName ?? ''} onChangeText={lastName => updateCustomerDetails({ lastName })} onSubmitEditing={() => emailRef.current?.focus()} autoCapitalize="words" returnKeyType="next" blurOnSubmit={false} />
+          ) : null}
+          {!!details?.firstName.trim() && !!details?.lastName.trim() && (
+            <>
+              <TextInput ref={emailRef} testID="pos-customer-email" accessibilityLabel="Customer email address" style={styles.customerDetailsInput} placeholder="Email (optional)" placeholderTextColor={MUTED} value={details?.email ?? ''} onChangeText={email => updateCustomerDetails({ email, inviteConsent: email ? details?.inviteConsent ?? false : false })} keyboardType="email-address" autoCapitalize="none" autoCorrect={false} returnKeyType="done" />
+              {!!details?.email.trim() && (
+                <View style={styles.customerInviteRow}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.customerInviteTitle}>Invite to Butterfield Rewards</Text>
+                    <Text style={styles.customerInviteSub}>Only send an invite with their explicit consent.</Text>
+                  </View>
+                  <Switch testID="pos-customer-invite-consent" accessibilityLabel="Consent to invite customer to Butterfield Rewards" value={details?.inviteConsent === true} onValueChange={inviteConsent => updateCustomerDetails({ inviteConsent })} trackColor={{ false: '#CBD5E1', true: '#93C5FD' }} thumbColor={details?.inviteConsent ? BLUE : WHITE} />
+                </View>
+              )}
+            </>
+          )}
+        </View>
+      )}
+
       {/* Order type */}
       <View style={styles.orderTypeRow}>
         {(['counter', 'dine_in', 'takeaway'] as OrderType[]).map(type => (
@@ -175,7 +265,7 @@ export default function TicketPanel({
       </View>
 
       {/* Order note */}
-      <View style={styles.ticketNotesRow}>
+      {showOrderNotes && <View style={styles.ticketNotesRow}>
         <Feather name="file-text" size={13} color={MUTED} style={{ marginTop: 1 }} />
         <TextInput
           style={styles.ticketNotesInput}
@@ -191,7 +281,7 @@ export default function TicketPanel({
             <Feather name="x" size={13} color={MUTED} />
           </Pressable>
         )}
-      </View>
+      </View>}
 
       {/* Items list */}
       <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>

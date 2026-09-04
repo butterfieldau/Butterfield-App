@@ -1465,6 +1465,34 @@ export function buildTableAccountSetupEmail(opts: {
 </html>`;
 }
 
+/** App Store listing used by the existing order-status emails and share page. */
+export const BUTTERFIELD_APP_STORE_URL = 'https://apps.apple.com/au/app/butterfield-cookies/id6748634016';
+
+export function buildPosAppSignupInviteEmail(opts: { firstName: string }): string {
+  const name = opts.firstName.replace(/[&<>"']/g, (char) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+  }[char]!));
+  return `<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#F6F8FB;font-family:Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#F6F8FB;"><tr><td align="center" style="padding:32px 16px;">
+    <table width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;">
+      <tr><td style="background:#12213A;border-radius:24px;padding:28px 32px;">
+        <div style="color:#fff;font-size:28px;font-weight:900;">Butterfield</div>
+        <div style="color:rgba(255,255,255,.65);font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;margin-top:7px;">Cookies · Coffee · Soft Serve</div>
+      </td></tr>
+      <tr><td height="16"></td></tr>
+      <tr><td style="background:#fff;border:1px solid #E4E8F0;border-radius:24px;padding:30px 32px;">
+        <div style="color:#172033;font-size:22px;font-weight:800;">Welcome${name ? `, ${name}` : ''}!</div>
+        <p style="color:#4B5563;font-size:15px;line-height:1.6;margin:16px 0 24px;">Thanks for visiting Butterfield. Download our app to order ahead and enjoy Butterfield rewards.</p>
+        <a href="${BUTTERFIELD_APP_STORE_URL}" style="display:inline-block;background:#12213A;color:#fff;font-size:15px;font-weight:700;text-decoration:none;padding:14px 24px;border-radius:12px;">Download on the App Store</a>
+      </td></tr>
+      <tr><td style="text-align:center;padding:24px 12px 0;color:#7A8496;font-size:12px;line-height:18px;">You received this invitation because you asked for it at Butterfield POS.</td></tr>
+    </table>
+  </td></tr></table>
+</body></html>`;
+}
+
 export function buildPasswordResetEmail(otp: string, name: string): string {
   return `<!DOCTYPE html>
 <html>

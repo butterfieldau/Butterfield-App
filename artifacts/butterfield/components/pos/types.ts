@@ -101,6 +101,14 @@ export interface AttachedCustomer {
   availableClaimedRewards: AttachedCustomerClaimedReward[];
 }
 
+export interface TicketCustomerDetails {
+  firstName: string;
+  lastName: string;
+  email: string;
+  /** Deliberately opt-in only; never infer consent from an email address. */
+  inviteConsent: boolean;
+}
+
 export interface AppliedDiscount {
   type: 'code' | 'pct' | 'free_coffee' | 'claimed_reward';
   code?: string;
@@ -118,6 +126,8 @@ export interface Ticket {
   idempotencyKey: string;
   items: TicketItem[];
   customer: AttachedCustomer | null;
+  /** Walk-in details captured at the register, independent of loyalty attachment. */
+  customerDetails?: TicketCustomerDetails;
   orderType: OrderType;
   notes: string;
   appliedDiscount: AppliedDiscount | null;
@@ -150,7 +160,51 @@ export function fmtTradingDate(yyyymmdd: string): string {
   return `${d}/${m}/${y}`;
 }
 export const uuid = () => Math.random().toString(36).slice(2) + Date.now().toString(36);
-export const blankTicket = (): Ticket => ({ id: uuid(), idempotencyKey: uuid(), items: [], customer: null, orderType: 'counter', notes: '', appliedDiscount: null });
+export const blankTicket = (): Ticket => ({ id: uuid(), idempotencyKey: uuid(), items: [], customer: null, customerDetails: undefined, orderType: 'counter', notes: '', appliedDiscount: null });
+
+export function customerDetailsName(details?: Partial<TicketCustomerDetails>): string {
+  return [details?.firstName?.trim(), details?.lastName?.trim()].filter(Boolean).join(' ');
+}
+
+export function ticketCustomerName(ticket: Ticket): string {
+  // A staff-entered sale contact is the receipt/history identity for this sale;
+  // a loyalty attachment remains available for points and rewards.
+  return customerDetailsName(ticket.customerDetails) || ticket.customer?.name?.trim() || 'Walk-in';
+}
+
+export function validateTicketCustomerDetails(details?: Partial<TicketCustomerDetails>): string | null {
+  if (!details) return null;
+  const firstName = details.firstName?.trim() ?? '';
+  const lastName = details.lastName?.trim() ?? '';
+  const email = details.email?.trim() ?? '';
+  if (!firstName && !lastName && !email) return null;
+  if (!firstName || !lastName) return 'Enter both first and last name, or clear the customer details.';
+  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return 'Enter a valid customer email address.';
+  if (details.inviteConsent && !email) return 'An email address is required before sending a loyalty invitation.';
+  return null;
+}
+
+/** Makes tickets saved before customer-details support safe to resume. */
+export function normalizeHeldTicket(value: Partial<Ticket>): Ticket {
+  const rawDetails = value.customerDetails;
+  const details = rawDetails && typeof rawDetails === 'object'
+    ? {
+      firstName: typeof rawDetails.firstName === 'string' ? rawDetails.firstName : '',
+      lastName: typeof rawDetails.lastName === 'string' ? rawDetails.lastName : '',
+      email: typeof rawDetails.email === 'string' ? rawDetails.email : '',
+      inviteConsent: rawDetails.inviteConsent === true,
+    }
+    : undefined;
+  return {
+    ...blankTicket(),
+    ...value,
+    items: Array.isArray(value.items) ? value.items : [],
+    customer: value.customer ?? null,
+    notes: typeof value.notes === 'string' ? value.notes : '',
+    appliedDiscount: value.appliedDiscount ?? null,
+    customerDetails: details,
+  };
+}
 
 export function isBirthdayMonth(birthday?: string | null): boolean {
   if (!birthday) return false;
@@ -253,6 +307,7 @@ export interface PosOrderVars {
 }
 
 export function buildPosOrderPayload(ticket: Ticket, idempotencyKey: string, vars: PosOrderVars) {
+  const details = ticket.customerDetails;
   return {
     items: buildPosItems(ticket.items),
     coffeeItemCount: ticket.items.filter(i => i.category.toLowerCase() === 'coffee').reduce((sum, i) => sum + (i.quantity ?? 1), 0),
@@ -260,6 +315,14 @@ export function buildPosOrderPayload(ticket: Ticket, idempotencyKey: string, var
     paymentMethod: (vars.paymentMethod === 'split' ? 'eftpos' : vars.paymentMethod) as 'cash' | 'eftpos',
     amountTenderedCents: vars.amountTenderedCents, surchargeCents: vars.surchargeCents, splitPayments: vars.splitPayments, linklySessionId: vars.linklySessionId,
     customerId: ticket.customer?.userId, notes: ticket.notes || undefined,
+    customerDetails: details && customerDetailsName(details)
+      ? {
+        firstName: details.firstName.trim(),
+        lastName: details.lastName.trim(),
+        email: details.email.trim() || undefined,
+        inviteConsent: details.inviteConsent === true,
+      }
+      : undefined,
     discountCode: ticket.appliedDiscount?.type === 'code' ? ticket.appliedDiscount.code : undefined,
     discountCodeId: ticket.appliedDiscount?.type === 'code' ? ticket.appliedDiscount.codeId : undefined,
     manualDiscountPct: ticket.appliedDiscount?.type === 'pct' ? ticket.appliedDiscount.pct : undefined,

@@ -68,7 +68,9 @@ import {
 } from '../lib/loyaltyIdentity.js';
 import { refreshCustomerAnnualLoyaltyTier } from '../lib/loyaltyTierSettings.js';
 import { ensureShopDisplaySchemaReady } from '../lib/ensureShopDisplaySchemaReady.js';
+import { ensureStoreConfigSchemaReady } from '../lib/ensureStoreConfigSchemaReady.js';
 import { validateDiscountCode } from '../lib/discountUtils.js';
+import { normalizePosInviteContact, shouldSendPosSignupInvite } from '../lib/posCustomerInvite.js';
 import { countCoffeeItemsFromOrderItems, getOutstandingCoffeeStampsForOrder } from '../lib/orderLoyaltyUtils.js';
 import { generateOrderNumber } from '../lib/orderNumber.js';
 import { recordAuditLog } from '../lib/auditLog.js';
@@ -230,6 +232,9 @@ async function ensurePosSchemaReady() {
   if (!posSchemaReady) {
     posSchemaReady = (async () => {
       try {
+        // POS reads and writes the shared order contact/store columns, so it
+        // must not rely on another route having initialized them first.
+        await ensureStoreConfigSchemaReady();
         await ensureRegisterSchemaReady();
         await db.execute(sql.raw(
           `ALTER TABLE orders ADD COLUMN IF NOT EXISTS source text NOT NULL DEFAULT 'customer_app'`
@@ -912,7 +917,25 @@ const handleCreatePosOrder: import('express').RequestHandler = async (req, res) 
     birthdayBonus,
     notes,
     idempotencyKey,
+    firstName: rawFirstName,
+    lastName: rawLastName,
+    email: rawEmail,
+    contactFirstName,
+    contactLastName,
+    contactEmail,
+    inviteConsent,
+    customerDetails,
   } = req.body;
+
+  // Accept the POS payload aliases while keeping all persistence and outbound
+  // delivery behind one normalized, bounded representation.
+  const contact = normalizePosInviteContact({
+    firstName: customerDetails?.firstName ?? contactFirstName ?? rawFirstName,
+    lastName: customerDetails?.lastName ?? contactLastName ?? rawLastName,
+    email: customerDetails?.email ?? contactEmail ?? rawEmail,
+    inviteConsent: customerDetails?.inviteConsent ?? inviteConsent,
+  });
+  if (!contact.valid) return res.status(400).json({ error: contact.error });
 
   // ── Idempotency check — return existing order if key already processed ────
   if (idempotencyKey && typeof idempotencyKey === 'string') {
@@ -1239,6 +1262,7 @@ const handleCreatePosOrder: import('express').RequestHandler = async (req, res) 
           stripe_payment_status, source, staff_user_id, payment_method,
           tip_cents, surcharge_cents, split_payments, register_session_id,
           client_idempotency_key, invoice_number,
+          contact_name, contact_email,
           created_at, updated_at
         ) VALUES (
           ${orderId},
@@ -1264,6 +1288,8 @@ const handleCreatePosOrder: import('express').RequestHandler = async (req, res) 
           ${registerSession.id},
           ${idempotencyKey && typeof idempotencyKey === 'string' ? idempotencyKey : null},
           ${invoiceNumber},
+          ${contact.contactName || null},
+          ${contact.email || null},
           now(),
           now()
         )
@@ -1297,6 +1323,45 @@ const handleCreatePosOrder: import('express').RequestHandler = async (req, res) 
         req.log.warn({ err, orderId, sessionId }, 'Failed to attach Linkly session to POS order');
       })),
     );
+  }
+
+  // A signup invitation is non-critical: payment/order completion must never
+  // wait on Resend. The unique client idempotency key makes a successfully
+  // inserted order the at-most-once delivery boundary; retry requests return
+  // above before reaching this point. Existing accounts never receive invites.
+  if (contact.inviteConsent && contact.email && typeof idempotencyKey === 'string' && idempotencyKey.trim()) {
+    void (async () => {
+      try {
+        const [existingCustomer] = await db.select({ id: usersTable.id })
+          .from(usersTable)
+          .where(and(
+            sql`LOWER(${usersTable.email}) = ${contact.email}`,
+            eq(usersTable.role, 'customer'),
+          ))
+          .limit(1);
+        if (!shouldSendPosSignupInvite({
+          orderWasCreated: true,
+          idempotencyKey,
+          inviteConsent: contact.inviteConsent,
+          email: contact.email,
+          hasExistingCustomerAccount: !!existingCustomer,
+        })) return;
+        const { sendEmail, buildPosAppSignupInviteEmail } = await import('../lib/emailService.js');
+        const sent = await sendEmail({
+          to: contact.email,
+          subject: 'Welcome to Butterfield Cookies',
+          html: buildPosAppSignupInviteEmail({ firstName: contact.firstName }),
+        });
+        if (sent.success) {
+          req.log.info({ orderId }, 'POS app signup invite accepted by delivery provider');
+        } else {
+          req.log.warn({ orderId }, 'POS app signup invite was not delivered');
+        }
+      } catch (err) {
+        // Never include the recipient address in logs.
+        req.log.warn({ err, orderId }, 'POS app signup invite failed');
+      }
+    })();
   }
 
   // ── Server-side surcharge reconciliation against Linkly ───────────────────
@@ -1585,7 +1650,7 @@ router.get('/orders', async (req, res) => {
         o.discount_cents,
         o.source,
         o.table_number,
-        u.name  AS customer_name,
+        COALESCE(NULLIF(o.contact_name, ''), u.name, 'Walk-in customer') AS customer_name,
         su.name AS staff_name
       FROM orders o
       LEFT JOIN users u  ON u.id  = o.user_id       AND o.user_id != o.staff_user_id
@@ -2382,7 +2447,7 @@ router.post('/orders/:id/email-invoice', async (req, res) => {
     SELECT
       o.id, o.order_number, o.invoice_number, o.total_cents, o.items, o.payment_method,
       o.surcharge_cents, o.discount_cents,
-      u.name AS customer_name,
+      COALESCE(NULLIF(o.contact_name, ''), u.name, 'Customer') AS customer_name,
       (SELECT SUM(lt2.points) FROM loyalty_transactions lt2
        WHERE lt2.reference_id = o.id AND lt2.type = 'earn') AS loyalty_points_earned
     FROM orders o

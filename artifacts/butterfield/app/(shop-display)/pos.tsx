@@ -33,7 +33,7 @@ import {
   type TicketItem, type Ticket, type ProductDetail,
   type PosCompletedOrder, type PosDiscountPinGate, type PosRegisterApprovalPrompt, type PosOrderVars,
   type AttachedCustomerClaimedReward,
-  fmtCents, uuid, blankTicket,
+  fmtCents, uuid, blankTicket, normalizeHeldTicket, ticketCustomerName, validateTicketCustomerDetails,
   ticketSubtotal, ticketTotal,
   buildPosOrderPayload,
 } from '@/components/pos/types';
@@ -270,7 +270,9 @@ function PosScreenInner() {
         if (Array.isArray(saved.tickets) && saved.tickets.length > 0) {
           const hasContent = saved.tickets.some(t => t.items.length > 0);
           if (hasContent) {
-            setTickets(saved.tickets);
+            // Tickets saved before customer details were introduced are still
+            // resumable; normalize missing/invalid optional state on read.
+            setTickets(saved.tickets.map(normalizeHeldTicket));
             setActiveIdx(typeof saved.activeIdx === 'number' ? Math.min(saved.activeIdx, saved.tickets.length - 1) : 0);
           }
         }
@@ -507,7 +509,7 @@ function PosScreenInner() {
       api.pos.createOrder(buildOrderPayload(vars)),
     onSuccess: (res, vars) => {
       const snapshotItems = activeTicket.items.map(i => ({ name: i.productName, quantity: i.quantity, unitPriceCents: i.unitPriceCents, variantName: i.variantName ?? undefined, options: (i.selectedOptions ?? []).map((o: any) => o.optionName ?? o.textValue ?? '').filter(Boolean) as string[], notes: i.notes?.trim() || undefined }));
-      const snapshotCustomerName = activeTicket.customer?.name ?? 'Walk-in';
+      const snapshotCustomerName = ticketCustomerName(activeTicket);
       const discountAmountCents = activeTicket.appliedDiscount?.amountCents ?? 0;
       const discountLabel = activeTicket.appliedDiscount?.label ?? '';
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -518,7 +520,7 @@ function PosScreenInner() {
       // Prefer the server-reconciled surchargeCents (may be higher than the
       // client value if the Linkly webhook arrived after the SSE stream resolved).
       const reconciledSurchargeCents = res.data.surchargeCents ?? vars.surchargeCents ?? 0;
-      setCompletedOrder({ id: res.data.id, orderNumber: res.data.orderNumber, invoiceNumber: res.data.invoiceNumber ?? `INV-${res.data.id.slice(0, 8).toUpperCase()}`, totalCents: res.data.totalCents, paymentMethod: vars.paymentMethod, amountTenderedCents: vars.amountTenderedCents, surchargeCents: reconciledSurchargeCents, splitPayments: vars.splitPayments, loyaltyResult: res.loyaltyResult, customerName: snapshotCustomerName, customerEmail: activeTicket.customer?.email, ticketItems: snapshotItems, discountAmountCents, discountLabel });
+      setCompletedOrder({ id: res.data.id, orderNumber: res.data.orderNumber, invoiceNumber: res.data.invoiceNumber ?? `INV-${res.data.id.slice(0, 8).toUpperCase()}`, totalCents: res.data.totalCents, paymentMethod: vars.paymentMethod, amountTenderedCents: vars.amountTenderedCents, surchargeCents: reconciledSurchargeCents, splitPayments: vars.splitPayments, loyaltyResult: res.loyaltyResult, customerName: snapshotCustomerName, customerEmail: activeTicket.customer?.email ?? (activeTicket.customerDetails?.email.trim() || undefined), ticketItems: snapshotItems, discountAmountCents, discountLabel });
       setShowPayment(false);
       clearActiveTicket();
       refetchSummary();
@@ -593,15 +595,26 @@ function PosScreenInner() {
     if (!isOnline) {
       const payload = buildOrderPayload(mutateVars);
       const totalCents = ticketTotal(activeTicket);
-      const entry: OfflineQueueEntry = { idempotencyKey: activeIdempotencyKey, queuedAt: new Date().toISOString(), syncStatus: 'pending', payload: payload as any, totalCents, customerName: activeTicket.customer?.name, itemSummary: activeTicket.items.map(i => `${i.quantity}× ${i.productName}`).join(', ').slice(0, 80) };
+      const customerName = ticketCustomerName(activeTicket);
+      const entry: OfflineQueueEntry = { idempotencyKey: activeIdempotencyKey, queuedAt: new Date().toISOString(), syncStatus: 'pending', payload: payload as any, totalCents, customerName: customerName === 'Walk-in' ? undefined : customerName, itemSummary: activeTicket.items.map(i => `${i.quantity}× ${i.productName}`).join(', ').slice(0, 80) };
       enqueueOrder(entry).then(() => {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        setCompletedOrder({ id: 'offline-' + activeIdempotencyKey, orderNumber: 'QUEUED', invoiceNumber: 'INV-OFFLINE', totalCents, paymentMethod: params.method, amountTenderedCents: params.amountTenderedCents, surchargeCents: params.surchargeCents ?? 0, splitPayments: params.splitPayments, loyaltyResult: null, customerName: activeTicket.customer?.name ?? 'Walk-in', customerEmail: activeTicket.customer?.email, ticketItems: activeTicket.items.map(i => ({ name: i.productName, quantity: i.quantity, unitPriceCents: i.unitPriceCents, variantName: i.variantName ?? undefined, options: (i.selectedOptions ?? []).map((o: any) => o.optionName ?? o.textValue ?? '').filter(Boolean) as string[] })), discountAmountCents: activeTicket.appliedDiscount?.amountCents ?? 0, discountLabel: activeTicket.appliedDiscount?.label ?? '' });
+        setCompletedOrder({ id: 'offline-' + activeIdempotencyKey, orderNumber: 'QUEUED', invoiceNumber: 'INV-OFFLINE', totalCents, paymentMethod: params.method, amountTenderedCents: params.amountTenderedCents, surchargeCents: params.surchargeCents ?? 0, splitPayments: params.splitPayments, loyaltyResult: null, customerName, customerEmail: activeTicket.customer?.email ?? (activeTicket.customerDetails?.email.trim() || undefined), ticketItems: activeTicket.items.map(i => ({ name: i.productName, quantity: i.quantity, unitPriceCents: i.unitPriceCents, variantName: i.variantName ?? undefined, options: (i.selectedOptions ?? []).map((o: any) => o.optionName ?? o.textValue ?? '').filter(Boolean) as string[], notes: i.notes?.trim() || undefined })), discountAmountCents: activeTicket.appliedDiscount?.amountCents ?? 0, discountLabel: activeTicket.appliedDiscount?.label ?? '' });
         setShowPayment(false);
         clearActiveTicket();
       });
     } else { createOrderMutation.mutate(mutateVars); }
   }, [isOnline, buildOrderPayload, activeTicket, activeIdempotencyKey, enqueueOrder, createOrderMutation, clearActiveTicket]);
+
+  const openPayment = useCallback(() => {
+    const error = validateTicketCustomerDetails(activeTicket.customerDetails);
+    if (error) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      Alert.alert('Check Customer Details', error);
+      return;
+    }
+    setShowPayment(true);
+  }, [activeTicket.customerDetails]);
 
   const handlePrintReceiptForEftpos = useCallback((sessionId: string, receiptText: string) => {
     if (receiptPrintedRef.current.has(sessionId)) return;
@@ -728,7 +741,7 @@ function PosScreenInner() {
               onClear={clearTicket}
               onHold={tickets.length <= 6 ? holdTicket : undefined}
               onAttachCustomer={() => { setCustomerModalMode('search'); setShowCustomerModal(true); }}
-              onCharge={() => setShowPayment(true)}
+              onCharge={openPayment}
               onEditItem={(item) => { const cached = detailCache[item.productId]; if (cached) setCustomiseData({ product: cached, editItem: item }); }}
               discountPresets={discountPresets}
               attachCustomerToCart={attachCustomerToCart}
